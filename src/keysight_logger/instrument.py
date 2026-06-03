@@ -84,12 +84,43 @@ class VisaInstrument:
         except Exception:
             return "unknown"
 
-    def release_to_local(self) -> None:
-        # Best-effort: return front panel control to local mode.
+    def abort_measurement(self) -> bool:
         try:
-            self.write("SYST:LOC")
+            self.write("ABOR")
+            return True
         except Exception:
-            return
+            return False
+
+    def release_to_local(self) -> str:
+        if self._inst is None:
+            return "not_connected"
+
+        results: list[str] = []
+        try:
+            self._inst.timeout = min(int(getattr(self._inst, "timeout", 1000)), 1000)
+        except Exception:
+            pass
+
+        for command in ("ABOR", "SYST:LOC"):
+            try:
+                self.write(command)
+                results.append(f"{command}:ok")
+            except Exception as exc:
+                results.append(f"{command}:failed:{type(exc).__name__}")
+
+        control_ren = getattr(self._inst, "control_ren", None)
+        if callable(control_ren):
+            for mode in (6, 0):
+                try:
+                    control_ren(mode)
+                    results.append(f"control_ren({mode}):ok")
+                    break
+                except Exception as exc:
+                    results.append(f"control_ren({mode}):failed:{type(exc).__name__}")
+        else:
+            results.append("control_ren:unavailable")
+
+        return ", ".join(results)
 
     @property
     def resource_id(self) -> str:

@@ -128,12 +128,6 @@ def cmd_start(args: argparse.Namespace) -> int:
     )
     instrument = VisaInstrument(iconfig)
     router = TriggerRouter()
-    server = SoftwareTriggerAdapter(
-        router,
-        port=args.sw_trigger_port,
-        min_interval_ms=args.sw_min_interval_ms,
-        queue_max=args.sw_queue_max,
-    )
     storage = CsvWriter(Path(args.csv))
     measurement = CurrentMeasurement()
     engine = TriggerAcquisitionEngine(
@@ -154,11 +148,24 @@ def cmd_start(args: argparse.Namespace) -> int:
             print("second interrupt received, forcing shutdown...")
             engine.stop()
             # Best-effort: try to return front panel control before tearing down session.
-            instrument.release_to_local()
+            print(f"release_to_local: {instrument.release_to_local()}")
             instrument.close()
             return
         print("interrupt received, stopping gracefully (press Ctrl+C again to force)...")
         engine.stop()
+
+    def request_stop_from_http() -> None:
+        stop_state["stop"] = True
+        engine.stop()
+        instrument.abort_measurement()
+
+    server = SoftwareTriggerAdapter(
+        router,
+        port=args.sw_trigger_port,
+        min_interval_ms=args.sw_min_interval_ms,
+        queue_max=args.sw_queue_max,
+        stop_cb=request_stop_from_http,
+    )
 
     def handle_sigterm(signum, frame):  # noqa: ARG001
         # Keep SIGTERM support without overriding SIGINT behavior on Windows consoles.
@@ -202,13 +209,13 @@ def cmd_start(args: argparse.Namespace) -> int:
             if worker.is_alive():
                 worker.join(timeout=2)
             if worker.is_alive() or stop_state["force"]:
-                # Force-close VISA session to break blocked queries in worker.
+                print(f"release_to_local before close: {instrument.release_to_local()}")
                 instrument.close()
                 worker.join(timeout=2)
         print(f"captured={engine.stats.captured} errors={engine.stats.errors}")
         return 0
     finally:
-        instrument.release_to_local()
+        print(f"release_to_local: {instrument.release_to_local()}")
         server.stop()
         instrument.close()
 

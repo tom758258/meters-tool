@@ -65,19 +65,24 @@ class TriggerAcquisitionEngine:
         self._emit("recording started")
         try:
             while self._running:
-                ev = self._router.wait(timeout_s=self._config.trigger_timeout_ms / 1000.0)
+                wait_s = self._config.trigger_timeout_ms / 1000.0
+                if hw is not None:
+                    wait_s = min(wait_s, 0.2)
+                ev = self._router.wait(timeout_s=wait_s)
                 if ev is None and hw is not None:
                     try:
                         ev = hw.wait_and_read_triggered(self._config.trigger_timeout_ms)
                     except Exception:
                         self._stats.errors += 1
-                        self._emit("hardware trigger timeout/error")
+                        if self._running:
+                            self._emit("hardware trigger timeout/error")
                         continue
                 if ev is None:
                     self._emit("waiting trigger")
                     continue
                 if ev.metadata.get("control") == "stop":
                     self._emit("stop request received")
+                    self._instrument.abort_measurement()
                     self.stop()
                     continue
                 self._capture(ev)

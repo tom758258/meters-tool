@@ -5,7 +5,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Empty, Queue
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 from .instrument import VisaInstrument
 from .models import TriggerEvent, TriggerSource
@@ -55,12 +55,14 @@ class SoftwareTriggerAdapter:
         port: int = 8765,
         min_interval_ms: int = 0,
         queue_max: int = 0,
+        stop_cb: Optional[Callable[[], None]] = None,
     ) -> None:
         self._router = router
         self._host = host
         self._port = port
         self._min_interval_ms = max(0, int(min_interval_ms))
         self._queue_max = max(0, int(queue_max))
+        self._stop_cb = stop_cb
         self._last_accepted_monotonic = 0.0
         self._guard = threading.Lock()
         self._server: Optional[ThreadingHTTPServer] = None
@@ -80,6 +82,9 @@ class SoftwareTriggerAdapter:
                     )
                     self.send_response(202)
                     self.end_headers()
+                    stop_cb = self.server.adapter._stop_cb  # type: ignore[attr-defined]
+                    if stop_cb is not None:
+                        threading.Thread(target=stop_cb, daemon=True).start()
                     return
                 if self.path != "/trigger":
                     self.send_response(404)
