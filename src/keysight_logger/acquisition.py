@@ -6,7 +6,7 @@ from typing import Callable, Optional
 
 from .instrument import VisaInstrument
 from .measurement import MeasurementPlugin
-from .models import AcquisitionConfig, TriggerEvent
+from .models import AcquisitionConfig, TriggerEvent, TriggerSource
 from .storage import CsvWriter
 from .trigger import HardwareTriggerAdapter, TriggerRouter
 
@@ -96,6 +96,9 @@ class TriggerAcquisitionEngine:
                     self._emit("stop request received")
                     self._abort_measurement()
                     self.stop()
+                    continue
+                if hw is not None and ev.source == TriggerSource.SOFTWARE:
+                    self._emit("software trigger ignored while hardware trigger is enabled")
                     continue
                 self._capture(ev)
         finally:

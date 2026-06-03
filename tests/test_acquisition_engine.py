@@ -44,6 +44,11 @@ class FakeMeasurement:
         )
 
 
+class FailingMeasurement(FakeMeasurement):
+    def read_sample(self, instrument, trigger):  # noqa: ANN001
+        raise AssertionError("software trigger should not be captured")
+
+
 class AlwaysTimeoutHardwareInstrument(FakeInstrument):
     def __init__(self) -> None:
         super().__init__()
@@ -156,6 +161,36 @@ class AcquisitionEngineTests(unittest.TestCase):
                 "hardware trigger wait timed out; re-armed and waiting for next edge" in s
                 for s in statuses
             )
+        )
+
+    def test_software_trigger_is_ignored_in_hardware_mode(self):
+        instrument = AlwaysTimeoutHardwareInstrument()
+        router = TriggerRouter()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FailingMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=500),
+            router=router,
+            status_cb=statuses.append,
+        )
+        worker = threading.Thread(
+            target=engine.run,
+            kwargs={"enable_hardware_trigger": True, "hardware_trigger_slope": "POS"},
+        )
+        worker.start()
+        time.sleep(0.1)
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        time.sleep(0.2)
+        engine.stop()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.captured)
+        self.assertEqual(0, engine.stats.errors)
+        self.assertTrue(
+            any("software trigger ignored while hardware trigger is enabled" in s for s in statuses)
         )
 
 

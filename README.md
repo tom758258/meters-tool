@@ -8,6 +8,7 @@ CLI-first Python implementation for Keysight 34461A trigger-based logging.
 - Trigger-mode acquisition
 - Software trigger endpoint (`localhost` HTTP)
 - Hardware trigger adapter scaffold (SCPI-based)
+- Optional VM Comp output slope configuration
 - Immediate CSV write per captured sample
 
 ## Install
@@ -34,6 +35,22 @@ python -m uv pip install -e .
 List VISA resources:
 ```bash
 python -m keysight_logger.cli list-resources
+```
+
+Start trigger recording:
+```bash
+python -m keysight_logger.cli start-trigger-record \
+  --resource "TCPIP0::192.168.x.x::inst0::INSTR" \
+  --csv ./data/run1.csv \
+  --enable-hw-trigger
+```
+
+Configure the rear-panel VM Comp output pulse slope only when needed:
+```bash
+python -m keysight_logger.cli start-trigger-record \
+  --resource "USB::YOUR_RESOURCE" \
+  --csv ./data/run1.csv \
+  --vm-comp-slope pos
 ```
 
 Send software trigger:
