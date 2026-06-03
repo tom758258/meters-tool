@@ -44,6 +44,37 @@ class FakeMeasurement:
         )
 
 
+class AlwaysTimeoutHardwareInstrument(FakeInstrument):
+    def __init__(self) -> None:
+        super().__init__()
+        self.commands: list[str] = []
+        self._stb_reads = 0
+
+    def set_timeout_ms(self, timeout_ms: int) -> None:  # noqa: ARG002
+        return
+
+    def read_status_byte(self) -> int:
+        self._stb_reads += 1
+        return 0
+
+    def poll_system_error(self) -> str:
+        return "0,No error"
+
+    def write(self, command: str) -> None:
+        self.commands.append(command)
+
+
+class FakeStorage:
+    def open(self) -> None:
+        return
+
+    def close(self) -> None:
+        return
+
+    def write(self, sample) -> None:  # noqa: ANN001, ARG002
+        return
+
+
 class AcquisitionEngineTests(unittest.TestCase):
     def test_trigger_engine_captures_only_on_trigger(self):
         with tempfile.TemporaryDirectory() as td:
@@ -97,6 +128,35 @@ class AcquisitionEngineTests(unittest.TestCase):
             worker.join(timeout=1)
             self.assertFalse(worker.is_alive())
             self.assertGreaterEqual(instrument.abort_count, 1)
+
+    def test_hardware_timeout_emits_rearmed_status_without_error(self):
+        instrument = AlwaysTimeoutHardwareInstrument()
+        router = TriggerRouter()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=100),
+            router=router,
+            status_cb=statuses.append,
+        )
+        worker = threading.Thread(
+            target=engine.run,
+            kwargs={"enable_hardware_trigger": True, "hardware_trigger_slope": "NEG"},
+        )
+        worker.start()
+        time.sleep(0.35)
+        engine.stop()
+        worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.errors)
+        self.assertTrue(
+            any(
+                "hardware trigger wait timed out; re-armed and waiting for next edge" in s
+                for s in statuses
+            )
+        )
 
 
 if __name__ == "__main__":

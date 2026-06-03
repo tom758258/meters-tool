@@ -80,6 +80,9 @@ class TriggerAcquisitionEngine:
                         # No external edge within the timeout window; keep waiting.
                         if self._running:
                             hw.recover_from_timeout()
+                            self._emit(
+                                "hardware trigger wait timed out; re-armed and waiting for next edge"
+                            )
                         continue
                     except Exception:
                         if self._running:
