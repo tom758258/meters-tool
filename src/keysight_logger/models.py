@@ -16,6 +16,7 @@ class TriggerSource(str, Enum):
     HARDWARE = "hardware"
     IMMEDIATE = "immediate"
     SOFTWARE = "software"
+    TIMER = "timer"
 
 
 @dataclass(frozen=True)
@@ -29,6 +30,7 @@ class InstrumentConfig:
 class AcquisitionConfig:
     trigger_timeout_ms: int = 10000
     max_samples: Optional[int] = None
+    timer_interval_s: Optional[float] = None
     nplc: float = 1.0
     auto_zero: bool = True
     auto_range: bool = True

@@ -12,6 +12,7 @@ from keysight_logger.cli import (
     cmd_list_resources,
     cmd_soft_stop,
     resolve_trigger_mode,
+    validate_start_args,
 )
 
 
@@ -35,6 +36,7 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(0, args.sw_queue_max)
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
+        self.assertIsNone(args.timer_interval_s)
         self.assertIsNone(args.vm_comp_slope)
 
     def test_start_with_manual_options(self):
@@ -78,6 +80,80 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual("immediate", args.trigger_mode)
         self.assertEqual(10, args.max_samples)
         self.assertEqual("pos", args.vm_comp_slope)
+
+    def test_timer_interval_is_valid_with_default_software_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--timer-interval-s",
+                "1.0",
+            ]
+        )
+
+        trigger_mode = resolve_trigger_mode(args)
+        validate_start_args(args, trigger_mode)
+
+        self.assertEqual("software", trigger_mode)
+        self.assertEqual(1.0, args.timer_interval_s)
+
+    def test_timer_interval_must_be_positive(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--timer-interval-s",
+                "0",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--timer-interval-s must be > 0"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_timer_interval_requires_software_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "external",
+                "--timer-interval-s",
+                "1.0",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--timer-interval-s requires --trigger-mode software"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_enable_hw_trigger_conflicts_with_timer_interval(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--enable-hw-trigger",
+                "--timer-interval-s",
+                "1.0",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--timer-interval-s requires --trigger-mode software"):
+            validate_start_args(args, resolve_trigger_mode(args))
 
     def test_legacy_enable_hw_trigger_maps_to_external_mode(self):
         parser = build_parser()

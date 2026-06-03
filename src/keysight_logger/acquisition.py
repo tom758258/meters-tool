@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import threading
+import time
 from typing import Callable, Optional
 
 from .instrument import VisaInstrument
@@ -53,9 +54,16 @@ class TriggerAcquisitionEngine:
     ) -> None:
         self._running = True
         self._stop_event.clear()
+        mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
+        timer_interval_s = self._config.timer_interval_s
+        timer_active = timer_interval_s is not None
+        if timer_active:
+            if timer_interval_s <= 0:
+                raise ValueError("timer_interval_s must be > 0")
+            if mode != "software":
+                raise ValueError("timer_interval_s requires software trigger mode")
         self._measurement.configure(self._instrument, self._config)
         hw = None
-        mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
         if mode == "external":
             hw = HardwareTriggerAdapter(self._instrument)
             hw.configure_external_trigger(
@@ -68,10 +76,16 @@ class TriggerAcquisitionEngine:
             )
         self._storage.open()
         self._emit("recording started")
+        if timer_active:
+            self._emit(f"software timer enabled interval_s={timer_interval_s}")
         try:
             while self._running and not self._stop_event.is_set():
                 wait_s = min(self._config.trigger_timeout_ms / 1000.0, 0.2)
-                if mode == "immediate":
+                if timer_active:
+                    if not self._drain_timer_control_events():
+                        continue
+                    ev = TriggerEvent.new(TriggerSource.TIMER)
+                elif mode == "immediate":
                     ev = self._router.wait(timeout_s=0)
                     if ev is None:
                         ev = TriggerEvent.new(TriggerSource.IMMEDIATE)
@@ -99,10 +113,7 @@ class TriggerAcquisitionEngine:
                 if ev is None:
                     self._emit("waiting trigger")
                     continue
-                if ev.metadata.get("control") == "stop":
-                    self._emit("stop request received")
-                    self._abort_measurement()
-                    self.stop()
+                if self._handle_control_event(ev):
                     continue
                 if hw is not None and ev.source == TriggerSource.SOFTWARE:
                     self._emit("software trigger ignored while hardware trigger is enabled")
@@ -114,6 +125,8 @@ class TriggerAcquisitionEngine:
                 if self._config.max_samples is not None and self._stats.captured >= self._config.max_samples:
                     self._emit(f"max samples reached: {self._config.max_samples}")
                     self.stop()
+                if timer_active and self._running and not self._stop_event.is_set():
+                    self._wait_timer_interval(timer_interval_s)
         finally:
             if self._stop_event.is_set():
                 self._abort_measurement()
@@ -141,6 +154,39 @@ class TriggerAcquisitionEngine:
     def stop(self) -> None:
         self._running = False
         self._stop_event.set()
+
+    def _handle_control_event(self, event: TriggerEvent) -> bool:
+        if event.metadata.get("control") != "stop":
+            return False
+        self._emit("stop request received")
+        self._abort_measurement()
+        self.stop()
+        return True
+
+    def _drain_timer_control_events(self) -> bool:
+        while self._running and not self._stop_event.is_set():
+            event = self._router.wait(timeout_s=0)
+            if event is None:
+                return True
+            if self._handle_control_event(event):
+                return False
+            if event.source == TriggerSource.SOFTWARE:
+                self._emit("software trigger ignored while software timer is enabled")
+        return False
+
+    def _wait_timer_interval(self, interval_s: float) -> None:
+        deadline = time.monotonic() + interval_s
+        while self._running and not self._stop_event.is_set():
+            remaining_s = deadline - time.monotonic()
+            if remaining_s <= 0:
+                return
+            event = self._router.wait(timeout_s=min(remaining_s, 0.2))
+            if event is None:
+                continue
+            if self._handle_control_event(event):
+                return
+            if event.source == TriggerSource.SOFTWARE:
+                self._emit("software trigger ignored while software timer is enabled")
 
     def _resolve_trigger_mode(self, trigger_mode: str, enable_hardware_trigger: bool) -> str:
         if enable_hardware_trigger:

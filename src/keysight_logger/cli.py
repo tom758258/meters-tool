@@ -197,6 +197,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="stop automatically after successfully recording N samples",
     )
+    start.add_argument(
+        "--timer-interval-s",
+        type=float,
+        default=None,
+        help="software timer interval in seconds; valid only with software trigger mode",
+    )
     start.add_argument("--enable-hw-trigger", action="store_true")
     start.add_argument(
         "--hw-trigger-slope",
@@ -288,38 +294,41 @@ def resolve_trigger_mode(args: argparse.Namespace) -> str:
     return trigger_mode
 
 
+def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
+    if args.current_range is not None and args.current_range <= 0:
+        raise ValueError("--current-range must be > 0")
+    if args.nplc <= 0:
+        raise ValueError("--nplc must be > 0")
+    if args.hw_trigger_delay_s < 0:
+        raise ValueError("--hw-trigger-delay-s must be >= 0")
+    if not args.auto_range and args.current_range is None:
+        raise ValueError("--current-range is required when --auto-range off")
+    if args.sw_min_interval_ms < 0:
+        raise ValueError("--sw-min-interval-ms must be >= 0")
+    if args.sw_queue_max < 0:
+        raise ValueError("--sw-queue-max must be >= 0")
+    if args.max_samples is not None and args.max_samples <= 0:
+        raise ValueError("--max-samples must be > 0")
+    if args.timer_interval_s is not None:
+        if args.timer_interval_s <= 0:
+            raise ValueError("--timer-interval-s must be > 0")
+        if trigger_mode != "software":
+            raise ValueError("--timer-interval-s requires --trigger-mode software")
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     try:
         trigger_mode = resolve_trigger_mode(args)
+        validate_start_args(args, trigger_mode)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
-        return 2
-    if args.current_range is not None and args.current_range <= 0:
-        print("--current-range must be > 0", file=sys.stderr)
-        return 2
-    if args.nplc <= 0:
-        print("--nplc must be > 0", file=sys.stderr)
-        return 2
-    if args.hw_trigger_delay_s < 0:
-        print("--hw-trigger-delay-s must be >= 0", file=sys.stderr)
-        return 2
-    if not args.auto_range and args.current_range is None:
-        print("--current-range is required when --auto-range off", file=sys.stderr)
-        return 2
-    if args.sw_min_interval_ms < 0:
-        print("--sw-min-interval-ms must be >= 0", file=sys.stderr)
-        return 2
-    if args.sw_queue_max < 0:
-        print("--sw-queue-max must be >= 0", file=sys.stderr)
-        return 2
-    if args.max_samples is not None and args.max_samples <= 0:
-        print("--max-samples must be > 0", file=sys.stderr)
         return 2
 
     iconfig = InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
     aconfig = AcquisitionConfig(
         trigger_timeout_ms=args.trigger_timeout_ms,
         max_samples=args.max_samples,
+        timer_interval_s=args.timer_interval_s,
         nplc=args.nplc,
         auto_zero=args.auto_zero,
         auto_range=args.auto_range,

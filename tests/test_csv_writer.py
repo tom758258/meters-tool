@@ -1,8 +1,8 @@
 import csv
-import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from uuid import uuid4
 
 from keysight_logger.models import MeasurementSample
 from keysight_logger.storage import CsvWriter
@@ -10,9 +10,11 @@ from keysight_logger.storage import CsvWriter
 
 class CsvWriterTests(unittest.TestCase):
     def test_csv_writer_writes_header_and_row(self):
-        with tempfile.TemporaryDirectory() as td:
-            out = f"{td}/sample.csv"
-            writer = CsvWriter(path=Path(out))
+        out_dir = Path.cwd() / ".test-output"
+        out_dir.mkdir(exist_ok=True)
+        out = out_dir / f"sample-{uuid4().hex}.csv"
+        try:
+            writer = CsvWriter(path=out)
             writer.open()
             writer.write(
                 MeasurementSample(
@@ -35,6 +37,13 @@ class CsvWriterTests(unittest.TestCase):
             self.assertEqual("current_dc", rows[0]["measurement_type"])
             self.assertEqual("software", rows[0]["trigger_source"])
             self.assertEqual('{"batch":"A1","operator":"lab"}', rows[0]["trigger_metadata"])
+        finally:
+            if out.exists():
+                out.unlink()
+            try:
+                out_dir.rmdir()
+            except OSError:
+                pass
 
 
 if __name__ == "__main__":

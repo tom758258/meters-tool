@@ -62,6 +62,16 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertEqual(1.23, sample.value)
         self.assertEqual("READ?", inst.commands[-1])
 
+    def test_timer_trigger_reads_with_read_query(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(inst, TriggerEvent.new(TriggerSource.TIMER))
+
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual("READ?", inst.commands[-1])
+
     def test_vm_comp_slope_is_left_unchanged_by_default(self):
         inst = FakeInstrument()
         measurement = CurrentMeasurement()

@@ -4,12 +4,9 @@ import threading
 import time
 import unittest
 from datetime import datetime, timezone
-from pathlib import Path
-import tempfile
 
 from keysight_logger.acquisition import TriggerAcquisitionEngine
 from keysight_logger.models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
-from keysight_logger.storage import CsvWriter
 from keysight_logger.trigger import TriggerRouter
 
 
@@ -25,6 +22,15 @@ class FakeInstrument:
     def abort_measurement(self) -> bool:
         self.abort_count += 1
         return True
+
+
+class RecordingInstrument(FakeInstrument):
+    def __init__(self) -> None:
+        super().__init__()
+        self.commands: list[str] = []
+
+    def write(self, command: str) -> None:
+        self.commands.append(command)
 
 
 class FakeMeasurement:
@@ -80,59 +86,63 @@ class FakeStorage:
         return
 
 
+class CapturingStorage(FakeStorage):
+    def __init__(self) -> None:
+        self.samples = []
+
+    def write(self, sample) -> None:  # noqa: ANN001
+        self.samples.append(sample)
+
+
 class AcquisitionEngineTests(unittest.TestCase):
     def test_trigger_engine_captures_only_on_trigger(self):
-        with tempfile.TemporaryDirectory() as td:
-            router = TriggerRouter()
-            csv = CsvWriter(Path(td) / "out.csv")
-            engine = TriggerAcquisitionEngine(
-                instrument=FakeInstrument(),  # type: ignore[arg-type]
-                measurement=FakeMeasurement(),  # type: ignore[arg-type]
-                storage=csv,
-                config=AcquisitionConfig(trigger_timeout_ms=50),
-                router=router,
-            )
-            worker = threading.Thread(target=engine.run)
-            worker.start()
-            time.sleep(0.1)
-            self.assertEqual(0, engine.stats.captured)
-            router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
-            time.sleep(0.1)
-            engine.stop()
-            worker.join(timeout=1)
-            self.assertEqual(1, engine.stats.captured)
+        router = TriggerRouter()
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=router,
+        )
+        worker = threading.Thread(target=engine.run)
+        worker.start()
+        time.sleep(0.1)
+        self.assertEqual(0, engine.stats.captured)
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        time.sleep(0.1)
+        engine.stop()
+        worker.join(timeout=1)
+        self.assertEqual(1, engine.stats.captured)
 
     def test_stop_only_sets_stop_state_without_instrument_io(self):
         instrument = FakeInstrument()
         router = TriggerRouter()
-        with tempfile.TemporaryDirectory() as td:
-            engine = TriggerAcquisitionEngine(
-                instrument=instrument,  # type: ignore[arg-type]
-                measurement=FakeMeasurement(),  # type: ignore[arg-type]
-                storage=CsvWriter(Path(td) / "out.csv"),
-                config=AcquisitionConfig(trigger_timeout_ms=50),
-                router=router,
-            )
-            engine.stop()
-            self.assertEqual(0, instrument.abort_count)
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=router,
+        )
+        engine.stop()
+        self.assertEqual(0, instrument.abort_count)
 
     def test_control_stop_event_aborts_from_worker_thread(self):
         instrument = FakeInstrument()
         router = TriggerRouter()
-        with tempfile.TemporaryDirectory() as td:
-            engine = TriggerAcquisitionEngine(
-                instrument=instrument,  # type: ignore[arg-type]
-                measurement=FakeMeasurement(),  # type: ignore[arg-type]
-                storage=CsvWriter(Path(td) / "out.csv"),
-                config=AcquisitionConfig(trigger_timeout_ms=50),
-                router=router,
-            )
-            worker = threading.Thread(target=engine.run)
-            worker.start()
-            router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
-            worker.join(timeout=1)
-            self.assertFalse(worker.is_alive())
-            self.assertGreaterEqual(instrument.abort_count, 1)
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=router,
+        )
+        worker = threading.Thread(target=engine.run)
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+        worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+        self.assertGreaterEqual(instrument.abort_count, 1)
 
     def test_hardware_timeout_emits_rearmed_status_without_error(self):
         instrument = AlwaysTimeoutHardwareInstrument()
@@ -233,6 +243,105 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(1, engine.stats.captured)
         self.assertTrue(any("max samples reached: 1" in s for s in statuses))
+
+    def test_software_timer_captures_until_max_samples(self):
+        storage = CapturingStorage()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=storage,  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                max_samples=2,
+                timer_interval_s=0.01,
+            ),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(2, engine.stats.captured)
+        self.assertEqual(["timer", "timer"], [sample.trigger_source for sample in storage.samples])
+        self.assertTrue(any("software timer enabled interval_s=0.01" in s for s in statuses))
+        self.assertTrue(any("max samples reached: 2" in s for s in statuses))
+
+    def test_software_trigger_is_ignored_in_timer_mode(self):
+        router = TriggerRouter()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        storage = CapturingStorage()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=storage,  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                max_samples=1,
+                timer_interval_s=0.01,
+            ),
+            router=router,
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, engine.stats.captured)
+        self.assertEqual(["timer"], [sample.trigger_source for sample in storage.samples])
+        self.assertTrue(
+            any("software trigger ignored while software timer is enabled" in s for s in statuses)
+        )
+
+    def test_software_timer_does_not_configure_external_trigger_scpi(self):
+        instrument = RecordingInstrument()
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                max_samples=1,
+                timer_interval_s=0.01,
+            ),
+            router=TriggerRouter(),
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertFalse(any(command.startswith("TRIG:") for command in instrument.commands))
+
+    def test_soft_stop_event_stops_timer_interval_wait(self):
+        router = TriggerRouter()
+        instrument = FakeInstrument()
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, timer_interval_s=5.0),
+            router=router,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software"})
+        worker.start()
+        deadline = time.monotonic() + 1.0
+        while engine.stats.captured == 0 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, engine.stats.captured)
+        self.assertGreaterEqual(instrument.abort_count, 1)
 
 
 if __name__ == "__main__":
