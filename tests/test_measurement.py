@@ -104,6 +104,28 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertIn("SAMP:COUNT 3", inst.commands)
         self.assertEqual("*TRG", inst.commands[-1])
 
+    def test_external_custom_configures_external_trigger_and_sample_count(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        measurement.configure_external_custom(
+            inst,
+            AcquisitionConfig(),
+            trigger_count=2,
+            sample_count=3,
+            slope="pos",
+            delay_s=0.25,
+        )
+        measurement.start_buffered_capture(inst)
+
+        self.assertIn("TRIG:SOUR EXT", inst.commands)
+        self.assertIn("TRIG:SLOP POS", inst.commands)
+        self.assertIn("TRIG:COUNT 2", inst.commands)
+        self.assertIn("SAMP:COUNT 3", inst.commands)
+        self.assertIn("TRIG:DEL 0.25", inst.commands)
+        self.assertEqual("INIT", inst.commands[-1])
+
     def test_immediate_custom_reads_and_removes_available_points(self):
         inst = FakeInstrument()
         inst.responses["DATA:POINts?"] = "2"
@@ -146,6 +168,21 @@ class CurrentMeasurementTests(unittest.TestCase):
         )
 
         self.assertEqual(["software-custom"], [sample.trigger_source for sample in samples])
+
+    def test_external_custom_buffered_samples_use_external_custom_source(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "1.1"
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.EXTERNAL_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual(["external-custom"], [sample.trigger_source for sample in samples])
 
     def test_timer_trigger_reads_with_read_query(self):
         inst = FakeInstrument()

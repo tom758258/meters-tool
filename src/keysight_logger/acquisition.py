@@ -57,7 +57,7 @@ class TriggerAcquisitionEngine:
         mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
         timer_interval_s = self._config.timer_interval_s
         timer_active = timer_interval_s is not None
-        if mode in ("immediate-custom", "software-custom"):
+        if mode in ("immediate-custom", "software-custom", "external-custom"):
             if self._config.trigger_count is None:
                 raise ValueError(f"{mode} mode requires trigger_count")
             if self._config.sample_count is None:
@@ -101,6 +101,13 @@ class TriggerAcquisitionEngine:
                 self._capture_software_custom(
                     trigger_count=self._config.trigger_count,
                     sample_count=self._config.sample_count,
+                )
+                return
+            if mode == "external-custom":
+                self._capture_external_custom(
+                    trigger_count=self._config.trigger_count,
+                    sample_count=self._config.sample_count,
+                    slope=hardware_trigger_slope,
                 )
                 return
             while self._running and not self._stop_event.is_set():
@@ -272,7 +279,43 @@ class TriggerAcquisitionEngine:
             self._emit(f"expected readings reached: {expected_readings}")
             self.stop()
 
-    def _drain_buffered_custom_capture(self, event: TriggerEvent, expected_readings: int) -> None:
+    def _capture_external_custom(self, trigger_count: int, sample_count: int, slope: str) -> None:
+        expected_readings = trigger_count * sample_count
+        event = self._new_custom_event(
+            TriggerSource.EXTERNAL_CUSTOM,
+            trigger_count,
+            sample_count,
+        )
+        self._measurement.configure_external_custom(
+            self._instrument,
+            self._config,
+            trigger_count,
+            sample_count,
+            slope=slope,
+            delay_s=self._config.hw_trigger_delay_s,
+        )
+        self._emit(
+            "external custom capture configured "
+            f"trigger_count={trigger_count} sample_count={sample_count} "
+            f"expected_readings={expected_readings} slope={str(slope).upper()} "
+            f"delay_s={self._config.hw_trigger_delay_s}"
+        )
+        self._measurement.start_buffered_capture(self._instrument)
+        self._emit("external custom capture armed")
+        self._drain_buffered_custom_capture(
+            event,
+            expected_readings,
+            poll_control_events=True,
+            ignored_software_trigger_status="software trigger ignored while external custom is enabled",
+        )
+
+    def _drain_buffered_custom_capture(
+        self,
+        event: TriggerEvent,
+        expected_readings: int,
+        poll_control_events: bool = False,
+        ignored_software_trigger_status: Optional[str] = None,
+    ) -> None:
         while self._running and not self._stop_event.is_set() and self._stats.captured < expected_readings:
             try:
                 available = self._measurement.buffered_points_available(self._instrument)
@@ -281,6 +324,10 @@ class TriggerAcquisitionEngine:
                 if self._config.buffer_drain_size is not None:
                     read_count = min(read_count, self._config.buffer_drain_size)
                 if read_count <= 0:
+                    if poll_control_events and not self._drain_custom_control_events(
+                        ignored_software_trigger_status
+                    ):
+                        return
                     self._stop_event.wait(0.05)
                     continue
                 samples = self._measurement.read_buffered_samples(
@@ -305,6 +352,8 @@ class TriggerAcquisitionEngine:
                         err_text = "unknown"
                 self._emit(f"buffered capture error count={self._stats.errors} scpi_error={err_text}")
                 self.stop()
+                return
+            if poll_control_events and not self._drain_custom_control_events(ignored_software_trigger_status):
                 return
         if self._stats.captured >= expected_readings:
             self._emit(f"expected readings reached: {expected_readings}")
@@ -351,6 +400,17 @@ class TriggerAcquisitionEngine:
                 self._emit("software trigger ignored while software timer is enabled")
         return False
 
+    def _drain_custom_control_events(self, ignored_software_trigger_status: Optional[str]) -> bool:
+        while self._running and not self._stop_event.is_set():
+            event = self._router.wait(timeout_s=0)
+            if event is None:
+                return True
+            if self._handle_control_event(event):
+                return False
+            if event.source == TriggerSource.SOFTWARE and ignored_software_trigger_status:
+                self._emit(ignored_software_trigger_status)
+        return False
+
     def _wait_timer_interval(self, interval_s: float) -> None:
         deadline = time.monotonic() + interval_s
         while self._running and not self._stop_event.is_set():
@@ -369,9 +429,16 @@ class TriggerAcquisitionEngine:
         if enable_hardware_trigger:
             return "external"
         mode = str(trigger_mode).strip().lower()
-        if mode not in ("software", "external", "immediate", "immediate-custom", "software-custom"):
+        if mode not in (
+            "software",
+            "external",
+            "immediate",
+            "immediate-custom",
+            "software-custom",
+            "external-custom",
+        ):
             raise ValueError(
-                "trigger_mode must be software, external, immediate, immediate-custom, or software-custom"
+                "trigger_mode must be software, external, immediate, immediate-custom, software-custom, or external-custom"
             )
         return mode
 

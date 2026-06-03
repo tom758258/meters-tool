@@ -76,6 +76,15 @@ class FakeBufferedMeasurement(FakeMeasurement):
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
 
+    def configure_external_custom(self, instrument, config, trigger_count, sample_count, slope, delay_s):  # noqa: ANN001, ARG002
+        self.sample_count = trigger_count * sample_count
+        slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
+        instrument.write("TRIG:SOUR EXT")
+        instrument.write(f"TRIG:SLOP {slope_cmd}")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+        instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
+
     def send_bus_trigger(self, instrument):  # noqa: ANN001
         self.bus_triggers_sent += 1
         self.sample_count += self.sample_count_per_trigger
@@ -128,6 +137,17 @@ class AlwaysTimeoutHardwareInstrument(FakeInstrument):
 
     def write(self, command: str) -> None:
         self.commands.append(command)
+
+
+class WaitingExternalBufferedMeasurement(FakeBufferedMeasurement):
+    def configure_external_custom(self, instrument, config, trigger_count, sample_count, slope, delay_s):  # noqa: ANN001, ARG002
+        self.sample_count = 0
+        slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
+        instrument.write("TRIG:SOUR EXT")
+        instrument.write(f"TRIG:SLOP {slope_cmd}")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+        instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
 
 
 class FakeStorage:
@@ -414,6 +434,85 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(0, engine.stats.captured)
         self.assertGreaterEqual(instrument.abort_count, 1)
+        self.assertTrue(any("stop request received" in s for s in statuses))
+
+    def test_external_custom_mode_arms_external_sequence_and_drains_buffer(self):
+        instrument = RecordingInstrument()
+        measurement = FakeBufferedMeasurement()
+        storage = CapturingStorage()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=measurement,  # type: ignore[arg-type]
+            storage=storage,  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=2,
+                sample_count=2,
+                hw_trigger_delay_s=0.25,
+            ),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(
+            target=engine.run,
+            kwargs={"trigger_mode": "external-custom", "hardware_trigger_slope": "POS"},
+        )
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(4, engine.stats.captured)
+        self.assertEqual(
+            ["external-custom", "external-custom", "external-custom", "external-custom"],
+            [sample.trigger_source for sample in storage.samples],
+        )
+        self.assertEqual(
+            [
+                "TRIG:SOUR EXT",
+                "TRIG:SLOP POS",
+                "TRIG:COUNT 2",
+                "SAMP:COUNT 2",
+                "TRIG:DEL 0.25",
+                "INIT",
+            ],
+            instrument.commands,
+        )
+        self.assertEqual([4], measurement.read_counts)
+        self.assertTrue(any("external custom capture armed" in s for s in statuses))
+        self.assertTrue(any("expected readings reached: 4" in s for s in statuses))
+
+    def test_external_custom_ignores_software_trigger_but_honors_stop(self):
+        router = TriggerRouter()
+        instrument = RecordingInstrument()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=WaitingExternalBufferedMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=2),
+            router=router,
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "external-custom"})
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        deadline = time.monotonic() + 1.0
+        while not any("software trigger ignored while external custom is enabled" in s for s in statuses):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.captured)
+        self.assertGreaterEqual(instrument.abort_count, 1)
+        self.assertTrue(
+            any("software trigger ignored while external custom is enabled" in s for s in statuses)
+        )
         self.assertTrue(any("stop request received" in s for s in statuses))
 
     def test_software_timer_captures_until_max_samples(self):

@@ -187,7 +187,14 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--sw-queue-max", type=int, default=0)
     start.add_argument(
         "--trigger-mode",
-        choices=["software", "external", "immediate", "immediate-custom", "software-custom"],
+        choices=[
+            "software",
+            "external",
+            "immediate",
+            "immediate-custom",
+            "software-custom",
+            "external-custom",
+        ],
         default=None,
         help="single acquisition trigger mode; default: software",
     )

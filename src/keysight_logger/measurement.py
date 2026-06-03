@@ -48,6 +48,17 @@ class MeasurementPlugin(ABC):
     ) -> None:
         raise NotImplementedError
 
+    def configure_external_custom(
+        self,
+        instrument: VisaInstrument,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+        slope: str,
+        delay_s: float,
+    ) -> None:
+        raise NotImplementedError
+
     def send_bus_trigger(self, instrument: VisaInstrument) -> None:
         raise NotImplementedError
 
@@ -139,6 +150,28 @@ class CurrentMeasurement(MeasurementPlugin):
         instrument.write("TRIG:SOUR BUS")
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def configure_external_custom(
+        self,
+        instrument: VisaInstrument,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+        slope: str,
+        delay_s: float,
+    ) -> None:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+        if trigger_count <= 0:
+            raise ValueError("trigger_count must be > 0")
+        if sample_count <= 0:
+            raise ValueError("sample_count must be > 0")
+        slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
+        instrument.write("TRIG:SOUR EXT")
+        instrument.write(f"TRIG:SLOP {slope_cmd}")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+        instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
 
     def send_bus_trigger(self, instrument: VisaInstrument) -> None:
         if not self._configured:

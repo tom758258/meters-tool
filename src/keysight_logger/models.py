@@ -13,6 +13,7 @@ class Transport(str, Enum):
 
 
 class TriggerSource(str, Enum):
+    EXTERNAL_CUSTOM = "external-custom"
     HARDWARE = "hardware"
     IMMEDIATE = "immediate"
     IMMEDIATE_CUSTOM = "immediate-custom"
