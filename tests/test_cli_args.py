@@ -182,13 +182,13 @@ class CliArgsTests(unittest.TestCase):
                 "--csv",
                 "out.csv",
                 "--measurement",
-                "resistance-2w",
+                "resistance-4w",
             ]
         )
 
         with self.assertRaisesRegex(
             ValueError,
-            "--measurement must be one of: current-dc, voltage-dc",
+            "--measurement must be one of: current-dc, voltage-dc, resistance-2w",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 
@@ -294,6 +294,95 @@ class CliArgsTests(unittest.TestCase):
                 "out.csv",
                 "--measurement",
                 "voltage-dc",
+                "--auto-range",
+                "off",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--range is required when --auto-range off",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_resistance_2w_range_is_accepted_with_auto_range_off(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "resistance-2w",
+                "--auto-range",
+                "off",
+                "--range",
+                "1000",
+            ]
+        )
+
+        validate_start_args(args, resolve_trigger_mode(args))
+
+        self.assertEqual("resistance-2w", args.measurement)
+        self.assertEqual(1000.0, args.measurement_range)
+
+    def test_resistance_2w_allows_range_with_auto_range_on(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "resistance-2w",
+                "--auto-range",
+                "on",
+                "--range",
+                "1000",
+            ]
+        )
+
+        validate_start_args(args, resolve_trigger_mode(args))
+
+        self.assertEqual(1000.0, args.measurement_range)
+
+    def test_resistance_2w_rejects_current_range_alias(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "resistance-2w",
+                "--current-range",
+                "0.1",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--current-range can only be used with --measurement current-dc",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_resistance_2w_requires_range_when_auto_range_off(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "resistance-2w",
                 "--auto-range",
                 "off",
             ]

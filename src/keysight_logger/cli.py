@@ -182,6 +182,12 @@ def resolve_measurement_range(args: argparse.Namespace) -> float | None:
 
 def build_parser() -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
+    registered_measurements = set(registered_measurement_types())
+    measurement_choices = ", ".join(
+        format_measurement_type(value)
+        for value in default_profile.supported_measurement_types
+        if value in registered_measurements
+    )
     parser = argparse.ArgumentParser(prog="keysight-logger")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -269,7 +275,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument(
         "--measurement",
         default="current-dc",
-        help="measurement type; current-dc or voltage-dc",
+        help=f"measurement type; one of: {measurement_choices}",
     )
     start.add_argument("--nplc", type=float, default=1.0)
     start.add_argument("--auto-zero", type=parse_on_off, default=True)
@@ -279,7 +285,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="measurement_range",
         type=float,
         default=None,
-        help="manual measurement range; amps for current-dc, volts for voltage-dc",
+        help="manual measurement range; amps for current-dc, volts for voltage-dc, ohms for resistance-2w",
     )
     start.add_argument(
         "--current-range",

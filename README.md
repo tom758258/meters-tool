@@ -154,7 +154,7 @@ Verify which resources are live:
 Verified output is tab-separated:
 
 ```text
-live    USB0::0x2A8D::0x1301::MYXXXXXXXX::0::INSTR    Keysight Technologies,34461A,.
+live    USB0::0x2A8D::0x1301::MYXXXXXXXX::0::INSTR    Keysight Technologies,34461A,
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError:
 ```
 

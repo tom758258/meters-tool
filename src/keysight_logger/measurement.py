@@ -101,6 +101,12 @@ VOLTAGE_DC_DEFINITION = MeasurementDefinition(
     unit="V",
     range_label="volts",
 )
+RESISTANCE_2W_DEFINITION = MeasurementDefinition(
+    cli_name="resistance-2w",
+    internal_type="resistance_2w",
+    unit="Ohm",
+    range_label="ohms",
+)
 
 
 class ScalarDmmMeasurement(MeasurementPlugin):
@@ -285,15 +291,35 @@ class VoltageDcMeasurement(ScalarDmmMeasurement):
         self._configured = True
 
 
+class Resistance2wMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(RESISTANCE_2W_DEFINITION)
+
+    def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:RES AUTO")
+        if config.auto_range:
+            instrument.write("RES:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"RES:RANG {config.measurement_range}")
+        instrument.write(f"RES:NPLC {config.nplc}")
+        instrument.write(f"RES:ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
 CurrentMeasurement = CurrentDcMeasurement
 
 _MEASUREMENT_DEFINITIONS = {
     CURRENT_DC_DEFINITION.internal_type: CURRENT_DC_DEFINITION,
     VOLTAGE_DC_DEFINITION.internal_type: VOLTAGE_DC_DEFINITION,
+    RESISTANCE_2W_DEFINITION.internal_type: RESISTANCE_2W_DEFINITION,
 }
 _MEASUREMENT_PLUGIN_TYPES: dict[str, type[MeasurementPlugin]] = {
     CURRENT_DC_DEFINITION.internal_type: CurrentDcMeasurement,
     VOLTAGE_DC_DEFINITION.internal_type: VoltageDcMeasurement,
+    RESISTANCE_2W_DEFINITION.internal_type: Resistance2wMeasurement,
 }
 
 
