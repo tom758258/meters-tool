@@ -34,6 +34,7 @@ class CsvWriterTests(unittest.TestCase):
             with open(out, "r", encoding="utf-8") as fh:
                 rows = list(csv.DictReader(fh))
             self.assertEqual(1, len(rows))
+            self.assertEqual("2026-04-28T08:00:00+08:00", rows[0]["timestamp_utc_plus_8"])
             self.assertEqual("current_dc", rows[0]["measurement_type"])
             self.assertEqual("software", rows[0]["trigger_source"])
             self.assertEqual('{"batch":"A1","operator":"lab"}', rows[0]["trigger_metadata"])

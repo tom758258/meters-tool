@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import csv
 import json
+from datetime import timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
 from .models import MeasurementSample
 
+UTC_PLUS_8 = timezone(timedelta(hours=8))
+
 
 class CsvWriter:
     FIELDNAMES = [
-        "timestamp_utc",
+        "timestamp_utc_plus_8",
         "measurement_type",
         "value",
         "unit",
@@ -36,9 +39,10 @@ class CsvWriter:
     def write(self, sample: MeasurementSample) -> None:
         if self._writer is None or self._fh is None:
             raise RuntimeError("CsvWriter is not open")
+        timestamp_utc_plus_8 = sample.timestamp_utc.astimezone(UTC_PLUS_8)
         self._writer.writerow(
             {
-                "timestamp_utc": sample.timestamp_utc.isoformat(),
+                "timestamp_utc_plus_8": timestamp_utc_plus_8.isoformat(),
                 "measurement_type": sample.measurement_type,
                 "value": sample.value,
                 "unit": sample.unit,
