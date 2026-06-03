@@ -37,6 +37,7 @@ class CliArgsTests(unittest.TestCase):
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
         self.assertIsNone(args.timer_interval_s)
+        self.assertIsNone(args.buffer_drain_size)
         self.assertIsNone(args.vm_comp_slope)
 
     def test_start_with_manual_options(self):
@@ -136,6 +137,8 @@ class CliArgsTests(unittest.TestCase):
                 "immediate-buffered",
                 "--max-samples",
                 "100",
+                "--buffer-drain-size",
+                "4",
             ]
         )
 
@@ -144,6 +147,73 @@ class CliArgsTests(unittest.TestCase):
 
         self.assertEqual("immediate-buffered", trigger_mode)
         self.assertEqual(100, args.max_samples)
+        self.assertEqual(4, args.buffer_drain_size)
+
+    def test_buffer_drain_size_requires_immediate_buffered_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "10",
+                "--buffer-drain-size",
+                "2",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--buffer-drain-size requires --trigger-mode immediate-buffered",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_buffer_drain_size_must_be_positive(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-buffered",
+                "--max-samples",
+                "10",
+                "--buffer-drain-size",
+                "0",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--buffer-drain-size must be > 0"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_buffer_drain_size_rejects_more_than_34461a_memory(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-buffered",
+                "--max-samples",
+                "10",
+                "--buffer-drain-size",
+                "10001",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--buffer-drain-size must be <= 10000"):
+            validate_start_args(args, resolve_trigger_mode(args))
 
     def test_timer_interval_is_valid_with_default_software_mode(self):
         parser = build_parser()

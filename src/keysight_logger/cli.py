@@ -14,7 +14,7 @@ from urllib.error import URLError
 from .acquisition import TriggerAcquisitionEngine
 from .instrument import InstrumentConfig, VisaInstrument
 from .measurement import CurrentMeasurement
-from .models import MAX_34461A_BUFFERED_READINGS, AcquisitionConfig
+from .models import KEYSIGHT_34461A_CAPABILITIES, AcquisitionConfig
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 
@@ -203,6 +203,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="software timer interval in seconds; valid only with software trigger mode",
     )
+    start.add_argument(
+        "--buffer-drain-size",
+        type=int,
+        default=None,
+        help="maximum readings to remove per buffer drain; valid only with immediate-buffered",
+    )
     start.add_argument("--enable-hw-trigger", action="store_true")
     start.add_argument(
         "--hw-trigger-slope",
@@ -314,13 +320,22 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
             raise ValueError("--timer-interval-s must be > 0")
         if trigger_mode != "software":
             raise ValueError("--timer-interval-s requires --trigger-mode software")
+    if args.buffer_drain_size is not None:
+        if args.buffer_drain_size <= 0:
+            raise ValueError("--buffer-drain-size must be > 0")
+        memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+        if args.buffer_drain_size > memory_limit:
+            raise ValueError(f"--buffer-drain-size must be <= {memory_limit}")
+        if trigger_mode != "immediate-buffered":
+            raise ValueError("--buffer-drain-size requires --trigger-mode immediate-buffered")
     if trigger_mode == "immediate-buffered":
         if args.max_samples is None:
             raise ValueError("--max-samples is required with --trigger-mode immediate-buffered")
-        if args.max_samples > MAX_34461A_BUFFERED_READINGS:
+        memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+        if args.max_samples > memory_limit:
             raise ValueError(
                 "--max-samples must be <= "
-                f"{MAX_34461A_BUFFERED_READINGS} with --trigger-mode immediate-buffered"
+                f"{memory_limit} with --trigger-mode immediate-buffered"
             )
 
 
@@ -337,6 +352,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         trigger_timeout_ms=args.trigger_timeout_ms,
         max_samples=args.max_samples,
         timer_interval_s=args.timer_interval_s,
+        buffer_drain_size=args.buffer_drain_size,
         nplc=args.nplc,
         auto_zero=args.auto_zero,
         auto_range=args.auto_range,

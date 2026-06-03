@@ -20,9 +20,6 @@ class TriggerSource(str, Enum):
     TIMER = "timer"
 
 
-MAX_34461A_BUFFERED_READINGS = 10000
-
-
 @dataclass(frozen=True)
 class InstrumentConfig:
     resource_string: str
@@ -31,10 +28,25 @@ class InstrumentConfig:
 
 
 @dataclass(frozen=True)
+class InstrumentCapabilities:
+    model: str
+    reading_memory_limit: int
+    supports_sample_timer: bool
+
+
+KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
+    model="34461A",
+    reading_memory_limit=10000,
+    supports_sample_timer=False,
+)
+
+
+@dataclass(frozen=True)
 class AcquisitionConfig:
     trigger_timeout_ms: int = 10000
     max_samples: Optional[int] = None
     timer_interval_s: Optional[float] = None
+    buffer_drain_size: Optional[int] = None
     nplc: float = 1.0
     auto_zero: bool = True
     auto_range: bool = True

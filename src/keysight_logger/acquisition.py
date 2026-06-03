@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from .instrument import VisaInstrument
 from .measurement import MeasurementPlugin
-from .models import MAX_34461A_BUFFERED_READINGS, AcquisitionConfig, TriggerEvent, TriggerSource
+from .models import KEYSIGHT_34461A_CAPABILITIES, AcquisitionConfig, TriggerEvent, TriggerSource
 from .storage import CsvWriter
 from .trigger import HardwareTriggerAdapter, TriggerRouter
 
@@ -60,10 +60,11 @@ class TriggerAcquisitionEngine:
         if mode == "immediate-buffered":
             if self._config.max_samples is None:
                 raise ValueError("immediate-buffered mode requires max_samples")
-            if self._config.max_samples > MAX_34461A_BUFFERED_READINGS:
+            memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+            if self._config.max_samples > memory_limit:
                 raise ValueError(
                     "immediate-buffered mode supports up to "
-                    f"{MAX_34461A_BUFFERED_READINGS} samples on the 34461A"
+                    f"{memory_limit} samples on the {KEYSIGHT_34461A_CAPABILITIES.model}"
                 )
         if timer_active:
             if timer_interval_s <= 0:
@@ -161,6 +162,8 @@ class TriggerAcquisitionEngine:
                 available = self._measurement.buffered_points_available(self._instrument)
                 remaining = sample_count - self._stats.captured
                 read_count = min(available, remaining)
+                if self._config.buffer_drain_size is not None:
+                    read_count = min(read_count, self._config.buffer_drain_size)
                 if read_count <= 0:
                     self._stop_event.wait(0.05)
                     continue
