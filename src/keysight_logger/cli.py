@@ -133,20 +133,25 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     stop_state = {"stop": False, "interrupt_count": 0, "force": False}
 
-    def handle_signal(signum, frame):  # noqa: ARG001
-        stop_state["interrupt_count"] += 1
-        if stop_state["interrupt_count"] == 1:
-            stop_state["stop"] = True
-            print("interrupt received, stopping gracefully (press Ctrl+C again to force)...")
-            engine.stop()
-            return
-        stop_state["force"] = True
+    def request_stop(force: bool = False) -> None:
         stop_state["stop"] = True
-        print("second interrupt received, forcing shutdown...")
-        instrument.close()
+        if force:
+            stop_state["force"] = True
+            print("second interrupt received, forcing shutdown...")
+            engine.stop()
+            # Best-effort: try to return front panel control before tearing down session.
+            instrument.release_to_local()
+            instrument.close()
+            return
+        print("interrupt received, stopping gracefully (press Ctrl+C again to force)...")
+        engine.stop()
 
-    signal.signal(signal.SIGINT, handle_signal)
-    signal.signal(signal.SIGTERM, handle_signal)
+    def handle_sigterm(signum, frame):  # noqa: ARG001
+        # Keep SIGTERM support without overriding SIGINT behavior on Windows consoles.
+        request_stop(force=False)
+
+    if hasattr(signal, "SIGTERM"):
+        signal.signal(signal.SIGTERM, handle_sigterm)
 
     worker: threading.Thread | None = None
     try:
@@ -166,7 +171,17 @@ def cmd_start(args: argparse.Namespace) -> int:
             while worker.is_alive() and not stop_state["stop"]:
                 time.sleep(0.2)
         except KeyboardInterrupt:
-            handle_signal(None, None)
+            stop_state["interrupt_count"] += 1
+            request_stop(force=stop_state["interrupt_count"] >= 2)
+            while worker.is_alive():
+                try:
+                    worker.join(timeout=0.2)
+                    if not worker.is_alive():
+                        break
+                except KeyboardInterrupt:
+                    stop_state["interrupt_count"] += 1
+                    request_stop(force=True)
+                    break
         finally:
             engine.stop()
             if worker.is_alive():
