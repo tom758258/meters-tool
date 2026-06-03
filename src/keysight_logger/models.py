@@ -17,6 +17,7 @@ class TriggerSource(str, Enum):
     IMMEDIATE = "immediate"
     IMMEDIATE_CUSTOM = "immediate-custom"
     SOFTWARE = "software"
+    SOFTWARE_CUSTOM = "software-custom"
     TIMER = "timer"
 
 

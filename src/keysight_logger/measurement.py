@@ -39,6 +39,18 @@ class MeasurementPlugin(ABC):
     ) -> None:
         raise NotImplementedError
 
+    def configure_software_custom(
+        self,
+        instrument: VisaInstrument,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+    ) -> None:
+        raise NotImplementedError
+
+    def send_bus_trigger(self, instrument: VisaInstrument) -> None:
+        raise NotImplementedError
+
     def start_buffered_capture(self, instrument: VisaInstrument) -> None:
         raise NotImplementedError
 
@@ -110,6 +122,28 @@ class CurrentMeasurement(MeasurementPlugin):
         instrument.write("TRIG:SOUR IMM")
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def configure_software_custom(
+        self,
+        instrument: VisaInstrument,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+    ) -> None:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+        if trigger_count <= 0:
+            raise ValueError("trigger_count must be > 0")
+        if sample_count <= 0:
+            raise ValueError("sample_count must be > 0")
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def send_bus_trigger(self, instrument: VisaInstrument) -> None:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+        instrument.write("*TRG")
 
     def start_buffered_capture(self, instrument: VisaInstrument) -> None:
         if not self._configured:

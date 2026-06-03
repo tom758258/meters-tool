@@ -233,6 +233,54 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(100, args.sample_count)
         self.assertEqual(4, args.buffer_drain_size)
 
+    def test_software_custom_accepts_instrument_counts(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "software-custom",
+                "--trigger-count",
+                "2",
+                "--sample-count",
+                "100",
+            ]
+        )
+
+        trigger_mode = resolve_trigger_mode(args)
+        validate_start_args(args, trigger_mode)
+
+        self.assertEqual("software-custom", trigger_mode)
+        self.assertEqual(2, args.trigger_count)
+        self.assertEqual(100, args.sample_count)
+
+    def test_software_custom_rejects_timer_interval(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "software-custom",
+                "--trigger-count",
+                "1",
+                "--sample-count",
+                "10",
+                "--timer-interval-s",
+                "1.0",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--timer-interval-s requires --trigger-mode software"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
     def test_buffer_drain_size_requires_custom_mode(self):
         parser = build_parser()
         args = parser.parse_args(

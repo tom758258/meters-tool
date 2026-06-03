@@ -85,6 +85,25 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertIn("SAMP:COUNT 3", inst.commands)
         self.assertEqual("INIT", inst.commands[-1])
 
+    def test_software_custom_configures_bus_trigger_and_sample_count(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        measurement.configure_software_custom(
+            inst,
+            AcquisitionConfig(),
+            trigger_count=2,
+            sample_count=3,
+        )
+        measurement.start_buffered_capture(inst)
+        measurement.send_bus_trigger(inst)
+
+        self.assertIn("TRIG:SOUR BUS", inst.commands)
+        self.assertIn("TRIG:COUNT 2", inst.commands)
+        self.assertIn("SAMP:COUNT 3", inst.commands)
+        self.assertEqual("*TRG", inst.commands[-1])
+
     def test_immediate_custom_reads_and_removes_available_points(self):
         inst = FakeInstrument()
         inst.responses["DATA:POINts?"] = "2"
@@ -112,6 +131,21 @@ class CurrentMeasurementTests(unittest.TestCase):
             "pc_data_remove_time_not_instrument_sample_time",
             samples[0].trigger_metadata["time_basis"],
         )
+
+    def test_software_custom_buffered_samples_use_software_custom_source(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "1.1"
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.SOFTWARE_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual(["software-custom"], [sample.trigger_source for sample in samples])
 
     def test_timer_trigger_reads_with_read_query(self):
         inst = FakeInstrument()

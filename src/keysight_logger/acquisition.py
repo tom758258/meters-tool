@@ -57,16 +57,16 @@ class TriggerAcquisitionEngine:
         mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
         timer_interval_s = self._config.timer_interval_s
         timer_active = timer_interval_s is not None
-        if mode == "immediate-custom":
+        if mode in ("immediate-custom", "software-custom"):
             if self._config.trigger_count is None:
-                raise ValueError("immediate-custom mode requires trigger_count")
+                raise ValueError(f"{mode} mode requires trigger_count")
             if self._config.sample_count is None:
-                raise ValueError("immediate-custom mode requires sample_count")
+                raise ValueError(f"{mode} mode requires sample_count")
             memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
             expected_readings = self._config.trigger_count * self._config.sample_count
             if expected_readings > memory_limit and not self._config.allow_buffer_overflow_risk:
                 raise ValueError(
-                    "immediate-custom expected readings exceed "
+                    f"{mode} expected readings exceed "
                     f"{memory_limit} on the {KEYSIGHT_34461A_CAPABILITIES.model}"
                 )
         if timer_active:
@@ -93,6 +93,12 @@ class TriggerAcquisitionEngine:
         try:
             if mode == "immediate-custom":
                 self._capture_immediate_custom(
+                    trigger_count=self._config.trigger_count,
+                    sample_count=self._config.sample_count,
+                )
+                return
+            if mode == "software-custom":
+                self._capture_software_custom(
                     trigger_count=self._config.trigger_count,
                     sample_count=self._config.sample_count,
                 )
@@ -151,16 +157,29 @@ class TriggerAcquisitionEngine:
             self._storage.close()
             self._emit("recording stopped")
 
-    def _capture_immediate_custom(self, trigger_count: int, sample_count: int) -> None:
+    def _new_custom_event(
+        self,
+        source: TriggerSource,
+        trigger_count: int,
+        sample_count: int,
+    ) -> TriggerEvent:
         expected_readings = trigger_count * sample_count
-        event = TriggerEvent.new(
-            TriggerSource.IMMEDIATE_CUSTOM,
+        return TriggerEvent.new(
+            source,
             {
                 "trigger_count": str(trigger_count),
                 "sample_count": str(sample_count),
                 "expected_readings": str(expected_readings),
                 "time_basis": "pc_data_remove_time_not_instrument_sample_time",
             },
+        )
+
+    def _capture_immediate_custom(self, trigger_count: int, sample_count: int) -> None:
+        expected_readings = trigger_count * sample_count
+        event = self._new_custom_event(
+            TriggerSource.IMMEDIATE_CUSTOM,
+            trigger_count,
+            sample_count,
         )
         self._measurement.configure_immediate_custom(
             self._instrument,
@@ -175,6 +194,85 @@ class TriggerAcquisitionEngine:
         )
         self._measurement.start_buffered_capture(self._instrument)
         self._emit("immediate custom capture started")
+        self._drain_buffered_custom_capture(event, expected_readings)
+
+    def _capture_software_custom(self, trigger_count: int, sample_count: int) -> None:
+        expected_readings = trigger_count * sample_count
+        event = self._new_custom_event(
+            TriggerSource.SOFTWARE_CUSTOM,
+            trigger_count,
+            sample_count,
+        )
+        self._measurement.configure_software_custom(
+            self._instrument,
+            self._config,
+            trigger_count,
+            sample_count,
+        )
+        self._emit(
+            "software custom capture configured "
+            f"trigger_count={trigger_count} sample_count={sample_count} "
+            f"expected_readings={expected_readings}"
+        )
+        self._measurement.start_buffered_capture(self._instrument)
+        self._emit("software custom capture armed")
+
+        triggers_sent = 0
+        while self._running and not self._stop_event.is_set() and self._stats.captured < expected_readings:
+            try:
+                available = self._measurement.buffered_points_available(self._instrument)
+                observed_readings = self._stats.captured + available
+                remaining = expected_readings - self._stats.captured
+                read_count = min(available, remaining)
+                if self._config.buffer_drain_size is not None:
+                    read_count = min(read_count, self._config.buffer_drain_size)
+                if read_count > 0:
+                    samples = self._measurement.read_buffered_samples(
+                        self._instrument,
+                        event,
+                        read_count,
+                        first_sample_index=self._stats.captured,
+                    )
+                    for sample in samples:
+                        self._storage.write(sample)
+                        self._stats.captured += 1
+                    self._emit(f"captured={self._stats.captured}")
+                    continue
+
+                ready_for_next_trigger = observed_readings >= triggers_sent * sample_count
+                if triggers_sent < trigger_count and ready_for_next_trigger:
+                    ev = self._router.wait(timeout_s=min(self._config.trigger_timeout_ms / 1000.0, 0.2))
+                    if ev is None:
+                        self._emit("waiting software custom trigger")
+                        continue
+                    if self._handle_control_event(ev):
+                        continue
+                    if ev.source != TriggerSource.SOFTWARE:
+                        continue
+                    self._measurement.send_bus_trigger(self._instrument)
+                    triggers_sent += 1
+                    self._emit(f"software custom trigger sent={triggers_sent}/{trigger_count}")
+                    continue
+
+                self._stop_event.wait(0.05)
+            except Exception:
+                if not self._running:
+                    return
+                self._stats.errors += 1
+                err_text = "unknown"
+                if hasattr(self._instrument, "poll_system_error"):
+                    try:
+                        err_text = self._instrument.poll_system_error()
+                    except Exception:
+                        err_text = "unknown"
+                self._emit(f"buffered capture error count={self._stats.errors} scpi_error={err_text}")
+                self.stop()
+                return
+        if self._stats.captured >= expected_readings:
+            self._emit(f"expected readings reached: {expected_readings}")
+            self.stop()
+
+    def _drain_buffered_custom_capture(self, event: TriggerEvent, expected_readings: int) -> None:
         while self._running and not self._stop_event.is_set() and self._stats.captured < expected_readings:
             try:
                 available = self._measurement.buffered_points_available(self._instrument)
@@ -271,9 +369,9 @@ class TriggerAcquisitionEngine:
         if enable_hardware_trigger:
             return "external"
         mode = str(trigger_mode).strip().lower()
-        if mode not in ("software", "external", "immediate", "immediate-custom"):
+        if mode not in ("software", "external", "immediate", "immediate-custom", "software-custom"):
             raise ValueError(
-                "trigger_mode must be software, external, immediate, or immediate-custom"
+                "trigger_mode must be software, external, immediate, immediate-custom, or software-custom"
             )
         return mode
 

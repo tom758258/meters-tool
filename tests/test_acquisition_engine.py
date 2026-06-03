@@ -58,14 +58,28 @@ class FailingMeasurement(FakeMeasurement):
 class FakeBufferedMeasurement(FakeMeasurement):
     def __init__(self) -> None:
         self.sample_count = 0
+        self.sample_count_per_trigger = 0
         self.started = False
         self.read_counts: list[int] = []
+        self.bus_triggers_sent = 0
 
     def configure_immediate_custom(self, instrument, config, trigger_count, sample_count):  # noqa: ANN001, ARG002
         self.sample_count = trigger_count * sample_count
         instrument.write("TRIG:SOUR IMM")
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def configure_software_custom(self, instrument, config, trigger_count, sample_count):  # noqa: ANN001, ARG002
+        self.sample_count = 0
+        self.sample_count_per_trigger = sample_count
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def send_bus_trigger(self, instrument):  # noqa: ANN001
+        self.bus_triggers_sent += 1
+        self.sample_count += self.sample_count_per_trigger
+        instrument.write("*TRG")
 
     def start_buffered_capture(self, instrument):  # noqa: ANN001
         self.started = True
@@ -341,6 +355,66 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(5, engine.stats.captured)
         self.assertEqual([2, 2, 1], measurement.read_counts)
+
+    def test_software_custom_mode_sends_bus_trigger_and_drains_buffer(self):
+        instrument = RecordingInstrument()
+        measurement = FakeBufferedMeasurement()
+        storage = CapturingStorage()
+        statuses: list[str] = []
+        router = TriggerRouter()
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=measurement,  # type: ignore[arg-type]
+            storage=storage,  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=2, sample_count=2),
+            router=router,
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(4, engine.stats.captured)
+        self.assertEqual(
+            ["software-custom", "software-custom", "software-custom", "software-custom"],
+            [sample.trigger_source for sample in storage.samples],
+        )
+        self.assertEqual(
+            ["TRIG:SOUR BUS", "TRIG:COUNT 2", "SAMP:COUNT 2", "INIT", "*TRG", "*TRG"],
+            instrument.commands,
+        )
+        self.assertEqual(2, measurement.bus_triggers_sent)
+        self.assertEqual([2, 2], measurement.read_counts)
+        self.assertTrue(any("software custom capture armed" in s for s in statuses))
+        self.assertTrue(any("software custom trigger sent=2/2" in s for s in statuses))
+        self.assertTrue(any("expected readings reached: 4" in s for s in statuses))
+
+    def test_soft_stop_event_stops_software_custom_before_trigger(self):
+        router = TriggerRouter()
+        instrument = RecordingInstrument()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=2),
+            router=router,
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.captured)
+        self.assertGreaterEqual(instrument.abort_count, 1)
+        self.assertTrue(any("stop request received" in s for s in statuses))
 
     def test_software_timer_captures_until_max_samples(self):
         storage = CapturingStorage()
