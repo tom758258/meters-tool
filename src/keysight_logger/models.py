@@ -15,8 +15,12 @@ class Transport(str, Enum):
 class TriggerSource(str, Enum):
     HARDWARE = "hardware"
     IMMEDIATE = "immediate"
+    IMMEDIATE_BUFFERED = "immediate-buffered"
     SOFTWARE = "software"
     TIMER = "timer"
+
+
+MAX_34461A_BUFFERED_READINGS = 10000
 
 
 @dataclass(frozen=True)

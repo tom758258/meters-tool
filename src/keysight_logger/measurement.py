@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
+from typing import List
 
 from .instrument import VisaInstrument
 from .models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
@@ -27,6 +28,29 @@ class MeasurementPlugin(ABC):
 
     @abstractmethod
     def measurement_type(self) -> str:
+        raise NotImplementedError
+
+    def configure_immediate_buffered(
+        self,
+        instrument: VisaInstrument,
+        config: AcquisitionConfig,
+        sample_count: int,
+    ) -> None:
+        raise NotImplementedError
+
+    def start_buffered_capture(self, instrument: VisaInstrument) -> None:
+        raise NotImplementedError
+
+    def buffered_points_available(self, instrument: VisaInstrument) -> int:
+        raise NotImplementedError
+
+    def read_buffered_samples(
+        self,
+        instrument: VisaInstrument,
+        trigger: TriggerEvent,
+        count: int,
+        first_sample_index: int,
+    ) -> List[MeasurementSample]:
         raise NotImplementedError
 
 
@@ -68,3 +92,78 @@ class CurrentMeasurement(MeasurementPlugin):
             trigger_source=trigger.source.value,
             trigger_metadata=dict(trigger.metadata),
         )
+
+    def configure_immediate_buffered(
+        self,
+        instrument: VisaInstrument,
+        config: AcquisitionConfig,
+        sample_count: int,
+    ) -> None:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+        if sample_count <= 0:
+            raise ValueError("sample_count must be > 0")
+        instrument.write("TRIG:SOUR IMM")
+        instrument.write("TRIG:COUNT 1")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def start_buffered_capture(self, instrument: VisaInstrument) -> None:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+        instrument.write("INIT")
+
+    def buffered_points_available(self, instrument: VisaInstrument) -> int:
+        raw = instrument.query("DATA:POINts?")
+        try:
+            return max(0, int(float(raw)))
+        except ValueError as exc:
+            raise RuntimeError(f"Failed to parse DATA:POINts? response from '{raw}'") from exc
+
+    def read_buffered_samples(
+        self,
+        instrument: VisaInstrument,
+        trigger: TriggerEvent,
+        count: int,
+        first_sample_index: int,
+    ) -> List[MeasurementSample]:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+        if count <= 0:
+            return []
+        values = _parse_ascii_floats(instrument.query(f"DATA:REMove? {count}"))
+        if len(values) != count:
+            raise RuntimeError(f"Expected {count} buffered readings, got {len(values)}")
+        fetch_time_utc = datetime.now(timezone.utc)
+        samples = []
+        for offset, value in enumerate(values):
+            metadata = dict(trigger.metadata)
+            metadata.update(
+                {
+                    "buffered": "true",
+                    "buffer_index": str(first_sample_index + offset),
+                    "buffer_batch_size": str(count),
+                    "fetch_time_utc": fetch_time_utc.isoformat(),
+                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+                }
+            )
+            samples.append(
+                MeasurementSample(
+                    timestamp_utc=fetch_time_utc,
+                    measurement_type=self.measurement_type(),
+                    value=value,
+                    unit="A",
+                    status="ok",
+                    resource_id=instrument.resource_id,
+                    trigger_id=trigger.id,
+                    trigger_source=trigger.source.value,
+                    trigger_metadata=metadata,
+                )
+            )
+        return samples
+
+
+def _parse_ascii_floats(raw: str) -> list[float]:
+    text = str(raw).strip()
+    if not text:
+        return []
+    return [float(part.strip()) for part in text.replace("\n", ",").split(",") if part.strip()]

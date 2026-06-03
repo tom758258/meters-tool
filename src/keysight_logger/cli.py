@@ -14,7 +14,7 @@ from urllib.error import URLError
 from .acquisition import TriggerAcquisitionEngine
 from .instrument import InstrumentConfig, VisaInstrument
 from .measurement import CurrentMeasurement
-from .models import AcquisitionConfig, TriggerSource
+from .models import MAX_34461A_BUFFERED_READINGS, AcquisitionConfig
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 
@@ -187,7 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--sw-queue-max", type=int, default=0)
     start.add_argument(
         "--trigger-mode",
-        choices=["software", "external", "immediate"],
+        choices=["software", "external", "immediate", "immediate-buffered"],
         default=None,
         help="single acquisition trigger mode; default: software",
     )
@@ -314,6 +314,14 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
             raise ValueError("--timer-interval-s must be > 0")
         if trigger_mode != "software":
             raise ValueError("--timer-interval-s requires --trigger-mode software")
+    if trigger_mode == "immediate-buffered":
+        if args.max_samples is None:
+            raise ValueError("--max-samples is required with --trigger-mode immediate-buffered")
+        if args.max_samples > MAX_34461A_BUFFERED_READINGS:
+            raise ValueError(
+                "--max-samples must be <= "
+                f"{MAX_34461A_BUFFERED_READINGS} with --trigger-mode immediate-buffered"
+            )
 
 
 def cmd_start(args: argparse.Namespace) -> int:

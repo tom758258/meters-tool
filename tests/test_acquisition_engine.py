@@ -55,6 +55,45 @@ class FailingMeasurement(FakeMeasurement):
         raise AssertionError("software trigger should not be captured")
 
 
+class FakeBufferedMeasurement(FakeMeasurement):
+    def __init__(self) -> None:
+        self.sample_count = 0
+        self.started = False
+
+    def configure_immediate_buffered(self, instrument, config, sample_count):  # noqa: ANN001, ARG002
+        self.sample_count = sample_count
+        instrument.write("TRIG:SOUR IMM")
+        instrument.write("TRIG:COUNT 1")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def start_buffered_capture(self, instrument):  # noqa: ANN001
+        self.started = True
+        instrument.write("INIT")
+
+    def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
+        return max(0, self.sample_count)
+
+    def read_buffered_samples(self, instrument, trigger, count, first_sample_index):  # noqa: ANN001, ARG002
+        self.sample_count -= count
+        return [
+            MeasurementSample(
+                timestamp_utc=datetime.now(timezone.utc),
+                measurement_type="current_dc",
+                value=float(first_sample_index + offset),
+                unit="A",
+                status="ok",
+                resource_id=instrument.resource_id,
+                trigger_id=trigger.id,
+                trigger_source=trigger.source.value,
+                trigger_metadata={
+                    "buffer_index": str(first_sample_index + offset),
+                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+                },
+            )
+            for offset in range(count)
+        ]
+
+
 class AlwaysTimeoutHardwareInstrument(FakeInstrument):
     def __init__(self) -> None:
         super().__init__()
@@ -243,6 +282,37 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertEqual(1, engine.stats.captured)
         self.assertTrue(any("max samples reached: 1" in s for s in statuses))
+
+    def test_immediate_buffered_mode_captures_bounded_batch(self):
+        instrument = RecordingInstrument()
+        storage = CapturingStorage()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
+            storage=storage,  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=3),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-buffered"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(3, engine.stats.captured)
+        self.assertEqual(
+            ["immediate-buffered", "immediate-buffered", "immediate-buffered"],
+            [sample.trigger_source for sample in storage.samples],
+        )
+        self.assertEqual(
+            ["TRIG:SOUR IMM", "TRIG:COUNT 1", "SAMP:COUNT 3", "INIT"],
+            instrument.commands,
+        )
+        self.assertGreaterEqual(instrument.abort_count, 1)
+        self.assertTrue(any("immediate buffered capture started" in s for s in statuses))
+        self.assertTrue(any("max samples reached: 3" in s for s in statuses))
 
     def test_software_timer_captures_until_max_samples(self):
         storage = CapturingStorage()

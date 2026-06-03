@@ -7,7 +7,7 @@ from typing import Callable, Optional
 
 from .instrument import VisaInstrument
 from .measurement import MeasurementPlugin
-from .models import AcquisitionConfig, TriggerEvent, TriggerSource
+from .models import MAX_34461A_BUFFERED_READINGS, AcquisitionConfig, TriggerEvent, TriggerSource
 from .storage import CsvWriter
 from .trigger import HardwareTriggerAdapter, TriggerRouter
 
@@ -57,6 +57,14 @@ class TriggerAcquisitionEngine:
         mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
         timer_interval_s = self._config.timer_interval_s
         timer_active = timer_interval_s is not None
+        if mode == "immediate-buffered":
+            if self._config.max_samples is None:
+                raise ValueError("immediate-buffered mode requires max_samples")
+            if self._config.max_samples > MAX_34461A_BUFFERED_READINGS:
+                raise ValueError(
+                    "immediate-buffered mode supports up to "
+                    f"{MAX_34461A_BUFFERED_READINGS} samples on the 34461A"
+                )
         if timer_active:
             if timer_interval_s <= 0:
                 raise ValueError("timer_interval_s must be > 0")
@@ -79,6 +87,9 @@ class TriggerAcquisitionEngine:
         if timer_active:
             self._emit(f"software timer enabled interval_s={timer_interval_s}")
         try:
+            if mode == "immediate-buffered":
+                self._capture_immediate_buffered(self._config.max_samples)
+                return
             while self._running and not self._stop_event.is_set():
                 wait_s = min(self._config.trigger_timeout_ms / 1000.0, 0.2)
                 if timer_active:
@@ -132,6 +143,53 @@ class TriggerAcquisitionEngine:
                 self._abort_measurement()
             self._storage.close()
             self._emit("recording stopped")
+
+    def _capture_immediate_buffered(self, sample_count: int) -> None:
+        event = TriggerEvent.new(
+            TriggerSource.IMMEDIATE_BUFFERED,
+            {
+                "buffer_target_count": str(sample_count),
+                "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+            },
+        )
+        self._measurement.configure_immediate_buffered(self._instrument, self._config, sample_count)
+        self._emit(f"immediate buffered capture configured samples={sample_count}")
+        self._measurement.start_buffered_capture(self._instrument)
+        self._emit("immediate buffered capture started")
+        while self._running and not self._stop_event.is_set() and self._stats.captured < sample_count:
+            try:
+                available = self._measurement.buffered_points_available(self._instrument)
+                remaining = sample_count - self._stats.captured
+                read_count = min(available, remaining)
+                if read_count <= 0:
+                    self._stop_event.wait(0.05)
+                    continue
+                samples = self._measurement.read_buffered_samples(
+                    self._instrument,
+                    event,
+                    read_count,
+                    first_sample_index=self._stats.captured,
+                )
+                for sample in samples:
+                    self._storage.write(sample)
+                    self._stats.captured += 1
+                self._emit(f"captured={self._stats.captured}")
+            except Exception:
+                if not self._running:
+                    return
+                self._stats.errors += 1
+                err_text = "unknown"
+                if hasattr(self._instrument, "poll_system_error"):
+                    try:
+                        err_text = self._instrument.poll_system_error()
+                    except Exception:
+                        err_text = "unknown"
+                self._emit(f"buffered capture error count={self._stats.errors} scpi_error={err_text}")
+                self.stop()
+                return
+        if self._stats.captured >= sample_count:
+            self._emit(f"max samples reached: {sample_count}")
+            self.stop()
 
     def _capture(self, event: TriggerEvent) -> None:
         try:
@@ -192,8 +250,10 @@ class TriggerAcquisitionEngine:
         if enable_hardware_trigger:
             return "external"
         mode = str(trigger_mode).strip().lower()
-        if mode not in ("software", "external", "immediate"):
-            raise ValueError("trigger_mode must be software, external, or immediate")
+        if mode not in ("software", "external", "immediate", "immediate-buffered"):
+            raise ValueError(
+                "trigger_mode must be software, external, immediate, or immediate-buffered"
+            )
         return mode
 
     def _abort_measurement(self) -> None:

@@ -81,6 +81,70 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(10, args.max_samples)
         self.assertEqual("pos", args.vm_comp_slope)
 
+    def test_immediate_buffered_requires_max_samples(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-buffered",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--max-samples is required with --trigger-mode immediate-buffered",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_immediate_buffered_rejects_more_than_34461a_memory(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-buffered",
+                "--max-samples",
+                "10001",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--max-samples must be <= 10000 with --trigger-mode immediate-buffered",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_immediate_buffered_accepts_bounded_run(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-buffered",
+                "--max-samples",
+                "100",
+            ]
+        )
+
+        trigger_mode = resolve_trigger_mode(args)
+        validate_start_args(args, trigger_mode)
+
+        self.assertEqual("immediate-buffered", trigger_mode)
+        self.assertEqual(100, args.max_samples)
+
     def test_timer_interval_is_valid_with_default_software_mode(self):
         parser = build_parser()
         args = parser.parse_args(
