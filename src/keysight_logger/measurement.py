@@ -7,6 +7,15 @@ from .instrument import VisaInstrument
 from .models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
 
 
+def _vm_comp_slope_command(slope: str) -> str:
+    slope_cmd = str(slope).strip().upper()
+    if slope_cmd in ("POS", "POSITIVE"):
+        return "POS"
+    if slope_cmd in ("NEG", "NEGATIVE"):
+        return "NEG"
+    raise ValueError("vm_comp_slope must be 'pos' or 'neg'")
+
+
 class MeasurementPlugin(ABC):
     @abstractmethod
     def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
@@ -36,6 +45,9 @@ class CurrentMeasurement(MeasurementPlugin):
             instrument.write(f"CURR:DC:RANG {config.current_range}")
         instrument.write(f"CURR:DC:NPLC {config.nplc}")
         instrument.write(f"ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
         self._configured = True
 
     def read_sample(self, instrument: VisaInstrument, trigger: TriggerEvent) -> MeasurementSample:

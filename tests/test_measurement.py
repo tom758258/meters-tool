@@ -40,6 +40,30 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertEqual(1.23, sample.value)
         self.assertEqual("READ?", inst.commands[-1])
 
+    def test_vm_comp_slope_is_left_unchanged_by_default(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig())
+
+        self.assertNotIn("OUTP:TRIG:SLOP POS", inst.commands)
+        self.assertNotIn("OUTP:TRIG:SLOP NEG", inst.commands)
+
+    def test_vm_comp_slope_writes_output_trigger_slope(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(vm_comp_slope="pos"))
+
+        self.assertIn("OUTP:TRIG:SLOP POS", inst.commands)
+
+    def test_invalid_vm_comp_slope_is_rejected(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        with self.assertRaises(ValueError):
+            measurement.configure(inst, AcquisitionConfig(vm_comp_slope="rising"))
+
 
 if __name__ == "__main__":
     unittest.main()

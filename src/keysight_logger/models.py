@@ -32,6 +32,7 @@ class AcquisitionConfig:
     auto_range: bool = True
     current_range: Optional[float] = None
     hw_trigger_delay_s: float = 0.0
+    vm_comp_slope: Optional[str] = None
 
 
 @dataclass(frozen=True)

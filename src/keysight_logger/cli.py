@@ -192,6 +192,12 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--auto-zero", type=parse_on_off, default=True)
     start.add_argument("--auto-range", type=parse_on_off, default=True)
     start.add_argument("--current-range", type=float, default=None)
+    start.add_argument(
+        "--vm-comp-slope",
+        choices=["pos", "neg"],
+        default=None,
+        help="VM Comp rear-panel output pulse slope; omit to leave unchanged",
+    )
 
     trig = sub.add_parser("soft-trigger")
     trig.add_argument("--port", type=int, default=8765)
@@ -279,6 +285,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         auto_range=args.auto_range,
         current_range=args.current_range,
         hw_trigger_delay_s=args.hw_trigger_delay_s,
+        vm_comp_slope=args.vm_comp_slope,
     )
     instrument = VisaInstrument(iconfig)
     router = TriggerRouter()

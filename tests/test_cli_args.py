@@ -31,6 +31,7 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(0.0, args.hw_trigger_delay_s)
         self.assertEqual(0, args.sw_min_interval_ms)
         self.assertEqual(0, args.sw_queue_max)
+        self.assertIsNone(args.vm_comp_slope)
 
     def test_start_with_manual_options(self):
         parser = build_parser()
@@ -55,6 +56,8 @@ class CliArgsTests(unittest.TestCase):
                 "50",
                 "--sw-queue-max",
                 "5",
+                "--vm-comp-slope",
+                "pos",
             ]
         )
         self.assertFalse(args.auto_range)
@@ -64,6 +67,7 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(1.5, args.hw_trigger_delay_s)
         self.assertEqual(50, args.sw_min_interval_ms)
         self.assertEqual(5, args.sw_queue_max)
+        self.assertEqual("pos", args.vm_comp_slope)
 
 
 class StopControllerTests(unittest.TestCase):
