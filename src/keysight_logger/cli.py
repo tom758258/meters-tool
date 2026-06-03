@@ -147,9 +147,6 @@ def cmd_start(args: argparse.Namespace) -> int:
             stop_state["force"] = True
             print("second interrupt received, forcing shutdown...")
             engine.stop()
-            # Best-effort: try to return front panel control before tearing down session.
-            print(f"release_to_local: {instrument.release_to_local()}")
-            instrument.close()
             return
         print("interrupt received, stopping gracefully (press Ctrl+C again to force)...")
         engine.stop()
@@ -157,7 +154,6 @@ def cmd_start(args: argparse.Namespace) -> int:
     def request_stop_from_http() -> None:
         stop_state["stop"] = True
         engine.stop()
-        instrument.abort_measurement()
 
     server = SoftwareTriggerAdapter(
         router,
@@ -207,7 +203,9 @@ def cmd_start(args: argparse.Namespace) -> int:
         finally:
             engine.stop()
             if worker.is_alive():
-                worker.join(timeout=2)
+                join_timeout_s = max(args.trigger_timeout_ms / 1000.0 + 1.0, 2.0)
+                print(f"waiting for measurement worker to stop, timeout_s={join_timeout_s:.1f}")
+                worker.join(timeout=join_timeout_s)
             if worker.is_alive() or stop_state["force"]:
                 print(f"release_to_local before close: {instrument.release_to_local()}")
                 instrument.close()
@@ -215,9 +213,40 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"captured={engine.stats.captured} errors={engine.stats.errors}")
         return 0
     finally:
-        print(f"release_to_local: {instrument.release_to_local()}")
-        server.stop()
+##
+##修正 CLI 的雙重 release 邏輯
+##問題：
+##thread 可能還在跑
+##VISA 被強制 close → 爆炸
+        # 🔴 先確保 worker 停止
+        if worker is not None and worker.is_alive():
+            print("waiting worker to fully stop...")
+            worker.join(timeout=5)
+
+        # 🔴 再做 release
+##為什麼這樣改？
+##順序一定要是：
+##stop → thread結束 → release → close
+##你原本是：
+##stop → close（thread還在） → 爆炸
+##
+
+##
+##        print(f"release_to_local: {instrument.release_to_local()}")
+    # 只做一次 release，確保 close 前儀器回 local
+##正確順序應該是：先送 SYST:LOC 確認儀器回 local → 等一小段時間 → 再 close session
+        # 必須在 close() 之前完成 release，close 後再送命令可能無效
+        rel = instrument.release_to_local()
+        print(f"release_to_local: {rel}")
+        # 若第一次 release 失敗（session 不穩），稍等後再試一次，仍用同一個 session
+        if "SYST:LOC:failed" in rel:
+            time.sleep(1.0)
+            rel2 = instrument.release_to_local()
+            print(f"release_to_local retry: {rel2}")
+##
         instrument.close()
+        print(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
+        server.stop()
 
 
 def main(argv: list[str] | None = None) -> int:

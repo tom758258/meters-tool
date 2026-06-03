@@ -73,8 +73,8 @@ class TriggerAcquisitionEngine:
                     try:
                         ev = hw.wait_and_read_triggered(self._config.trigger_timeout_ms)
                     except Exception:
-                        self._stats.errors += 1
                         if self._running:
+                            self._stats.errors += 1
                             self._emit("hardware trigger timeout/error")
                         continue
                 if ev is None:
@@ -97,6 +97,8 @@ class TriggerAcquisitionEngine:
             self._stats.captured += 1
             self._emit(f"captured={self._stats.captured}")
         except Exception:
+            if not self._running:
+                return
             self._stats.errors += 1
             err_text = "unknown"
             if hasattr(self._instrument, "poll_system_error"):
@@ -106,5 +108,23 @@ class TriggerAcquisitionEngine:
                     err_text = "unknown"
             self._emit(f"capture error count={self._stats.errors} scpi_error={err_text}")
 
+##    def stop(self) -> None:
+##        self._running = False
+##    問題：
+##          只是 flag
+##          沒有中斷儀器
     def stop(self) -> None:
         self._running = False
+
+        # 🔥 關鍵：立即中斷儀器 trigger / measurement
+        try:
+            self._instrument.abort_measurement()
+        except Exception:
+            pass
+##
+##      為什麼？
+##          如果儀器還在：
+##          waiting trigger
+##          measurement pending
+##          不 ABOR → 永遠卡住
+##

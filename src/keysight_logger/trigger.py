@@ -46,7 +46,6 @@ class HardwareTriggerAdapter:
         self._instrument.query("*OPC?")
         return TriggerEvent.new(TriggerSource.HARDWARE)
 
-
 class SoftwareTriggerAdapter:
     def __init__(
         self,
