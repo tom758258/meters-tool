@@ -10,6 +10,7 @@ from keysight_logger.cli import (
     WindowsKeyboardStopPoller,
     build_parser,
     cmd_soft_stop,
+    resolve_trigger_mode,
 )
 
 
@@ -31,6 +32,8 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(0.0, args.hw_trigger_delay_s)
         self.assertEqual(0, args.sw_min_interval_ms)
         self.assertEqual(0, args.sw_queue_max)
+        self.assertIsNone(args.trigger_mode)
+        self.assertIsNone(args.max_samples)
         self.assertIsNone(args.vm_comp_slope)
 
     def test_start_with_manual_options(self):
@@ -56,6 +59,10 @@ class CliArgsTests(unittest.TestCase):
                 "50",
                 "--sw-queue-max",
                 "5",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "10",
                 "--vm-comp-slope",
                 "pos",
             ]
@@ -67,7 +74,42 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(1.5, args.hw_trigger_delay_s)
         self.assertEqual(50, args.sw_min_interval_ms)
         self.assertEqual(5, args.sw_queue_max)
+        self.assertEqual("immediate", args.trigger_mode)
+        self.assertEqual(10, args.max_samples)
         self.assertEqual("pos", args.vm_comp_slope)
+
+    def test_legacy_enable_hw_trigger_maps_to_external_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--enable-hw-trigger",
+            ]
+        )
+
+        self.assertEqual("external", resolve_trigger_mode(args))
+
+    def test_enable_hw_trigger_conflicts_with_non_external_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "software",
+                "--enable-hw-trigger",
+            ]
+        )
+
+        with self.assertRaises(ValueError):
+            resolve_trigger_mode(args)
 
 
 class StopControllerTests(unittest.TestCase):

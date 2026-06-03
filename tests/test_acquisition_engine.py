@@ -193,6 +193,47 @@ class AcquisitionEngineTests(unittest.TestCase):
             any("software trigger ignored while hardware trigger is enabled" in s for s in statuses)
         )
 
+    def test_max_samples_stops_after_successful_captures(self):
+        router = TriggerRouter()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=2),
+            router=router,
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run)
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(2, engine.stats.captured)
+        self.assertTrue(any("max samples reached: 2" in s for s in statuses))
+
+    def test_immediate_mode_captures_without_published_trigger(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=1),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, engine.stats.captured)
+        self.assertTrue(any("max samples reached: 1" in s for s in statuses))
+
 
 if __name__ == "__main__":
     unittest.main()

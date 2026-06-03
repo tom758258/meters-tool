@@ -14,6 +14,7 @@ class Transport(str, Enum):
 
 class TriggerSource(str, Enum):
     HARDWARE = "hardware"
+    IMMEDIATE = "immediate"
     SOFTWARE = "software"
 
 
@@ -27,6 +28,7 @@ class InstrumentConfig:
 @dataclass(frozen=True)
 class AcquisitionConfig:
     trigger_timeout_ms: int = 10000
+    max_samples: Optional[int] = None
     nplc: float = 1.0
     auto_zero: bool = True
     auto_range: bool = True

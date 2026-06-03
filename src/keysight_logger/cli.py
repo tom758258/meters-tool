@@ -180,6 +180,18 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--sw-trigger-port", type=int, default=8765)
     start.add_argument("--sw-min-interval-ms", type=int, default=0)
     start.add_argument("--sw-queue-max", type=int, default=0)
+    start.add_argument(
+        "--trigger-mode",
+        choices=["software", "external", "immediate"],
+        default=None,
+        help="single acquisition trigger mode; default: software",
+    )
+    start.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="stop automatically after successfully recording N samples",
+    )
     start.add_argument("--enable-hw-trigger", action="store_true")
     start.add_argument(
         "--hw-trigger-slope",
@@ -257,7 +269,21 @@ def cmd_soft_stop(port: int) -> int:
     return 0
 
 
+def resolve_trigger_mode(args: argparse.Namespace) -> str:
+    trigger_mode = args.trigger_mode or "software"
+    if args.enable_hw_trigger:
+        if args.trigger_mode is not None and args.trigger_mode != "external":
+            raise ValueError("--enable-hw-trigger conflicts with --trigger-mode; use external")
+        trigger_mode = "external"
+    return trigger_mode
+
+
 def cmd_start(args: argparse.Namespace) -> int:
+    try:
+        trigger_mode = resolve_trigger_mode(args)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
     if args.current_range is not None and args.current_range <= 0:
         print("--current-range must be > 0", file=sys.stderr)
         return 2
@@ -276,10 +302,14 @@ def cmd_start(args: argparse.Namespace) -> int:
     if args.sw_queue_max < 0:
         print("--sw-queue-max must be >= 0", file=sys.stderr)
         return 2
+    if args.max_samples is not None and args.max_samples <= 0:
+        print("--max-samples must be > 0", file=sys.stderr)
+        return 2
 
     iconfig = InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
     aconfig = AcquisitionConfig(
         trigger_timeout_ms=args.trigger_timeout_ms,
+        max_samples=args.max_samples,
         nplc=args.nplc,
         auto_zero=args.auto_zero,
         auto_range=args.auto_range,
@@ -343,7 +373,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         worker = threading.Thread(
             target=engine.run,
             kwargs={
-                "enable_hardware_trigger": args.enable_hw_trigger,
+                "trigger_mode": trigger_mode,
                 "hardware_trigger_slope": args.hw_trigger_slope,
             },
             daemon=True,

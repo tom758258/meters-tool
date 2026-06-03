@@ -47,6 +47,7 @@ class TriggerAcquisitionEngine:
 
     def run(
         self,
+        trigger_mode: str = "software",
         enable_hardware_trigger: bool = False,
         hardware_trigger_slope: str = "NEG",
     ) -> None:
@@ -54,7 +55,8 @@ class TriggerAcquisitionEngine:
         self._stop_event.clear()
         self._measurement.configure(self._instrument, self._config)
         hw = None
-        if enable_hardware_trigger:
+        mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
+        if mode == "external":
             hw = HardwareTriggerAdapter(self._instrument)
             hw.configure_external_trigger(
                 slope=hardware_trigger_slope,
@@ -69,7 +71,12 @@ class TriggerAcquisitionEngine:
         try:
             while self._running and not self._stop_event.is_set():
                 wait_s = min(self._config.trigger_timeout_ms / 1000.0, 0.2)
-                ev = self._router.wait(timeout_s=wait_s)
+                if mode == "immediate":
+                    ev = self._router.wait(timeout_s=0)
+                    if ev is None:
+                        ev = TriggerEvent.new(TriggerSource.IMMEDIATE)
+                else:
+                    ev = self._router.wait(timeout_s=wait_s)
                 if ev is None and hw is not None:
                     try:
                         ev = hw.wait_and_read_triggered(
@@ -100,7 +107,13 @@ class TriggerAcquisitionEngine:
                 if hw is not None and ev.source == TriggerSource.SOFTWARE:
                     self._emit("software trigger ignored while hardware trigger is enabled")
                     continue
+                if mode == "immediate" and ev.source == TriggerSource.SOFTWARE:
+                    self._emit("software trigger ignored while immediate mode is enabled")
+                    continue
                 self._capture(ev)
+                if self._config.max_samples is not None and self._stats.captured >= self._config.max_samples:
+                    self._emit(f"max samples reached: {self._config.max_samples}")
+                    self.stop()
         finally:
             if self._stop_event.is_set():
                 self._abort_measurement()
@@ -128,6 +141,14 @@ class TriggerAcquisitionEngine:
     def stop(self) -> None:
         self._running = False
         self._stop_event.set()
+
+    def _resolve_trigger_mode(self, trigger_mode: str, enable_hardware_trigger: bool) -> str:
+        if enable_hardware_trigger:
+            return "external"
+        mode = str(trigger_mode).strip().lower()
+        if mode not in ("software", "external", "immediate"):
+            raise ValueError("trigger_mode must be software, external, or immediate")
+        return mode
 
     def _abort_measurement(self) -> None:
         # Keep VISA I/O on the worker side of the shutdown path.
