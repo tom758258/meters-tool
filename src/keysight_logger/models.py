@@ -64,3 +64,4 @@ class MeasurementSample:
     resource_id: str
     trigger_id: str
     trigger_source: str
+    trigger_metadata: Dict[str, str] = field(default_factory=dict)

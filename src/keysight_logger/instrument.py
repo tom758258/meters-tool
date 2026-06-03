@@ -32,6 +32,32 @@ class VisaInstrument:
         return resources
 
     @staticmethod
+    def verify_resource(resource: str, timeout_ms: int = 1000) -> tuple[bool, str]:
+        if pyvisa is None:
+            raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
+
+        rm = None
+        inst = None
+        try:
+            rm = pyvisa.ResourceManager()
+            inst = rm.open_resource(resource)
+            inst.timeout = timeout_ms
+            return True, str(inst.query("*IDN?")).strip()
+        except Exception as exc:
+            return False, f"{type(exc).__name__}: {exc}"
+        finally:
+            if inst is not None:
+                try:
+                    inst.close()
+                except Exception:
+                    pass
+            if rm is not None:
+                try:
+                    rm.close()
+                except Exception:
+                    pass
+
+    @staticmethod
     def infer_transport(resource: str) -> Optional[Transport]:
         upper = resource.upper()
         if upper.startswith("TCPIP"):

@@ -170,7 +170,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keysight-logger")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("list-resources")
+    list_resources = sub.add_parser("list-resources")
+    list_resources.add_argument(
+        "--verify",
+        action="store_true",
+        help="open each resource and query *IDN? to mark live vs stale",
+    )
 
     start = sub.add_parser("start-trigger-record")
     start.add_argument("--resource", required=True, help="VISA resource string")
@@ -220,9 +225,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def cmd_list_resources() -> int:
+def cmd_list_resources(verify: bool = False, print_fn=print) -> int:  # noqa: ANN001
     for resource in VisaInstrument.list_resources():
-        print(resource)
+        if not verify:
+            print_fn(resource)
+            continue
+        ok, detail = VisaInstrument.verify_resource(resource)
+        status = "live" if ok else "stale"
+        print_fn(f"{status}\t{resource}\t{detail}")
     return 0
 
 
@@ -439,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "list-resources":
-        return cmd_list_resources()
+        return cmd_list_resources(verify=args.verify)
     if args.command == "soft-trigger":
         return cmd_soft_trigger(args.port, args.meta)
     if args.command == "soft-stop":

@@ -66,4 +66,5 @@ class CurrentMeasurement(MeasurementPlugin):
             resource_id=instrument.resource_id,
             trigger_id=trigger.id,
             trigger_source=trigger.source.value,
+            trigger_metadata=dict(trigger.metadata),
         )

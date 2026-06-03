@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import time
 import unittest
 from urllib import request
@@ -10,11 +9,11 @@ from keysight_logger.trigger import SoftwareTriggerAdapter, TriggerRouter
 
 
 class SoftwareTriggerAdapterTests(unittest.TestCase):
-    def _post_trigger(self, port: int) -> int:
+    def _post_trigger(self, port: int, payload: bytes = b"{}") -> int:
         req = request.Request(
             f"http://127.0.0.1:{port}/trigger",
             method="POST",
-            data=b"{}",
+            data=payload,
             headers={"Content-Type": "application/json"},
         )
         try:
@@ -61,6 +60,20 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertIsNotNone(event)
             third = self._post_trigger(port)
             self.assertEqual(202, third)
+        finally:
+            server.stop()
+
+    def test_trigger_endpoint_preserves_metadata(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
+        _, port = server.start()
+        try:
+            status = self._post_trigger(port, b'{"batch":"A1","count":3}')
+            self.assertEqual(202, status)
+            event = router.wait(timeout_s=0.1)
+            self.assertIsNotNone(event)
+            assert event is not None
+            self.assertEqual({"batch": "A1", "count": "3"}, event.metadata)
         finally:
             server.stop()
 

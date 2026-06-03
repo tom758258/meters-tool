@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,7 @@ class CsvWriter:
         "unit",
         "trigger_id",
         "trigger_source",
+        "trigger_metadata",
         "resource_id",
         "status",
     ]
@@ -42,6 +44,11 @@ class CsvWriter:
                 "unit": sample.unit,
                 "trigger_id": sample.trigger_id,
                 "trigger_source": sample.trigger_source,
+                "trigger_metadata": json.dumps(
+                    sample.trigger_metadata,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
                 "resource_id": sample.resource_id,
                 "status": sample.status,
             }

@@ -40,6 +40,18 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertEqual(1.23, sample.value)
         self.assertEqual("READ?", inst.commands[-1])
 
+    def test_trigger_metadata_is_copied_to_sample(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(
+            inst,
+            TriggerEvent.new(TriggerSource.SOFTWARE, {"batch": "A1"}),
+        )
+
+        self.assertEqual({"batch": "A1"}, sample.trigger_metadata)
+
     def test_immediate_trigger_reads_with_read_query(self):
         inst = FakeInstrument()
         measurement = CurrentMeasurement()

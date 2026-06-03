@@ -24,6 +24,7 @@ class CsvWriterTests(unittest.TestCase):
                     resource_id="TCPIP0::127.0.0.1::inst0::INSTR",
                     trigger_id="t1",
                     trigger_source="software",
+                    trigger_metadata={"batch": "A1", "operator": "lab"},
                 )
             )
             writer.close()
@@ -33,6 +34,7 @@ class CsvWriterTests(unittest.TestCase):
             self.assertEqual(1, len(rows))
             self.assertEqual("current_dc", rows[0]["measurement_type"])
             self.assertEqual("software", rows[0]["trigger_source"])
+            self.assertEqual('{"batch":"A1","operator":"lab"}', rows[0]["trigger_metadata"])
 
 
 if __name__ == "__main__":

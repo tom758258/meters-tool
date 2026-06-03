@@ -9,6 +9,7 @@ from keysight_logger.cli import (
     WindowsConsoleStopHandler,
     WindowsKeyboardStopPoller,
     build_parser,
+    cmd_list_resources,
     cmd_soft_stop,
     resolve_trigger_mode,
 )
@@ -110,6 +111,12 @@ class CliArgsTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             resolve_trigger_mode(args)
+
+    def test_list_resources_verify_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["list-resources", "--verify"])
+
+        self.assertTrue(args.verify)
 
 
 class StopControllerTests(unittest.TestCase):
@@ -230,6 +237,37 @@ class WindowsKeyboardStopPollerTests(unittest.TestCase):
 
 
 class CliCommandTests(unittest.TestCase):
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_without_verify_prints_resources(self, mock_visa):
+        mock_visa.list_resources.return_value = ["USB::LIVE"]
+        lines = []
+
+        rc = cmd_list_resources(verify=False, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(["USB::LIVE"], lines)
+        mock_visa.verify_resource.assert_not_called()
+
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_verify_marks_live_and_stale(self, mock_visa):
+        mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
+        mock_visa.verify_resource.side_effect = [
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+            (False, "VisaIOError: timeout"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(verify=True, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(
+            [
+                "live\tUSB::LIVE\tKeysight Technologies,34461A,MY123,1.0",
+                "stale\tUSB::STALE\tVisaIOError: timeout",
+            ],
+            lines,
+        )
+
     @patch(
         "keysight_logger.cli.request.urlopen",
         side_effect=URLError(ConnectionRefusedError(10061, "refused")),
