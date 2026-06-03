@@ -1,0 +1,44 @@
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Virtual environments
+venv/
+.venv/
+.env
+.env.local
+*.env.*
+
+# Test coverage
+.coverage
+coverage/
+htmlcov/
+.test-output/
+.tmp_tests/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# Logs
+*.log
+
+# Build/dist directories
+dist/
+build/
+target/
+*.egg-info/
+
+# Dependency cache
+.mypy_cache/
+.pytest_cache/
+uv.lock
+
+#NoteBook file
+.obsidian
+
+#Data file
+data
