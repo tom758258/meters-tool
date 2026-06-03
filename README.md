@@ -155,7 +155,7 @@ Verified output is tab-separated:
 
 ```text
 live    USB0::0x2A8D::0x1301::MYXXXXXXXX::0::INSTR    Keysight Technologies,34461A,...
-stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: .
+stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: 
 ```
 
 Example resource strings:

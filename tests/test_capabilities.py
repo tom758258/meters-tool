@@ -11,7 +11,7 @@ class CapabilitiesTests(unittest.TestCase):
 
         self.assertEqual("34461A", capabilities.model)
         self.assertEqual(10000, capabilities.reading_memory_limit)
-        self.assertEqual(("current_dc",), capabilities.supported_measurement_types)
+        self.assertEqual(("current_dc", "voltage_dc"), capabilities.supported_measurement_types)
         self.assertTrue(capabilities.supports_buffered_reading_memory)
         self.assertTrue(capabilities.supports_bus_trigger)
         self.assertTrue(capabilities.supports_external_trigger)

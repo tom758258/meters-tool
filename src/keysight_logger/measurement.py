@@ -85,6 +85,9 @@ class CurrentMeasurement(MeasurementPlugin):
     def measurement_type(self) -> str:
         return "current_dc"
 
+    def unit(self) -> str:
+        return "A"
+
     def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
         manual_range = config.measurement_range
         if manual_range is None:
@@ -112,7 +115,7 @@ class CurrentMeasurement(MeasurementPlugin):
             timestamp_utc=datetime.now(timezone.utc),
             measurement_type=self.measurement_type(),
             value=value,
-            unit="A",
+            unit=self.unit(),
             status="ok",
             resource_id=instrument.resource_id,
             trigger_id=trigger.id,
@@ -225,7 +228,7 @@ class CurrentMeasurement(MeasurementPlugin):
                     timestamp_utc=fetch_time_utc,
                     measurement_type=self.measurement_type(),
                     value=value,
-                    unit="A",
+                    unit=self.unit(),
                     status="ok",
                     resource_id=instrument.resource_id,
                     trigger_id=trigger.id,
@@ -234,6 +237,36 @@ class CurrentMeasurement(MeasurementPlugin):
                 )
             )
         return samples
+
+
+class VoltageDcMeasurement(CurrentMeasurement):
+    def measurement_type(self) -> str:
+        return "voltage_dc"
+
+    def unit(self) -> str:
+        return "V"
+
+    def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:VOLT:DC AUTO")
+        if config.auto_range:
+            instrument.write("VOLT:DC:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"VOLT:DC:RANG {config.measurement_range}")
+        instrument.write(f"VOLT:DC:NPLC {config.nplc}")
+        instrument.write(f"VOLT:DC:ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+def create_measurement_plugin(measurement_type: str) -> MeasurementPlugin:
+    normalized = str(measurement_type).strip().lower().replace("-", "_")
+    if normalized == "current_dc":
+        return CurrentMeasurement()
+    if normalized == "voltage_dc":
+        return VoltageDcMeasurement()
+    raise ValueError(f"Unsupported measurement type: {measurement_type}")
 
 
 def _parse_ascii_floats(raw: str) -> list[float]:

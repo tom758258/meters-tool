@@ -43,7 +43,7 @@ class InstrumentCapabilities:
 KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
     model="34461A",
     reading_memory_limit=10000,
-    supported_measurement_types=("current_dc",),
+    supported_measurement_types=("current_dc", "voltage_dc"),
     supports_buffered_reading_memory=True,
     supports_bus_trigger=True,
     supports_external_trigger=True,

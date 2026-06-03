@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger.measurement import CurrentMeasurement
+from keysight_logger.measurement import (
+    CurrentMeasurement,
+    VoltageDcMeasurement,
+    create_measurement_plugin,
+)
 from keysight_logger.models import AcquisitionConfig, TriggerEvent, TriggerSource
 
 
@@ -233,6 +237,92 @@ class CurrentMeasurementTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             measurement.configure(inst, AcquisitionConfig(vm_comp_slope="rising"))
+
+
+class VoltageDcMeasurementTests(unittest.TestCase):
+    def test_auto_range_writes_voltage_scpi(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig())
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC AUTO",
+                "VOLT:DC:RANG:AUTO ON",
+                "VOLT:DC:NPLC 1.0",
+                "VOLT:DC:ZERO:AUTO ON",
+            ],
+            inst.commands,
+        )
+
+    def test_manual_range_writes_voltage_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(auto_range=False, measurement_range=10.0, auto_zero=False),
+        )
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC AUTO",
+                "VOLT:DC:RANG 10.0",
+                "VOLT:DC:NPLC 1.0",
+                "VOLT:DC:ZERO:AUTO OFF",
+            ],
+            inst.commands,
+        )
+
+    def test_read_sample_uses_voltage_metadata_and_fetch_for_hardware(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(inst, TriggerEvent.new(TriggerSource.HARDWARE))
+
+        self.assertEqual("voltage_dc", sample.measurement_type)
+        self.assertEqual("V", sample.unit)
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual("FETC?", inst.commands[-1])
+
+    def test_buffered_samples_use_voltage_metadata(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "5.5"
+        measurement = VoltageDcMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual("voltage_dc", samples[0].measurement_type)
+        self.assertEqual("V", samples[0].unit)
+        self.assertEqual(5.5, samples[0].value)
+
+    def test_vm_comp_slope_writes_output_trigger_slope(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(vm_comp_slope="neg"))
+
+        self.assertIn("OUTP:TRIG:SLOP NEG", inst.commands)
+
+
+class MeasurementFactoryTests(unittest.TestCase):
+    def test_create_current_measurement_plugin(self):
+        self.assertIsInstance(create_measurement_plugin("current-dc"), CurrentMeasurement)
+
+    def test_create_voltage_measurement_plugin(self):
+        self.assertIsInstance(create_measurement_plugin("voltage-dc"), VoltageDcMeasurement)
+
+    def test_unsupported_measurement_plugin_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "Unsupported measurement type"):
+            create_measurement_plugin("resistance-2w")
 
 
 if __name__ == "__main__":

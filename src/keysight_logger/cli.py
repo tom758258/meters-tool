@@ -13,7 +13,7 @@ from urllib.error import URLError
 
 from .acquisition import TriggerAcquisitionEngine
 from .instrument import InstrumentConfig, VisaInstrument
-from .measurement import CurrentMeasurement
+from .measurement import create_measurement_plugin
 from .models import KEYSIGHT_34461A_CAPABILITIES, AcquisitionConfig
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
@@ -263,7 +263,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument(
         "--measurement",
         default="current-dc",
-        help="measurement type; currently only current-dc is supported",
+        help="measurement type; current-dc or voltage-dc",
     )
     start.add_argument("--nplc", type=float, default=1.0)
     start.add_argument("--auto-zero", type=parse_on_off, default=True)
@@ -273,7 +273,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="measurement_range",
         type=float,
         default=None,
-        help="manual measurement range; for current-dc this is amps",
+        help="manual measurement range; amps for current-dc, volts for voltage-dc",
     )
     start.add_argument(
         "--current-range",
@@ -367,17 +367,21 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
     if measurement_type not in supported_measurements:
         choices = ", ".join(format_measurement_type(value) for value in supported_measurements)
         raise ValueError(f"--measurement must be one of: {choices}")
-    measurement_range = resolve_measurement_range(args)
+    if measurement_type != "current_dc" and args.current_range is not None:
+        raise ValueError("--current-range can only be used with --measurement current-dc")
     if args.measurement_range is not None and args.measurement_range <= 0:
         raise ValueError("--range must be > 0")
     if args.current_range is not None and args.current_range <= 0:
         raise ValueError("--current-range must be > 0")
+    measurement_range = resolve_measurement_range(args)
     if args.nplc <= 0:
         raise ValueError("--nplc must be > 0")
     if args.hw_trigger_delay_s < 0:
         raise ValueError("--hw-trigger-delay-s must be >= 0")
-    if not args.auto_range and measurement_range is None:
+    if not args.auto_range and measurement_range is None and measurement_type == "current_dc":
         raise ValueError("--range or --current-range is required when --auto-range off")
+    if not args.auto_range and measurement_range is None:
+        raise ValueError("--range is required when --auto-range off")
     if args.sw_min_interval_ms < 0:
         raise ValueError("--sw-min-interval-ms must be >= 0")
     if args.sw_queue_max < 0:
@@ -466,14 +470,14 @@ def cmd_start(args: argparse.Namespace) -> int:
         auto_zero=args.auto_zero,
         auto_range=args.auto_range,
         measurement_range=measurement_range,
-        current_range=measurement_range,
+        current_range=args.current_range,
         hw_trigger_delay_s=args.hw_trigger_delay_s,
         vm_comp_slope=args.vm_comp_slope,
     )
     instrument = VisaInstrument(iconfig)
     router = TriggerRouter()
     storage = CsvWriter(Path(args.csv))
-    measurement = CurrentMeasurement()
+    measurement = create_measurement_plugin(measurement_type)
     engine = TriggerAcquisitionEngine(
         instrument=instrument,
         measurement=measurement,
