@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
 import json
 import signal
 import sys
@@ -15,6 +16,144 @@ from .measurement import CurrentMeasurement
 from .models import AcquisitionConfig, TriggerSource
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
+
+
+class StopController:
+    def __init__(self, stop_engine, print_fn=print):  # noqa: ANN001
+        self.stop = False
+        self.interrupt_count = 0
+        self.force = False
+        self._stop_engine = stop_engine
+        self._print = print_fn
+        self._lock = threading.Lock()
+
+    def request_stop(self, force: bool = False) -> None:
+        with self._lock:
+            self.stop = True
+            if force:
+                self.force = True
+                message = "second interrupt received, forcing shutdown..."
+            else:
+                message = "interrupt received, stopping gracefully (press Ctrl+C again to force)..."
+        self._stop_engine()
+        self._print(message)
+
+    def request_http_stop(self) -> None:
+        with self._lock:
+            self.stop = True
+        self._stop_engine()
+
+    def request_signal_stop(self) -> None:
+        with self._lock:
+            self.interrupt_count += 1
+            force = self.interrupt_count >= 2
+        self.request_stop(force=force)
+
+
+class WindowsConsoleStopHandler:
+    _CTRL_C_EVENT = 0
+    _CTRL_BREAK_EVENT = 1
+    _STD_INPUT_HANDLE = -10
+    _ENABLE_PROCESSED_INPUT = 0x0001
+
+    def __init__(self, stop_controller: StopController):
+        self._stop_controller = stop_controller
+        self._kernel32 = None
+        self._handler = None
+        self._stdin_handle = None
+        self._previous_input_mode = None
+        self.installed = False
+        self.input_mode_configured = False
+
+    def install(self) -> bool:
+        if sys.platform != "win32":
+            return False
+        try:
+            from ctypes import wintypes
+
+            self._kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            callback_type = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
+            self._kernel32.SetConsoleCtrlHandler.argtypes = (callback_type, wintypes.BOOL)
+            self._kernel32.SetConsoleCtrlHandler.restype = wintypes.BOOL
+            self._kernel32.GetStdHandle.argtypes = (wintypes.DWORD,)
+            self._kernel32.GetStdHandle.restype = wintypes.HANDLE
+            self._kernel32.GetConsoleMode.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+            self._kernel32.GetConsoleMode.restype = wintypes.BOOL
+            self._kernel32.SetConsoleMode.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+            self._kernel32.SetConsoleMode.restype = wintypes.BOOL
+            self._configure_input_mode(wintypes)
+            self._handler = callback_type(self._handle)
+            if not self._kernel32.SetConsoleCtrlHandler(self._handler, True):
+                return False
+        except (AttributeError, OSError):
+            return False
+        self.installed = True
+        return True
+
+    def uninstall(self) -> None:
+        if not self.installed or self._kernel32 is None or self._handler is None:
+            return
+        self._restore_input_mode()
+        self._kernel32.SetConsoleCtrlHandler(self._handler, False)
+        self.installed = False
+
+    def _handle(self, ctrl_type: int) -> bool:
+        if ctrl_type not in (self._CTRL_C_EVENT, self._CTRL_BREAK_EVENT):
+            return False
+        self._stop_controller.request_signal_stop()
+        return True
+
+    def _configure_input_mode(self, wintypes) -> None:  # noqa: ANN001
+        if self._kernel32 is None:
+            return
+        handle = self._kernel32.GetStdHandle(self._STD_INPUT_HANDLE)
+        if not handle:
+            return
+        mode = wintypes.DWORD()
+        if not self._kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+            return
+        self._stdin_handle = handle
+        self._previous_input_mode = int(mode.value)
+        desired_mode = int(mode.value) | self._ENABLE_PROCESSED_INPUT
+        if self._kernel32.SetConsoleMode(handle, desired_mode):
+            self.input_mode_configured = True
+
+    def _restore_input_mode(self) -> None:
+        if (
+            self._kernel32 is None
+            or self._stdin_handle is None
+            or self._previous_input_mode is None
+            or not self.input_mode_configured
+        ):
+            return
+        self._kernel32.SetConsoleMode(self._stdin_handle, self._previous_input_mode)
+        self.input_mode_configured = False
+
+
+class WindowsKeyboardStopPoller:
+    def __init__(self):
+        self._msvcrt = None
+        if sys.platform == "win32":
+            try:
+                import msvcrt
+
+                self._msvcrt = msvcrt
+            except ImportError:
+                self._msvcrt = None
+
+    def poll_stop_requested(self) -> bool:
+        if self._msvcrt is None:
+            return False
+        requested = False
+        while self._msvcrt.kbhit():
+            ch = self._msvcrt.getwch()
+            if ch in ("\x00", "\xe0"):
+                if self._msvcrt.kbhit():
+                    self._msvcrt.getwch()
+                continue
+            if ch in ("\x03", "q", "Q"):
+                requested = True
+        return requested
 
 
 def parse_on_off(value: str) -> bool:
@@ -139,43 +278,46 @@ def cmd_start(args: argparse.Namespace) -> int:
         status_cb=lambda m: print(f"[status] {m}"),
     )
 
-    stop_state = {"stop": False, "interrupt_count": 0, "force": False}
-
-    def request_stop(force: bool = False) -> None:
-        stop_state["stop"] = True
-        if force:
-            stop_state["force"] = True
-            print("second interrupt received, forcing shutdown...")
-            engine.stop()
-            return
-        print("interrupt received, stopping gracefully (press Ctrl+C again to force)...")
-        engine.stop()
-
-    def request_stop_from_http() -> None:
-        stop_state["stop"] = True
-        engine.stop()
+    stop_controller = StopController(engine.stop)
 
     server = SoftwareTriggerAdapter(
         router,
         port=args.sw_trigger_port,
         min_interval_ms=args.sw_min_interval_ms,
         queue_max=args.sw_queue_max,
-        stop_cb=request_stop_from_http,
+        stop_cb=stop_controller.request_http_stop,
     )
 
-    def handle_sigterm(signum, frame):  # noqa: ARG001
-        # Keep SIGTERM support without overriding SIGINT behavior on Windows consoles.
-        request_stop(force=False)
+    def handle_stop_signal(signum, frame):  # noqa: ARG001
+        stop_controller.request_signal_stop()
 
+    previous_signal_handlers = []
+    previous_signal_handlers.append((signal.SIGINT, signal.signal(signal.SIGINT, handle_stop_signal)))
     if hasattr(signal, "SIGTERM"):
-        signal.signal(signal.SIGTERM, handle_sigterm)
+        previous_signal_handlers.append(
+            (signal.SIGTERM, signal.signal(signal.SIGTERM, handle_stop_signal))
+        )
+    if hasattr(signal, "SIGBREAK"):
+        previous_signal_handlers.append(
+            (signal.SIGBREAK, signal.signal(signal.SIGBREAK, handle_stop_signal))
+        )
+    windows_console_stop_handler = WindowsConsoleStopHandler(stop_controller)
+    keyboard_stop_poller = WindowsKeyboardStopPoller()
 
     worker: threading.Thread | None = None
     try:
         instrument.connect()
+        if windows_console_stop_handler.install():
+            print(
+                "windows console stop handler: installed "
+                f"processed_input={windows_console_stop_handler.input_mode_configured}"
+            )
+        elif sys.platform == "win32":
+            print("windows console stop handler: unavailable", file=sys.stderr)
         host, port = server.start()
         print(f"software trigger endpoint: http://{host}:{port}/trigger")
         print(f"software stop endpoint: http://{host}:{port}/stop")
+        print("local stop keys: Ctrl+C, Ctrl+Break, q")
         worker = threading.Thread(
             target=engine.run,
             kwargs={
@@ -186,19 +328,20 @@ def cmd_start(args: argparse.Namespace) -> int:
         )
         worker.start()
         try:
-            while worker.is_alive() and not stop_state["stop"]:
+            while worker.is_alive() and not stop_controller.stop:
+                if keyboard_stop_poller.poll_stop_requested():
+                    stop_controller.request_signal_stop()
+                    break
                 time.sleep(0.2)
         except KeyboardInterrupt:
-            stop_state["interrupt_count"] += 1
-            request_stop(force=stop_state["interrupt_count"] >= 2)
+            stop_controller.request_signal_stop()
             while worker.is_alive():
                 try:
                     worker.join(timeout=0.2)
                     if not worker.is_alive():
                         break
                 except KeyboardInterrupt:
-                    stop_state["interrupt_count"] += 1
-                    request_stop(force=True)
+                    stop_controller.request_signal_stop()
                     break
         finally:
             engine.stop()
@@ -206,7 +349,7 @@ def cmd_start(args: argparse.Namespace) -> int:
                 join_timeout_s = max(args.trigger_timeout_ms / 1000.0 + 1.0, 2.0)
                 print(f"waiting for measurement worker to stop, timeout_s={join_timeout_s:.1f}")
                 worker.join(timeout=join_timeout_s)
-            if worker.is_alive() or stop_state["force"]:
+            if worker.is_alive() or stop_controller.force:
                 print(f"release_to_local before close: {instrument.release_to_local()}")
                 instrument.close()
                 worker.join(timeout=2)
@@ -229,6 +372,9 @@ def cmd_start(args: argparse.Namespace) -> int:
         instrument.close()
         print(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
         server.stop()
+        windows_console_stop_handler.uninstall()
+        for sig, previous_handler in previous_signal_handlers:
+            signal.signal(sig, previous_handler)
 
 
 def main(argv: list[str] | None = None) -> int:
