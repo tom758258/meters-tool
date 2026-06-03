@@ -57,6 +57,22 @@ class CurrentMeasurementTests(unittest.TestCase):
 
         self.assertEqual({"batch": "A1"}, sample.trigger_metadata)
 
+    def test_manual_measurement_range_writes_current_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(auto_range=False, measurement_range=0.1))
+
+        self.assertIn("CURR:DC:RANG 0.1", inst.commands)
+
+    def test_current_range_alias_writes_same_current_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(auto_range=False, current_range=0.1))
+
+        self.assertIn("CURR:DC:RANG 0.1", inst.commands)
+
     def test_immediate_trigger_reads_with_read_query(self):
         inst = FakeInstrument()
         measurement = CurrentMeasurement()

@@ -166,6 +166,22 @@ def parse_on_off(value: str) -> bool:
     raise argparse.ArgumentTypeError("value must be 'on' or 'off'")
 
 
+def normalize_measurement_type(value: str) -> str:
+    return str(value).strip().lower().replace("-", "_")
+
+
+def format_measurement_type(value: str) -> str:
+    return str(value).replace("_", "-")
+
+
+def resolve_measurement_range(args: argparse.Namespace) -> float | None:
+    if args.measurement_range is not None and args.current_range is not None:
+        raise ValueError("--range and --current-range cannot be used together")
+    if args.measurement_range is not None:
+        return args.measurement_range
+    return args.current_range
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="keysight-logger")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -244,10 +260,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="hardware trigger edge polarity (default: neg)",
     )
     start.add_argument("--hw-trigger-delay-s", type=float, default=0.0)
+    start.add_argument(
+        "--measurement",
+        default="current-dc",
+        help="measurement type; currently only current-dc is supported",
+    )
     start.add_argument("--nplc", type=float, default=1.0)
     start.add_argument("--auto-zero", type=parse_on_off, default=True)
     start.add_argument("--auto-range", type=parse_on_off, default=True)
-    start.add_argument("--current-range", type=float, default=None)
+    start.add_argument(
+        "--range",
+        dest="measurement_range",
+        type=float,
+        default=None,
+        help="manual measurement range; for current-dc this is amps",
+    )
+    start.add_argument(
+        "--current-range",
+        type=float,
+        default=None,
+        help="compatibility alias for --range with --measurement current-dc",
+    )
     start.add_argument(
         "--vm-comp-slope",
         choices=["pos", "neg"],
@@ -329,14 +362,22 @@ def resolve_trigger_mode(args: argparse.Namespace) -> str:
 
 def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
     custom_mode = trigger_mode.endswith("-custom")
+    measurement_type = normalize_measurement_type(args.measurement)
+    supported_measurements = KEYSIGHT_34461A_CAPABILITIES.supported_measurement_types
+    if measurement_type not in supported_measurements:
+        choices = ", ".join(format_measurement_type(value) for value in supported_measurements)
+        raise ValueError(f"--measurement must be one of: {choices}")
+    measurement_range = resolve_measurement_range(args)
+    if args.measurement_range is not None and args.measurement_range <= 0:
+        raise ValueError("--range must be > 0")
     if args.current_range is not None and args.current_range <= 0:
         raise ValueError("--current-range must be > 0")
     if args.nplc <= 0:
         raise ValueError("--nplc must be > 0")
     if args.hw_trigger_delay_s < 0:
         raise ValueError("--hw-trigger-delay-s must be >= 0")
-    if not args.auto_range and args.current_range is None:
-        raise ValueError("--current-range is required when --auto-range off")
+    if not args.auto_range and measurement_range is None:
+        raise ValueError("--range or --current-range is required when --auto-range off")
     if args.sw_min_interval_ms < 0:
         raise ValueError("--sw-min-interval-ms must be >= 0")
     if args.sw_queue_max < 0:
@@ -409,8 +450,11 @@ def cmd_start(args: argparse.Namespace) -> int:
         return 2
     print_buffer_overflow_warnings(args, trigger_mode)
 
+    measurement_type = normalize_measurement_type(args.measurement)
+    measurement_range = resolve_measurement_range(args)
     iconfig = InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
     aconfig = AcquisitionConfig(
+        measurement_type=measurement_type,
         trigger_timeout_ms=args.trigger_timeout_ms,
         max_samples=args.max_samples,
         trigger_count=args.trigger_count,
@@ -421,7 +465,8 @@ def cmd_start(args: argparse.Namespace) -> int:
         nplc=args.nplc,
         auto_zero=args.auto_zero,
         auto_range=args.auto_range,
-        current_range=args.current_range,
+        measurement_range=measurement_range,
+        current_range=measurement_range,
         hw_trigger_delay_s=args.hw_trigger_delay_s,
         vm_comp_slope=args.vm_comp_slope,
     )

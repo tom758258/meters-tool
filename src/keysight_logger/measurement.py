@@ -86,11 +86,14 @@ class CurrentMeasurement(MeasurementPlugin):
         return "current_dc"
 
     def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
+        manual_range = config.measurement_range
+        if manual_range is None:
+            manual_range = config.current_range
         instrument.write("CONF:CURR:DC AUTO")
         if config.auto_range:
             instrument.write("CURR:DC:RANG:AUTO ON")
-        elif config.current_range is not None:
-            instrument.write(f"CURR:DC:RANG {config.current_range}")
+        elif manual_range is not None:
+            instrument.write(f"CURR:DC:RANG {manual_range}")
         instrument.write(f"CURR:DC:NPLC {config.nplc}")
         instrument.write(f"ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
         if config.vm_comp_slope is not None:

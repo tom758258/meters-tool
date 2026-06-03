@@ -35,6 +35,9 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(0.0, args.hw_trigger_delay_s)
         self.assertEqual(0, args.sw_min_interval_ms)
         self.assertEqual(0, args.sw_queue_max)
+        self.assertEqual("current-dc", args.measurement)
+        self.assertIsNone(args.measurement_range)
+        self.assertIsNone(args.current_range)
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
         self.assertIsNone(args.trigger_count)
@@ -76,6 +79,7 @@ class CliArgsTests(unittest.TestCase):
             ]
         )
         self.assertFalse(args.auto_range)
+        self.assertIsNone(args.measurement_range)
         self.assertEqual(0.1, args.current_range)
         self.assertFalse(args.auto_zero)
         self.assertEqual(0.2, args.nplc)
@@ -85,6 +89,110 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual("immediate", args.trigger_mode)
         self.assertEqual(10, args.max_samples)
         self.assertEqual("pos", args.vm_comp_slope)
+
+    def test_range_is_accepted_with_auto_range_off(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "current-dc",
+                "--auto-range",
+                "off",
+                "--range",
+                "0.1",
+            ]
+        )
+
+        validate_start_args(args, resolve_trigger_mode(args))
+
+        self.assertEqual("current-dc", args.measurement)
+        self.assertEqual(0.1, args.measurement_range)
+        self.assertIsNone(args.current_range)
+
+    def test_current_range_alias_is_accepted_with_auto_range_off(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--auto-range",
+                "off",
+                "--current-range",
+                "0.1",
+            ]
+        )
+
+        validate_start_args(args, resolve_trigger_mode(args))
+
+        self.assertIsNone(args.measurement_range)
+        self.assertEqual(0.1, args.current_range)
+
+    def test_range_and_current_range_conflict(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--range",
+                "0.1",
+                "--current-range",
+                "0.1",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--range and --current-range cannot be used together",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_unsupported_measurement_is_rejected(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "voltage-dc",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--measurement must be one of: current-dc"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_manual_range_is_required_when_auto_range_off(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--auto-range",
+                "off",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--range or --current-range is required when --auto-range off",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
 
     def test_immediate_custom_requires_trigger_count(self):
         parser = build_parser()

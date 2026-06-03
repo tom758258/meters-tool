@@ -53,6 +53,7 @@ KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
 
 @dataclass(frozen=True)
 class AcquisitionConfig:
+    measurement_type: str = "current_dc"
     trigger_timeout_ms: int = 10000
     max_samples: Optional[int] = None
     trigger_count: Optional[int] = None
@@ -63,6 +64,7 @@ class AcquisitionConfig:
     nplc: float = 1.0
     auto_zero: bool = True
     auto_range: bool = True
+    measurement_range: Optional[float] = None
     current_range: Optional[float] = None
     hw_trigger_delay_s: float = 0.0
     vm_comp_slope: Optional[str] = None
