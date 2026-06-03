@@ -33,12 +33,20 @@ class InstrumentConfig:
 class InstrumentCapabilities:
     model: str
     reading_memory_limit: int
+    supported_measurement_types: tuple[str, ...]
+    supports_buffered_reading_memory: bool
+    supports_bus_trigger: bool
+    supports_external_trigger: bool
     supports_sample_timer: bool
 
 
 KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
     model="34461A",
     reading_memory_limit=10000,
+    supported_measurement_types=("current_dc",),
+    supports_buffered_reading_memory=True,
+    supports_bus_trigger=True,
+    supports_external_trigger=True,
     supports_sample_timer=False,
 )
 

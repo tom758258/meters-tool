@@ -58,16 +58,23 @@ class TriggerAcquisitionEngine:
         timer_interval_s = self._config.timer_interval_s
         timer_active = timer_interval_s is not None
         if mode in ("immediate-custom", "software-custom", "external-custom"):
+            capabilities = KEYSIGHT_34461A_CAPABILITIES
+            if not capabilities.supports_buffered_reading_memory:
+                raise ValueError(f"{capabilities.model} does not support buffered reading memory")
+            if mode == "software-custom" and not capabilities.supports_bus_trigger:
+                raise ValueError(f"{capabilities.model} does not support bus trigger")
+            if mode == "external-custom" and not capabilities.supports_external_trigger:
+                raise ValueError(f"{capabilities.model} does not support external trigger")
             if self._config.trigger_count is None:
                 raise ValueError(f"{mode} mode requires trigger_count")
             if self._config.sample_count is None:
                 raise ValueError(f"{mode} mode requires sample_count")
-            memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+            memory_limit = capabilities.reading_memory_limit
             expected_readings = self._config.trigger_count * self._config.sample_count
             if expected_readings > memory_limit and not self._config.allow_buffer_overflow_risk:
                 raise ValueError(
                     f"{mode} expected readings exceed "
-                    f"{memory_limit} on the {KEYSIGHT_34461A_CAPABILITIES.model}"
+                    f"{memory_limit} on the {capabilities.model}"
                 )
         if timer_active:
             if timer_interval_s <= 0:

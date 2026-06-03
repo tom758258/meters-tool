@@ -231,7 +231,10 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument(
         "--allow-buffer-overflow-risk",
         action="store_true",
-        help="allow custom modes to request more readings than 34461A reading memory",
+        help=(
+            "allow custom modes to request more readings than "
+            f"{KEYSIGHT_34461A_CAPABILITIES.model} reading memory"
+        ),
     )
     start.add_argument("--enable-hw-trigger", action="store_true")
     start.add_argument(
@@ -389,7 +392,8 @@ def print_buffer_overflow_warnings(args: argparse.Namespace, trigger_mode: str) 
     expected_readings = args.trigger_count * args.sample_count
     if expected_readings <= memory_limit:
         return
-    print("WARNING: requested readings exceed 34461A reading memory.")
+    model = KEYSIGHT_34461A_CAPABILITIES.model
+    print(f"WARNING: requested readings exceed {model} reading memory.")
     print(f"WARNING: requested={expected_readings}, memory_limit={memory_limit}.")
     print("WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory.")
     print("WARNING: data loss, incomplete rows, or SCPI errors are possible.")
