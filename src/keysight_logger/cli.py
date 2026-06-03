@@ -348,6 +348,8 @@ def cmd_start(args: argparse.Namespace) -> int:
                     stop_controller.request_signal_stop()
                     break
                 time.sleep(0.2)
+            if not worker.is_alive() and not stop_controller.stop:
+                print("measurement worker exited before stop was requested")
         except KeyboardInterrupt:
             stop_controller.request_signal_stop()
             while worker.is_alive():
@@ -359,6 +361,7 @@ def cmd_start(args: argparse.Namespace) -> int:
                     stop_controller.request_signal_stop()
                     break
         finally:
+            print("main cleanup starting")
             engine.stop()
             if worker.is_alive():
                 join_timeout_s = max(args.trigger_timeout_ms / 1000.0 + 1.0, 2.0)
@@ -371,6 +374,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"captured={engine.stats.captured} errors={engine.stats.errors}")
         return 0
     finally:
+        print("final cleanup starting")
         # Ensure worker exits before final release/close.
         if worker is not None and worker.is_alive():
             print("waiting worker to fully stop...")
@@ -386,7 +390,9 @@ def cmd_start(args: argparse.Namespace) -> int:
             print(f"release_to_local retry: {rel2}")
         instrument.close()
         print(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
+        print("stopping software trigger server")
         server.stop()
+        print("software trigger server stopped")
         windows_console_stop_handler.uninstall()
         for sig, previous_handler in previous_signal_handlers:
             signal.signal(sig, previous_handler)
