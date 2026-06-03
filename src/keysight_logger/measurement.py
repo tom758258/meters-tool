@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import List
 
@@ -78,35 +79,47 @@ class MeasurementPlugin(ABC):
         raise NotImplementedError
 
 
-class CurrentMeasurement(MeasurementPlugin):
-    def __init__(self) -> None:
+@dataclass(frozen=True)
+class MeasurementDefinition:
+    cli_name: str
+    internal_type: str
+    unit: str
+    range_label: str
+    accepts_current_range_alias: bool = False
+
+
+CURRENT_DC_DEFINITION = MeasurementDefinition(
+    cli_name="current-dc",
+    internal_type="current_dc",
+    unit="A",
+    range_label="amps",
+    accepts_current_range_alias=True,
+)
+VOLTAGE_DC_DEFINITION = MeasurementDefinition(
+    cli_name="voltage-dc",
+    internal_type="voltage_dc",
+    unit="V",
+    range_label="volts",
+)
+
+
+class ScalarDmmMeasurement(MeasurementPlugin):
+    def __init__(self, definition: MeasurementDefinition) -> None:
+        self.definition = definition
         self._configured = False
 
     def measurement_type(self) -> str:
-        return "current_dc"
+        return self.definition.internal_type
 
     def unit(self) -> str:
-        return "A"
+        return self.definition.unit
 
-    def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
-        manual_range = config.measurement_range
-        if manual_range is None:
-            manual_range = config.current_range
-        instrument.write("CONF:CURR:DC AUTO")
-        if config.auto_range:
-            instrument.write("CURR:DC:RANG:AUTO ON")
-        elif manual_range is not None:
-            instrument.write(f"CURR:DC:RANG {manual_range}")
-        instrument.write(f"CURR:DC:NPLC {config.nplc}")
-        instrument.write(f"ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
-        if config.vm_comp_slope is not None:
-            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
-            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
-        self._configured = True
-
-    def read_sample(self, instrument: VisaInstrument, trigger: TriggerEvent) -> MeasurementSample:
+    def _require_configured(self) -> None:
         if not self._configured:
             raise RuntimeError("Measurement plugin not configured")
+
+    def read_sample(self, instrument: VisaInstrument, trigger: TriggerEvent) -> MeasurementSample:
+        self._require_configured()
         # Hardware path is pre-armed by trigger adapter (INIT + external trigger),
         # so fetch completed data instead of re-arming another triggered READ?.
         command = "FETC?" if trigger.source == TriggerSource.HARDWARE else "READ?"
@@ -130,8 +143,7 @@ class CurrentMeasurement(MeasurementPlugin):
         trigger_count: int,
         sample_count: int,
     ) -> None:
-        if not self._configured:
-            raise RuntimeError("Measurement plugin not configured")
+        self._require_configured()
         if trigger_count <= 0:
             raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
@@ -147,8 +159,7 @@ class CurrentMeasurement(MeasurementPlugin):
         trigger_count: int,
         sample_count: int,
     ) -> None:
-        if not self._configured:
-            raise RuntimeError("Measurement plugin not configured")
+        self._require_configured()
         if trigger_count <= 0:
             raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
@@ -166,8 +177,7 @@ class CurrentMeasurement(MeasurementPlugin):
         slope: str,
         delay_s: float,
     ) -> None:
-        if not self._configured:
-            raise RuntimeError("Measurement plugin not configured")
+        self._require_configured()
         if trigger_count <= 0:
             raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
@@ -180,13 +190,11 @@ class CurrentMeasurement(MeasurementPlugin):
         instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
 
     def send_bus_trigger(self, instrument: VisaInstrument) -> None:
-        if not self._configured:
-            raise RuntimeError("Measurement plugin not configured")
+        self._require_configured()
         instrument.write("*TRG")
 
     def start_buffered_capture(self, instrument: VisaInstrument) -> None:
-        if not self._configured:
-            raise RuntimeError("Measurement plugin not configured")
+        self._require_configured()
         instrument.write("INIT")
 
     def buffered_points_available(self, instrument: VisaInstrument) -> int:
@@ -203,8 +211,7 @@ class CurrentMeasurement(MeasurementPlugin):
         count: int,
         first_sample_index: int,
     ) -> List[MeasurementSample]:
-        if not self._configured:
-            raise RuntimeError("Measurement plugin not configured")
+        self._require_configured()
         if count <= 0:
             return []
         values = _parse_ascii_floats(instrument.query(f"DATA:REMove? {count}"))
@@ -239,12 +246,30 @@ class CurrentMeasurement(MeasurementPlugin):
         return samples
 
 
-class VoltageDcMeasurement(CurrentMeasurement):
-    def measurement_type(self) -> str:
-        return "voltage_dc"
+class CurrentDcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(CURRENT_DC_DEFINITION)
 
-    def unit(self) -> str:
-        return "V"
+    def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
+        manual_range = config.measurement_range
+        if manual_range is None:
+            manual_range = config.current_range
+        instrument.write("CONF:CURR:DC AUTO")
+        if config.auto_range:
+            instrument.write("CURR:DC:RANG:AUTO ON")
+        elif manual_range is not None:
+            instrument.write(f"CURR:DC:RANG {manual_range}")
+        instrument.write(f"CURR:DC:NPLC {config.nplc}")
+        instrument.write(f"ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class VoltageDcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(VOLTAGE_DC_DEFINITION)
 
     def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
         instrument.write("CONF:VOLT:DC AUTO")
@@ -260,13 +285,49 @@ class VoltageDcMeasurement(CurrentMeasurement):
         self._configured = True
 
 
+CurrentMeasurement = CurrentDcMeasurement
+
+_MEASUREMENT_DEFINITIONS = {
+    CURRENT_DC_DEFINITION.internal_type: CURRENT_DC_DEFINITION,
+    VOLTAGE_DC_DEFINITION.internal_type: VOLTAGE_DC_DEFINITION,
+}
+_MEASUREMENT_PLUGIN_TYPES: dict[str, type[MeasurementPlugin]] = {
+    CURRENT_DC_DEFINITION.internal_type: CurrentDcMeasurement,
+    VOLTAGE_DC_DEFINITION.internal_type: VoltageDcMeasurement,
+}
+
+
+def normalize_measurement_type(value: str) -> str:
+    return str(value).strip().lower().replace("-", "_")
+
+
+def format_measurement_type(value: str) -> str:
+    normalized = normalize_measurement_type(value)
+    definition = _MEASUREMENT_DEFINITIONS.get(normalized)
+    if definition is not None:
+        return definition.cli_name
+    return normalized.replace("_", "-")
+
+
+def get_measurement_definition(measurement_type: str) -> MeasurementDefinition:
+    normalized = normalize_measurement_type(measurement_type)
+    try:
+        return _MEASUREMENT_DEFINITIONS[normalized]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported measurement type: {measurement_type}") from exc
+
+
+def registered_measurement_types() -> tuple[str, ...]:
+    return tuple(_MEASUREMENT_DEFINITIONS)
+
+
 def create_measurement_plugin(measurement_type: str) -> MeasurementPlugin:
-    normalized = str(measurement_type).strip().lower().replace("-", "_")
-    if normalized == "current_dc":
-        return CurrentMeasurement()
-    if normalized == "voltage_dc":
-        return VoltageDcMeasurement()
-    raise ValueError(f"Unsupported measurement type: {measurement_type}")
+    normalized = normalize_measurement_type(measurement_type)
+    try:
+        plugin_type = _MEASUREMENT_PLUGIN_TYPES[normalized]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported measurement type: {measurement_type}") from exc
+    return plugin_type()
 
 
 def _parse_ascii_floats(raw: str) -> list[float]:

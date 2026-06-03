@@ -3,9 +3,15 @@ from __future__ import annotations
 import unittest
 
 from keysight_logger.measurement import (
+    CurrentDcMeasurement,
     CurrentMeasurement,
+    ScalarDmmMeasurement,
     VoltageDcMeasurement,
     create_measurement_plugin,
+    format_measurement_type,
+    get_measurement_definition,
+    normalize_measurement_type,
+    registered_measurement_types,
 )
 from keysight_logger.models import AcquisitionConfig, TriggerEvent, TriggerSource
 
@@ -29,6 +35,25 @@ class FakeInstrument:
 
 
 class CurrentMeasurementTests(unittest.TestCase):
+    def test_current_compatibility_alias_is_preserved(self):
+        self.assertIs(CurrentMeasurement, CurrentDcMeasurement)
+
+    def test_auto_range_writes_current_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig())
+
+        self.assertEqual(
+            [
+                "CONF:CURR:DC AUTO",
+                "CURR:DC:RANG:AUTO ON",
+                "CURR:DC:NPLC 1.0",
+                "ZERO:AUTO ON",
+            ],
+            inst.commands,
+        )
+
     def test_hardware_trigger_reads_with_fetch(self):
         inst = FakeInstrument()
         measurement = CurrentMeasurement()
@@ -240,6 +265,12 @@ class CurrentMeasurementTests(unittest.TestCase):
 
 
 class VoltageDcMeasurementTests(unittest.TestCase):
+    def test_voltage_uses_scalar_base_without_inheriting_current(self):
+        measurement = VoltageDcMeasurement()
+
+        self.assertIsInstance(measurement, ScalarDmmMeasurement)
+        self.assertNotIsInstance(measurement, CurrentMeasurement)
+
     def test_auto_range_writes_voltage_scpi(self):
         inst = FakeInstrument()
         measurement = VoltageDcMeasurement()
@@ -317,8 +348,19 @@ class MeasurementFactoryTests(unittest.TestCase):
     def test_create_current_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("current-dc"), CurrentMeasurement)
 
+    def test_create_current_measurement_plugin_from_internal_name(self):
+        self.assertIsInstance(create_measurement_plugin("current_dc"), CurrentMeasurement)
+
     def test_create_voltage_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("voltage-dc"), VoltageDcMeasurement)
+
+    def test_registry_exposes_current_and_voltage_definitions(self):
+        self.assertEqual(("current_dc", "voltage_dc"), registered_measurement_types())
+        self.assertEqual("current_dc", normalize_measurement_type("current-dc"))
+        self.assertEqual("voltage-dc", format_measurement_type("voltage_dc"))
+        self.assertEqual("A", get_measurement_definition("current-dc").unit)
+        self.assertTrue(get_measurement_definition("current-dc").accepts_current_range_alias)
+        self.assertFalse(get_measurement_definition("voltage-dc").accepts_current_range_alias)
 
     def test_unsupported_measurement_plugin_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unsupported measurement type"):

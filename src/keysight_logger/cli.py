@@ -13,7 +13,13 @@ from urllib.error import URLError
 
 from .acquisition import TriggerAcquisitionEngine
 from .instrument import InstrumentConfig, VisaInstrument
-from .measurement import create_measurement_plugin
+from .measurement import (
+    create_measurement_plugin,
+    format_measurement_type,
+    get_measurement_definition,
+    normalize_measurement_type,
+    registered_measurement_types,
+)
 from .models import KEYSIGHT_34461A_CAPABILITIES, AcquisitionConfig
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
@@ -164,14 +170,6 @@ def parse_on_off(value: str) -> bool:
     if lower == "off":
         return False
     raise argparse.ArgumentTypeError("value must be 'on' or 'off'")
-
-
-def normalize_measurement_type(value: str) -> str:
-    return str(value).strip().lower().replace("-", "_")
-
-
-def format_measurement_type(value: str) -> str:
-    return str(value).replace("_", "-")
 
 
 def resolve_measurement_range(args: argparse.Namespace) -> float | None:
@@ -393,11 +391,17 @@ def resolve_trigger_mode(args: argparse.Namespace) -> str:
 def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
     custom_mode = trigger_mode.endswith("-custom")
     measurement_type = normalize_measurement_type(args.measurement)
-    supported_measurements = KEYSIGHT_34461A_CAPABILITIES.supported_measurement_types
+    registered_measurements = set(registered_measurement_types())
+    supported_measurements = tuple(
+        value
+        for value in KEYSIGHT_34461A_CAPABILITIES.supported_measurement_types
+        if value in registered_measurements
+    )
     if measurement_type not in supported_measurements:
         choices = ", ".join(format_measurement_type(value) for value in supported_measurements)
         raise ValueError(f"--measurement must be one of: {choices}")
-    if measurement_type != "current_dc" and args.current_range is not None:
+    definition = get_measurement_definition(measurement_type)
+    if not definition.accepts_current_range_alias and args.current_range is not None:
         raise ValueError("--current-range can only be used with --measurement current-dc")
     if args.measurement_range is not None and args.measurement_range <= 0:
         raise ValueError("--range must be > 0")
