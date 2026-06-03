@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 
 from .instrument import VisaInstrument
-from .models import AcquisitionConfig, MeasurementSample, TriggerEvent
+from .models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
 
 
 class MeasurementPlugin(ABC):
@@ -41,7 +41,10 @@ class CurrentMeasurement(MeasurementPlugin):
     def read_sample(self, instrument: VisaInstrument, trigger: TriggerEvent) -> MeasurementSample:
         if not self._configured:
             raise RuntimeError("Measurement plugin not configured")
-        value = instrument.query_ascii_float("READ?")
+        # Hardware path is pre-armed by trigger adapter (INIT + external trigger),
+        # so fetch completed data instead of re-arming another triggered READ?.
+        command = "FETC?" if trigger.source == TriggerSource.HARDWARE else "READ?"
+        value = instrument.query_ascii_float(command)
         return MeasurementSample(
             timestamp_utc=datetime.now(timezone.utc),
             measurement_type=self.measurement_type(),

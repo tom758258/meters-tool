@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
+from urllib.error import URLError
 
 from keysight_logger.cli import (
     StopController,
     WindowsConsoleStopHandler,
     WindowsKeyboardStopPoller,
     build_parser,
+    cmd_soft_stop,
 )
 
 
@@ -178,6 +181,16 @@ class WindowsKeyboardStopPollerTests(unittest.TestCase):
         poller._msvcrt = FakeMsvcrt(["x"])
 
         self.assertFalse(poller.poll_stop_requested())
+
+
+class CliCommandTests(unittest.TestCase):
+    @patch(
+        "keysight_logger.cli.request.urlopen",
+        side_effect=URLError(ConnectionRefusedError(10061, "refused")),
+    )
+    def test_soft_stop_connection_refused_returns_0(self, _mock_urlopen):
+        rc = cmd_soft_stop(8765)
+        self.assertEqual(0, rc)
 
 
 if __name__ == "__main__":

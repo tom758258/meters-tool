@@ -67,6 +67,22 @@ class HardwareTriggerAdapter:
                 return None
             if self._instrument.read_status_byte() & 0x20:
                 return TriggerEvent.new(TriggerSource.HARDWARE)
+        # Unreachable, loop exits via timeout/stop/trigger.
+
+    def recover_from_timeout(self) -> None:
+        # Best effort reset after external-trigger wait timeout to avoid
+        # accumulating instrument-side trigger/remote command errors.
+        try:
+            self._instrument.abort_measurement()
+        except Exception:
+            try:
+                self._instrument.write("ABOR")
+            except Exception:
+                pass
+        try:
+            self._instrument.write("*CLS")
+        except Exception:
+            pass
 
 class SoftwareTriggerAdapter:
     def __init__(

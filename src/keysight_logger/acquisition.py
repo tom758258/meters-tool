@@ -76,6 +76,11 @@ class TriggerAcquisitionEngine:
                             self._config.trigger_timeout_ms,
                             stop_event=self._stop_event,
                         )
+                    except TimeoutError:
+                        # No external edge within the timeout window; keep waiting.
+                        if self._running:
+                            hw.recover_from_timeout()
+                        continue
                     except Exception:
                         if self._running:
                             self._stats.errors += 1

@@ -9,6 +9,7 @@ import threading
 import time
 from pathlib import Path
 from urllib import request
+from urllib.error import URLError
 
 from .acquisition import TriggerAcquisitionEngine
 from .instrument import InstrumentConfig, VisaInstrument
@@ -219,8 +220,12 @@ def cmd_soft_trigger(port: int, meta: str) -> int:
         data=payload,
         headers={"Content-Type": "application/json"},
     )
-    with request.urlopen(req, timeout=3) as response:
-        print(f"trigger accepted: {response.status}")
+    try:
+        with request.urlopen(req, timeout=3) as response:
+            print(f"trigger accepted: {response.status}")
+    except URLError as exc:
+        print(f"trigger request failed: {exc}", file=sys.stderr)
+        return 3
     return 0
 
 
@@ -231,8 +236,18 @@ def cmd_soft_stop(port: int) -> int:
         data=b"{}",
         headers={"Content-Type": "application/json"},
     )
-    with request.urlopen(req, timeout=3) as response:
-        print(f"stop accepted: {response.status}")
+    try:
+        with request.urlopen(req, timeout=3) as response:
+            print(f"stop accepted: {response.status}")
+    except URLError as exc:
+        reason = getattr(exc, "reason", None)
+        winerror = getattr(reason, "winerror", None)
+        errno = getattr(reason, "errno", None)
+        if winerror == 10061 or errno == 10061:
+            print("already stopped (endpoint not listening)")
+            return 0
+        print(f"stop request failed: {exc}", file=sys.stderr)
+        return 3
     return 0
 
 

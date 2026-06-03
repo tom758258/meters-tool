@@ -9,6 +9,7 @@ class FakeHardwareInstrument:
     def __init__(self) -> None:
         self.commands: list[str] = []
         self.timeout_ms = 0
+        self.abort_count = 0
 
     def set_timeout_ms(self, timeout_ms: int) -> None:
         self.timeout_ms = timeout_ms
@@ -18,6 +19,10 @@ class FakeHardwareInstrument:
 
     def read_status_byte(self) -> int:
         return 0
+
+    def abort_measurement(self) -> bool:
+        self.abort_count += 1
+        return True
 
 
 class TriggerRouterTests(unittest.TestCase):
@@ -47,6 +52,15 @@ class HardwareTriggerAdapterTests(unittest.TestCase):
 
         self.assertIsNone(event)
         self.assertEqual(["*CLS", "*ESE 1", "INIT", "*OPC"], instrument.commands)
+
+    def test_recover_from_timeout_aborts_and_clears(self):
+        instrument = FakeHardwareInstrument()
+        adapter = HardwareTriggerAdapter(instrument)  # type: ignore[arg-type]
+
+        adapter.recover_from_timeout()
+
+        self.assertEqual(1, instrument.abort_count)
+        self.assertEqual(["*CLS"], instrument.commands)
 
 
 if __name__ == "__main__":
