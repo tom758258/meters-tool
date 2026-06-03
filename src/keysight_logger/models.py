@@ -30,8 +30,10 @@ class InstrumentConfig:
 
 
 @dataclass(frozen=True)
-class InstrumentCapabilities:
+class InstrumentProfile:
+    vendor: str
     model: str
+    aliases: tuple[str, ...]
     reading_memory_limit: int
     supported_measurement_types: tuple[str, ...]
     supports_buffered_reading_memory: bool
@@ -39,9 +41,29 @@ class InstrumentCapabilities:
     supports_external_trigger: bool
     supports_sample_timer: bool
 
+    def matches_idn(self, idn: str) -> bool:
+        parts = [part.strip().upper() for part in str(idn).split(",")]
+        if len(parts) >= 2 and parts[1] == self.model.upper():
+            return True
+        normalized = str(idn).strip().upper()
+        return any(
+            "," in alias
+            and (normalized == alias.upper() or normalized.startswith(f"{alias.upper()},"))
+            for alias in self.aliases
+        )
 
-KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
+
+InstrumentCapabilities = InstrumentProfile
+
+
+KEYSIGHT_34461A_PROFILE = InstrumentProfile(
+    vendor="Keysight",
     model="34461A",
+    aliases=(
+        "KEYSIGHT TECHNOLOGIES,34461A",
+        "KEYSIGHT,34461A",
+        "34461A",
+    ),
     reading_memory_limit=10000,
     supported_measurement_types=("current_dc", "voltage_dc"),
     supports_buffered_reading_memory=True,
@@ -49,6 +71,31 @@ KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
     supports_external_trigger=True,
     supports_sample_timer=False,
 )
+
+INSTRUMENT_PROFILES = (KEYSIGHT_34461A_PROFILE,)
+DEFAULT_INSTRUMENT_PROFILE = KEYSIGHT_34461A_PROFILE
+KEYSIGHT_34461A_CAPABILITIES = KEYSIGHT_34461A_PROFILE
+
+
+def get_default_instrument_profile() -> InstrumentProfile:
+    return DEFAULT_INSTRUMENT_PROFILE
+
+
+def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
+    normalized = str(model).strip().upper()
+    for profile in INSTRUMENT_PROFILES:
+        if profile.model.upper() == normalized or any(
+            alias.upper() == normalized for alias in profile.aliases
+        ):
+            return profile
+    raise ValueError(f"Unsupported instrument model: {model}")
+
+
+def find_instrument_profile_by_idn(idn: str) -> InstrumentProfile:
+    for profile in INSTRUMENT_PROFILES:
+        if profile.matches_idn(idn):
+            return profile
+    raise ValueError(f"Unsupported instrument IDN: {idn}")
 
 
 @dataclass(frozen=True)

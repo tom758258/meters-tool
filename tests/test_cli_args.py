@@ -16,6 +16,20 @@ from keysight_logger.cli import (
     resolve_trigger_mode,
     validate_start_args,
 )
+from keysight_logger.models import InstrumentProfile
+
+
+FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
+    vendor="Fake",
+    model="FAKE100",
+    aliases=("FAKE100",),
+    reading_memory_limit=5,
+    supported_measurement_types=("current_dc",),
+    supports_buffered_reading_memory=True,
+    supports_bus_trigger=True,
+    supports_external_trigger=True,
+    supports_sample_timer=False,
+)
 
 
 class CliArgsTests(unittest.TestCase):
@@ -177,6 +191,30 @@ class CliArgsTests(unittest.TestCase):
             "--measurement must be one of: current-dc, voltage-dc",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_profile_controls_supported_measurements(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--measurement",
+                "voltage-dc",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--measurement must be one of: current-dc",
+        ):
+            validate_start_args(
+                args,
+                resolve_trigger_mode(args),
+                instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+            )
 
     def test_voltage_dc_range_is_accepted_with_auto_range_off(self):
         parser = build_parser()
@@ -380,6 +418,34 @@ class CliArgsTests(unittest.TestCase):
             "custom mode expected readings exceed 10000",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_custom_mode_memory_limit_comes_from_profile(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--trigger-count",
+                "3",
+                "--sample-count",
+                "2",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "custom mode expected readings exceed 5",
+        ):
+            validate_start_args(
+                args,
+                resolve_trigger_mode(args),
+                instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+            )
 
     def test_immediate_custom_accepts_overflow_override(self):
         parser = build_parser()

@@ -20,7 +20,7 @@ from .measurement import (
     normalize_measurement_type,
     registered_measurement_types,
 )
-from .models import KEYSIGHT_34461A_CAPABILITIES, AcquisitionConfig
+from .models import AcquisitionConfig, InstrumentProfile, get_default_instrument_profile
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 
@@ -181,6 +181,7 @@ def resolve_measurement_range(args: argparse.Namespace) -> float | None:
 
 
 def build_parser() -> argparse.ArgumentParser:
+    default_profile = get_default_instrument_profile()
     parser = argparse.ArgumentParser(prog="keysight-logger")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -254,7 +255,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "allow custom modes to request more readings than "
-            f"{KEYSIGHT_34461A_CAPABILITIES.model} reading memory"
+            f"{default_profile.model} reading memory"
         ),
     )
     start.add_argument("--enable-hw-trigger", action="store_true")
@@ -388,13 +389,18 @@ def resolve_trigger_mode(args: argparse.Namespace) -> str:
     return trigger_mode
 
 
-def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
+def validate_start_args(
+    args: argparse.Namespace,
+    trigger_mode: str,
+    instrument_profile: InstrumentProfile | None = None,
+) -> None:
     custom_mode = trigger_mode.endswith("-custom")
+    profile = instrument_profile or get_default_instrument_profile()
     measurement_type = normalize_measurement_type(args.measurement)
     registered_measurements = set(registered_measurement_types())
     supported_measurements = tuple(
         value
-        for value in KEYSIGHT_34461A_CAPABILITIES.supported_measurement_types
+        for value in profile.supported_measurement_types
         if value in registered_measurements
     )
     if measurement_type not in supported_measurements:
@@ -434,7 +440,7 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
     if args.buffer_drain_size is not None:
         if args.buffer_drain_size <= 0:
             raise ValueError("--buffer-drain-size must be > 0")
-        memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+        memory_limit = profile.reading_memory_limit
         if args.buffer_drain_size > memory_limit:
             raise ValueError(f"--buffer-drain-size must be <= {memory_limit}")
         if not custom_mode:
@@ -448,7 +454,7 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
             raise ValueError("--trigger-count is required with custom trigger modes")
         if args.sample_count is None:
             raise ValueError("--sample-count is required with custom trigger modes")
-        memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+        memory_limit = profile.reading_memory_limit
         expected_readings = args.trigger_count * args.sample_count
         if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
             raise ValueError(
@@ -462,16 +468,21 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
             raise ValueError("--sample-count requires a custom trigger mode")
 
 
-def print_buffer_overflow_warnings(args: argparse.Namespace, trigger_mode: str) -> None:
+def print_buffer_overflow_warnings(
+    args: argparse.Namespace,
+    trigger_mode: str,
+    instrument_profile: InstrumentProfile | None = None,
+) -> None:
+    profile = instrument_profile or get_default_instrument_profile()
     if not trigger_mode.endswith("-custom") or not args.allow_buffer_overflow_risk:
         return
     if args.trigger_count is None or args.sample_count is None:
         return
-    memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+    memory_limit = profile.reading_memory_limit
     expected_readings = args.trigger_count * args.sample_count
     if expected_readings <= memory_limit:
         return
-    model = KEYSIGHT_34461A_CAPABILITIES.model
+    model = profile.model
     print(f"WARNING: requested readings exceed {model} reading memory.")
     print(f"WARNING: requested={expected_readings}, memory_limit={memory_limit}.")
     print("WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory.")
@@ -480,13 +491,14 @@ def print_buffer_overflow_warnings(args: argparse.Namespace, trigger_mode: str) 
 
 
 def cmd_start(args: argparse.Namespace) -> int:
+    instrument_profile = get_default_instrument_profile()
     try:
         trigger_mode = resolve_trigger_mode(args)
-        validate_start_args(args, trigger_mode)
+        validate_start_args(args, trigger_mode, instrument_profile=instrument_profile)
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    print_buffer_overflow_warnings(args, trigger_mode)
+    print_buffer_overflow_warnings(args, trigger_mode, instrument_profile=instrument_profile)
 
     measurement_type = normalize_measurement_type(args.measurement)
     measurement_range = resolve_measurement_range(args)
@@ -519,6 +531,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         config=aconfig,
         router=router,
         status_cb=lambda m: print(f"[status] {m}"),
+        instrument_profile=instrument_profile,
     )
 
     stop_controller = StopController(engine.stop)

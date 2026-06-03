@@ -6,8 +6,39 @@ import unittest
 from datetime import datetime, timezone
 
 from keysight_logger.acquisition import TriggerAcquisitionEngine
-from keysight_logger.models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
+from keysight_logger.models import (
+    AcquisitionConfig,
+    InstrumentProfile,
+    MeasurementSample,
+    TriggerEvent,
+    TriggerSource,
+)
 from keysight_logger.trigger import TriggerRouter
+
+
+FAKE_NO_BUFFER_PROFILE = InstrumentProfile(
+    vendor="Fake",
+    model="NO_BUFFER",
+    aliases=("NO_BUFFER",),
+    reading_memory_limit=5,
+    supported_measurement_types=("current_dc",),
+    supports_buffered_reading_memory=False,
+    supports_bus_trigger=False,
+    supports_external_trigger=False,
+    supports_sample_timer=False,
+)
+
+FAKE_SMALL_BUFFER_PROFILE = InstrumentProfile(
+    vendor="Fake",
+    model="SMALL_BUFFER",
+    aliases=("SMALL_BUFFER",),
+    reading_memory_limit=5,
+    supported_measurement_types=("current_dc",),
+    supports_buffered_reading_memory=True,
+    supports_bus_trigger=True,
+    supports_external_trigger=True,
+    supports_sample_timer=False,
+)
 
 
 class FakeInstrument:
@@ -170,6 +201,32 @@ class CapturingStorage(FakeStorage):
 
 
 class AcquisitionEngineTests(unittest.TestCase):
+    def test_custom_mode_uses_profile_buffer_support(self):
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=1),
+            router=TriggerRouter(),
+            instrument_profile=FAKE_NO_BUFFER_PROFILE,
+        )
+
+        with self.assertRaisesRegex(ValueError, "NO_BUFFER does not support buffered reading memory"):
+            engine.run(trigger_mode="immediate-custom")
+
+    def test_custom_mode_uses_profile_memory_limit(self):
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=3, sample_count=2),
+            router=TriggerRouter(),
+            instrument_profile=FAKE_SMALL_BUFFER_PROFILE,
+        )
+
+        with self.assertRaisesRegex(ValueError, "expected readings exceed 5 on the SMALL_BUFFER"):
+            engine.run(trigger_mode="immediate-custom")
+
     def test_trigger_engine_captures_only_on_trigger(self):
         router = TriggerRouter()
         engine = TriggerAcquisitionEngine(

@@ -7,7 +7,13 @@ from typing import Callable, Optional
 
 from .instrument import VisaInstrument
 from .measurement import MeasurementPlugin
-from .models import KEYSIGHT_34461A_CAPABILITIES, AcquisitionConfig, TriggerEvent, TriggerSource
+from .models import (
+    AcquisitionConfig,
+    InstrumentProfile,
+    TriggerEvent,
+    TriggerSource,
+    get_default_instrument_profile,
+)
 from .storage import CsvWriter
 from .trigger import HardwareTriggerAdapter, TriggerRouter
 
@@ -27,6 +33,7 @@ class TriggerAcquisitionEngine:
         config: AcquisitionConfig,
         router: TriggerRouter,
         status_cb: Optional[Callable[[str], None]] = None,
+        instrument_profile: InstrumentProfile | None = None,
     ):
         self._instrument = instrument
         self._measurement = measurement
@@ -34,6 +41,7 @@ class TriggerAcquisitionEngine:
         self._config = config
         self._router = router
         self._status_cb = status_cb
+        self._instrument_profile = instrument_profile or get_default_instrument_profile()
         self._running = False
         self._stop_event = threading.Event()
         self._stats = AcquisitionStats()
@@ -58,7 +66,7 @@ class TriggerAcquisitionEngine:
         timer_interval_s = self._config.timer_interval_s
         timer_active = timer_interval_s is not None
         if mode in ("immediate-custom", "software-custom", "external-custom"):
-            capabilities = KEYSIGHT_34461A_CAPABILITIES
+            capabilities = self._instrument_profile
             if not capabilities.supports_buffered_reading_memory:
                 raise ValueError(f"{capabilities.model} does not support buffered reading memory")
             if mode == "software-custom" and not capabilities.supports_bus_trigger:
