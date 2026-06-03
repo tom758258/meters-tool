@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import threading
 from typing import Callable, Optional
 
 from .instrument import VisaInstrument
@@ -33,6 +34,7 @@ class TriggerAcquisitionEngine:
         self._router = router
         self._status_cb = status_cb
         self._running = False
+        self._stop_event = threading.Event()
         self._stats = AcquisitionStats()
 
     @property
@@ -49,6 +51,7 @@ class TriggerAcquisitionEngine:
         hardware_trigger_slope: str = "NEG",
     ) -> None:
         self._running = True
+        self._stop_event.clear()
         self._measurement.configure(self._instrument, self._config)
         hw = None
         if enable_hardware_trigger:
@@ -64,14 +67,15 @@ class TriggerAcquisitionEngine:
         self._storage.open()
         self._emit("recording started")
         try:
-            while self._running:
-                wait_s = self._config.trigger_timeout_ms / 1000.0
-                if hw is not None:
-                    wait_s = min(wait_s, 0.2)
+            while self._running and not self._stop_event.is_set():
+                wait_s = min(self._config.trigger_timeout_ms / 1000.0, 0.2)
                 ev = self._router.wait(timeout_s=wait_s)
                 if ev is None and hw is not None:
                     try:
-                        ev = hw.wait_and_read_triggered(self._config.trigger_timeout_ms)
+                        ev = hw.wait_and_read_triggered(
+                            self._config.trigger_timeout_ms,
+                            stop_event=self._stop_event,
+                        )
                     except Exception:
                         if self._running:
                             self._stats.errors += 1
@@ -82,11 +86,13 @@ class TriggerAcquisitionEngine:
                     continue
                 if ev.metadata.get("control") == "stop":
                     self._emit("stop request received")
-                    self._instrument.abort_measurement()
+                    self._abort_measurement()
                     self.stop()
                     continue
                 self._capture(ev)
         finally:
+            if self._stop_event.is_set():
+                self._abort_measurement()
             self._storage.close()
             self._emit("recording stopped")
 
@@ -108,23 +114,13 @@ class TriggerAcquisitionEngine:
                     err_text = "unknown"
             self._emit(f"capture error count={self._stats.errors} scpi_error={err_text}")
 
-##    def stop(self) -> None:
-##        self._running = False
-##    問題：
-##          只是 flag
-##          沒有中斷儀器
     def stop(self) -> None:
         self._running = False
+        self._stop_event.set()
 
-        # 🔥 關鍵：立即中斷儀器 trigger / measurement
+    def _abort_measurement(self) -> None:
+        # Keep VISA I/O on the worker side of the shutdown path.
         try:
             self._instrument.abort_measurement()
         except Exception:
             pass
-##
-##      為什麼？
-##          如果儀器還在：
-##          waiting trigger
-##          measurement pending
-##          不 ABOR → 永遠卡住
-##

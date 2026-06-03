@@ -40,11 +40,33 @@ class HardwareTriggerAdapter:
         self._instrument.write("SAMP:COUNT 1")
         self._instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
 
-    def wait_and_read_triggered(self, timeout_ms: int) -> TriggerEvent:
-        # Use VISA I/O timeout and *OPC? polling; some devices reject TRIG:TIM in this context.
-        self._instrument.set_timeout_ms(timeout_ms)
-        self._instrument.query("*OPC?")
-        return TriggerEvent.new(TriggerSource.HARDWARE)
+    def wait_and_read_triggered(
+        self,
+        timeout_ms: int,
+        stop_event: Optional[threading.Event] = None,
+        poll_interval_ms: int = 200,
+    ) -> Optional[TriggerEvent]:
+        # Arm once, then poll the status byte so shutdown can interrupt the wait.
+        timeout_s = max(0, timeout_ms) / 1000.0
+        poll_s = max(0.05, poll_interval_ms / 1000.0)
+        deadline = time.monotonic() + timeout_s
+        self._instrument.set_timeout_ms(max(100, min(timeout_ms, poll_interval_ms)))
+        self._instrument.write("*CLS")
+        self._instrument.write("*ESE 1")
+        self._instrument.write("INIT")
+        self._instrument.write("*OPC")
+
+        while True:
+            if stop_event is not None and stop_event.is_set():
+                return None
+            remaining_s = deadline - time.monotonic()
+            if remaining_s <= 0:
+                raise TimeoutError("hardware trigger wait timed out")
+            wait_s = min(poll_s, remaining_s)
+            if stop_event is not None and stop_event.wait(wait_s):
+                return None
+            if self._instrument.read_status_byte() & 0x20:
+                return TriggerEvent.new(TriggerSource.HARDWARE)
 
 class SoftwareTriggerAdapter:
     def __init__(
@@ -114,6 +136,7 @@ class SoftwareTriggerAdapter:
 
         self._server = ThreadingHTTPServer((self._host, self._port), Handler)
         self._server.adapter = self  # type: ignore[attr-defined]
+        self._port = int(self._server.server_address[1])
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
         return self._host, self._port

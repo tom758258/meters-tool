@@ -213,37 +213,19 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"captured={engine.stats.captured} errors={engine.stats.errors}")
         return 0
     finally:
-##
-##修正 CLI 的雙重 release 邏輯
-##問題：
-##thread 可能還在跑
-##VISA 被強制 close → 爆炸
-        # 🔴 先確保 worker 停止
+        # Ensure worker exits before final release/close.
         if worker is not None and worker.is_alive():
             print("waiting worker to fully stop...")
             worker.join(timeout=5)
 
-        # 🔴 再做 release
-##為什麼這樣改？
-##順序一定要是：
-##stop → thread結束 → release → close
-##你原本是：
-##stop → close（thread還在） → 爆炸
-##
-
-##
-##        print(f"release_to_local: {instrument.release_to_local()}")
-    # 只做一次 release，確保 close 前儀器回 local
-##正確順序應該是：先送 SYST:LOC 確認儀器回 local → 等一小段時間 → 再 close session
-        # 必須在 close() 之前完成 release，close 後再送命令可能無效
+        # Release instrument control before closing the session.
         rel = instrument.release_to_local()
         print(f"release_to_local: {rel}")
-        # 若第一次 release 失敗（session 不穩），稍等後再試一次，仍用同一個 session
+        # Retry once on transient session instability.
         if "SYST:LOC:failed" in rel:
             time.sleep(1.0)
             rel2 = instrument.release_to_local()
             print(f"release_to_local retry: {rel2}")
-##
         instrument.close()
         print(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
         server.stop()

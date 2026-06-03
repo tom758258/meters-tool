@@ -16,8 +16,15 @@ from keysight_logger.trigger import TriggerRouter
 class FakeInstrument:
     resource_id = "FAKE::INSTR"
 
+    def __init__(self) -> None:
+        self.abort_count = 0
+
     def write(self, command: str) -> None:  # noqa: ARG002
         return
+
+    def abort_measurement(self) -> bool:
+        self.abort_count += 1
+        return True
 
 
 class FakeMeasurement:
@@ -58,6 +65,38 @@ class AcquisitionEngineTests(unittest.TestCase):
             engine.stop()
             worker.join(timeout=1)
             self.assertEqual(1, engine.stats.captured)
+
+    def test_stop_only_sets_stop_state_without_instrument_io(self):
+        instrument = FakeInstrument()
+        router = TriggerRouter()
+        with tempfile.TemporaryDirectory() as td:
+            engine = TriggerAcquisitionEngine(
+                instrument=instrument,  # type: ignore[arg-type]
+                measurement=FakeMeasurement(),  # type: ignore[arg-type]
+                storage=CsvWriter(Path(td) / "out.csv"),
+                config=AcquisitionConfig(trigger_timeout_ms=50),
+                router=router,
+            )
+            engine.stop()
+            self.assertEqual(0, instrument.abort_count)
+
+    def test_control_stop_event_aborts_from_worker_thread(self):
+        instrument = FakeInstrument()
+        router = TriggerRouter()
+        with tempfile.TemporaryDirectory() as td:
+            engine = TriggerAcquisitionEngine(
+                instrument=instrument,  # type: ignore[arg-type]
+                measurement=FakeMeasurement(),  # type: ignore[arg-type]
+                storage=CsvWriter(Path(td) / "out.csv"),
+                config=AcquisitionConfig(trigger_timeout_ms=50),
+                router=router,
+            )
+            worker = threading.Thread(target=engine.run)
+            worker.start()
+            router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+            worker.join(timeout=1)
+            self.assertFalse(worker.is_alive())
+            self.assertGreaterEqual(instrument.abort_count, 1)
 
 
 if __name__ == "__main__":

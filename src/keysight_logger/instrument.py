@@ -71,6 +71,11 @@ class VisaInstrument:
         except ValueError as exc:
             raise InstrumentError(f"Failed to parse float from '{raw}'") from exc
 
+    def read_status_byte(self) -> int:
+        if self._inst is None:
+            raise InstrumentError("Instrument is not connected")
+        return int(self._inst.read_stb())
+
     def close(self) -> None:
         if self._inst is not None:
             self._inst.close()
@@ -132,8 +137,7 @@ class VisaInstrument:
     def _release_session_to_local(self, inst) -> str:  # noqa: ANN001
 
         results: list[str] = []
-##            inst.timeout = min(int(getattr(inst, "timeout", 1000)), 1000)
-##先清除 VISA I/O 緩衝區（Ctrl+C 中斷後 session 可能留在 pending 狀態）
+        # Clear pending bus state before issuing release commands.
         try:
             inst.clear()
             results.append("visa_clear:ok")
@@ -160,18 +164,10 @@ class VisaInstrument:
                     time.sleep(0.5)
             except Exception as exc:
                 results.append(f"{command}:failed:{type(exc).__name__}")
-##
+
         control_ren = getattr(inst, "control_ren", None)
         if callable(control_ren):
-##
-##修正 release_to_local，正確處理 USB 儀器
-##
-##            for mode in (6, 7, 0):
-##                try:
-##                    control_ren(mode)
-##                    results.append(f"control_ren({mode}):ok")
-##
-##         # mode 6/7 是 GPIB-only，USB-TMC 用 mode 0 即可
+            # USB-TMC generally supports mode 0; LAN/GPIB-like paths may need mode 6 fallback.
             transport = VisaInstrument.infer_transport(self._config.resource_string)
             modes_to_try = (0,) if transport == Transport.USB else (6, 0)
             for mode in modes_to_try:
@@ -179,7 +175,6 @@ class VisaInstrument:
                     control_ren(mode)
                     results.append(f"control_ren({mode}):ok")
                     break
-##
                 except Exception as exc:
                     results.append(f"control_ren({mode}):failed:{type(exc).__name__}")
         else:
