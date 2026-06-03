@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import unittest
 from unittest.mock import patch
 from urllib.error import URLError
@@ -794,6 +795,14 @@ class CliArgsTests(unittest.TestCase):
         args = parser.parse_args(["list-resources", "--verify"])
 
         self.assertTrue(args.verify)
+        self.assertEqual("text", args.output_format)
+
+    def test_list_resources_json_format(self):
+        parser = build_parser()
+        args = parser.parse_args(["list-resources", "--verify", "--format", "json"])
+
+        self.assertTrue(args.verify)
+        self.assertEqual("json", args.output_format)
 
 
 class StopControllerTests(unittest.TestCase):
@@ -943,6 +952,40 @@ class CliCommandTests(unittest.TestCase):
                 "stale\tUSB::STALE\tVisaIOError: timeout",
             ],
             lines,
+        )
+
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_verify_json_marks_live_and_stale(self, mock_visa):
+        mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
+        mock_visa.verify_resource.side_effect = [
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+            (False, "VisaIOError: timeout"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(verify=True, output_format="json", print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(lines))
+        self.assertEqual(
+            {
+                "resources": [
+                    {
+                        "detail": "Keysight Technologies,34461A,MY123,1.0",
+                        "live": True,
+                        "resource": "USB::LIVE",
+                        "status": "live",
+                    },
+                    {
+                        "detail": "VisaIOError: timeout",
+                        "live": False,
+                        "resource": "USB::STALE",
+                        "status": "stale",
+                    },
+                ],
+                "verify": True,
+            },
+            json.loads(lines[0]),
         )
 
     @patch(

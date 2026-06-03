@@ -192,6 +192,13 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="open each resource and query *IDN? to mark live vs stale",
     )
+    list_resources.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["text", "json"],
+        default="text",
+        help="output format for discovered resources; default: text",
+    )
 
     start = sub.add_parser("start-trigger-record")
     start.add_argument("--resource", required=True, help="VISA resource string")
@@ -297,14 +304,37 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def cmd_list_resources(verify: bool = False, print_fn=print) -> int:  # noqa: ANN001
+def cmd_list_resources(
+    verify: bool = False,
+    output_format: str = "text",
+    print_fn=print,  # noqa: ANN001
+) -> int:
+    if output_format not in {"text", "json"}:
+        raise ValueError("output_format must be 'text' or 'json'")
+
+    resources = []
     for resource in VisaInstrument.list_resources():
         if not verify:
-            print_fn(resource)
+            if output_format == "text":
+                print_fn(resource)
+            else:
+                resources.append({"resource": resource})
             continue
         ok, detail = VisaInstrument.verify_resource(resource)
         status = "live" if ok else "stale"
-        print_fn(f"{status}\t{resource}\t{detail}")
+        if output_format == "text":
+            print_fn(f"{status}\t{resource}\t{detail}")
+        else:
+            resources.append(
+                {
+                    "detail": detail,
+                    "live": ok,
+                    "resource": resource,
+                    "status": status,
+                }
+            )
+    if output_format == "json":
+        print_fn(json.dumps({"resources": resources, "verify": verify}, sort_keys=True))
     return 0
 
 
@@ -596,7 +626,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "list-resources":
-        return cmd_list_resources(verify=args.verify)
+        return cmd_list_resources(verify=args.verify, output_format=args.output_format)
     if args.command == "soft-trigger":
         return cmd_soft_trigger(args.port, args.meta)
     if args.command == "soft-stop":
