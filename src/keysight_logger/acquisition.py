@@ -76,6 +76,10 @@ class TriggerAcquisitionEngine:
                 if ev is None:
                     self._emit("waiting trigger")
                     continue
+                if ev.metadata.get("control") == "stop":
+                    self._emit("stop request received")
+                    self.stop()
+                    continue
                 self._capture(ev)
         finally:
             self._storage.close()

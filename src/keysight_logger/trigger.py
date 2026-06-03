@@ -71,6 +71,16 @@ class SoftwareTriggerAdapter:
 
         class Handler(BaseHTTPRequestHandler):
             def do_POST(self):  # type: ignore[override]
+                if self.path == "/stop":
+                    router.publish(
+                        TriggerEvent.new(
+                            TriggerSource.SOFTWARE,
+                            metadata={"control": "stop"},
+                        )
+                    )
+                    self.send_response(202)
+                    self.end_headers()
+                    return
                 if self.path != "/trigger":
                     self.send_response(404)
                     self.end_headers()

@@ -56,6 +56,8 @@ def build_parser() -> argparse.ArgumentParser:
     trig = sub.add_parser("soft-trigger")
     trig.add_argument("--port", type=int, default=8765)
     trig.add_argument("--meta", default="{}", help='JSON metadata, e.g. {"batch":"A"}')
+    stop = sub.add_parser("soft-stop")
+    stop.add_argument("--port", type=int, default=8765)
 
     return parser
 
@@ -80,6 +82,18 @@ def cmd_soft_trigger(port: int, meta: str) -> int:
     )
     with request.urlopen(req, timeout=3) as response:
         print(f"trigger accepted: {response.status}")
+    return 0
+
+
+def cmd_soft_stop(port: int) -> int:
+    req = request.Request(
+        f"http://127.0.0.1:{port}/stop",
+        method="POST",
+        data=b"{}",
+        headers={"Content-Type": "application/json"},
+    )
+    with request.urlopen(req, timeout=3) as response:
+        print(f"stop accepted: {response.status}")
     return 0
 
 
@@ -158,6 +172,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         instrument.connect()
         host, port = server.start()
         print(f"software trigger endpoint: http://{host}:{port}/trigger")
+        print(f"software stop endpoint: http://{host}:{port}/stop")
         worker = threading.Thread(
             target=engine.run,
             kwargs={
@@ -205,6 +220,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_list_resources()
     if args.command == "soft-trigger":
         return cmd_soft_trigger(args.port, args.meta)
+    if args.command == "soft-stop":
+        return cmd_soft_stop(args.port)
     if args.command == "start-trigger-record":
         return cmd_start(args)
     return 2

@@ -23,6 +23,16 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         except HTTPError as err:
             return err.code
 
+    def _post_stop(self, port: int) -> int:
+        req = request.Request(
+            f"http://127.0.0.1:{port}/stop",
+            method="POST",
+            data=b"{}",
+            headers={"Content-Type": "application/json"},
+        )
+        with request.urlopen(req, timeout=1.0) as resp:
+            return resp.status
+
     def test_rate_limit_returns_429(self):
         router = TriggerRouter()
         server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=100, queue_max=0)
@@ -51,6 +61,20 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertIsNotNone(event)
             third = self._post_trigger(port)
             self.assertEqual(202, third)
+        finally:
+            server.stop()
+
+    def test_stop_endpoint_publishes_control_event(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
+        _, port = server.start()
+        try:
+            status = self._post_stop(port)
+            self.assertEqual(202, status)
+            event = router.wait(timeout_s=0.1)
+            self.assertIsNotNone(event)
+            assert event is not None
+            self.assertEqual("stop", event.metadata.get("control"))
         finally:
             server.stop()
 
