@@ -187,7 +187,7 @@ def build_parser() -> argparse.ArgumentParser:
     start.add_argument("--sw-queue-max", type=int, default=0)
     start.add_argument(
         "--trigger-mode",
-        choices=["software", "external", "immediate", "immediate-buffered"],
+        choices=["software", "external", "immediate", "immediate-custom"],
         default=None,
         help="single acquisition trigger mode; default: software",
     )
@@ -196,6 +196,18 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="stop automatically after successfully recording N samples",
+    )
+    start.add_argument(
+        "--trigger-count",
+        type=int,
+        default=None,
+        help="instrument trigger count; required with custom trigger modes",
+    )
+    start.add_argument(
+        "--sample-count",
+        type=int,
+        default=None,
+        help="instrument sample count per trigger; required with custom trigger modes",
     )
     start.add_argument(
         "--timer-interval-s",
@@ -207,7 +219,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--buffer-drain-size",
         type=int,
         default=None,
-        help="maximum readings to remove per buffer drain; valid only with immediate-buffered",
+        help="maximum readings to remove per buffer drain; valid only with custom modes",
+    )
+    start.add_argument(
+        "--allow-buffer-overflow-risk",
+        action="store_true",
+        help="allow custom modes to request more readings than 34461A reading memory",
     )
     start.add_argument("--enable-hw-trigger", action="store_true")
     start.add_argument(
@@ -301,6 +318,7 @@ def resolve_trigger_mode(args: argparse.Namespace) -> str:
 
 
 def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
+    custom_mode = trigger_mode.endswith("-custom")
     if args.current_range is not None and args.current_range <= 0:
         raise ValueError("--current-range must be > 0")
     if args.nplc <= 0:
@@ -315,6 +333,10 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
         raise ValueError("--sw-queue-max must be >= 0")
     if args.max_samples is not None and args.max_samples <= 0:
         raise ValueError("--max-samples must be > 0")
+    if args.trigger_count is not None and args.trigger_count <= 0:
+        raise ValueError("--trigger-count must be > 0")
+    if args.sample_count is not None and args.sample_count <= 0:
+        raise ValueError("--sample-count must be > 0")
     if args.timer_interval_s is not None:
         if args.timer_interval_s <= 0:
             raise ValueError("--timer-interval-s must be > 0")
@@ -326,17 +348,45 @@ def validate_start_args(args: argparse.Namespace, trigger_mode: str) -> None:
         memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
         if args.buffer_drain_size > memory_limit:
             raise ValueError(f"--buffer-drain-size must be <= {memory_limit}")
-        if trigger_mode != "immediate-buffered":
-            raise ValueError("--buffer-drain-size requires --trigger-mode immediate-buffered")
-    if trigger_mode == "immediate-buffered":
-        if args.max_samples is None:
-            raise ValueError("--max-samples is required with --trigger-mode immediate-buffered")
+        if not custom_mode:
+            raise ValueError("--buffer-drain-size requires a custom trigger mode")
+    if args.allow_buffer_overflow_risk and not custom_mode:
+        raise ValueError("--allow-buffer-overflow-risk requires a custom trigger mode")
+    if custom_mode:
+        if args.max_samples is not None:
+            raise ValueError("--max-samples cannot be used with custom trigger modes")
+        if args.trigger_count is None:
+            raise ValueError("--trigger-count is required with custom trigger modes")
+        if args.sample_count is None:
+            raise ValueError("--sample-count is required with custom trigger modes")
         memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
-        if args.max_samples > memory_limit:
+        expected_readings = args.trigger_count * args.sample_count
+        if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
             raise ValueError(
-                "--max-samples must be <= "
-                f"{memory_limit} with --trigger-mode immediate-buffered"
+                "custom mode expected readings exceed "
+                f"{memory_limit}; use --allow-buffer-overflow-risk to proceed"
             )
+    else:
+        if args.trigger_count is not None:
+            raise ValueError("--trigger-count requires a custom trigger mode")
+        if args.sample_count is not None:
+            raise ValueError("--sample-count requires a custom trigger mode")
+
+
+def print_buffer_overflow_warnings(args: argparse.Namespace, trigger_mode: str) -> None:
+    if not trigger_mode.endswith("-custom") or not args.allow_buffer_overflow_risk:
+        return
+    if args.trigger_count is None or args.sample_count is None:
+        return
+    memory_limit = KEYSIGHT_34461A_CAPABILITIES.reading_memory_limit
+    expected_readings = args.trigger_count * args.sample_count
+    if expected_readings <= memory_limit:
+        return
+    print("WARNING: requested readings exceed 34461A reading memory.")
+    print(f"WARNING: requested={expected_readings}, memory_limit={memory_limit}.")
+    print("WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory.")
+    print("WARNING: data loss, incomplete rows, or SCPI errors are possible.")
+    print("WARNING: validate with low counts first and inspect row count/errors.")
 
 
 def cmd_start(args: argparse.Namespace) -> int:
@@ -346,13 +396,17 @@ def cmd_start(args: argparse.Namespace) -> int:
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
+    print_buffer_overflow_warnings(args, trigger_mode)
 
     iconfig = InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
     aconfig = AcquisitionConfig(
         trigger_timeout_ms=args.trigger_timeout_ms,
         max_samples=args.max_samples,
+        trigger_count=args.trigger_count,
+        sample_count=args.sample_count,
         timer_interval_s=args.timer_interval_s,
         buffer_drain_size=args.buffer_drain_size,
+        allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
         nplc=args.nplc,
         auto_zero=args.auto_zero,
         auto_range=args.auto_range,

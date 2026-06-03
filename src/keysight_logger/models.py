@@ -15,7 +15,7 @@ class Transport(str, Enum):
 class TriggerSource(str, Enum):
     HARDWARE = "hardware"
     IMMEDIATE = "immediate"
-    IMMEDIATE_BUFFERED = "immediate-buffered"
+    IMMEDIATE_CUSTOM = "immediate-custom"
     SOFTWARE = "software"
     TIMER = "timer"
 
@@ -45,8 +45,11 @@ KEYSIGHT_34461A_CAPABILITIES = InstrumentCapabilities(
 class AcquisitionConfig:
     trigger_timeout_ms: int = 10000
     max_samples: Optional[int] = None
+    trigger_count: Optional[int] = None
+    sample_count: Optional[int] = None
     timer_interval_s: Optional[float] = None
     buffer_drain_size: Optional[int] = None
+    allow_buffer_overflow_risk: bool = False
     nplc: float = 1.0
     auto_zero: bool = True
     auto_range: bool = True

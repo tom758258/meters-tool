@@ -11,6 +11,7 @@ from keysight_logger.cli import (
     build_parser,
     cmd_list_resources,
     cmd_soft_stop,
+    print_buffer_overflow_warnings,
     resolve_trigger_mode,
     validate_start_args,
 )
@@ -36,8 +37,11 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(0, args.sw_queue_max)
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
+        self.assertIsNone(args.trigger_count)
+        self.assertIsNone(args.sample_count)
         self.assertIsNone(args.timer_interval_s)
         self.assertIsNone(args.buffer_drain_size)
+        self.assertFalse(args.allow_buffer_overflow_risk)
         self.assertIsNone(args.vm_comp_slope)
 
     def test_start_with_manual_options(self):
@@ -82,7 +86,7 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual(10, args.max_samples)
         self.assertEqual("pos", args.vm_comp_slope)
 
-    def test_immediate_buffered_requires_max_samples(self):
+    def test_immediate_custom_requires_trigger_count(self):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -92,17 +96,19 @@ class CliArgsTests(unittest.TestCase):
                 "--csv",
                 "out.csv",
                 "--trigger-mode",
-                "immediate-buffered",
+                "immediate-custom",
+                "--sample-count",
+                "10",
             ]
         )
 
         with self.assertRaisesRegex(
             ValueError,
-            "--max-samples is required with --trigger-mode immediate-buffered",
+            "--trigger-count is required with custom trigger modes",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 
-    def test_immediate_buffered_rejects_more_than_34461a_memory(self):
+    def test_immediate_custom_requires_sample_count(self):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -112,19 +118,19 @@ class CliArgsTests(unittest.TestCase):
                 "--csv",
                 "out.csv",
                 "--trigger-mode",
-                "immediate-buffered",
-                "--max-samples",
-                "10001",
+                "immediate-custom",
+                "--trigger-count",
+                "10",
             ]
         )
 
         with self.assertRaisesRegex(
             ValueError,
-            "--max-samples must be <= 10000 with --trigger-mode immediate-buffered",
+            "--sample-count is required with custom trigger modes",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 
-    def test_immediate_buffered_accepts_bounded_run(self):
+    def test_immediate_custom_rejects_max_samples(self):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -134,8 +140,85 @@ class CliArgsTests(unittest.TestCase):
                 "--csv",
                 "out.csv",
                 "--trigger-mode",
-                "immediate-buffered",
+                "immediate-custom",
+                "--trigger-count",
+                "1",
+                "--sample-count",
+                "10",
                 "--max-samples",
+                "10",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--max-samples cannot be used with custom trigger modes",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_immediate_custom_rejects_more_than_34461a_memory_without_override(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--trigger-count",
+                "101",
+                "--sample-count",
+                "100",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "custom mode expected readings exceed 10000",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_immediate_custom_accepts_overflow_override(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--trigger-count",
+                "101",
+                "--sample-count",
+                "100",
+                "--allow-buffer-overflow-risk",
+            ]
+        )
+
+        trigger_mode = resolve_trigger_mode(args)
+        validate_start_args(args, trigger_mode)
+
+        self.assertEqual("immediate-custom", trigger_mode)
+        self.assertTrue(args.allow_buffer_overflow_risk)
+
+    def test_immediate_custom_accepts_instrument_counts(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--trigger-count",
+                "2",
+                "--sample-count",
                 "100",
                 "--buffer-drain-size",
                 "4",
@@ -145,11 +228,12 @@ class CliArgsTests(unittest.TestCase):
         trigger_mode = resolve_trigger_mode(args)
         validate_start_args(args, trigger_mode)
 
-        self.assertEqual("immediate-buffered", trigger_mode)
-        self.assertEqual(100, args.max_samples)
+        self.assertEqual("immediate-custom", trigger_mode)
+        self.assertEqual(2, args.trigger_count)
+        self.assertEqual(100, args.sample_count)
         self.assertEqual(4, args.buffer_drain_size)
 
-    def test_buffer_drain_size_requires_immediate_buffered_mode(self):
+    def test_buffer_drain_size_requires_custom_mode(self):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -169,7 +253,7 @@ class CliArgsTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ValueError,
-            "--buffer-drain-size requires --trigger-mode immediate-buffered",
+            "--buffer-drain-size requires a custom trigger mode",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 
@@ -183,8 +267,10 @@ class CliArgsTests(unittest.TestCase):
                 "--csv",
                 "out.csv",
                 "--trigger-mode",
-                "immediate-buffered",
-                "--max-samples",
+                "immediate-custom",
+                "--trigger-count",
+                "1",
+                "--sample-count",
                 "10",
                 "--buffer-drain-size",
                 "0",
@@ -204,8 +290,10 @@ class CliArgsTests(unittest.TestCase):
                 "--csv",
                 "out.csv",
                 "--trigger-mode",
-                "immediate-buffered",
-                "--max-samples",
+                "immediate-custom",
+                "--trigger-count",
+                "1",
+                "--sample-count",
                 "10",
                 "--buffer-drain-size",
                 "10001",
@@ -214,6 +302,89 @@ class CliArgsTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "--buffer-drain-size must be <= 10000"):
             validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_trigger_count_requires_custom_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate",
+                "--trigger-count",
+                "1",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--trigger-count requires a custom trigger mode"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_sample_count_requires_custom_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate",
+                "--sample-count",
+                "1",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--sample-count requires a custom trigger mode"):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_allow_buffer_overflow_risk_requires_custom_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate",
+                "--allow-buffer-overflow-risk",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--allow-buffer-overflow-risk requires a custom trigger mode",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_allow_buffer_overflow_risk_prints_warnings(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--trigger-count",
+                "101",
+                "--sample-count",
+                "100",
+                "--allow-buffer-overflow-risk",
+            ]
+        )
+
+        with patch("builtins.print") as mock_print:
+            print_buffer_overflow_warnings(args, "immediate-custom")
+
+        self.assertEqual(5, mock_print.call_count)
 
     def test_timer_interval_is_valid_with_default_software_mode(self):
         parser = build_parser()

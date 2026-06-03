@@ -30,10 +30,11 @@ class MeasurementPlugin(ABC):
     def measurement_type(self) -> str:
         raise NotImplementedError
 
-    def configure_immediate_buffered(
+    def configure_immediate_custom(
         self,
         instrument: VisaInstrument,
         config: AcquisitionConfig,
+        trigger_count: int,
         sample_count: int,
     ) -> None:
         raise NotImplementedError
@@ -93,18 +94,21 @@ class CurrentMeasurement(MeasurementPlugin):
             trigger_metadata=dict(trigger.metadata),
         )
 
-    def configure_immediate_buffered(
+    def configure_immediate_custom(
         self,
         instrument: VisaInstrument,
         config: AcquisitionConfig,
+        trigger_count: int,
         sample_count: int,
     ) -> None:
         if not self._configured:
             raise RuntimeError("Measurement plugin not configured")
+        if trigger_count <= 0:
+            raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
             raise ValueError("sample_count must be > 0")
         instrument.write("TRIG:SOUR IMM")
-        instrument.write("TRIG:COUNT 1")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
 
     def start_buffered_capture(self, instrument: VisaInstrument) -> None:

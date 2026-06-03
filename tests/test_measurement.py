@@ -67,20 +67,25 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertEqual(1.23, sample.value)
         self.assertEqual("READ?", inst.commands[-1])
 
-    def test_immediate_buffered_configures_sample_count_and_immediate_trigger(self):
+    def test_immediate_custom_configures_trigger_and_sample_count(self):
         inst = FakeInstrument()
         measurement = CurrentMeasurement()
         measurement.configure(inst, AcquisitionConfig())
 
-        measurement.configure_immediate_buffered(inst, AcquisitionConfig(), sample_count=3)
+        measurement.configure_immediate_custom(
+            inst,
+            AcquisitionConfig(),
+            trigger_count=2,
+            sample_count=3,
+        )
         measurement.start_buffered_capture(inst)
 
         self.assertIn("TRIG:SOUR IMM", inst.commands)
-        self.assertIn("TRIG:COUNT 1", inst.commands)
+        self.assertIn("TRIG:COUNT 2", inst.commands)
         self.assertIn("SAMP:COUNT 3", inst.commands)
         self.assertEqual("INIT", inst.commands[-1])
 
-    def test_immediate_buffered_reads_and_removes_available_points(self):
+    def test_immediate_custom_reads_and_removes_available_points(self):
         inst = FakeInstrument()
         inst.responses["DATA:POINts?"] = "2"
         inst.responses["DATA:REMove? 2"] = "1.1,2.2"
@@ -90,7 +95,7 @@ class CurrentMeasurementTests(unittest.TestCase):
         available = measurement.buffered_points_available(inst)
         samples = measurement.read_buffered_samples(
             inst,
-            TriggerEvent.new(TriggerSource.IMMEDIATE_BUFFERED),
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
             count=2,
             first_sample_index=5,
         )
@@ -98,7 +103,7 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertEqual(2, available)
         self.assertEqual([1.1, 2.2], [sample.value for sample in samples])
         self.assertEqual(
-            ["immediate-buffered", "immediate-buffered"],
+            ["immediate-custom", "immediate-custom"],
             [sample.trigger_source for sample in samples],
         )
         self.assertEqual("5", samples[0].trigger_metadata["buffer_index"])

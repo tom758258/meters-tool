@@ -61,10 +61,10 @@ class FakeBufferedMeasurement(FakeMeasurement):
         self.started = False
         self.read_counts: list[int] = []
 
-    def configure_immediate_buffered(self, instrument, config, sample_count):  # noqa: ANN001, ARG002
-        self.sample_count = sample_count
+    def configure_immediate_custom(self, instrument, config, trigger_count, sample_count):  # noqa: ANN001, ARG002
+        self.sample_count = trigger_count * sample_count
         instrument.write("TRIG:SOUR IMM")
-        instrument.write("TRIG:COUNT 1")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
 
     def start_buffered_capture(self, instrument):  # noqa: ANN001
@@ -285,7 +285,7 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertEqual(1, engine.stats.captured)
         self.assertTrue(any("max samples reached: 1" in s for s in statuses))
 
-    def test_immediate_buffered_mode_captures_bounded_batch(self):
+    def test_immediate_custom_mode_captures_bounded_batch(self):
         instrument = RecordingInstrument()
         measurement = FakeBufferedMeasurement()
         storage = CapturingStorage()
@@ -294,19 +294,19 @@ class AcquisitionEngineTests(unittest.TestCase):
             instrument=instrument,  # type: ignore[arg-type]
             measurement=measurement,  # type: ignore[arg-type]
             storage=storage,  # type: ignore[arg-type]
-            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=3),
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=3),
             router=TriggerRouter(),
             status_cb=statuses.append,
         )
 
-        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-buffered"})
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-custom"})
         worker.start()
         worker.join(timeout=1)
 
         self.assertFalse(worker.is_alive())
         self.assertEqual(3, engine.stats.captured)
         self.assertEqual(
-            ["immediate-buffered", "immediate-buffered", "immediate-buffered"],
+            ["immediate-custom", "immediate-custom", "immediate-custom"],
             [sample.trigger_source for sample in storage.samples],
         )
         self.assertEqual(
@@ -315,10 +315,10 @@ class AcquisitionEngineTests(unittest.TestCase):
         )
         self.assertGreaterEqual(instrument.abort_count, 1)
         self.assertEqual([3], measurement.read_counts)
-        self.assertTrue(any("immediate buffered capture started" in s for s in statuses))
-        self.assertTrue(any("max samples reached: 3" in s for s in statuses))
+        self.assertTrue(any("immediate custom capture started" in s for s in statuses))
+        self.assertTrue(any("expected readings reached: 3" in s for s in statuses))
 
-    def test_immediate_buffered_mode_respects_buffer_drain_size(self):
+    def test_immediate_custom_mode_respects_buffer_drain_size(self):
         measurement = FakeBufferedMeasurement()
         storage = CapturingStorage()
         engine = TriggerAcquisitionEngine(
@@ -327,13 +327,14 @@ class AcquisitionEngineTests(unittest.TestCase):
             storage=storage,  # type: ignore[arg-type]
             config=AcquisitionConfig(
                 trigger_timeout_ms=50,
-                max_samples=5,
+                trigger_count=1,
+                sample_count=5,
                 buffer_drain_size=2,
             ),
             router=TriggerRouter(),
         )
 
-        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-buffered"})
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-custom"})
         worker.start()
         worker.join(timeout=1)
 
