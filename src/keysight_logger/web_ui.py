@@ -20,6 +20,16 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
 
 from .acquisition import TriggerAcquisitionEngine
 from .cli import (
+    BUFFER_DRAIN_SIZE_RANGE,
+    HW_TRIGGER_DELAY_S_RANGE,
+    MAX_SAMPLES_RANGE,
+    SAMPLE_COUNT_RANGE,
+    SW_MIN_INTERVAL_MS_RANGE,
+    SW_QUEUE_MAX_RANGE,
+    TIMEOUT_MS_RANGE,
+    TIMER_INTERVAL_S_RANGE,
+    TRIGGER_COUNT_RANGE,
+    TRIGGER_TIMEOUT_MS_RANGE,
     parse_dcv_input_impedance,
     resolve_csv_path,
     resolve_measurement_range,
@@ -54,6 +64,7 @@ class RunStartRequest(BaseModel):
     csv: Optional[str] = None
     timeout_ms: int = 5000
     trigger_timeout_ms: int = 10000
+    sw_trigger_port: int = 8765
     sw_min_interval_ms: int = 0
     sw_queue_max: int = 0
     trigger_mode: Optional[str] = None
@@ -138,6 +149,7 @@ class WebRunManager:
             if measurement_type not in registered_measurement_types():
                 continue
             definition = get_measurement_definition(measurement_type)
+            options = profile.get_measurement_options(measurement_type)
             measurements.append(
                 {
                     "name": definition.cli_name,
@@ -146,10 +158,10 @@ class WebRunManager:
                     "range_label": definition.range_label,
                     "range_options": [
                         {"label": label, "value": value}
-                        for label, value in definition.range_options
+                        for label, value in options.range_options
                     ],
-                    "nplc_options": list(definition.nplc_options),
-                    "supports_nplc": bool(definition.nplc_options),
+                    "nplc_options": list(options.nplc_options),
+                    "supports_nplc": bool(options.nplc_options),
                     "accepts_current_range_alias": definition.accepts_current_range_alias,
                 }
             )
@@ -165,6 +177,21 @@ class WebRunManager:
             },
             "measurements": measurements,
             "trigger_modes": list(TRIGGER_MODES),
+            "limits": {
+                "timeout_ms": _range_limit(TIMEOUT_MS_RANGE),
+                "trigger_timeout_ms": _range_limit(TRIGGER_TIMEOUT_MS_RANGE),
+                "max_samples": _range_limit(MAX_SAMPLES_RANGE),
+                "trigger_count": _range_limit(TRIGGER_COUNT_RANGE),
+                "sample_count": _range_limit(SAMPLE_COUNT_RANGE),
+                "timer_interval_s": _range_limit(TIMER_INTERVAL_S_RANGE),
+                "buffer_drain_size": _range_limit(BUFFER_DRAIN_SIZE_RANGE),
+                "hw_trigger_delay_s": _range_limit(HW_TRIGGER_DELAY_S_RANGE),
+                "sw_min_interval_ms": {
+                    **_range_limit(SW_MIN_INTERVAL_MS_RANGE),
+                    "nonzero_min": 50,
+                },
+                "sw_queue_max": _range_limit(SW_QUEUE_MAX_RANGE),
+            },
             "defaults": {
                 "measurement": "current-dc",
                 "trigger_mode": "software",
@@ -522,6 +549,10 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
     if hasattr(model, "model_dump"):
         return model.model_dump()
     return model.dict()
+
+
+def _range_limit(value_range: tuple[float, float] | tuple[int, int]) -> dict[str, float | int]:
+    return {"min": value_range[0], "max": value_range[1]}
 
 
 app = create_app()

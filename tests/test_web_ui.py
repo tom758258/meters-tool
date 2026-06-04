@@ -121,6 +121,13 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual([0.02, 0.2, 1.0, 10.0, 100.0], measurements["voltage-dc"]["nplc_options"])
         self.assertFalse(measurements["voltage-ac"]["supports_nplc"])
+        limits = payload["limits"]
+        self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
+        self.assertEqual({"min": 500, "max": 600000}, limits["trigger_timeout_ms"])
+        self.assertEqual({"min": 1, "max": 1000000}, limits["max_samples"])
+        self.assertEqual({"min": 0.5, "max": 86400.0}, limits["timer_interval_s"])
+        self.assertEqual({"min": 0, "max": 600000, "nonzero_min": 50}, limits["sw_min_interval_ms"])
+        self.assertEqual({"min": 0, "max": 10000}, limits["sw_queue_max"])
 
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
         client, csv_path = self.make_client()
@@ -128,7 +135,7 @@ class WebUiApiTests(unittest.TestCase):
             "resource": "USB::FAKE",
             "csv": str(csv_path),
             "trigger_mode": "software",
-            "trigger_timeout_ms": 50,
+            "trigger_timeout_ms": 500,
         }
 
         first = client.post("/api/runs", json=request)
@@ -148,7 +155,7 @@ class WebUiApiTests(unittest.TestCase):
                 "resource": "USB::FAKE",
                 "csv": str(csv_path),
                 "trigger_mode": "software",
-                "trigger_timeout_ms": 50,
+                "trigger_timeout_ms": 500,
                 "max_samples": 1,
             },
         )
@@ -183,6 +190,28 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual(422, response.status_code)
         self.assertIn("--range is required when --auto-range off", response.json()["detail"])
+
+    def test_start_validation_rejects_cli_limit_violations(self):
+        client, csv_path = self.make_client()
+        cases = [
+            ({"timeout_ms": 99}, "--timeout-ms 99 is outside"),
+            ({"timer_interval_s": 0.01}, "--timer-interval-s 0.01 is below"),
+            ({"sw_queue_max": 10001}, "--sw-queue-max 10001 is outside"),
+        ]
+
+        for extra_payload, expected_detail in cases:
+            with self.subTest(extra_payload=extra_payload):
+                response = client.post(
+                    "/api/runs",
+                    json={
+                        "resource": "USB::FAKE",
+                        "csv": str(csv_path),
+                        **extra_payload,
+                    },
+                )
+
+                self.assertEqual(422, response.status_code)
+                self.assertIn(expected_detail, response.json()["detail"])
 
     def test_manager_can_build_default_request_model(self):
         request = RunStartRequest(resource="USB::FAKE")
@@ -220,6 +249,24 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("updateMeasurementUi", app_js)
         self.assertIn("populateRangeOptions", app_js)
         self.assertIn("populateNplcOptions", app_js)
+        self.assertIn("measurementRangeInput.required = !autoRangeEnabled", app_js)
+
+    def test_static_ui_exposes_cli_limit_constraints(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('name="timeout_ms" type="number" min="100" max="600000"', index)
+        self.assertIn('name="trigger_timeout_ms" type="number" min="500" max="600000"', index)
+        self.assertIn('name="max_samples" type="number" min="1" max="1000000"', index)
+        self.assertIn('name="trigger_count" form="run-form" type="number" min="1" max="1000000"', index)
+        self.assertIn('name="sample_count" form="run-form" type="number" min="1" max="1000000"', index)
+        self.assertIn('name="buffer_drain_size" form="run-form" type="number" min="1" max="10000"', index)
+        self.assertIn('name="hw_trigger_delay_s" form="run-form" type="number" min="0" max="3600"', index)
+        self.assertIn('name="timer_interval_s" form="run-form" type="number" min="0.5" max="86400"', index)
+        self.assertIn("function applyInputLimits", app_js)
+        self.assertIn("function validateSwMinInterval", app_js)
+        self.assertIn("Use 0 to disable throttling", app_js)
 
     def test_static_ui_scopes_trigger_options_by_mode(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
@@ -232,11 +279,14 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('data-mode-scope="custom"', index)
         self.assertIn('data-mode-scope="hardware"', index)
         self.assertIn('data-mode-scope="software-trigger"', index)
+        self.assertIn('data-mode-scope="trigger-timeout"', index)
         self.assertIn("function updateTriggerModeUi", app_js)
         self.assertIn("function modeScopeVisible", app_js)
         self.assertIn("triggerMode === \"software\"", app_js)
         self.assertIn("if (customMode)", app_js)
         self.assertIn("if (hardwareMode)", app_js)
+        self.assertIn("triggerCountInput.required = customMode", app_js)
+        self.assertIn("sampleCountInput.required = customMode", app_js)
         self.assertIn("is-hidden", styles)
 
     def test_static_ui_preserves_hidden_trigger_timeout_payload_contract(self):
@@ -245,11 +295,12 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertIn("const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;", app_js)
         self.assertIn("function triggerTimeoutMs", app_js)
+        self.assertIn("function usesTriggerTimeout", app_js)
         self.assertIn(
-            'hardwareMode ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS',
+            'usesTriggerTimeout(mode) ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS',
             app_js,
         )
-        self.assertIn("trigger_timeout_ms: triggerTimeoutMs(data, hardwareMode)", app_js)
+        self.assertIn("trigger_timeout_ms: triggerTimeoutMs(data, triggerMode)", app_js)
 
     def test_static_ui_scopes_dcv_input_and_trigger_button(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
@@ -262,6 +313,22 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("mode === \"software-custom\"", app_js)
         self.assertIn("mode === \"software\" && !timerActive", app_js)
         self.assertIn("timerIntervalInput.addEventListener", app_js)
+        self.assertIn("timerIntervalInput.required = timerEnabled", app_js)
+        self.assertIn("Check highlighted run settings before Start", app_js)
+
+    def test_static_ui_exposes_software_queue_and_trigger_metadata(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="sw-queue-max-container"', index)
+        self.assertIn('name="sw_queue_max"', index)
+        self.assertIn('id="trigger-metadata-container"', index)
+        self.assertIn('id="trigger-metadata"', index)
+        self.assertIn("swQueueMaxContainer", app_js)
+        self.assertIn("payload.sw_queue_max", app_js)
+        self.assertIn("function triggerMetadataPayload", app_js)
+        self.assertIn("Trigger metadata must be valid JSON object", app_js)
 
 
 if __name__ == "__main__":

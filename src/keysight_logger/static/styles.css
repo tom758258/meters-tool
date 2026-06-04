@@ -29,7 +29,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -179,7 +180,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   min-height: 38px;
   border: 1px solid var(--line);
@@ -191,6 +193,7 @@ select {
 
 input:focus,
 select:focus,
+textarea:focus,
 button:focus {
   outline: 3px solid rgba(226, 184, 75, 0.42);
   outline-offset: 1px;

@@ -24,7 +24,15 @@ const triggerModeSelect = document.querySelector("#trigger-mode");
 const timerIntervalInput = document.querySelector("[name='timer_interval_s']");
 const timerTriggerCheckbox = document.querySelector("#timer-trigger-checkbox");
 const timerIntervalContainer = document.querySelector("#timer-interval-container");
+const triggerTimeoutInput = document.querySelector("[name='trigger_timeout_ms']");
 const swMinIntervalContainer = document.querySelector("#sw-min-interval-container");
+const swMinIntervalInput = document.querySelector("[name='sw_min_interval_ms']");
+const swQueueMaxContainer = document.querySelector("#sw-queue-max-container");
+const swQueueMaxInput = document.querySelector("[name='sw_queue_max']");
+const triggerCountInput = document.querySelector("[name='trigger_count']");
+const sampleCountInput = document.querySelector("[name='sample_count']");
+const triggerMetadataContainer = document.querySelector("#trigger-metadata-container");
+const triggerMetadataInput = document.querySelector("#trigger-metadata");
 const triggerOptionsPanel = document.querySelector("#trigger-options-panel");
 const modeScopedControls = [...document.querySelectorAll("[data-mode-scope]")];
 const measurementScopedControls = [
@@ -32,6 +40,7 @@ const measurementScopedControls = [
 ];
 const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;
 let measurementsByName = new Map();
+let inputLimits = {};
 
 function numberOrNull(value) {
   if (value === null || value === undefined || value === "") {
@@ -54,9 +63,13 @@ function supportsAutoZero(measurementName) {
   return ["current-dc", "voltage-dc", "resistance-2w"].includes(measurementName);
 }
 
-function triggerTimeoutMs(data, hardwareMode) {
+function usesTriggerTimeout(mode) {
+  return mode === "external" || mode === "software-custom";
+}
+
+function triggerTimeoutMs(data, mode) {
   return numberOrNull(
-    hardwareMode ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS
+    usesTriggerTimeout(mode) ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS
   );
 }
 
@@ -71,8 +84,7 @@ function formPayload() {
     resource,
     csv: textOrNull(data.get("csv")),
     timeout_ms: numberOrNull(data.get("timeout_ms")),
-    trigger_timeout_ms: triggerTimeoutMs(data, hardwareMode),
-    sw_queue_max: 0,
+    trigger_timeout_ms: triggerTimeoutMs(data, triggerMode),
     trigger_mode: triggerMode,
     measurement: String(data.get("measurement") || "current-dc"),
     nplc: numberOrNull(data.get("nplc")),
@@ -100,6 +112,7 @@ function formPayload() {
   }
   if (softwareTriggeredMode) {
     payload.sw_min_interval_ms = numberOrNull(data.get("sw_min_interval_ms"));
+    payload.sw_queue_max = numberOrNull(data.get("sw_queue_max"));
   }
   return compactPayload(payload);
 }
@@ -108,6 +121,57 @@ function compactPayload(payload) {
   return Object.fromEntries(
     Object.entries(payload).filter(([_key, value]) => value !== null)
   );
+}
+
+function applyInputLimits(limits) {
+  inputLimits = limits || {};
+  setNumberLimit("timeout_ms", document.querySelector("[name='timeout_ms']"));
+  setNumberLimit("trigger_timeout_ms", triggerTimeoutInput);
+  setNumberLimit("max_samples", document.querySelector("[name='max_samples']"));
+  setNumberLimit("trigger_count", triggerCountInput);
+  setNumberLimit("sample_count", sampleCountInput);
+  setNumberLimit("timer_interval_s", timerIntervalInput);
+  setNumberLimit("buffer_drain_size", document.querySelector("[name='buffer_drain_size']"));
+  setNumberLimit("hw_trigger_delay_s", document.querySelector("[name='hw_trigger_delay_s']"));
+  setNumberLimit("sw_min_interval_ms", swMinIntervalInput);
+  setNumberLimit("sw_queue_max", swQueueMaxInput);
+  validateSwMinInterval();
+}
+
+function setNumberLimit(name, control) {
+  const limit = inputLimits[name];
+  if (!control || !limit) {
+    return;
+  }
+  if (limit.min !== undefined) {
+    control.min = String(limit.min);
+  }
+  if (limit.max !== undefined) {
+    control.max = String(limit.max);
+  }
+}
+
+function validateSwMinInterval() {
+  if (!swMinIntervalInput || swMinIntervalInput.disabled) {
+    swMinIntervalInput?.setCustomValidity("");
+    return true;
+  }
+  const value = numberOrNull(swMinIntervalInput.value);
+  const limit = inputLimits.sw_min_interval_ms || {};
+  const max = Number(limit.max ?? 600000);
+  const nonzeroMin = Number(limit.nonzero_min ?? 50);
+  if (value === null || value === 0) {
+    swMinIntervalInput.setCustomValidity("");
+    return true;
+  }
+  if (!Number.isFinite(value) || value < nonzeroMin || value > max) {
+    swMinIntervalInput.setCustomValidity(
+      `Use 0 to disable throttling, or use ${nonzeroMin}-${max} ms.`
+    );
+    return false;
+  }
+  swMinIntervalInput.setCustomValidity("");
+  return true;
 }
 
 async function api(path, options = {}) {
@@ -142,6 +206,24 @@ function formatApiError(payload, fallback) {
   return fallback;
 }
 
+function triggerMetadataPayload() {
+  const base = { source: "web-ui" };
+  const text = String(triggerMetadataInput?.value || "").trim();
+  if (!text) {
+    return base;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch (_error) {
+    throw new Error("Trigger metadata must be valid JSON object");
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Trigger metadata must be a JSON object");
+  }
+  return { source: "web-ui", ...parsed };
+}
+
 function updateMeasurementUi() {
   const selected = measurementSelect.value || "current-dc";
   const autoZeroVisible = supportsAutoZero(selected);
@@ -166,6 +248,7 @@ function updateRangeVisibility() {
   const autoRangeEnabled = autoRangeCheckbox.checked;
   rangeContainer.classList.toggle("is-hidden", autoRangeEnabled);
   measurementRangeInput.disabled = autoRangeEnabled;
+  measurementRangeInput.required = !autoRangeEnabled;
 }
 
 function populateRangeOptions(measurement) {
@@ -242,11 +325,15 @@ function modeScopeVisible(scope, mode) {
   if (scope === "software-trigger") {
     return isSoftwareTriggeredMode(mode);
   }
+  if (scope === "trigger-timeout") {
+    return usesTriggerTimeout(mode);
+  }
   return true;
 }
 
 function updateTriggerModeUi() {
   const mode = triggerModeSelect.value || "software";
+  const customMode = isCustomMode(mode);
   for (const element of modeScopedControls) {
     const visible = modeScopeVisible(element.dataset.modeScope, mode);
     element.classList.toggle("is-hidden", !visible);
@@ -254,19 +341,25 @@ function updateTriggerModeUi() {
       control.disabled = !visible;
     }
   }
+  triggerCountInput.required = customMode;
+  sampleCountInput.required = customMode;
 
   const isSoftware = mode === "software";
   const timerEnabled = isSoftware && timerTriggerCheckbox.checked;
 
   timerIntervalContainer.classList.toggle("is-hidden", !timerEnabled);
   timerIntervalInput.disabled = !timerEnabled;
+  timerIntervalInput.required = timerEnabled;
 
   if (isSoftware) {
-    swMinIntervalContainer.classList.toggle("is-hidden", timerEnabled);
-    for (const control of swMinIntervalContainer.querySelectorAll("input, select, textarea")) {
-      control.disabled = timerEnabled;
+    for (const container of [swMinIntervalContainer, swQueueMaxContainer, triggerMetadataContainer]) {
+      container.classList.toggle("is-hidden", timerEnabled);
+      for (const control of container.querySelectorAll("input, select, textarea")) {
+        control.disabled = timerEnabled;
+      }
     }
   }
+  validateSwMinInterval();
 
   const visibleTriggerControls = triggerOptionsPanel.querySelectorAll(
     "[data-mode-scope]:not(.is-hidden)"
@@ -297,6 +390,7 @@ function renderStatus(status) {
 
 async function loadCapabilities() {
   const capabilities = await api("/api/capabilities");
+  applyInputLimits(capabilities.limits);
   measurementsByName = new Map(
     capabilities.measurements.map((item) => [item.name, item])
   );
@@ -377,6 +471,7 @@ triggerModeSelect.addEventListener("change", updateTriggerModeUi);
 timerIntervalInput.addEventListener("input", updateTriggerButtonUi);
 timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
+swMinIntervalInput.addEventListener("input", validateSwMinInterval);
 
 document.querySelector("#start-run").addEventListener("click", async () => {
   try {
@@ -384,6 +479,12 @@ document.querySelector("#start-run").addEventListener("click", async () => {
     if (!payload.resource) {
       latestStatus.textContent = "Select or enter a VISA resource before Start";
       resourceInput.focus();
+      return;
+    }
+    validateSwMinInterval();
+    if (!form.checkValidity()) {
+      latestStatus.textContent = "Check highlighted run settings before Start";
+      form.reportValidity();
       return;
     }
     renderStatus(await api("/api/runs", {
@@ -397,9 +498,10 @@ document.querySelector("#start-run").addEventListener("click", async () => {
 
 document.querySelector("#trigger-run").addEventListener("click", async () => {
   try {
+    const metadata = triggerMetadataPayload();
     renderStatus(await api("/api/runs/current/trigger", {
       method: "POST",
-      body: JSON.stringify({ source: "web-ui" }),
+      body: JSON.stringify(metadata),
     }));
   } catch (error) {
     latestStatus.textContent = error.message;
