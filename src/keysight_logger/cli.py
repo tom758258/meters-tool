@@ -198,6 +198,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="open each resource and query *IDN? to mark live vs stale",
     )
     list_resources.add_argument(
+        "--live-only",
+        action="store_true",
+        help="verify resources and print only live resources",
+    )
+    list_resources.add_argument(
         "--format",
         dest="output_format",
         choices=["text", "json"],
@@ -311,24 +316,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_list_resources(
     verify: bool = False,
+    live_only: bool = False,
     output_format: str = "text",
     print_fn=print,  # noqa: ANN001
 ) -> int:
     if output_format not in {"text", "json"}:
         raise ValueError("output_format must be 'text' or 'json'")
 
+    effective_verify = verify or live_only
     resources = []
+    text_rows = 0
     for resource in VisaInstrument.list_resources():
-        if not verify:
+        if not effective_verify:
             if output_format == "text":
                 print_fn(resource)
+                text_rows += 1
             else:
                 resources.append({"resource": resource})
             continue
         ok, detail = VisaInstrument.verify_resource(resource)
+        if live_only and not ok:
+            continue
         status = "live" if ok else "stale"
         if output_format == "text":
             print_fn(f"{status}\t{resource}\t{detail}")
+            text_rows += 1
         else:
             resources.append(
                 {
@@ -338,8 +350,18 @@ def cmd_list_resources(
                     "status": status,
                 }
             )
+    if live_only and output_format == "text" and text_rows == 0:
+        print_fn("no live VISA resources found")
     if output_format == "json":
-        print_fn(json.dumps({"resources": resources, "verify": verify}, sort_keys=True))
+        payload = {"resources": resources, "verify": effective_verify}
+        if live_only:
+            payload["live_only"] = True
+        print_fn(
+            json.dumps(
+                payload,
+                sort_keys=True,
+            )
+        )
     return 0
 
 
@@ -649,7 +671,11 @@ def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.command == "list-resources":
-        return cmd_list_resources(verify=args.verify, output_format=args.output_format)
+        return cmd_list_resources(
+            verify=args.verify,
+            live_only=args.live_only,
+            output_format=args.output_format,
+        )
     if args.command == "soft-trigger":
         return cmd_soft_trigger(args.port, args.meta)
     if args.command == "soft-stop":

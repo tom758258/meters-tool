@@ -950,6 +950,15 @@ class CliArgsTests(unittest.TestCase):
         args = parser.parse_args(["list-resources", "--verify"])
 
         self.assertTrue(args.verify)
+        self.assertFalse(args.live_only)
+        self.assertEqual("text", args.output_format)
+
+    def test_list_resources_live_only_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["list-resources", "--live-only"])
+
+        self.assertFalse(args.verify)
+        self.assertTrue(args.live_only)
         self.assertEqual("text", args.output_format)
 
     def test_list_resources_json_format(self):
@@ -957,6 +966,7 @@ class CliArgsTests(unittest.TestCase):
         args = parser.parse_args(["list-resources", "--verify", "--format", "json"])
 
         self.assertTrue(args.verify)
+        self.assertFalse(args.live_only)
         self.assertEqual("json", args.output_format)
 
 
@@ -1136,6 +1146,63 @@ class CliCommandTests(unittest.TestCase):
                         "live": False,
                         "resource": "USB::STALE",
                         "status": "stale",
+                    },
+                ],
+                "verify": True,
+            },
+            json.loads(lines[0]),
+        )
+
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_live_only_prints_only_live_resources(self, mock_visa):
+        mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
+        mock_visa.verify_resource.side_effect = [
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+            (False, "VisaIOError: timeout"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(live_only=True, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(
+            ["live\tUSB::LIVE\tKeysight Technologies,34461A,MY123,1.0"],
+            lines,
+        )
+
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_live_only_prints_message_when_none_live(self, mock_visa):
+        mock_visa.list_resources.return_value = ["USB::STALE"]
+        mock_visa.verify_resource.return_value = (False, "VisaIOError: timeout")
+        lines = []
+
+        rc = cmd_list_resources(live_only=True, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(["no live VISA resources found"], lines)
+
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_live_only_json_filters_stale_resources(self, mock_visa):
+        mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
+        mock_visa.verify_resource.side_effect = [
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+            (False, "VisaIOError: timeout"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(live_only=True, output_format="json", print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(lines))
+        self.assertEqual(
+            {
+                "live_only": True,
+                "resources": [
+                    {
+                        "detail": "Keysight Technologies,34461A,MY123,1.0",
+                        "live": True,
+                        "resource": "USB::LIVE",
+                        "status": "live",
                     },
                 ],
                 "verify": True,
