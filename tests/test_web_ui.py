@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import tempfile
+import threading
 import time
 import unittest
 from pathlib import Path
@@ -13,7 +14,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
 
 if TestClient is not None:
     from keysight_logger.models import MeasurementSample
-    from keysight_logger.web_ui import RunStartRequest, WebRunManager, create_app
+    from keysight_logger.web_ui import RunAlreadyActive, RunStartRequest, WebRunManager, create_app
 
 
 class FakeInstrument:
@@ -147,6 +148,57 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(409, second.status_code)
         self.assertEqual(202, stopped.status_code)
         self.assertIn(stopped.json()["state"], {"running", "stopping", "stopped"})
+
+    def test_run_start_rejects_second_run_while_first_is_connecting(self):
+        tempdir = tempfile.TemporaryDirectory()
+        self.tempdir = tempdir
+        csv_path = Path(tempdir.name) / "out.csv"
+        connect_entered = threading.Event()
+        release_connect = threading.Event()
+        created_instruments: list[FakeInstrument] = []
+
+        class SlowConnectInstrument(FakeInstrument):
+            def connect(self):
+                connect_entered.set()
+                self.connected = True
+                release_connect.wait(timeout=1)
+
+        def instrument_factory(config):
+            instrument = SlowConnectInstrument(config)
+            created_instruments.append(instrument)
+            return instrument
+
+        manager = WebRunManager(
+            instrument_factory=instrument_factory,
+            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
+        )
+        request = RunStartRequest(
+            resource="USB::FAKE",
+            csv=str(csv_path),
+            trigger_mode="software",
+            trigger_timeout_ms=500,
+        )
+        first_error: list[BaseException] = []
+
+        def start_first():
+            try:
+                manager.start(request)
+            except BaseException as exc:  # pragma: no cover - failure path for the worker thread
+                first_error.append(exc)
+
+        worker = threading.Thread(target=start_first)
+        worker.start()
+        self.assertTrue(connect_entered.wait(timeout=1))
+
+        with self.assertRaises(RunAlreadyActive):
+            manager.start(request)
+
+        release_connect.set()
+        worker.join(timeout=1)
+        self.assertFalse(worker.is_alive())
+        self.assertEqual([], first_error)
+        self.assertEqual(1, len(created_instruments))
+        manager.stop()
 
     def test_software_trigger_updates_status_and_captures(self):
         client, csv_path = self.make_client()

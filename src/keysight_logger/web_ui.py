@@ -140,6 +140,7 @@ class WebRunManager:
         self._storage_factory = storage_factory
         self._lock = threading.Lock()
         self._active: _RunHandle | None = None
+        self._starting = False
         self._last_status = self._idle_status()
 
     def capabilities(self) -> dict[str, Any]:
@@ -233,17 +234,25 @@ class WebRunManager:
     def start(self, request: RunStartRequest) -> dict[str, Any]:
         args = self._validate_request(request)
         with self._lock:
-            if self._active is not None and self._is_handle_active(self._active):
+            if self._starting or (
+                self._active is not None and self._is_handle_active(self._active)
+            ):
                 raise RunAlreadyActive("a run is already active")
+            self._starting = True
 
         trigger_mode = resolve_trigger_mode(args)
         measurement_type = normalize_measurement_type(args.measurement)
         measurement_range = resolve_measurement_range(args)
         csv_path = resolve_csv_path(args.csv)
 
-        instrument = self._instrument_factory(
-            InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
-        )
+        try:
+            instrument = self._instrument_factory(
+                InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
+            )
+        except Exception:
+            with self._lock:
+                self._starting = False
+            raise
         try:
             instrument.connect()
         except Exception:
@@ -251,64 +260,88 @@ class WebRunManager:
                 instrument.close()
             except Exception:
                 pass
+            with self._lock:
+                self._starting = False
             raise
 
-        run_id = str(uuid4())
-        router = TriggerRouter()
-        storage = self._storage_factory(csv_path)
-        measurement = self._measurement_factory(measurement_type)
+        try:
+            run_id = str(uuid4())
+            router = TriggerRouter()
+            storage = self._storage_factory(csv_path)
+            measurement = self._measurement_factory(measurement_type)
 
-        config = AcquisitionConfig(
-            measurement_type=measurement_type,
-            trigger_timeout_ms=args.trigger_timeout_ms,
-            max_samples=args.max_samples,
-            trigger_count=args.trigger_count,
-            sample_count=args.sample_count,
-            timer_interval_s=args.timer_interval_s,
-            buffer_drain_size=args.buffer_drain_size,
-            allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
-            nplc=args.nplc,
-            auto_zero=args.auto_zero,
-            auto_range=args.auto_range,
-            measurement_range=measurement_range,
-            current_range=args.current_range,
-            dcv_input_impedance=args.dcv_input_impedance,
-            hw_trigger_delay_s=args.hw_trigger_delay_s,
-            vm_comp_slope=args.vm_comp_slope,
-        )
-        engine = TriggerAcquisitionEngine(
-            instrument=instrument,
-            measurement=measurement,
-            storage=storage,
-            config=config,
-            router=router,
-            status_cb=lambda message: self._record_status(run_id, message),
-            instrument_profile=get_default_instrument_profile(),
-        )
-        handle = _RunHandle(
-            run_id=run_id,
-            resource=args.resource,
-            csv_path=csv_path,
-            measurement=format_measurement_type(measurement_type),
-            trigger_mode=trigger_mode,
-            hardware_trigger_slope=args.hw_trigger_slope,
-            router=router,
-            engine=engine,
-            instrument=instrument,
-            min_interval_ms=args.sw_min_interval_ms,
-            queue_max=args.sw_queue_max,
-        )
-        worker = threading.Thread(
-            target=self._run_worker,
-            args=(handle,),
-            name=f"keysight-web-run-{run_id}",
-            daemon=True,
-        )
-        handle.worker = worker
+            config = AcquisitionConfig(
+                measurement_type=measurement_type,
+                trigger_timeout_ms=args.trigger_timeout_ms,
+                max_samples=args.max_samples,
+                trigger_count=args.trigger_count,
+                sample_count=args.sample_count,
+                timer_interval_s=args.timer_interval_s,
+                buffer_drain_size=args.buffer_drain_size,
+                allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
+                nplc=args.nplc,
+                auto_zero=args.auto_zero,
+                auto_range=args.auto_range,
+                measurement_range=measurement_range,
+                current_range=args.current_range,
+                dcv_input_impedance=args.dcv_input_impedance,
+                hw_trigger_delay_s=args.hw_trigger_delay_s,
+                vm_comp_slope=args.vm_comp_slope,
+            )
+            engine = TriggerAcquisitionEngine(
+                instrument=instrument,
+                measurement=measurement,
+                storage=storage,
+                config=config,
+                router=router,
+                status_cb=lambda message: self._record_status(run_id, message),
+                instrument_profile=get_default_instrument_profile(),
+            )
+            handle = _RunHandle(
+                run_id=run_id,
+                resource=args.resource,
+                csv_path=csv_path,
+                measurement=format_measurement_type(measurement_type),
+                trigger_mode=trigger_mode,
+                hardware_trigger_slope=args.hw_trigger_slope,
+                router=router,
+                engine=engine,
+                instrument=instrument,
+                min_interval_ms=args.sw_min_interval_ms,
+                queue_max=args.sw_queue_max,
+            )
+            worker = threading.Thread(
+                target=self._run_worker,
+                args=(handle,),
+                name=f"keysight-web-run-{run_id}",
+                daemon=True,
+            )
+            handle.worker = worker
+        except Exception:
+            with self._lock:
+                self._starting = False
+            try:
+                instrument.close()
+            except Exception:
+                pass
+            raise
         with self._lock:
             self._active = handle
+            self._starting = False
             self._last_status = self._status_from_handle(handle)
-        worker.start()
+        try:
+            worker.start()
+        except Exception:
+            with self._lock:
+                if self._active is handle:
+                    self._active = None
+                self._starting = False
+                self._last_status = self._idle_status()
+            try:
+                instrument.close()
+            except Exception:
+                pass
+            raise
         return self.status()
 
     def status(self) -> dict[str, Any]:
