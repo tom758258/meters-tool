@@ -176,8 +176,9 @@ button:disabled:hover {
 
 .status-strip span {
   display: block;
-  color: var(--muted);
+  color: var(--accent-strong);
   font-size: 12px;
+  font-weight: 700;
 }
 
 .status-strip strong {
@@ -237,8 +238,9 @@ button:disabled:hover {
 label {
   display: grid;
   gap: 7px;
-  color: var(--muted);
-  font-size: 13px;
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .label-title {
@@ -248,9 +250,9 @@ label {
 }
 
 .optional-mark {
-  color: var(--accent-strong);
-  font-size: 12px;
-  font-weight: 700;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
 }
 
 .field-title {
@@ -275,6 +277,8 @@ textarea {
   background: var(--field);
   color: var(--ink);
   padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 400;
 }
 
 input:focus,
@@ -333,7 +337,9 @@ button:focus {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--ink);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .switch-row input {
