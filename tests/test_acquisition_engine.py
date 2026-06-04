@@ -96,6 +96,11 @@ class FailingMeasurement(FakeMeasurement):
         raise AssertionError("software trigger should not be captured")
 
 
+class CaptureFailingMeasurement(FakeMeasurement):
+    def read_sample(self, instrument, trigger):  # noqa: ANN001, ARG002
+        raise RuntimeError("read failed")
+
+
 class FakeBufferedMeasurement(FakeMeasurement):
     def __init__(self) -> None:
         self.sample_count = 0
@@ -189,6 +194,16 @@ class WaitingExternalBufferedMeasurement(FakeBufferedMeasurement):
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
         instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
+
+
+class BufferedReadFailingMeasurement(FakeBufferedMeasurement):
+    def read_buffered_samples(self, instrument, trigger, count, first_sample_index):  # noqa: ANN001, ARG002
+        raise RuntimeError("buffer read failed")
+
+
+class BufferedAvailableFailingMeasurement(FakeBufferedMeasurement):
+    def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
+        raise RuntimeError("points query failed")
 
 
 class FakeStorage:
@@ -337,6 +352,28 @@ class AcquisitionEngineTests(unittest.TestCase):
 
         self.assertFalse(worker.is_alive())
         self.assertTrue(any("captured=1 value=12.3 kOhm" in s for s in statuses))
+
+    def test_simple_capture_exception_is_fatal_and_stops_worker(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=CaptureFailingMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.captured)
+        self.assertEqual(1, engine.stats.errors)
+        self.assertIsNotNone(engine.fatal_error)
+        self.assertIn("capture failure", engine.fatal_error)
+        self.assertTrue(any("capture error count=1" in s for s in statuses))
 
     def test_stop_only_sets_stop_state_without_instrument_io(self):
         instrument = FakeInstrument()
@@ -526,6 +563,28 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertEqual(5, engine.stats.captured)
         self.assertEqual([2, 2, 1], measurement.read_counts)
 
+    def test_buffered_custom_capture_exception_is_fatal_and_stops_worker(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=BufferedReadFailingMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=1),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-custom"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.captured)
+        self.assertEqual(1, engine.stats.errors)
+        self.assertIsNotNone(engine.fatal_error)
+        self.assertIn("buffered capture failure", engine.fatal_error)
+        self.assertTrue(any("buffered capture error count=1" in s for s in statuses))
+
     def test_software_custom_mode_sends_bus_trigger_and_drains_buffer(self):
         instrument = RecordingInstrument()
         measurement = FakeBufferedMeasurement()
@@ -562,6 +621,28 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertTrue(any("software custom capture armed" in s for s in statuses))
         self.assertTrue(any("software custom trigger sent=2/2" in s for s in statuses))
         self.assertTrue(any("expected readings reached: 4" in s for s in statuses))
+
+    def test_software_custom_points_exception_is_fatal_and_stops_worker(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=BufferedAvailableFailingMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=1),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(0, engine.stats.captured)
+        self.assertEqual(1, engine.stats.errors)
+        self.assertIsNotNone(engine.fatal_error)
+        self.assertIn("buffered capture failure", engine.fatal_error)
+        self.assertTrue(any("buffered capture error count=1" in s for s in statuses))
 
     def test_software_custom_waiting_trigger_status_is_emitted_once_while_idle(self):
         statuses: list[str] = []

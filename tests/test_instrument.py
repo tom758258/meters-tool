@@ -14,6 +14,7 @@ class FakeVisaSession:
         self.writes: list[str] = []
         self.closed = False
         self.cleared = False
+        self.idn_response = " Keysight Technologies,34461A,MY123,1.0 \n"
         self.query_response = " Keysight Technologies,34461A,MY123,1.0 \n"
         self.status_byte = 32
         self.control_ren_calls: list[int] = []
@@ -31,6 +32,8 @@ class FakeVisaSession:
         if self.fail_query:
             raise RuntimeError("query failed")
         self.writes.append(f"query:{command}")
+        if command == "*IDN?":
+            return self.idn_response
         return self.query_response
 
     def read_stb(self) -> int:
@@ -135,7 +138,35 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
 
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
         self.assertEqual(4321, session.timeout)
-        self.assertEqual(["*CLS", "*RST"], session.writes)
+        self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
+
+    def test_connect_rejects_unsupported_idn_and_closes_without_reset(self):
+        session = FakeVisaSession()
+        session.idn_response = "Other Vendor,1234,MY123,1.0"
+        instrument, rm, fake_pyvisa = self.make_instrument(session=session)
+
+        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+            with self.assertRaisesRegex(InstrumentError, "unsupported instrument identity"):
+                instrument.connect()
+
+        self.assertEqual(["query:*IDN?"], session.writes)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+        self.assertEqual("not_connected", instrument.release_to_local())
+
+    def test_connect_closes_without_reset_when_idn_query_fails(self):
+        session = FakeVisaSession()
+        session.fail_query = True
+        instrument, rm, fake_pyvisa = self.make_instrument(session=session)
+
+        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+            with self.assertRaisesRegex(InstrumentError, "failed to validate instrument identity"):
+                instrument.connect()
+
+        self.assertEqual([], session.writes)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+        self.assertEqual("not_connected", instrument.release_to_local())
 
     def test_unconnected_operations_raise_instrument_error(self):
         instrument = VisaInstrument(InstrumentConfig(resource_string="USB::FAKE"))

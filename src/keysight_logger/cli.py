@@ -13,7 +13,7 @@ from urllib import request
 from urllib.error import URLError
 
 from .acquisition import TriggerAcquisitionEngine
-from .instrument import InstrumentConfig, VisaInstrument
+from .instrument import InstrumentConfig, InstrumentError, VisaInstrument
 from .measurement import (
     create_measurement_plugin,
     format_measurement_type,
@@ -381,7 +381,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--sw-queue-max",
         type=int,
         default=0,
-        help="software trigger queue depth; 0 disables queueing, max 10000",
+        help="software trigger queue depth; 0 uses the default safety cap, max 10000",
     )
     start.add_argument(
         "--trigger-mode",
@@ -818,7 +818,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         vm_comp_slope=args.vm_comp_slope,
     )
     instrument = VisaInstrument(iconfig)
-    router = TriggerRouter()
+    router = TriggerRouter(max_pending_events=args.sw_queue_max)
     storage = CsvWriter(csv_path)
     measurement = create_measurement_plugin(measurement_type)
     engine = TriggerAcquisitionEngine(
@@ -858,8 +858,14 @@ def cmd_start(args: argparse.Namespace) -> int:
     keyboard_stop_poller = WindowsKeyboardStopPoller()
 
     worker: threading.Thread | None = None
+    connected = False
     try:
-        instrument.connect()
+        try:
+            instrument.connect()
+            connected = True
+        except InstrumentError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 3
         if windows_console_stop_handler.install():
             print(
                 "windows console stop handler: installed "
@@ -924,15 +930,16 @@ def cmd_start(args: argparse.Namespace) -> int:
             worker.join(timeout=5)
 
         # Release instrument control before closing the session.
-        rel = instrument.release_to_local()
-        print(f"release_to_local: {rel}")
-        # Retry once on transient session instability.
-        if "SYST:LOC:failed" in rel:
-            time.sleep(1.0)
-            rel2 = instrument.release_to_local()
-            print(f"release_to_local retry: {rel2}")
-        instrument.close()
-        print(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
+        if connected:
+            rel = instrument.release_to_local()
+            print(f"release_to_local: {rel}")
+            # Retry once on transient session instability.
+            if "SYST:LOC:failed" in rel:
+                time.sleep(1.0)
+                rel2 = instrument.release_to_local()
+                print(f"release_to_local retry: {rel2}")
+            instrument.close()
+            print(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
         print("stopping software trigger server")
         server.stop()
         print("software trigger server stopped")

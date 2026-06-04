@@ -107,6 +107,21 @@ class TriggerAcquisitionEngine:
     def _emit_capture_status(self, sample: MeasurementSample) -> None:
         self._emit(f"captured={self._stats.captured} {_format_status_value(sample)}")
 
+    def _record_capture_failure(self, status_prefix: str, exc: Exception) -> None:
+        self._stats.errors += 1
+        err_text = "unknown"
+        if hasattr(self._instrument, "poll_system_error"):
+            try:
+                err_text = self._instrument.poll_system_error()
+            except Exception:
+                err_text = "unknown"
+        self._fatal_error = (
+            f"{status_prefix} failure: {type(exc).__name__}: {exc}; "
+            f"scpi_error={err_text}"
+        )
+        self._emit(f"{status_prefix} error count={self._stats.errors} scpi_error={err_text}")
+        self.stop()
+
     def run(
         self,
         trigger_mode: str = "software",
@@ -345,18 +360,10 @@ class TriggerAcquisitionEngine:
                     continue
 
                 self._stop_event.wait(0.05)
-            except Exception:
+            except Exception as exc:
                 if not self._running:
                     return
-                self._stats.errors += 1
-                err_text = "unknown"
-                if hasattr(self._instrument, "poll_system_error"):
-                    try:
-                        err_text = self._instrument.poll_system_error()
-                    except Exception:
-                        err_text = "unknown"
-                self._emit(f"buffered capture error count={self._stats.errors} scpi_error={err_text}")
-                self.stop()
+                self._record_capture_failure("buffered capture", exc)
                 return
         if self._stats.captured >= expected_readings:
             self._emit(f"expected readings reached: {expected_readings}")
@@ -423,18 +430,10 @@ class TriggerAcquisitionEngine:
                     self._storage.write(sample)
                     self._stats.captured += 1
                 self._emit_capture_status(samples[-1])
-            except Exception:
+            except Exception as exc:
                 if not self._running:
                     return
-                self._stats.errors += 1
-                err_text = "unknown"
-                if hasattr(self._instrument, "poll_system_error"):
-                    try:
-                        err_text = self._instrument.poll_system_error()
-                    except Exception:
-                        err_text = "unknown"
-                self._emit(f"buffered capture error count={self._stats.errors} scpi_error={err_text}")
-                self.stop()
+                self._record_capture_failure("buffered capture", exc)
                 return
             if poll_control_events and not self._drain_custom_control_events(ignored_software_trigger_status):
                 return
@@ -448,17 +447,10 @@ class TriggerAcquisitionEngine:
             self._storage.write(sample)
             self._stats.captured += 1
             self._emit_capture_status(sample)
-        except Exception:
+        except Exception as exc:
             if not self._running:
                 return
-            self._stats.errors += 1
-            err_text = "unknown"
-            if hasattr(self._instrument, "poll_system_error"):
-                try:
-                    err_text = self._instrument.poll_system_error()
-                except Exception:
-                    err_text = "unknown"
-            self._emit(f"capture error count={self._stats.errors} scpi_error={err_text}")
+            self._record_capture_failure("capture", exc)
 
     def stop(self) -> None:
         self._running = False

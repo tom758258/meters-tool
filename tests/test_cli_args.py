@@ -24,6 +24,7 @@ from keysight_logger.cli import (
     resolve_trigger_mode,
     validate_start_args,
 )
+from keysight_logger.instrument import InstrumentError
 from keysight_logger.models import InstrumentProfile, MeasurementOptions
 
 
@@ -1724,6 +1725,27 @@ class FakeStartInstrument:
         self.closed = True
 
 
+class ConnectFailingStartInstrument(FakeStartInstrument):
+    release_calls = 0
+    cleanup_calls = 0
+    close_calls = 0
+
+    def connect(self):
+        raise InstrumentError("unsupported instrument identity; expected Keysight/Agilent 34461A")
+
+    def release_to_local(self):
+        type(self).release_calls += 1
+        return "release:should-not-run"
+
+    def cleanup_release_to_local(self):
+        type(self).cleanup_calls += 1
+        return "cleanup:should-not-run"
+
+    def close(self):
+        type(self).close_calls += 1
+        self.closed = True
+
+
 class FakeStartServer:
     def __init__(self, *_args, **_kwargs):
         self.stopped = False
@@ -1927,6 +1949,46 @@ class CliCommandTests(unittest.TestCase):
         self.assertIn("file may be open in Excel", stderr.getvalue())
         self.assertIn("captured=0 errors=1", stdout.getvalue())
         self.assertNotIn("measurement worker exited before stop was requested", stdout.getvalue())
+
+    def test_start_connect_instrument_error_returns_3_without_release_cleanup(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::WRONG",
+                "--csv",
+                "data\\unused.csv",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        ConnectFailingStartInstrument.release_calls = 0
+        ConnectFailingStartInstrument.cleanup_calls = 0
+        ConnectFailingStartInstrument.close_calls = 0
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.VisaInstrument", ConnectFailingStartInstrument),
+            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(3, rc)
+        self.assertIn("error: unsupported instrument identity", stderr.getvalue())
+        self.assertEqual(0, ConnectFailingStartInstrument.release_calls)
+        self.assertEqual(0, ConnectFailingStartInstrument.cleanup_calls)
+        self.assertEqual(0, ConnectFailingStartInstrument.close_calls)
+        self.assertNotIn("release_to_local:", stdout.getvalue())
+        self.assertNotIn("cleanup_release_to_local:", stdout.getvalue())
 
     @patch("keysight_logger.cli.VisaInstrument")
     def test_list_resources_without_verify_prints_resources(self, mock_visa):

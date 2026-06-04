@@ -16,6 +16,15 @@ class InstrumentError(RuntimeError):
     pass
 
 
+def _is_supported_34461a_idn(idn: str) -> bool:
+    parts = [part.strip().upper() for part in str(idn).split(",")]
+    if len(parts) < 2:
+        return False
+    manufacturer = parts[0]
+    model = parts[1]
+    return ("KEYSIGHT" in manufacturer or "AGILENT" in manufacturer) and model == "34461A"
+
+
 class VisaInstrument:
     def __init__(self, config: InstrumentConfig):
         self._config = config
@@ -69,11 +78,24 @@ class VisaInstrument:
     def connect(self) -> None:
         if pyvisa is None:
             raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
-        self._rm = pyvisa.ResourceManager()
-        self._inst = self._rm.open_resource(self._config.resource_string)
-        self._inst.timeout = self._config.timeout_ms
-        self._inst.write("*CLS")
-        self._inst.write("*RST")
+        try:
+            self._rm = pyvisa.ResourceManager()
+            self._inst = self._rm.open_resource(self._config.resource_string)
+            self._inst.timeout = self._config.timeout_ms
+            idn = str(self._inst.query("*IDN?")).strip()
+            if not _is_supported_34461a_idn(idn):
+                raise InstrumentError(
+                    "unsupported instrument identity; expected Keysight/Agilent 34461A, "
+                    f"got '{idn}'"
+                )
+            self._inst.write("*CLS")
+            self._inst.write("*RST")
+        except InstrumentError:
+            self.close()
+            raise
+        except Exception as exc:
+            self.close()
+            raise InstrumentError(f"failed to validate instrument identity: {exc}") from exc
 
     def write(self, command: str) -> None:
         if self._inst is None:
