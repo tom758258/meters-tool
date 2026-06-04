@@ -304,6 +304,7 @@ class TriggerAcquisitionEngine:
         self._emit("software custom capture armed")
 
         triggers_sent = 0
+        waiting_trigger_emitted = False
         while self._running and not self._stop_event.is_set() and self._stats.captured < expected_readings:
             try:
                 available = self._measurement.buffered_points_available(self._instrument)
@@ -329,8 +330,11 @@ class TriggerAcquisitionEngine:
                 if triggers_sent < trigger_count and ready_for_next_trigger:
                     ev = self._router.wait(timeout_s=min(self._config.trigger_timeout_ms / 1000.0, 0.2))
                     if ev is None:
-                        self._emit("waiting software custom trigger")
+                        if not waiting_trigger_emitted:
+                            self._emit("waiting software custom trigger")
+                            waiting_trigger_emitted = True
                         continue
+                    waiting_trigger_emitted = False
                     if self._handle_control_event(ev):
                         continue
                     if ev.source != TriggerSource.SOFTWARE:

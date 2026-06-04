@@ -563,6 +563,29 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertTrue(any("software custom trigger sent=2/2" in s for s in statuses))
         self.assertTrue(any("expected readings reached: 4" in s for s in statuses))
 
+    def test_software_custom_waiting_trigger_status_is_emitted_once_while_idle(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=2),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        deadline = time.monotonic() + 1.0
+        while "waiting software custom trigger" not in statuses and time.monotonic() < deadline:
+            time.sleep(0.01)
+        time.sleep(0.15)
+        engine.stop()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, statuses.count("waiting software custom trigger"))
+
     def test_soft_stop_event_stops_software_custom_before_trigger(self):
         router = TriggerRouter()
         instrument = RecordingInstrument()
