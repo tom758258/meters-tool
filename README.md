@@ -13,7 +13,7 @@ Implemented:
 
 - VISA resource listing for USB and LAN resources discovered by PyVISA.
 - DC current, DC voltage, AC current, AC voltage, and 2-wire or 4-wire
-  resistance measurement logging..
+  resistance measurement logging.
 - Software trigger mode through a local HTTP endpoint.
 - Software timer capture as part of software trigger mode.
 - External hardware trigger mode.

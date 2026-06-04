@@ -24,7 +24,7 @@
       <section class="status-strip" aria-live="polite">
         <div>
           <span>State</span>
-          <strong id="status-state">idle</strong>
+          <strong id="status-state">Idle</strong>
         </div>
         <div>
           <span>Captured</span>
@@ -36,7 +36,7 @@
         </div>
         <div>
           <span>CSV</span>
-          <strong id="status-csv">auto</strong>
+          <strong id="status-csv">Default</strong>
         </div>
       </section>
 
@@ -116,7 +116,7 @@
               DCV input Z
               <select name="dcv_input_impedance" form="run-form">
                 <option value="default">default</option>
-                <option value="10m">10m</option>
+                <option value="10m">10M</option>
                 <option value="auto">auto</option>
               </select>
             </label>
@@ -124,9 +124,9 @@
           <label>
             VM Comp slope
             <select name="vm_comp_slope" form="run-form">
-              <option value="">leave unchanged</option>
-              <option value="pos">pos</option>
-              <option value="neg">neg</option>
+              <option value="">Leave unchanged</option>
+              <option value="pos">Pos</option>
+              <option value="neg">Neg</option>
             </select>
           </label>
         </section>
@@ -163,8 +163,8 @@
             <label data-mode-scope="hardware">
               HW slope
               <select name="hw_trigger_slope" form="run-form">
-                <option value="neg">neg</option>
-                <option value="pos">pos</option>
+                <option value="neg">Neg</option>
+                <option value="pos">Pos</option>
               </select>
             </label>
             <label id="sw-min-interval-container" data-mode-scope="software-trigger">
@@ -183,7 +183,7 @@
 
         <section class="panel log-panel">
           <h2>Status</h2>
-          <p id="latest-status">idle</p>
+          <p id="latest-status">Idle</p>
           <pre id="fatal-error"></pre>
           <pre id="cleanup-status"></pre>
           <pre id="raw-status"></pre>

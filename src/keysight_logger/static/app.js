@@ -43,6 +43,11 @@ function textOrNull(value) {
   return text ? text : null;
 }
 
+function capitalizeFirst(value) {
+  const text = String(value || "");
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
+
 function triggerTimeoutMs(data, hardwareMode) {
   return numberOrNull(
     hardwareMode ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS
@@ -271,11 +276,11 @@ function updateTriggerButtonUi() {
 }
 
 function renderStatus(status) {
-  statusState.textContent = status.state || "idle";
+  statusState.textContent = capitalizeFirst(status.state || "idle");
   statusCaptured.textContent = String(status.captured ?? 0);
   statusErrors.textContent = String(status.errors ?? 0);
-  statusCsv.textContent = status.csv_path || "auto";
-  latestStatus.textContent = status.latest_status || "idle";
+  statusCsv.textContent = status.csv_path || "Default";
+  latestStatus.textContent = capitalizeFirst(status.latest_status || "idle");
   fatalError.textContent = status.fatal_error || "";
   cleanupStatus.textContent = status.cleanup_status || "";
   rawStatus.textContent = JSON.stringify(status, null, 2);
@@ -290,7 +295,7 @@ async function loadCapabilities() {
     ...capabilities.measurements.map((item) => {
       const option = document.createElement("option");
       option.value = item.name;
-      option.textContent = `${item.name} (${item.unit})`;
+      option.textContent = `${capitalizeFirst(item.name)} (${item.unit})`;
       return option;
     })
   );
@@ -299,7 +304,7 @@ async function loadCapabilities() {
     ...capabilities.trigger_modes.map((mode) => {
       const option = document.createElement("option");
       option.value = mode;
-      option.textContent = mode;
+      option.textContent = capitalizeFirst(mode);
       return option;
     })
   );
@@ -307,7 +312,7 @@ async function loadCapabilities() {
 }
 
 async function refreshResources() {
-  latestStatus.textContent = "scanning live resources...";
+  latestStatus.textContent = "Scanning live resources...";
   const result = await api("/api/resources?verify=true&live_only=true");
   resourceSelect.replaceChildren(
     ...[
@@ -333,7 +338,7 @@ async function refreshResources() {
     resourceInput.value = result.resources[0].resource;
     resourceSelect.value = result.resources[0].resource;
   }
-  latestStatus.textContent = `live resources found: ${result.resources.length}`;
+  latestStatus.textContent = `Live resources found: ${result.resources.length}`;
 }
 
 async function pollStatus() {
@@ -368,7 +373,7 @@ document.querySelector("#start-run").addEventListener("click", async () => {
   try {
     const payload = formPayload();
     if (!payload.resource) {
-      latestStatus.textContent = "select or enter a VISA resource before Start";
+      latestStatus.textContent = "Select or enter a VISA resource before Start";
       resourceInput.focus();
       return;
     }
