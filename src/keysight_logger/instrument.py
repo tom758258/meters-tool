@@ -73,7 +73,14 @@ class VisaInstrument:
             rm = pyvisa.ResourceManager()
             inst = rm.open_resource(resource)
             inst.timeout = timeout_ms
-            return True, str(inst.query("*IDN?")).strip()
+            idn_detail = str(inst.query("*IDN?")).strip()
+            try:
+                VisaInstrument(
+                    InstrumentConfig(resource_string=resource)
+                )._release_session_to_local(inst)
+            except Exception:
+                pass
+            return True, idn_detail
         except Exception as exc:
             return False, f"{type(exc).__name__}: {exc}"
         finally:

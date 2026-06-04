@@ -1,6 +1,6 @@
 # Keysight 34461A CLI Logger
 
-Current CLI baseline: `v1.1.0-cli`.
+Current CLI baseline: `v1.1.5-cli`.
 
 ## Documentation Set
 
@@ -14,10 +14,10 @@ CLI-first Python logger for Keysight 34461A DC/AC current, DC/AC voltage, and
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
-`v1.1.0-cli` keeps the `v1.0.0-cli` acquisition behavior and adds stricter
-preflight CLI validation for documented numeric limits, measurement ranges, and
-NPLC choices. It also moves the 34461A range/NPLC tables into the instrument
-profile metadata used by CLI help and validation.
+`v1.1.5-cli` keeps the `v1.0.0-cli` acquisition behavior, includes the
+`v1.1.0-cli` preflight validation and profile metadata updates, and releases
+verified live resources back to local after successful resource-scan IDN
+checks.
 
 ## Current Scope
 
@@ -56,8 +56,9 @@ Important limitations:
 - Mixed software and hardware capture in the same run is not supported.
 - Plain `list-resources` calls VISA discovery directly and may show stale
   resources cached by the VISA runtime. Use `list-resources --verify` to open
-  each resource and query `*IDN?`; use `list-resources --live-only` when you
-  only want resources that answered.
+  each resource and query `*IDN?`; successful verified resources are released
+  back to local on a best-effort basis before closing. Use
+  `list-resources --live-only` when you only want resources that answered.
 - `immediate` mode can capture continuously and quickly. Use `--max-samples`
   unless you intentionally want a continuous run.
 
@@ -124,9 +125,9 @@ Use the module form unless this project later adds a console script:
 
 | Option | Description |
 | --- | --- |
-| none | Print raw VISA resources returned by PyVISA. This can include stale cached resources. |
-| `--verify` | Open each discovered resource and query `*IDN?`. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. |
-| `--live-only` | Verify resources and print only rows that answered. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
+| none | Print raw VISA resources returned by PyVISA. This can include stale cached resources and does not open resources or run release-to-local cleanup. |
+| `--verify` | Open each discovered resource and query `*IDN?`. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. Successful live checks run best-effort release-to-local before closing. |
+| `--live-only` | Verify resources and print only rows that answered. Successful live checks run best-effort release-to-local before closing. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |
 
 `soft-trigger` options:
@@ -160,7 +161,9 @@ ignored.
 When `--timer-interval-s` is active, ordinary `soft-trigger` requests are
 ignored while `soft-stop` still stops the run. The first timer sample is captured
 when recording starts; each later timer sample waits at least the configured
-interval after the previous capture attempt finishes.
+interval after the previous capture attempt finishes. Timer mode is a simple
+software-mode acquisition path, so `--max-samples` is valid and stops the run
+after that many successful timer CSV rows.
 
 ## `start-trigger-record` Options
 
@@ -169,15 +172,15 @@ interval after the previous capture attempt finishes.
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
 | `--timeout-ms N` | No | `5000` | VISA session timeout in milliseconds. Supported range: `100` to `600000`. |
-| `--trigger-timeout-ms N` | No | `10000` | External/custom trigger wait timeout. Supported range: `500` to `600000`. Timeout re-arms hardware mode and is not itself a capture error. |
+| `--trigger-timeout-ms N` | No | `10000` | External/custom trigger wait timeout. Supported range: `500` to `600000`. Timeout re-arms hardware mode and is not itself a capture error. Values that are too short for the expected external edge timing will repeatedly re-arm instead of capturing. |
 | `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/trigger` and `/stop`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
 | `--sw-min-interval-ms N` | No | `0` | Minimum interval between accepted software triggers. Use `0` to disable rate limiting, or use `50` to `600000`. |
-| `--sw-queue-max N` | No | `0` | Maximum queued software triggers. Supported range: `0` to `10000`; `0` means no queue limit. |
+| `--sw-queue-max N` | No | `0` | Maximum queued software triggers. Supported range: `0` to `10000`; `0` uses the default safety cap. |
 | `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | No | `software` | Select exactly one acquisition mode. |
 | `--max-samples N` | Simple modes only | None | Stop simple modes automatically after N successful CSV samples. Supported range: `1` to `1000000`. Not valid with custom modes. |
 | `--trigger-count N` | Custom modes only | None | Instrument trigger count. Supported range: `1` to `1000000`. Required with custom modes; not valid with simple modes. |
 | `--sample-count N` | Custom modes only | None | Instrument sample count per trigger. Supported range: `1` to `1000000`. Required with custom modes; not valid with simple modes. |
-| `--timer-interval-s SECONDS` | No | None | Enable fixed-delay software timer capture. Supported range: `0.5` to `86400` seconds. Valid only with `--trigger-mode software`; also valid when `--trigger-mode` is omitted because software is the default. |
+| `--timer-interval-s SECONDS` | No | None | Enable fixed-delay software timer capture. Supported range: `0.5` to `86400` seconds. Valid only with `--trigger-mode software`; also valid when `--trigger-mode` is omitted because software is the default. May be combined with `--max-samples` for bounded timer runs. |
 | `--buffer-drain-size N` | Custom modes only | None | Maximum readings to remove per buffer drain. Supported range: `1` to `10000`, capped by the instrument profile reading memory. Advanced option valid only with custom modes; does not change `TRIG:COUNT`, `SAMP:COUNT`, or instrument reading memory capacity. |
 | `--allow-buffer-overflow-risk` | No | Off | Allow custom modes to request more readings than the 34461A 10,000-reading memory limit. This depends on draining readings fast enough and may lose data or produce SCPI errors. |
 | `--enable-hw-trigger` | No | Off | Legacy flag that maps to `--trigger-mode external`. If combined with `--trigger-mode`, the mode must also be `external`. |
@@ -215,13 +218,30 @@ ranges fail fast with a clear error.
 | `--trigger-timeout-ms` | `500` to `600000` |
 | `--sw-trigger-port` | `0`, or `1024` to `65535`; `0` lets the server choose |
 | `--sw-min-interval-ms` | `0`, or `50` to `600000`; `0` disables throttling |
-| `--sw-queue-max` | `0` to `10000`; `0` disables queue limiting |
+| `--sw-queue-max` | `0` to `10000`; `0` uses the default safety cap |
 | `--max-samples` | `1` to `1000000`, simple modes only |
 | `--trigger-count`, `--sample-count` | `1` to `1000000`, custom modes only |
 | `--timer-interval-s` | `0.5` to `86400` seconds, software mode only |
 | `--buffer-drain-size` | `1` to `10000`, custom modes only and capped by reading memory |
 | `--hw-trigger-delay-s` | `0` to `3600` seconds |
 | `soft-trigger --port`, `soft-stop --port` | `1` to `65535` |
+
+`--trigger-timeout-ms` is most important for external trigger modes. If it is
+shorter than the expected time between external edges, the console will keep
+printing hardware trigger timeout/re-arm status and no capture may occur until a
+future edge arrives inside the timeout window. In software mode, this value is
+used only as part of the worker polling cadence and is capped internally at
+200 ms per wait; it is not a measurement-completion timeout.
+
+For Agent or automation use, classify trigger wait outcomes conservatively:
+an external trigger edge that has not arrived yet is a normal waiting condition,
+not an error. In simple external mode, repeated PyVISA status-byte poll timeouts
+are diagnosed without becoming fatal acquisition failures: the 5th consecutive
+timeout emits a warning, the 25th consecutive timeout increments `errors` and
+emits a degraded status, and every additional 25 consecutive timeouts increments
+`errors` again. A successful status-byte poll resets the consecutive timeout
+count. Actual `READ?`, `FETC?`, connection, identity, or SCPI command failures
+are acquisition errors and may be fatal.
 
 Manual range values are whitelisted per measurement type:
 
@@ -256,7 +276,8 @@ Additional validation rules:
 - Custom modes reject `trigger_count * sample_count > 10000` for the 34461A
   unless `--allow-buffer-overflow-risk` is set.
 - `--timer-interval-s` requires software mode. It is valid with the default
-  trigger mode because omitted `--trigger-mode` resolves to `software`.
+  trigger mode because omitted `--trigger-mode` resolves to `software`. It may
+  be combined with `--max-samples` to stop after a fixed number of timer rows.
 - `--enable-hw-trigger` is a legacy alias for `--trigger-mode external`; if both
   are provided, `--trigger-mode` must also be `external`.
 
@@ -279,6 +300,10 @@ Verify which resources are live:
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_logger.cli list-resources --verify
 ```
+
+Successful verified resources are released back to local on a best-effort basis
+before the scan session closes. Stale resources that fail the IDN query are
+closed without release SCPI.
 
 Show only live resources and hide stale VISA cache entries:
 
@@ -888,6 +913,10 @@ During software-triggered runs, `waiting trigger` is printed once for each
 continuous wait period instead of repeating on every short poll timeout.
 `software-custom` mode follows the same policy for
 `waiting software custom trigger`.
+
+For Agent automation, human-readable status lines can help diagnose waiting and
+polling behavior, but stable pass/fail decisions should still rely on process
+exit code, CSV row count, `captured=X errors=Y`, and explicit fatal error text.
 
 Successful captures print the count and latest display value, for example:
 

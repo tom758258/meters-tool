@@ -336,6 +336,24 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertFalse(worker.is_alive())
         self.assertTrue(any("captured=1 value=12.3 mA" in s for s in statuses))
 
+    def test_capture_status_scales_negative_microamps(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(value=-5e-7, unit="A"),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=1),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(any("captured=1 value=-0.5 uA" in s for s in statuses))
+
     def test_capture_status_formats_resistance_prefix(self):
         statuses: list[str] = []
         engine = TriggerAcquisitionEngine(

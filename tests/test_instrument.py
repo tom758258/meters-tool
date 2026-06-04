@@ -98,12 +98,41 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+        with (
+            patch("keysight_logger.instrument.pyvisa", fake_pyvisa),
+            patch("keysight_logger.instrument.time.sleep", return_value=None),
+        ):
             ok, detail = VisaInstrument.verify_resource("USB::FAKE", timeout_ms=1234)
 
         self.assertTrue(ok)
         self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
-        self.assertEqual(1234, session.timeout)
+        self.assertEqual(500, session.timeout)
+        self.assertTrue(session.cleared)
+        self.assertEqual(
+            ["query:*IDN?", "*CLS", "*WAI", "ABOR", "SYST:LOC"],
+            session.writes,
+        )
+        self.assertEqual([0], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_resource_release_failure_still_returns_live(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+
+        with (
+            patch("keysight_logger.instrument.pyvisa", fake_pyvisa),
+            patch.object(
+                VisaInstrument,
+                "_release_session_to_local",
+                side_effect=RuntimeError("release failed"),
+            ),
+        ):
+            ok, detail = VisaInstrument.verify_resource("USB::FAKE")
+
+        self.assertTrue(ok)
+        self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
         self.assertEqual(["query:*IDN?"], session.writes)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
@@ -119,6 +148,9 @@ class VisaInstrumentStaticTests(unittest.TestCase):
 
         self.assertFalse(ok)
         self.assertIn("RuntimeError: query failed", detail)
+        self.assertEqual([], session.writes)
+        self.assertFalse(session.cleared)
+        self.assertEqual([], session.control_ren_calls)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
 
