@@ -78,6 +78,7 @@ class TriggerAcquisitionEngine:
         config: AcquisitionConfig,
         router: TriggerRouter,
         status_cb: Optional[Callable[[str], None]] = None,
+        sample_cb: Optional[Callable[[MeasurementSample, int], None]] = None,
         instrument_profile: InstrumentProfile | None = None,
     ):
         self._instrument = instrument
@@ -86,6 +87,7 @@ class TriggerAcquisitionEngine:
         self._config = config
         self._router = router
         self._status_cb = status_cb
+        self._sample_cb = sample_cb
         self._instrument_profile = instrument_profile or get_default_instrument_profile()
         self._running = False
         self._stop_event = threading.Event()
@@ -106,6 +108,10 @@ class TriggerAcquisitionEngine:
 
     def _emit_capture_status(self, sample: MeasurementSample) -> None:
         self._emit(f"captured={self._stats.captured} {_format_status_value(sample)}")
+
+    def _emit_sample(self, sample: MeasurementSample) -> None:
+        if self._sample_cb is not None:
+            self._sample_cb(sample, self._stats.captured)
 
     def _handle_hardware_status_poll_timeout(self, count: int, exc: Exception) -> None:
         if count == 5:
@@ -357,6 +363,7 @@ class TriggerAcquisitionEngine:
                     for sample in samples:
                         self._storage.write(sample)
                         self._stats.captured += 1
+                        self._emit_sample(sample)
                     self._emit_capture_status(samples[-1])
                     continue
 
@@ -448,6 +455,7 @@ class TriggerAcquisitionEngine:
                 for sample in samples:
                     self._storage.write(sample)
                     self._stats.captured += 1
+                    self._emit_sample(sample)
                 self._emit_capture_status(samples[-1])
             except Exception as exc:
                 if not self._running:
@@ -465,6 +473,7 @@ class TriggerAcquisitionEngine:
             sample = self._measurement.read_sample(self._instrument, event)
             self._storage.write(sample)
             self._stats.captured += 1
+            self._emit_sample(sample)
             self._emit_capture_status(sample)
         except Exception as exc:
             if not self._running:

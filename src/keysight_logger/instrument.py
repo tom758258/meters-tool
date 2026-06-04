@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 from .models import InstrumentConfig, Transport
 
@@ -48,10 +48,22 @@ def _is_supported_34461a_idn(idn: str) -> bool:
 
 
 class VisaInstrument:
-    def __init__(self, config: InstrumentConfig):
+    def __init__(
+        self,
+        config: InstrumentConfig,
+        resource_manager_factory: Callable[[], object] | None = None,
+    ):
         self._config = config
         self._rm = None
         self._inst = None
+        self._resource_manager_factory = resource_manager_factory
+
+    def _create_resource_manager(self):
+        if self._resource_manager_factory is not None:
+            return self._resource_manager_factory()
+        if pyvisa is None:
+            raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
+        return pyvisa.ResourceManager()
 
     @staticmethod
     def list_resources() -> List[str]:
@@ -105,10 +117,8 @@ class VisaInstrument:
         return None
 
     def connect(self) -> None:
-        if pyvisa is None:
-            raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
         try:
-            self._rm = pyvisa.ResourceManager()
+            self._rm = self._create_resource_manager()
             self._inst = self._rm.open_resource(self._config.resource_string)
             self._inst.timeout = self._config.timeout_ms
             idn = str(self._inst.query("*IDN?")).strip()
@@ -182,14 +192,14 @@ class VisaInstrument:
         return self._release_session_to_local(self._inst)
 
     def cleanup_release_to_local(self, timeout_ms: int = 1000) -> str:
-        if pyvisa is None:
+        if pyvisa is None and self._resource_manager_factory is None:
             return "pyvisa_unavailable"
 
         results: list[str] = []
         rm = None
         inst = None
         try:
-            rm = pyvisa.ResourceManager()
+            rm = self._create_resource_manager()
             inst = rm.open_resource(self._config.resource_string)
             inst.timeout = timeout_ms
             results.append("cleanup_open:ok")

@@ -202,6 +202,22 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         self.assertEqual(4321, session.timeout)
         self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
 
+    def test_connect_uses_injected_resource_manager_factory(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+
+        instrument = VisaInstrument(
+            InstrumentConfig(resource_string="USB::FAKE", timeout_ms=4321),
+            resource_manager_factory=lambda: rm,
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            instrument.connect()
+
+        self.assertEqual(["USB::FAKE"], rm.opened_resources)
+        self.assertEqual(4321, session.timeout)
+        self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
+
     def test_connect_rejects_unsupported_idn_and_closes_without_reset(self):
         session = FakeVisaSession()
         session.idn_response = "Other Vendor,1234,MY123,1.0"

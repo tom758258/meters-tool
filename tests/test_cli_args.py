@@ -77,6 +77,22 @@ class CliArgsTests(unittest.TestCase):
         self.assertFalse(args.allow_buffer_overflow_risk)
         self.assertIsNone(args.vm_comp_slope)
 
+    def test_simulate_requires_max_samples_for_simple_modes(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--simulate",
+                "--trigger-mode",
+                "immediate",
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "--simulate requires --max-samples"):
+            validate_start_args(args, "immediate", instrument_profile=FAKE_CURRENT_ONLY_PROFILE)
+
     def test_start_help_lists_cli_limits(self):
         parser = build_parser()
         stdout = io.StringIO()
@@ -1794,6 +1810,22 @@ class PermissionDeniedCsvWriter:
         return
 
 
+class FakeCapturingCsvWriter:
+    samples = []
+
+    def __init__(self, path):
+        self.path = path
+
+    def open(self):
+        type(self).samples = []
+
+    def close(self):
+        return
+
+    def write(self, sample):
+        type(self).samples.append(sample)
+
+
 class WindowsKeyboardStopPollerTests(unittest.TestCase):
     def test_ctrl_c_character_requests_stop(self):
         poller = WindowsKeyboardStopPoller()
@@ -1989,6 +2021,145 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, ConnectFailingStartInstrument.close_calls)
         self.assertNotIn("release_to_local:", stdout.getvalue())
         self.assertNotIn("cleanup_release_to_local:", stdout.getvalue())
+
+    def test_start_dry_run_prints_plan_without_opening_instrument(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "voltage-dc",
+                "--dry-run",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.VisaInstrument") as mock_visa,
+            patch("keysight_logger.cli.SoftwareTriggerAdapter") as mock_server,
+            redirect_stdout(stdout),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        self.assertIn("dry-run plan:", stdout.getvalue())
+        self.assertIn("CONF:VOLT:DC AUTO", stdout.getvalue())
+        mock_visa.assert_not_called()
+        mock_server.assert_not_called()
+
+    def test_start_dry_run_jsonl_outputs_one_plan_object(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--trigger-mode",
+                "external",
+                "--measurement",
+                "current-dc",
+                "--dry-run",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(lines))
+        payload = json.loads(lines[0])
+        self.assertEqual("dry_run", payload["event"])
+        self.assertEqual("current_dc", payload["measurement_type"])
+        self.assertEqual("FETC?", payload["read_path"])
+        self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
+
+    def test_start_simulate_immediate_captures_sample(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+            patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(FakeCapturingCsvWriter.samples))
+        self.assertIn("captured=1 errors=0", stdout.getvalue())
+
+    def test_start_simulate_jsonl_emits_parseable_sample_and_summary(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_jsonl.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "voltage-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+            patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            redirect_stdout(stdout),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertTrue(all(event["schema_version"] == 1 for event in events))
+        self.assertTrue(any(event["event"] == "sample" for event in events))
+        summary = [event for event in events if event["event"] == "summary"][-1]
+        self.assertEqual(1, summary["captured"])
+        self.assertEqual(0, summary["errors"])
 
     @patch("keysight_logger.cli.VisaInstrument")
     def test_list_resources_without_verify_prints_resources(self, mock_visa):
