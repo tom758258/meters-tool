@@ -6,6 +6,7 @@ from keysight_logger.measurement import (
     CurrentDcMeasurement,
     CurrentMeasurement,
     Resistance2wMeasurement,
+    Resistance4wMeasurement,
     ScalarDmmMeasurement,
     VoltageDcMeasurement,
     create_measurement_plugin,
@@ -425,6 +426,86 @@ class Resistance2wMeasurementTests(unittest.TestCase):
         self.assertIn("OUTP:TRIG:SLOP POS", inst.commands)
 
 
+class Resistance4wMeasurementTests(unittest.TestCase):
+    def test_resistance_4w_uses_scalar_base_without_inheriting_current(self):
+        measurement = Resistance4wMeasurement()
+
+        self.assertIsInstance(measurement, ScalarDmmMeasurement)
+        self.assertNotIsInstance(measurement, CurrentMeasurement)
+
+    def test_auto_range_writes_resistance_4w_scpi(self):
+        inst = FakeInstrument()
+        measurement = Resistance4wMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig())
+
+        self.assertEqual(
+            [
+                "CONF:FRES AUTO",
+                "FRES:RANG:AUTO ON",
+                "FRES:NPLC 1.0",
+                "FRES:ZERO:AUTO ON",
+            ],
+            inst.commands,
+        )
+
+    def test_manual_range_writes_resistance_4w_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = Resistance4wMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(auto_range=False, measurement_range=1000.0, auto_zero=False),
+        )
+
+        self.assertEqual(
+            [
+                "CONF:FRES AUTO",
+                "FRES:RANG 1000.0",
+                "FRES:NPLC 1.0",
+                "FRES:ZERO:AUTO OFF",
+            ],
+            inst.commands,
+        )
+
+    def test_read_sample_uses_resistance_4w_metadata_and_fetch_for_hardware(self):
+        inst = FakeInstrument()
+        measurement = Resistance4wMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(inst, TriggerEvent.new(TriggerSource.HARDWARE))
+
+        self.assertEqual("resistance_4w", sample.measurement_type)
+        self.assertEqual("Ohm", sample.unit)
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual("FETC?", inst.commands[-1])
+
+    def test_buffered_samples_use_resistance_4w_metadata(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "123.4"
+        measurement = Resistance4wMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual("resistance_4w", samples[0].measurement_type)
+        self.assertEqual("Ohm", samples[0].unit)
+        self.assertEqual(123.4, samples[0].value)
+
+    def test_vm_comp_slope_writes_output_trigger_slope(self):
+        inst = FakeInstrument()
+        measurement = Resistance4wMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(vm_comp_slope="pos"))
+
+        self.assertIn("OUTP:TRIG:SLOP POS", inst.commands)
+
+
 class MeasurementFactoryTests(unittest.TestCase):
     def test_create_current_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("current-dc"), CurrentMeasurement)
@@ -441,23 +522,32 @@ class MeasurementFactoryTests(unittest.TestCase):
     def test_create_resistance_2w_measurement_plugin_from_internal_name(self):
         self.assertIsInstance(create_measurement_plugin("resistance_2w"), Resistance2wMeasurement)
 
+    def test_create_resistance_4w_measurement_plugin(self):
+        self.assertIsInstance(create_measurement_plugin("resistance-4w"), Resistance4wMeasurement)
+
+    def test_create_resistance_4w_measurement_plugin_from_internal_name(self):
+        self.assertIsInstance(create_measurement_plugin("resistance_4w"), Resistance4wMeasurement)
+
     def test_registry_exposes_current_voltage_and_resistance_definitions(self):
         self.assertEqual(
-            ("current_dc", "voltage_dc", "resistance_2w"),
+            ("current_dc", "voltage_dc", "resistance_2w", "resistance_4w"),
             registered_measurement_types(),
         )
         self.assertEqual("current_dc", normalize_measurement_type("current-dc"))
         self.assertEqual("voltage-dc", format_measurement_type("voltage_dc"))
         self.assertEqual("resistance-2w", format_measurement_type("resistance_2w"))
+        self.assertEqual("resistance-4w", format_measurement_type("resistance_4w"))
         self.assertEqual("A", get_measurement_definition("current-dc").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-2w").unit)
+        self.assertEqual("Ohm", get_measurement_definition("resistance-4w").unit)
         self.assertTrue(get_measurement_definition("current-dc").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("voltage-dc").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("resistance-2w").accepts_current_range_alias)
+        self.assertFalse(get_measurement_definition("resistance-4w").accepts_current_range_alias)
 
     def test_unsupported_measurement_plugin_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unsupported measurement type"):
-            create_measurement_plugin("resistance-4w")
+            create_measurement_plugin("capacitance")
 
 
 if __name__ == "__main__":

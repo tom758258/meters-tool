@@ -65,7 +65,7 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
         "34461A",
     ),
     reading_memory_limit=10000,
-    supported_measurement_types=("current_dc", "voltage_dc", "resistance_2w"),
+    supported_measurement_types=("current_dc", "voltage_dc", "resistance_2w", "resistance_4w"),
     supports_buffered_reading_memory=True,
     supports_bus_trigger=True,
     supports_external_trigger=True,
