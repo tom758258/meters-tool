@@ -4,6 +4,8 @@ import io
 import json
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from datetime import datetime, timezone
+from pathlib import Path
 from unittest.mock import patch
 from urllib.error import URLError
 
@@ -16,6 +18,7 @@ from keysight_logger.cli import (
     cmd_start,
     cmd_soft_stop,
     print_buffer_overflow_warnings,
+    resolve_csv_path,
     resolve_trigger_mode,
     validate_start_args,
 )
@@ -43,10 +46,9 @@ class CliArgsTests(unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
-                "--csv",
-                "out.csv",
             ]
         )
+        self.assertIsNone(args.csv)
         self.assertEqual(1.0, args.nplc)
         self.assertTrue(args.auto_zero)
         self.assertTrue(args.auto_range)
@@ -64,6 +66,17 @@ class CliArgsTests(unittest.TestCase):
         self.assertIsNone(args.buffer_drain_size)
         self.assertFalse(args.allow_buffer_overflow_risk)
         self.assertIsNone(args.vm_comp_slope)
+
+    def test_csv_path_defaults_to_timestamped_data_file(self):
+        now = datetime(2026, 5, 11, 6, 30, 5, tzinfo=timezone.utc)
+
+        self.assertEqual(
+            Path("data") / "2026-05-11-14-30-05.csv",
+            resolve_csv_path(None, now=now),
+        )
+
+    def test_csv_path_uses_explicit_path(self):
+        self.assertEqual(Path("out.csv"), resolve_csv_path("out.csv"))
 
     def test_start_with_manual_options(self):
         parser = build_parser()

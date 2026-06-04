@@ -7,6 +7,7 @@ import signal
 import sys
 import threading
 import time
+from datetime import datetime
 from pathlib import Path
 from urllib import request
 from urllib.error import URLError
@@ -21,7 +22,7 @@ from .measurement import (
     registered_measurement_types,
 )
 from .models import AcquisitionConfig, InstrumentProfile, get_default_instrument_profile
-from .storage import CsvWriter
+from .storage import CsvWriter, UTC_PLUS_8
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 
 
@@ -172,6 +173,16 @@ def parse_on_off(value: str) -> bool:
     raise argparse.ArgumentTypeError("value must be 'on' or 'off'")
 
 
+def resolve_csv_path(csv_path: str | None, now: datetime | None = None) -> Path:
+    if csv_path is not None:
+        return Path(csv_path)
+    effective_now = now or datetime.now(UTC_PLUS_8)
+    if effective_now.tzinfo is None:
+        effective_now = effective_now.replace(tzinfo=UTC_PLUS_8)
+    timestamp = effective_now.astimezone(UTC_PLUS_8).strftime("%Y-%m-%d-%H-%M-%S")
+    return Path("data") / f"{timestamp}.csv"
+
+
 def resolve_measurement_range(args: argparse.Namespace) -> float | None:
     if args.measurement_range is not None and args.current_range is not None:
         raise ValueError("--range and --current-range cannot be used together")
@@ -212,7 +223,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     start = sub.add_parser("start-trigger-record")
     start.add_argument("--resource", required=True, help="VISA resource string")
-    start.add_argument("--csv", required=True, help="CSV output path")
+    start.add_argument(
+        "--csv",
+        default=None,
+        help="CSV output path; default: data/YYYY-MM-DD-HH-MM-SS.csv in UTC+8",
+    )
     start.add_argument("--timeout-ms", type=int, default=5000)
     start.add_argument("--trigger-timeout-ms", type=int, default=10000)
     start.add_argument("--sw-trigger-port", type=int, default=8765)
@@ -533,6 +548,9 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     measurement_type = normalize_measurement_type(args.measurement)
     measurement_range = resolve_measurement_range(args)
+    csv_path = resolve_csv_path(args.csv)
+    if args.csv is None:
+        print(f"csv output path: {csv_path}")
     iconfig = InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
     aconfig = AcquisitionConfig(
         measurement_type=measurement_type,
@@ -553,7 +571,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     )
     instrument = VisaInstrument(iconfig)
     router = TriggerRouter()
-    storage = CsvWriter(Path(args.csv))
+    storage = CsvWriter(csv_path)
     measurement = create_measurement_plugin(measurement_type)
     engine = TriggerAcquisitionEngine(
         instrument=instrument,

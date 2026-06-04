@@ -10,7 +10,7 @@ Implemented:
 
 - VISA resource listing for USB and LAN resources discovered by PyVISA.
 - DC current measurement logging.
-- Software trigger mode through a local HTTP endpoint.
+- Software trigger mode through a local HTTP endpoint..
 - Software timer capture as part of software trigger mode.
 - External hardware trigger mode.
 - Immediate capture mode.
