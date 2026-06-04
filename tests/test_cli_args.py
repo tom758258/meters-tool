@@ -17,6 +17,7 @@ from keysight_logger.cli import (
     cmd_list_resources,
     cmd_start,
     cmd_soft_stop,
+    main,
     print_buffer_overflow_warnings,
     resolve_csv_path,
     resolve_trigger_mode,
@@ -67,6 +68,135 @@ class CliArgsTests(unittest.TestCase):
         self.assertIsNone(args.buffer_drain_size)
         self.assertFalse(args.allow_buffer_overflow_risk)
         self.assertIsNone(args.vm_comp_slope)
+
+    def test_start_help_lists_cli_limits(self):
+        parser = build_parser()
+        stdout = io.StringIO()
+
+        with self.assertRaises(SystemExit) as exc, redirect_stdout(stdout):
+            parser.parse_args(["start-trigger-record", "--help"])
+
+        self.assertEqual(0, exc.exception.code)
+        help_text = stdout.getvalue()
+        self.assertIn("NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100", help_text)
+        self.assertIn("current-dc: 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A", help_text)
+        self.assertIn("--timer-interval-s: 0.5-86400 s", help_text)
+        self.assertIn("--trigger-timeout-ms: 500-600000 ms", help_text)
+        self.assertIn("--trigger-count/--sample-count: 1-1000000", help_text)
+
+    def test_numeric_limits_accept_boundaries(self):
+        parser = build_parser()
+        cases = [
+            (["--timeout-ms", "100"], "software"),
+            (["--timeout-ms", "600000"], "software"),
+            (["--trigger-timeout-ms", "500"], "software"),
+            (["--trigger-timeout-ms", "600000"], "software"),
+            (["--sw-trigger-port", "0"], "software"),
+            (["--sw-trigger-port", "1024"], "software"),
+            (["--sw-trigger-port", "65535"], "software"),
+            (["--sw-min-interval-ms", "0"], "software"),
+            (["--sw-min-interval-ms", "50"], "software"),
+            (["--sw-min-interval-ms", "600000"], "software"),
+            (["--sw-queue-max", "0"], "software"),
+            (["--sw-queue-max", "10000"], "software"),
+            (["--max-samples", "1"], "software"),
+            (["--max-samples", "1000000"], "software"),
+            (["--timer-interval-s", "0.5"], "software"),
+            (["--timer-interval-s", "86400"], "software"),
+            (["--hw-trigger-delay-s", "0"], "software"),
+            (["--hw-trigger-delay-s", "3600"], "software"),
+            (
+                [
+                    "--trigger-mode",
+                    "immediate-custom",
+                    "--trigger-count",
+                    "1",
+                    "--sample-count",
+                    "10000",
+                    "--buffer-drain-size",
+                    "1",
+                ],
+                "immediate-custom",
+            ),
+            (
+                [
+                    "--trigger-mode",
+                    "immediate-custom",
+                    "--trigger-count",
+                    "1000000",
+                    "--sample-count",
+                    "1000000",
+                    "--buffer-drain-size",
+                    "10000",
+                    "--allow-buffer-overflow-risk",
+                ],
+                "immediate-custom",
+            ),
+        ]
+        for extra_args, expected_mode in cases:
+            with self.subTest(extra_args=extra_args):
+                args = parser.parse_args(["start-trigger-record", "--resource", "USB::FAKE", *extra_args])
+                trigger_mode = resolve_trigger_mode(args)
+                validate_start_args(args, trigger_mode)
+                self.assertEqual(expected_mode, trigger_mode)
+
+    def test_numeric_limits_reject_out_of_range_values(self):
+        parser = build_parser()
+        cases = [
+            (["--timeout-ms", "99"], "--timeout-ms 99 is outside the supported range 100-600000"),
+            (
+                ["--trigger-timeout-ms", "100"],
+                "--trigger-timeout-ms 100 is outside the supported range 500-600000",
+            ),
+            (
+                ["--sw-trigger-port", "1023"],
+                "--sw-trigger-port 1023 is outside the supported values",
+            ),
+            (
+                ["--sw-min-interval-ms", "49"],
+                "--sw-min-interval-ms 49 is outside the supported values",
+            ),
+            (["--sw-queue-max", "10001"], "--sw-queue-max 10001 is outside"),
+            (["--max-samples", "1000001"], "--max-samples 1000001 is outside"),
+            (
+                ["--timer-interval-s", "0.01"],
+                "--timer-interval-s 0.01 is below the supported minimum 0.5 s",
+            ),
+            (
+                ["--timer-interval-s", "86400.1"],
+                "--timer-interval-s 86400.1 is outside the supported range 0.5-86400 s",
+            ),
+            (
+                ["--hw-trigger-delay-s", "3600.1"],
+                "--hw-trigger-delay-s 3600.1 is outside the supported range 0-3600 s",
+            ),
+            (
+                ["--trigger-mode", "immediate-custom", "--trigger-count", "1000001", "--sample-count", "1"],
+                "--trigger-count 1000001 is outside the 34461A supported range 1-1000000",
+            ),
+            (
+                ["--trigger-mode", "immediate-custom", "--trigger-count", "1", "--sample-count", "1000001"],
+                "--sample-count 1000001 is outside the 34461A supported range 1-1000000",
+            ),
+            (
+                [
+                    "--trigger-mode",
+                    "immediate-custom",
+                    "--trigger-count",
+                    "1",
+                    "--sample-count",
+                    "1",
+                    "--buffer-drain-size",
+                    "10001",
+                ],
+                "--buffer-drain-size 10001 is outside the 34461A reading-memory range 1-10000",
+            ),
+        ]
+        for extra_args, expected in cases:
+            with self.subTest(extra_args=extra_args):
+                args = parser.parse_args(["start-trigger-record", "--resource", "USB::FAKE", *extra_args])
+                with self.assertRaisesRegex(ValueError, expected):
+                    validate_start_args(args, resolve_trigger_mode(args))
 
     def test_csv_path_defaults_to_timestamped_data_file(self):
         now = datetime(2026, 5, 11, 6, 30, 5, tzinfo=timezone.utc)
@@ -695,6 +825,117 @@ class CliArgsTests(unittest.TestCase):
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 
+    def test_measurement_range_whitelist_accepts_each_measurement_options(self):
+        parser = build_parser()
+        cases = {
+            "current-dc": ["0.0001", "0.001", "0.01", "0.1", "1", "3", "10"],
+            "current-ac": ["0.0001", "0.001", "0.01", "0.1", "1", "3", "10"],
+            "voltage-dc": ["0.1", "1", "10", "100", "1000"],
+            "voltage-ac": ["0.1", "1", "10", "100", "750"],
+            "resistance-2w": ["100", "1000", "10000", "100000", "1000000", "10000000", "100000000"],
+            "resistance-4w": ["100", "1000", "10000", "100000", "1000000", "10000000", "100000000"],
+        }
+
+        for measurement, range_values in cases.items():
+            for range_value in range_values:
+                with self.subTest(measurement=measurement, range_value=range_value):
+                    args = parser.parse_args(
+                        [
+                            "start-trigger-record",
+                            "--resource",
+                            "USB::FAKE",
+                            "--measurement",
+                            measurement,
+                            "--range",
+                            range_value,
+                        ]
+                    )
+                    validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_measurement_range_whitelist_rejects_invalid_range(self):
+        parser = build_parser()
+        cases = [
+            ("current-dc", "7.5", "Allowed ranges in A: 0.0001, 0.001, 0.01, 0.1, 1, 3, 10"),
+            ("voltage-dc", "7.5", "Allowed ranges in V: 0.1, 1, 10, 100, 1000"),
+            ("voltage-ac", "1000", "Allowed ranges in V: 0.1, 1, 10, 100, 750"),
+            (
+                "resistance-2w",
+                "7.5",
+                "Allowed ranges in Ohm: 100, 1000, 10000, 100000, 1000000, 10000000, 100000000",
+            ),
+        ]
+
+        for measurement, range_value, expected in cases:
+            with self.subTest(measurement=measurement, range_value=range_value):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--resource",
+                        "USB::FAKE",
+                        "--measurement",
+                        measurement,
+                        "--range",
+                        range_value,
+                    ]
+                )
+                with self.assertRaisesRegex(ValueError, expected):
+                    validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_dc_and_resistance_nplc_whitelist_rejects_invalid_value(self):
+        parser = build_parser()
+        for measurement in ["current-dc", "voltage-dc", "resistance-2w", "resistance-4w"]:
+            with self.subTest(measurement=measurement):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--resource",
+                        "USB::FAKE",
+                        "--measurement",
+                        measurement,
+                        "--nplc",
+                        "7.5",
+                    ]
+                )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "--nplc 7.5 is not valid.*Allowed NPLC values: 0.02, 0.2, 1, 10, 100",
+                ):
+                    validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_ac_measurements_accept_only_neutral_nplc(self):
+        parser = build_parser()
+        for measurement in ["current-ac", "voltage-ac"]:
+            with self.subTest(measurement=measurement):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--resource",
+                        "USB::FAKE",
+                        "--measurement",
+                        measurement,
+                        "--nplc",
+                        "1.0",
+                    ]
+                )
+                validate_start_args(args, resolve_trigger_mode(args))
+
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--resource",
+                        "USB::FAKE",
+                        "--measurement",
+                        measurement,
+                        "--nplc",
+                        "0.2",
+                    ]
+                )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "AC measurements do not support NPLC SCPI. Omit --nplc",
+                ):
+                    validate_start_args(args, resolve_trigger_mode(args))
+
     def test_immediate_custom_requires_trigger_count(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -785,7 +1026,7 @@ class CliArgsTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ValueError,
-            "custom mode expected readings exceed 10000",
+            "custom mode expected readings 10100 exceed 34461A reading memory 10000",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 
@@ -809,7 +1050,7 @@ class CliArgsTests(unittest.TestCase):
 
         with self.assertRaisesRegex(
             ValueError,
-            "custom mode expected readings exceed 5",
+            "custom mode expected readings 6 exceed FAKE100 reading memory 5",
         ):
             validate_start_args(
                 args,
@@ -1010,7 +1251,7 @@ class CliArgsTests(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(ValueError, "--buffer-drain-size must be > 0"):
+        with self.assertRaisesRegex(ValueError, "--buffer-drain-size 0 is outside"):
             validate_start_args(args, resolve_trigger_mode(args))
 
     def test_buffer_drain_size_rejects_more_than_34461a_memory(self):
@@ -1033,8 +1274,38 @@ class CliArgsTests(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(ValueError, "--buffer-drain-size must be <= 10000"):
+        with self.assertRaisesRegex(ValueError, "--buffer-drain-size 10001 is outside"):
             validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_buffer_drain_size_respects_profile_memory_limit(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "out.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--trigger-count",
+                "1",
+                "--sample-count",
+                "5",
+                "--buffer-drain-size",
+                "6",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--buffer-drain-size 6 is outside the FAKE100 reading-memory range 1-5",
+        ):
+            validate_start_args(
+                args,
+                resolve_trigger_mode(args),
+                instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+            )
 
     def test_trigger_count_requires_custom_mode(self):
         parser = build_parser()
@@ -1153,7 +1424,10 @@ class CliArgsTests(unittest.TestCase):
             ]
         )
 
-        with self.assertRaisesRegex(ValueError, "--timer-interval-s must be > 0"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "--timer-interval-s 0 is below the supported minimum 0.5 s",
+        ):
             validate_start_args(args, resolve_trigger_mode(args))
 
     def test_timer_interval_requires_software_mode(self):
@@ -1436,6 +1710,24 @@ class WindowsKeyboardStopPollerTests(unittest.TestCase):
 
 
 class CliCommandTests(unittest.TestCase):
+    def test_soft_trigger_port_is_validated_before_request(self):
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = main(["soft-trigger", "--port", "0"])
+
+        self.assertEqual(2, rc)
+        self.assertIn("--port 0 is outside the supported range 1-65535", stderr.getvalue())
+
+    def test_soft_stop_port_is_validated_before_request(self):
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = main(["soft-stop", "--port", "65536"])
+
+        self.assertEqual(2, rc)
+        self.assertIn("--port 65536 is outside the supported range 1-65535", stderr.getvalue())
+
     def test_start_csv_permission_error_prints_friendly_message(self):
         parser = build_parser()
         args = parser.parse_args(

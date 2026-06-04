@@ -26,6 +26,28 @@ from .storage import CsvWriter, UTC_PLUS_8
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 
 
+TIMER_INTERVAL_S_RANGE = (0.5, 86400.0)
+TRIGGER_TIMEOUT_MS_RANGE = (500, 600000)
+TIMEOUT_MS_RANGE = (100, 600000)
+TRIGGER_COUNT_RANGE = (1, 1000000)
+SAMPLE_COUNT_RANGE = (1, 1000000)
+BUFFER_DRAIN_SIZE_RANGE = (1, 10000)
+MAX_SAMPLES_RANGE = (1, 1000000)
+SW_TRIGGER_PORT_RANGE = (0, 65535)
+CLIENT_PORT_RANGE = (1, 65535)
+SW_MIN_INTERVAL_MS_RANGE = (0, 600000)
+SW_QUEUE_MAX_RANGE = (0, 10000)
+HW_TRIGGER_DELAY_S_RANGE = (0.0, 3600.0)
+NEUTRAL_AC_NPLC = 1.0
+
+
+class KeysightHelpFormatter(
+    argparse.ArgumentDefaultsHelpFormatter,
+    argparse.RawDescriptionHelpFormatter,
+):
+    pass
+
+
 class StopController:
     def __init__(self, stop_engine, print_fn=print):  # noqa: ANN001
         self.stop = False
@@ -198,6 +220,86 @@ def resolve_measurement_range(args: argparse.Namespace) -> float | None:
     return args.current_range
 
 
+def _format_number(value: float | int) -> str:
+    numeric = float(value)
+    if numeric.is_integer():
+        return str(int(numeric))
+    return f"{numeric:g}"
+
+
+def _format_values(values: tuple[float, ...]) -> str:
+    return ", ".join(_format_number(value) for value in values)
+
+
+def _format_range_options(definition) -> str:  # noqa: ANN001
+    return _format_values(tuple(value for _label, value in definition.range_options))
+
+
+def _range_unit(definition) -> str:  # noqa: ANN001
+    if definition.unit == "A":
+        return "A"
+    if definition.unit == "V":
+        return "V"
+    return "Ohm"
+
+
+def _value_in_options(value: float, options: tuple[float, ...]) -> bool:
+    return any(abs(float(value) - float(option)) <= 1e-12 for option in options)
+
+
+def _validate_int_range(name: str, value: int, minimum: int, maximum: int, detail: str) -> None:
+    if value < minimum or value > maximum:
+        raise ValueError(
+            f"{name} {value} is outside the {detail} range {minimum}-{maximum}. "
+            f"Use a value from {minimum} to {maximum}."
+        )
+
+
+def _validate_float_range(
+    name: str,
+    value: float,
+    minimum: float,
+    maximum: float,
+    unit: str,
+) -> None:
+    if value < minimum or value > maximum:
+        raise ValueError(
+            f"{name} {_format_number(value)} is outside the supported range "
+            f"{_format_number(minimum)}-{_format_number(maximum)} {unit}. "
+            f"Use a value from {_format_number(minimum)} to {_format_number(maximum)} {unit}."
+        )
+
+
+def _start_help_epilog() -> str:
+    measurement_names = [format_measurement_type(value) for value in registered_measurement_types()]
+    range_lines = []
+    for measurement_name in measurement_names:
+        definition = get_measurement_definition(measurement_name)
+        range_lines.append(
+            f"  {definition.cli_name}: {_format_values(tuple(value for _label, value in definition.range_options))} {definition.unit}"
+        )
+    return (
+        "Limits:\n"
+        f"  measurement choices: {', '.join(measurement_names)}\n"
+        "  NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100\n"
+        "  AC current/voltage do not support NPLC SCPI; omit --nplc or use 1.0\n"
+        "  range choices by measurement:\n"
+        + "\n".join(range_lines)
+        + "\n"
+        "  --timer-interval-s: 0.5-86400 s, software mode only\n"
+        "  --trigger-timeout-ms: 500-600000 ms\n"
+        "  --timeout-ms: 100-600000 ms\n"
+        "  --trigger-count/--sample-count: 1-1000000, custom modes only\n"
+        "  --buffer-drain-size: 1-10000, custom modes only\n"
+        "  --max-samples: 1-1000000, simple modes only\n"
+        "  --sw-trigger-port: 0 or 1024-65535; 0 lets the server choose\n"
+        "  --sw-min-interval-ms: 0 or 50-600000 ms\n"
+        "  --sw-queue-max: 0-10000\n"
+        "  --hw-trigger-delay-s: 0-3600 s\n"
+        "  custom trigger_count * sample_count > 10000 requires --allow-buffer-overflow-risk"
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
     registered_measurements = set(registered_measurement_types())
@@ -206,10 +308,16 @@ def build_parser() -> argparse.ArgumentParser:
         for value in default_profile.supported_measurement_types
         if value in registered_measurements
     )
-    parser = argparse.ArgumentParser(prog="keysight-logger")
+    parser = argparse.ArgumentParser(
+        prog="keysight-logger",
+        formatter_class=KeysightHelpFormatter,
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
-    list_resources = sub.add_parser("list-resources")
+    list_resources = sub.add_parser(
+        "list-resources",
+        formatter_class=KeysightHelpFormatter,
+    )
     list_resources.add_argument(
         "--verify",
         action="store_true",
@@ -228,18 +336,47 @@ def build_parser() -> argparse.ArgumentParser:
         help="output format for discovered resources; default: text",
     )
 
-    start = sub.add_parser("start-trigger-record")
+    start = sub.add_parser(
+        "start-trigger-record",
+        formatter_class=KeysightHelpFormatter,
+        epilog=_start_help_epilog(),
+    )
     start.add_argument("--resource", required=True, help="VISA resource string")
     start.add_argument(
         "--csv",
         default=None,
         help="CSV output path; default: data/YYYY-MM-DD-HH-MM-SS.csv in UTC+8",
     )
-    start.add_argument("--timeout-ms", type=int, default=5000)
-    start.add_argument("--trigger-timeout-ms", type=int, default=10000)
-    start.add_argument("--sw-trigger-port", type=int, default=8765)
-    start.add_argument("--sw-min-interval-ms", type=int, default=0)
-    start.add_argument("--sw-queue-max", type=int, default=0)
+    start.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=5000,
+        help="VISA timeout in ms; supported range 100-600000",
+    )
+    start.add_argument(
+        "--trigger-timeout-ms",
+        type=int,
+        default=10000,
+        help="external/custom trigger wait timeout in ms; supported range 500-600000",
+    )
+    start.add_argument(
+        "--sw-trigger-port",
+        type=int,
+        default=8765,
+        help="software trigger server port; use 0 for auto, or 1024-65535",
+    )
+    start.add_argument(
+        "--sw-min-interval-ms",
+        type=int,
+        default=0,
+        help="software trigger throttle; 0 disables, otherwise 50-600000 ms",
+    )
+    start.add_argument(
+        "--sw-queue-max",
+        type=int,
+        default=0,
+        help="software trigger queue depth; 0 disables queueing, max 10000",
+    )
     start.add_argument(
         "--trigger-mode",
         choices=[
@@ -257,31 +394,31 @@ def build_parser() -> argparse.ArgumentParser:
         "--max-samples",
         type=int,
         default=None,
-        help="stop automatically after successfully recording N samples",
+        help="stop automatically after N successful samples; range 1-1000000, simple modes only",
     )
     start.add_argument(
         "--trigger-count",
         type=int,
         default=None,
-        help="instrument trigger count; required with custom trigger modes",
+        help="instrument trigger count; range 1-1000000, required with custom trigger modes",
     )
     start.add_argument(
         "--sample-count",
         type=int,
         default=None,
-        help="instrument sample count per trigger; required with custom trigger modes",
+        help="instrument sample count per trigger; range 1-1000000, required with custom modes",
     )
     start.add_argument(
         "--timer-interval-s",
         type=float,
         default=None,
-        help="software timer interval in seconds; valid only with software trigger mode",
+        help="software timer interval in seconds; range 0.5-86400, software mode only",
     )
     start.add_argument(
         "--buffer-drain-size",
         type=int,
         default=None,
-        help="maximum readings to remove per buffer drain; valid only with custom modes",
+        help="readings removed per buffer drain; range 1-10000, custom modes only",
     )
     start.add_argument(
         "--allow-buffer-overflow-risk",
@@ -298,13 +435,23 @@ def build_parser() -> argparse.ArgumentParser:
         default="neg",
         help="hardware trigger edge polarity (default: neg)",
     )
-    start.add_argument("--hw-trigger-delay-s", type=float, default=0.0)
+    start.add_argument(
+        "--hw-trigger-delay-s",
+        type=float,
+        default=0.0,
+        help="hardware trigger delay in seconds; supported range 0-3600",
+    )
     start.add_argument(
         "--measurement",
         default="current-dc",
         help=f"measurement type; one of: {measurement_choices}",
     )
-    start.add_argument("--nplc", type=float, default=1.0)
+    start.add_argument(
+        "--nplc",
+        type=float,
+        default=1.0,
+        help="NPLC for DC/resistance: 0.02, 0.2, 1, 10, 100; AC supports only neutral 1.0",
+    )
     start.add_argument("--auto-zero", type=parse_on_off, default=True)
     start.add_argument("--auto-range", type=parse_on_off, default=True)
     start.add_argument(
@@ -339,11 +486,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="VM Comp rear-panel output pulse slope; omit to leave unchanged",
     )
 
-    trig = sub.add_parser("soft-trigger")
-    trig.add_argument("--port", type=int, default=8765)
+    trig = sub.add_parser("soft-trigger", formatter_class=KeysightHelpFormatter)
+    trig.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     trig.add_argument("--meta", default="{}", help='JSON metadata, e.g. {"batch":"A"}')
-    stop = sub.add_parser("soft-stop")
-    stop.add_argument("--port", type=int, default=8765)
+    stop = sub.add_parser("soft-stop", formatter_class=KeysightHelpFormatter)
+    stop.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
 
     return parser
 
@@ -442,6 +589,14 @@ def cmd_soft_stop(port: int) -> int:
     return 0
 
 
+def validate_client_port(port: int, command_name: str) -> None:
+    if port < CLIENT_PORT_RANGE[0] or port > CLIENT_PORT_RANGE[1]:
+        raise ValueError(
+            f"--port {port} is outside the supported range 1-65535 for {command_name}. "
+            "Use a TCP port from 1 to 65535."
+        )
+
+
 def resolve_trigger_mode(args: argparse.Namespace) -> str:
     trigger_mode = args.trigger_mode or "software"
     if args.enable_hw_trigger:
@@ -473,40 +628,111 @@ def validate_start_args(
         raise ValueError("--current-range can only be used with --measurement current-dc")
     if args.dcv_input_impedance != "default" and measurement_type != "voltage_dc":
         raise ValueError("--dcv-input-impedance can only be used with --measurement voltage-dc")
-    if args.measurement_range is not None and args.measurement_range <= 0:
-        raise ValueError("--range must be > 0")
-    if args.current_range is not None and args.current_range <= 0:
-        raise ValueError("--current-range must be > 0")
+    if args.measurement_range is not None and args.current_range is not None:
+        raise ValueError("--range and --current-range cannot be used together")
+    _validate_int_range("--timeout-ms", args.timeout_ms, *TIMEOUT_MS_RANGE, "supported")
+    _validate_int_range(
+        "--trigger-timeout-ms",
+        args.trigger_timeout_ms,
+        *TRIGGER_TIMEOUT_MS_RANGE,
+        "supported",
+    )
+    if args.sw_trigger_port != 0 and (
+        args.sw_trigger_port < 1024 or args.sw_trigger_port > SW_TRIGGER_PORT_RANGE[1]
+    ):
+        raise ValueError(
+            f"--sw-trigger-port {args.sw_trigger_port} is outside the supported values. "
+            "Use 0 to let the server choose a port, or use a port from 1024 to 65535."
+        )
+    if args.sw_min_interval_ms != 0 and (
+        args.sw_min_interval_ms < 50 or args.sw_min_interval_ms > SW_MIN_INTERVAL_MS_RANGE[1]
+    ):
+        raise ValueError(
+            f"--sw-min-interval-ms {args.sw_min_interval_ms} is outside the supported values. "
+            "Use 0 to disable throttling, or use a value from 50 to 600000 ms."
+        )
+    _validate_int_range("--sw-queue-max", args.sw_queue_max, *SW_QUEUE_MAX_RANGE, "supported")
+    if args.measurement_range is not None:
+        allowed_ranges = tuple(value for _label, value in definition.range_options)
+        if not _value_in_options(args.measurement_range, allowed_ranges):
+            raise ValueError(
+                f"--range {_format_number(args.measurement_range)} is not valid for "
+                f"--measurement {definition.cli_name}. Allowed ranges in "
+                f"{_range_unit(definition)}: {_format_range_options(definition)}. "
+                "Use one of the listed range values or omit --range with --auto-range on."
+            )
+    if args.current_range is not None:
+        allowed_ranges = tuple(value for _label, value in definition.range_options)
+        if not _value_in_options(args.current_range, allowed_ranges):
+            raise ValueError(
+                f"--current-range {_format_number(args.current_range)} is not valid for "
+                f"--measurement {definition.cli_name}. Allowed ranges in "
+                f"{_range_unit(definition)}: {_format_range_options(definition)}. "
+                "Use one of the listed current range values."
+            )
     measurement_range = resolve_measurement_range(args)
-    if args.nplc <= 0:
-        raise ValueError("--nplc must be > 0")
-    if args.hw_trigger_delay_s < 0:
-        raise ValueError("--hw-trigger-delay-s must be >= 0")
+    if definition.nplc_options:
+        if not _value_in_options(args.nplc, definition.nplc_options):
+            raise ValueError(
+                f"--nplc {_format_number(args.nplc)} is not valid for "
+                f"--measurement {definition.cli_name}. Allowed NPLC values: "
+                f"{_format_values(definition.nplc_options)}. Use one of the listed values."
+            )
+    elif args.nplc != NEUTRAL_AC_NPLC:
+        raise ValueError(
+            f"--nplc {_format_number(args.nplc)} is not valid for "
+            f"--measurement {definition.cli_name}. AC measurements do not support NPLC SCPI. "
+            "Omit --nplc or use the neutral default value 1.0."
+        )
+    _validate_float_range(
+        "--hw-trigger-delay-s",
+        args.hw_trigger_delay_s,
+        *HW_TRIGGER_DELAY_S_RANGE,
+        "s",
+    )
     if not args.auto_range and measurement_range is None and measurement_type == "current_dc":
         raise ValueError("--range or --current-range is required when --auto-range off")
     if not args.auto_range and measurement_range is None:
         raise ValueError("--range is required when --auto-range off")
-    if args.sw_min_interval_ms < 0:
-        raise ValueError("--sw-min-interval-ms must be >= 0")
-    if args.sw_queue_max < 0:
-        raise ValueError("--sw-queue-max must be >= 0")
-    if args.max_samples is not None and args.max_samples <= 0:
-        raise ValueError("--max-samples must be > 0")
-    if args.trigger_count is not None and args.trigger_count <= 0:
-        raise ValueError("--trigger-count must be > 0")
-    if args.sample_count is not None and args.sample_count <= 0:
-        raise ValueError("--sample-count must be > 0")
+    if args.max_samples is not None:
+        _validate_int_range("--max-samples", args.max_samples, *MAX_SAMPLES_RANGE, "supported")
+    if args.trigger_count is not None:
+        _validate_int_range(
+            "--trigger-count",
+            args.trigger_count,
+            *TRIGGER_COUNT_RANGE,
+            "34461A supported",
+        )
+    if args.sample_count is not None:
+        _validate_int_range(
+            "--sample-count",
+            args.sample_count,
+            *SAMPLE_COUNT_RANGE,
+            "34461A supported",
+        )
     if args.timer_interval_s is not None:
-        if args.timer_interval_s <= 0:
-            raise ValueError("--timer-interval-s must be > 0")
+        if args.timer_interval_s < TIMER_INTERVAL_S_RANGE[0]:
+            raise ValueError(
+                f"--timer-interval-s {_format_number(args.timer_interval_s)} is below "
+                f"the supported minimum {_format_number(TIMER_INTERVAL_S_RANGE[0])} s. "
+                "This is a PC-side timer and is not reliable below 0.5 s."
+            )
+        if args.timer_interval_s > TIMER_INTERVAL_S_RANGE[1]:
+            raise ValueError(
+                f"--timer-interval-s {_format_number(args.timer_interval_s)} is outside "
+                "the supported range 0.5-86400 s. Use a value from 0.5 to 86400 s."
+            )
         if trigger_mode != "software":
             raise ValueError("--timer-interval-s requires --trigger-mode software")
     if args.buffer_drain_size is not None:
-        if args.buffer_drain_size <= 0:
-            raise ValueError("--buffer-drain-size must be > 0")
-        memory_limit = profile.reading_memory_limit
-        if args.buffer_drain_size > memory_limit:
-            raise ValueError(f"--buffer-drain-size must be <= {memory_limit}")
+        max_buffer_drain_size = min(BUFFER_DRAIN_SIZE_RANGE[1], profile.reading_memory_limit)
+        _validate_int_range(
+            "--buffer-drain-size",
+            args.buffer_drain_size,
+            BUFFER_DRAIN_SIZE_RANGE[0],
+            max_buffer_drain_size,
+            f"{profile.model} reading-memory",
+        )
         if not custom_mode:
             raise ValueError("--buffer-drain-size requires a custom trigger mode")
     if args.allow_buffer_overflow_risk and not custom_mode:
@@ -522,8 +748,9 @@ def validate_start_args(
         expected_readings = args.trigger_count * args.sample_count
         if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
             raise ValueError(
-                "custom mode expected readings exceed "
-                f"{memory_limit}; use --allow-buffer-overflow-risk to proceed"
+                f"custom mode expected readings {expected_readings} exceed "
+                f"{profile.model} reading memory {memory_limit}; "
+                "add --allow-buffer-overflow-risk to proceed."
             )
     else:
         if args.trigger_count is not None:
@@ -722,8 +949,18 @@ def main(argv: list[str] | None = None) -> int:
             output_format=args.output_format,
         )
     if args.command == "soft-trigger":
+        try:
+            validate_client_port(args.port, "soft-trigger")
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         return cmd_soft_trigger(args.port, args.meta)
     if args.command == "soft-stop":
+        try:
+            validate_client_port(args.port, "soft-stop")
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         return cmd_soft_stop(args.port)
     if args.command == "start-trigger-record":
         return cmd_start(args)
