@@ -381,7 +381,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--sw-queue-max",
         type=int,
         default=0,
-        help="software trigger queue depth; 0 disables queueing, max 10000",
+        help="software trigger queue depth; 0 uses the default safety cap, max 10000",
     )
     start.add_argument(
         "--trigger-mode",
@@ -818,7 +818,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         vm_comp_slope=args.vm_comp_slope,
     )
     instrument = VisaInstrument(iconfig)
-    router = TriggerRouter()
+    router = TriggerRouter(max_pending_events=args.sw_queue_max)
     storage = CsvWriter(csv_path)
     measurement = create_measurement_plugin(measurement_type)
     engine = TriggerAcquisitionEngine(
