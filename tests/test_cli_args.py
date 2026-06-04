@@ -16,6 +16,7 @@ from keysight_logger.cli import (
     build_parser,
     cmd_list_resources,
     cmd_start,
+    cmd_soft_trigger,
     cmd_soft_stop,
     main,
     print_buffer_overflow_warnings,
@@ -1801,6 +1802,49 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(2, rc)
         self.assertIn("--port 0 is outside the supported range 1-65535", stderr.getvalue())
 
+    def test_soft_trigger_rejects_invalid_json_meta(self):
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = cmd_soft_trigger(8765, "{bad json")
+
+        self.assertEqual(2, rc)
+        self.assertIn("meta must be valid JSON", stderr.getvalue())
+
+    @patch("keysight_logger.cli.request.urlopen")
+    def test_soft_trigger_posts_json_payload(self, mock_urlopen):
+        class FakeResponse:
+            status = 202
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        mock_urlopen.return_value = FakeResponse()
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_soft_trigger(8765, '{"operator": "tom"}')
+
+        self.assertEqual(0, rc)
+        self.assertIn("trigger accepted: 202", stdout.getvalue())
+        req = mock_urlopen.call_args.args[0]
+        self.assertEqual("http://127.0.0.1:8765/trigger", req.full_url)
+        self.assertEqual("POST", req.get_method())
+        self.assertEqual(b'{"operator": "tom"}', req.data)
+
+    @patch("keysight_logger.cli.request.urlopen", side_effect=URLError("offline"))
+    def test_soft_trigger_url_error_returns_3(self, _mock_urlopen):
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = cmd_soft_trigger(8765, "{}")
+
+        self.assertEqual(3, rc)
+        self.assertIn("trigger request failed", stderr.getvalue())
+
     def test_soft_stop_port_is_validated_before_request(self):
         stderr = io.StringIO()
 
@@ -1809,6 +1853,40 @@ class CliCommandTests(unittest.TestCase):
 
         self.assertEqual(2, rc)
         self.assertIn("--port 65536 is outside the supported range 1-65535", stderr.getvalue())
+
+    @patch("keysight_logger.cli.request.urlopen")
+    def test_soft_stop_posts_stop_request(self, mock_urlopen):
+        class FakeResponse:
+            status = 204
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+        mock_urlopen.return_value = FakeResponse()
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_soft_stop(8765)
+
+        self.assertEqual(0, rc)
+        self.assertIn("stop accepted: 204", stdout.getvalue())
+        req = mock_urlopen.call_args.args[0]
+        self.assertEqual("http://127.0.0.1:8765/stop", req.full_url)
+        self.assertEqual("POST", req.get_method())
+        self.assertEqual(b"{}", req.data)
+
+    @patch("keysight_logger.cli.request.urlopen", side_effect=URLError("offline"))
+    def test_soft_stop_non_connection_refused_url_error_returns_3(self, _mock_urlopen):
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = cmd_soft_stop(8765)
+
+        self.assertEqual(3, rc)
+        self.assertIn("stop request failed", stderr.getvalue())
 
     def test_start_csv_permission_error_prints_friendly_message(self):
         parser = build_parser()
@@ -1971,6 +2049,20 @@ class CliCommandTests(unittest.TestCase):
             },
             json.loads(lines[0]),
         )
+
+    def test_main_dispatches_list_resources(self):
+        with patch("keysight_logger.cli.cmd_list_resources", return_value=17) as mock_cmd:
+            rc = main(["list-resources", "--live-only", "--format", "json"])
+
+        self.assertEqual(17, rc)
+        mock_cmd.assert_called_once_with(verify=False, live_only=True, output_format="json")
+
+    def test_main_dispatches_start_trigger_record(self):
+        with patch("keysight_logger.cli.cmd_start", return_value=23) as mock_cmd:
+            rc = main(["start-trigger-record", "--resource", "USB::FAKE"])
+
+        self.assertEqual(23, rc)
+        self.assertEqual("USB::FAKE", mock_cmd.call_args.args[0].resource)
 
     @patch(
         "keysight_logger.cli.request.urlopen",
