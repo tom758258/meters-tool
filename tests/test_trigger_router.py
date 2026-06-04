@@ -1,5 +1,7 @@
 import unittest
 import threading
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from keysight_logger.models import TriggerEvent, TriggerSource
 from keysight_logger.trigger import HardwareTriggerAdapter, TriggerRouter
@@ -23,6 +25,26 @@ class FakeHardwareInstrument:
     def abort_measurement(self) -> bool:
         self.abort_count += 1
         return True
+
+
+class FakeVisaIOError(Exception):
+    def __init__(self, error_code: int = -1073807339) -> None:
+        super().__init__("status byte timeout")
+        self.error_code = error_code
+
+
+class SequencedStatusInstrument(FakeHardwareInstrument):
+    def __init__(self, statuses: list[int | Exception]) -> None:
+        super().__init__()
+        self._statuses = list(statuses)
+
+    def read_status_byte(self) -> int:
+        if not self._statuses:
+            return 0
+        status = self._statuses.pop(0)
+        if isinstance(status, Exception):
+            raise status
+        return status
 
 
 class TriggerRouterTests(unittest.TestCase):
@@ -85,6 +107,50 @@ class HardwareTriggerAdapterTests(unittest.TestCase):
 
         self.assertIsNone(event)
         self.assertEqual(["*CLS", "*ESE 1", "INIT", "*OPC"], instrument.commands)
+
+    def test_status_byte_timeout_callback_continues_until_trigger(self):
+        instrument = SequencedStatusInstrument([FakeVisaIOError(), FakeVisaIOError(), 0x20])
+        adapter = HardwareTriggerAdapter(instrument)  # type: ignore[arg-type]
+        callbacks: list[tuple[int, str]] = []
+        fake_pyvisa = SimpleNamespace(
+            errors=SimpleNamespace(VisaIOError=FakeVisaIOError),
+            constants=SimpleNamespace(
+                StatusCode=SimpleNamespace(error_timeout=-1073807339)
+            ),
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+            event = adapter.wait_and_read_triggered(
+                timeout_ms=1000,
+                poll_interval_ms=1,
+                status_poll_timeout_cb=lambda count, exc: callbacks.append(
+                    (count, type(exc).__name__)
+                ),
+            )
+
+        self.assertIsNotNone(event)
+        self.assertEqual(TriggerSource.HARDWARE, event.source)
+        self.assertEqual([(1, "FakeVisaIOError"), (2, "FakeVisaIOError")], callbacks)
+
+    def test_status_byte_timeout_count_resets_after_successful_status_poll(self):
+        instrument = SequencedStatusInstrument([FakeVisaIOError(), 0, FakeVisaIOError(), 0x20])
+        adapter = HardwareTriggerAdapter(instrument)  # type: ignore[arg-type]
+        counts: list[int] = []
+        fake_pyvisa = SimpleNamespace(
+            errors=SimpleNamespace(VisaIOError=FakeVisaIOError),
+            constants=SimpleNamespace(
+                StatusCode=SimpleNamespace(error_timeout=-1073807339)
+            ),
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+            adapter.wait_and_read_triggered(
+                timeout_ms=1000,
+                poll_interval_ms=1,
+                status_poll_timeout_cb=lambda count, exc: counts.append(count),
+            )
+
+        self.assertEqual([1, 1], counts)
 
     def test_recover_from_timeout_aborts_and_clears(self):
         instrument = FakeHardwareInstrument()

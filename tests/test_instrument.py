@@ -4,7 +4,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from keysight_logger.instrument import InstrumentError, VisaInstrument
+from keysight_logger.instrument import InstrumentError, VisaInstrument, is_pyvisa_timeout_error
 from keysight_logger.models import InstrumentConfig, Transport
 
 
@@ -71,6 +71,12 @@ class FakeResourceManager:
         self.closed = True
 
 
+class FakeVisaIOError(Exception):
+    def __init__(self, error_code: int) -> None:
+        super().__init__(f"visa error {error_code}")
+        self.error_code = error_code
+
+
 class VisaInstrumentStaticTests(unittest.TestCase):
     def test_pyvisa_unavailable_raises_instrument_error(self):
         with patch("keysight_logger.instrument.pyvisa", None):
@@ -120,6 +126,30 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual(Transport.USB, VisaInstrument.infer_transport("USB0::FAKE"))
         self.assertEqual(Transport.LAN, VisaInstrument.infer_transport("TCPIP0::FAKE"))
         self.assertIsNone(VisaInstrument.infer_transport("GPIB0::1::INSTR"))
+
+    def test_pyvisa_timeout_error_classifier_accepts_timeout_status_code(self):
+        fake_pyvisa = SimpleNamespace(
+            errors=SimpleNamespace(VisaIOError=FakeVisaIOError),
+            constants=SimpleNamespace(
+                StatusCode=SimpleNamespace(error_timeout=-1073807339)
+            ),
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+            self.assertTrue(is_pyvisa_timeout_error(FakeVisaIOError(-1073807339)))
+
+    def test_pyvisa_timeout_error_classifier_rejects_non_timeout_and_unrelated_errors(self):
+        fake_pyvisa = SimpleNamespace(
+            errors=SimpleNamespace(VisaIOError=FakeVisaIOError),
+            constants=SimpleNamespace(
+                StatusCode=SimpleNamespace(error_timeout=-1073807339)
+            ),
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", fake_pyvisa):
+            self.assertFalse(is_pyvisa_timeout_error(FakeVisaIOError(-1)))
+            self.assertFalse(is_pyvisa_timeout_error(TimeoutError("overall wait")))
+            self.assertFalse(is_pyvisa_timeout_error(RuntimeError("other")))
 
 
 class VisaInstrumentInstanceTests(unittest.TestCase):

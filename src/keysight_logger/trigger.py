@@ -7,7 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Empty, Full, Queue
 from typing import Callable, Optional, Tuple
 
-from .instrument import VisaInstrument
+from .instrument import VisaInstrument, is_pyvisa_timeout_error
 from .models import TriggerEvent, TriggerSource
 
 
@@ -67,6 +67,7 @@ class HardwareTriggerAdapter:
         timeout_ms: int,
         stop_event: Optional[threading.Event] = None,
         poll_interval_ms: int = 200,
+        status_poll_timeout_cb: Optional[Callable[[int, Exception], None]] = None,
     ) -> Optional[TriggerEvent]:
         # Arm once, then poll the status byte so shutdown can interrupt the wait.
         timeout_s = max(0, timeout_ms) / 1000.0
@@ -77,6 +78,7 @@ class HardwareTriggerAdapter:
         self._instrument.write("*ESE 1")
         self._instrument.write("INIT")
         self._instrument.write("*OPC")
+        consecutive_status_timeouts = 0
 
         while True:
             if stop_event is not None and stop_event.is_set():
@@ -87,7 +89,17 @@ class HardwareTriggerAdapter:
             wait_s = min(poll_s, remaining_s)
             if stop_event is not None and stop_event.wait(wait_s):
                 return None
-            if self._instrument.read_status_byte() & 0x20:
+            try:
+                status_byte = self._instrument.read_status_byte()
+            except Exception as exc:
+                if not is_pyvisa_timeout_error(exc):
+                    raise
+                consecutive_status_timeouts += 1
+                if status_poll_timeout_cb is not None:
+                    status_poll_timeout_cb(consecutive_status_timeouts, exc)
+                continue
+            consecutive_status_timeouts = 0
+            if status_byte & 0x20:
                 return TriggerEvent.new(TriggerSource.HARDWARE)
         # Unreachable, loop exits via timeout/stop/trigger.
 

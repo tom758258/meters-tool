@@ -107,6 +107,20 @@ class TriggerAcquisitionEngine:
     def _emit_capture_status(self, sample: MeasurementSample) -> None:
         self._emit(f"captured={self._stats.captured} {_format_status_value(sample)}")
 
+    def _handle_hardware_status_poll_timeout(self, count: int, exc: Exception) -> None:
+        if count == 5:
+            self._emit(
+                "hardware status poll timeout warning "
+                f"count={count} type={type(exc).__name__}"
+            )
+        elif count >= 25 and count % 25 == 0:
+            self._stats.errors += 1
+            self._emit(
+                "hardware status polling degraded "
+                f"count={count} errors={self._stats.errors} "
+                f"type={type(exc).__name__}"
+            )
+
     def _record_capture_failure(self, status_prefix: str, exc: Exception) -> None:
         self._stats.errors += 1
         err_text = "unknown"
@@ -218,6 +232,7 @@ class TriggerAcquisitionEngine:
                         ev = hw.wait_and_read_triggered(
                             self._config.trigger_timeout_ms,
                             stop_event=self._stop_event,
+                            status_poll_timeout_cb=self._handle_hardware_status_poll_timeout,
                         )
                     except TimeoutError:
                         # No external edge within the timeout window; keep waiting.
@@ -227,10 +242,14 @@ class TriggerAcquisitionEngine:
                                 "hardware trigger wait timed out; re-armed and waiting for next edge"
                             )
                         continue
-                    except Exception:
+                    except Exception as exc:
                         if self._running:
                             self._stats.errors += 1
-                            self._emit("hardware trigger timeout/error")
+                            self._emit(
+                                "hardware trigger wait error "
+                                f"count={self._stats.errors} "
+                                f"type={type(exc).__name__}: {exc}"
+                            )
                         continue
                 if ev is None:
                     if not waiting_trigger_emitted:

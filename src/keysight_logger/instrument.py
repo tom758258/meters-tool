@@ -16,6 +16,28 @@ class InstrumentError(RuntimeError):
     pass
 
 
+_VISA_TIMEOUT_ERROR_CODE = -1073807339
+
+
+def is_pyvisa_timeout_error(exc: Exception) -> bool:
+    if pyvisa is None:
+        return False
+
+    visa_io_error_type = getattr(getattr(pyvisa, "errors", None), "VisaIOError", None)
+    if visa_io_error_type is None:
+        visa_io_error_type = getattr(pyvisa, "VisaIOError", None)
+    if visa_io_error_type is None or not isinstance(exc, visa_io_error_type):
+        return False
+
+    error_code = getattr(exc, "error_code", None)
+    timeout_code = _VISA_TIMEOUT_ERROR_CODE
+    status_code = getattr(getattr(pyvisa, "constants", None), "StatusCode", None)
+    if status_code is not None and hasattr(status_code, "error_timeout"):
+        timeout_code = status_code.error_timeout
+
+    return error_code == timeout_code or error_code == _VISA_TIMEOUT_ERROR_CODE
+
+
 def _is_supported_34461a_idn(idn: str) -> bool:
     parts = [part.strip().upper() for part in str(idn).split(",")]
     if len(parts) < 2:

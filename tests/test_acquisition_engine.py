@@ -185,6 +185,11 @@ class AlwaysTimeoutHardwareInstrument(FakeInstrument):
         self.commands.append(command)
 
 
+class FailingStatusHardwareInstrument(AlwaysTimeoutHardwareInstrument):
+    def read_status_byte(self) -> int:
+        raise RuntimeError("stb failed")
+
+
 class WaitingExternalBufferedMeasurement(FakeBufferedMeasurement):
     def configure_external_custom(self, instrument, config, trigger_count, sample_count, slope, delay_s):  # noqa: ANN001, ARG002
         self.sample_count = 0
@@ -430,6 +435,76 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertTrue(
             any(
                 "hardware trigger wait timed out; re-armed and waiting for next edge" in s
+                for s in statuses
+            )
+        )
+
+    def test_hardware_status_poll_timeout_thresholds_are_nonfatal_diagnostics(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=AlwaysTimeoutHardwareInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+        exc = TimeoutError("status byte")
+
+        engine._handle_hardware_status_poll_timeout(4, exc)
+        self.assertEqual([], statuses)
+        self.assertEqual(0, engine.stats.errors)
+
+        engine._handle_hardware_status_poll_timeout(5, exc)
+        self.assertTrue(
+            any("hardware status poll timeout warning count=5 type=TimeoutError" in s for s in statuses)
+        )
+        self.assertEqual(0, engine.stats.errors)
+
+        engine._handle_hardware_status_poll_timeout(25, exc)
+        self.assertTrue(
+            any("hardware status polling degraded count=25 errors=1 type=TimeoutError" in s for s in statuses)
+        )
+        self.assertEqual(1, engine.stats.errors)
+
+        engine._handle_hardware_status_poll_timeout(50, exc)
+        self.assertTrue(
+            any("hardware status polling degraded count=50 errors=2 type=TimeoutError" in s for s in statuses)
+        )
+        self.assertEqual(2, engine.stats.errors)
+        self.assertIsNone(engine.fatal_error)
+
+    def test_non_timeout_hardware_wait_exception_is_nonfatal_error(self):
+        instrument = FailingStatusHardwareInstrument()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(
+            target=engine.run,
+            kwargs={"enable_hardware_trigger": True, "hardware_trigger_slope": "NEG"},
+        )
+        worker.start()
+        deadline = time.monotonic() + 1.0
+        while not any("hardware trigger wait error" in s for s in statuses):
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.01)
+        engine.stop()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertGreaterEqual(engine.stats.errors, 1)
+        self.assertIsNone(engine.fatal_error)
+        self.assertTrue(
+            any(
+                "hardware trigger wait error count=1 type=RuntimeError: stb failed" in s
                 for s in statuses
             )
         )
