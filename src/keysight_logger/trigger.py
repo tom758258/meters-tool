@@ -4,7 +4,7 @@ import json
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from queue import Empty, Full, Queue
+from queue import Empty, Queue
 from typing import Callable, Optional, Tuple
 
 from .instrument import VisaInstrument
@@ -12,32 +12,13 @@ from .models import TriggerEvent, TriggerSource
 
 
 class TriggerRouter:
-    DEFAULT_MAX_PENDING_EVENTS = 10000
+    def __init__(self) -> None:
+        self._queue: Queue[TriggerEvent] = Queue()
 
-    def __init__(self, max_pending_events: int = DEFAULT_MAX_PENDING_EVENTS) -> None:
-        maxsize = (
-            self.DEFAULT_MAX_PENDING_EVENTS
-            if int(max_pending_events) <= 0
-            else int(max_pending_events)
-        )
-        self._queue: Queue[TriggerEvent] = Queue(maxsize=maxsize)
-        self._control_queue: Queue[TriggerEvent] = Queue()
-
-    def publish(self, event: TriggerEvent) -> bool:
-        if self._is_control_event(event):
-            self._control_queue.put(event)
-            return True
-        try:
-            self._queue.put_nowait(event)
-            return True
-        except Full:
-            return False
+    def publish(self, event: TriggerEvent) -> None:
+        self._queue.put(event)
 
     def wait(self, timeout_s: float) -> Optional[TriggerEvent]:
-        try:
-            return self._control_queue.get_nowait()
-        except Empty:
-            pass
         try:
             return self._queue.get(timeout=timeout_s)
         except Empty:
@@ -45,9 +26,6 @@ class TriggerRouter:
 
     def size(self) -> int:
         return self._queue.qsize()
-
-    def _is_control_event(self, event: TriggerEvent) -> bool:
-        return bool(event.metadata.get("control"))
 
 
 class HardwareTriggerAdapter:
@@ -165,12 +143,7 @@ class SoftwareTriggerAdapter:
                     self.end_headers()
                     self.wfile.write(json.dumps({"status": "rejected", "reason": reason}).encode("utf-8"))
                     return
-                if not router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, metadata=metadata)):
-                    self.send_response(429)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "rejected", "reason": "queue_full"}).encode("utf-8"))
-                    return
+                router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, metadata=metadata))
                 self.send_response(202)
                 self.end_headers()
 

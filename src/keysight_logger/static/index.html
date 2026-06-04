@@ -10,14 +10,30 @@
     <main class="shell">
       <section class="toolbar">
         <div>
-          <p class="eyebrow">Keysight 34461A</p>
-          <h1>Local acquisition console</h1>
+          <h1>Keysight Meters</h1>
+          <p class="subtitle">Local acquisition console</p>
         </div>
         <div class="run-controls">
-          <button id="refresh-resources" type="button">Scan Device</button>
           <button id="start-run" type="button" class="primary">Start</button>
           <button id="trigger-run" type="button">Trigger</button>
           <button id="stop-run" type="button" class="danger">Stop</button>
+          <button id="open-csv" type="button" class="open-csv" disabled>Open CSV</button>
+        </div>
+      </section>
+
+      <section class="resource-row">
+        <label>
+          VISA resource
+          <input id="resource" name="resource" form="run-form" placeholder="Waiting Scan" required />
+        </label>
+        <div class="live-resource-field">
+          <label>
+            Live resource
+            <select id="resource-select">
+              <option value="">Scan to load live resources</option>
+            </select>
+          </label>
+          <button id="refresh-resources" type="button">Scan Device</button>
         </div>
       </section>
 
@@ -34,30 +50,27 @@
           <span>Errors</span>
           <strong id="status-errors">0</strong>
         </div>
-        <div>
+        <div class="is-hidden" aria-hidden="true">
           <span>CSV</span>
           <strong id="status-csv">Default</strong>
         </div>
       </section>
 
       <section class="grid">
-        <form id="run-form" class="panel">
-          <h2>Run setup</h2>
-          <label>
-            VISA resource
-            <input id="resource" name="resource" required />
-          </label>
-          <label>
-            Live resource
-            <select id="resource-select">
-              <option value="">Scan to load live resources</option>
-            </select>
-          </label>
-          <label>
-            <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
-            <input name="csv" placeholder="Default: data/YYYY-MM-DD-HH-MM-SS.csv" />
-          </label>
-          <div class="pair">
+        <div class="settings-column">
+          <form id="run-form" class="panel collapsible-panel" data-panel="run-setup">
+            <div class="panel-header">
+              <div>
+                <h2>Run Setup</h2>
+                <p class="panel-summary" data-summary-for="run-setup">Software current-dc</p>
+              </div>
+              <button class="panel-toggle" type="button" aria-expanded="true">Hide</button>
+            </div>
+            <div class="panel-body">
+              <label>
+                <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
+                <input name="csv" placeholder="Default: data/YYYY-MM-DD-HH-MM-SS.csv" />
+              </label>
             <label>
               Measurement
               <select name="measurement" id="measurement"></select>
@@ -66,8 +79,6 @@
               Trigger mode
               <select name="trigger_mode" id="trigger-mode"></select>
             </label>
-          </div>
-          <div class="pair">
             <label>
               <span class="label-title">Timeout ms <span class="optional-mark">(Optional)</span></span>
               <input name="timeout_ms" type="number" min="100" max="600000" placeholder="Default: 5000" />
@@ -76,41 +87,45 @@
               <span class="label-title">Trigger timeout ms <span class="optional-mark">(Optional)</span></span>
               <input name="trigger_timeout_ms" type="number" min="500" max="600000" placeholder="Default: 10000" />
             </label>
-          </div>
-          <div class="pair">
             <label data-mode-scope="simple">
               <span class="label-title">Max samples <span class="optional-mark">(Optional)</span></span>
               <input name="max_samples" type="number" min="1" max="1000000" placeholder="Default: Unlimited" />
             </label>
-          </div>
-        </form>
+            </div>
+          </form>
 
-        <section class="panel">
-          <h2>Measurement options</h2>
-          <div class="switch-row">
-            <label><input name="auto_range" form="run-form" type="checkbox" checked /> Auto range</label>
-            <label id="auto-zero-container">
-              <input name="auto_zero" form="run-form" type="checkbox" checked />
-              Auto zero
-            </label>
-          </div>
-          <div class="single-field" id="range-container">
-            <label>
-              <span class="field-title">
-                Range
-                <span id="range-unit" class="unit-chip">A</span>
-              </span>
-              <div class="input-with-unit">
-                <select
-                  id="measurement-range"
-                  name="measurement_range"
-                  form="run-form"
-                ></select>
-                <span id="range-suffix">A</span>
+          <section class="panel collapsible-panel" data-panel="measurement-options">
+            <div class="panel-header">
+              <div>
+                <h2>Measurement options</h2>
+                <p class="panel-summary" data-summary-for="measurement-options">Auto range, auto zero</p>
               </div>
-            </label>
-          </div>
-          <div class="pair">
+              <button class="panel-toggle" type="button" aria-expanded="true">Hide</button>
+            </div>
+            <div class="panel-body">
+              <div class="switch-row">
+                <label><input name="auto_range" form="run-form" type="checkbox" checked /> Auto range</label>
+                <label id="auto-zero-container">
+                  <input name="auto_zero" form="run-form" type="checkbox" checked />
+                  Auto zero
+                </label>
+              </div>
+              <div class="single-field" id="range-container">
+                <label>
+                  <span class="field-title">
+                    Range
+                    <span id="range-unit" class="unit-chip">A</span>
+                  </span>
+                  <div class="input-with-unit">
+                    <select
+                      id="measurement-range"
+                      name="measurement_range"
+                      form="run-form"
+                    ></select>
+                    <span id="range-suffix">A</span>
+                  </div>
+                </label>
+              </div>
             <label id="nplc-field">
               NPLC
               <select id="nplc" name="nplc" form="run-form"></select>
@@ -123,26 +138,32 @@
                 <option value="auto">Auto</option>
               </select>
             </label>
-          </div>
-          <label>
-            VM Comp slope
-            <select name="vm_comp_slope" form="run-form">
-              <option value="">Leave unchanged</option>
-              <option value="pos">Pos</option>
-              <option value="neg">Neg</option>
-            </select>
-          </label>
-        </section>
+              <label>
+                VM Comp slope
+                <select name="vm_comp_slope" form="run-form">
+                  <option value="">Leave unchanged</option>
+                  <option value="pos">Pos</option>
+                  <option value="neg">Neg</option>
+                </select>
+              </label>
+            </div>
+          </section>
 
-        <section id="trigger-options-panel" class="panel">
-          <h2>Trigger options</h2>
-          <div class="switch-row" data-mode-scope="software">
-            <label>
-              <input id="timer-trigger-checkbox" type="checkbox" />
-              Timer trigger
-           </label>
-          </div>  
-          <div class="pair">
+          <section id="trigger-options-panel" class="panel collapsible-panel" data-panel="trigger-options">
+            <div class="panel-header">
+              <div>
+                <h2>Trigger options</h2>
+                <p class="panel-summary" data-summary-for="trigger-options">Software trigger ready</p>
+              </div>
+              <button class="panel-toggle" type="button" aria-expanded="true">Hide</button>
+            </div>
+            <div class="panel-body">
+              <div class="switch-row" data-mode-scope="software">
+                <label>
+                  <input id="timer-trigger-checkbox" type="checkbox" />
+                  Timer trigger
+               </label>
+              </div>
             <label data-mode-scope="custom">
               Trigger count
               <input name="trigger_count" form="run-form" type="number" min="1" max="1000000" />
@@ -151,8 +172,6 @@
               Sample count
               <input name="sample_count" form="run-form" type="number" min="1" max="1000000" />
             </label>
-          </div>
-          <div class="pair">
             <label data-mode-scope="custom">
               <span class="label-title">Buffer drain size <span class="optional-mark">(Optional)</span></span>
               <input name="buffer_drain_size" form="run-form" type="number" min="1" max="10000" placeholder="Default: No limit" />
@@ -161,8 +180,6 @@
               <span class="label-title">HW delay s <span class="optional-mark">(Optional)</span></span>
               <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" max="3600" step="0.001" placeholder="Default: 0" />
             </label>
-          </div>
-          <div class="pair">
             <label data-mode-scope="hardware">
               HW slope
               <select name="hw_trigger_slope" form="run-form">
@@ -182,14 +199,20 @@
               Timer interval s
               <input name="timer_interval_s" form="run-form" type="number" min="0.5" max="86400" step="0.001" disabled />
             </label>
-          </div>
-          <div class="switch-row" data-mode-scope="custom">
-            <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> Allow buffer risk</label>
-          </div>
-          <label id="trigger-metadata-container" data-mode-scope="software-trigger">
-            <span class="label-title">Trigger metadata JSON <span class="optional-mark">(Optional)</span></span>
-            <textarea id="trigger-metadata" rows="3" placeholder="{&quot;batch&quot;:&quot;A1&quot;}"></textarea>
-          </label>
+              <div class="switch-row" data-mode-scope="custom">
+                <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> Allow buffer risk</label>
+              </div>
+              <label id="trigger-metadata-container" data-mode-scope="software-trigger">
+                <span class="label-title">Trigger metadata JSON <span class="optional-mark">(Optional)</span></span>
+                <textarea id="trigger-metadata" rows="3" placeholder="{&quot;batch&quot;:&quot;A1&quot;}"></textarea>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <section class="panel live-data-panel">
+          <h2>Live data</h2>
+          <div class="live-data-placeholder">Live data view is not implemented yet.</div>
         </section>
 
         <section class="panel log-panel">

@@ -86,6 +86,10 @@ class WebUiApiTests(unittest.TestCase):
         app = create_app(manager)
         return TestClient(app), csv_path
 
+    def make_client_with_manager(self, manager):
+        app = create_app(manager)
+        return TestClient(app)
+
     def tearDown(self):
         tempdir = getattr(self, "tempdir", None)
         if tempdir is not None:
@@ -149,6 +153,77 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(202, stopped.status_code)
         self.assertIn(stopped.json()["state"], {"running", "stopping", "stopped"})
 
+    def test_open_current_csv_rejects_idle_status(self):
+        client, _csv_path = self.make_client()
+
+        response = client.post("/api/runs/current/open-csv")
+
+        self.assertEqual(409, response.status_code)
+        self.assertEqual("no completed CSV available", response.json()["detail"])
+
+    def test_open_current_csv_rejects_active_run(self):
+        client, csv_path = self.make_client()
+        started = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "trigger_mode": "software",
+                "trigger_timeout_ms": 500,
+            },
+        )
+        self.assertEqual(200, started.status_code)
+
+        response = client.post("/api/runs/current/open-csv")
+        client.post("/api/runs/current/stop")
+
+        self.assertEqual(409, response.status_code)
+        self.assertEqual("run is still active", response.json()["detail"])
+
+    def test_open_current_csv_rejects_missing_completed_file(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        missing_csv = Path(self.tempdir.name) / "missing.csv"
+        manager = WebRunManager(
+            instrument_factory=FakeInstrument,
+            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
+        )
+        manager._last_status = {
+            **manager.status(),
+            "state": "stopped",
+            "active": False,
+            "csv_path": str(missing_csv),
+        }
+        client = self.make_client_with_manager(manager)
+
+        response = client.post("/api/runs/current/open-csv")
+
+        self.assertEqual(404, response.status_code)
+        self.assertEqual("CSV file not found", response.json()["detail"])
+
+    def test_open_current_csv_uses_default_app_for_completed_file(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        csv_path.write_text("timestamp,value\n", encoding="utf-8")
+        opened_paths: list[Path] = []
+        manager = WebRunManager(
+            instrument_factory=FakeInstrument,
+            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
+            csv_opener=opened_paths.append,
+        )
+        manager._last_status = {
+            **manager.status(),
+            "state": "stopped",
+            "active": False,
+            "csv_path": str(csv_path),
+        }
+        client = self.make_client_with_manager(manager)
+
+        response = client.post("/api/runs/current/open-csv")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({"opened": True, "csv_path": str(csv_path)}, response.json())
+        self.assertEqual([csv_path], opened_paths)
+
     def test_run_start_rejects_second_run_while_first_is_connecting(self):
         tempdir = tempfile.TemporaryDirectory()
         self.tempdir = tempdir
@@ -199,6 +274,9 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual([], first_error)
         self.assertEqual(1, len(created_instruments))
         manager.stop()
+        deadline = time.monotonic() + 1.0
+        while manager.status()["active"] and time.monotonic() < deadline:
+            time.sleep(0.02)
 
     def test_software_trigger_updates_status_and_captures(self):
         client, csv_path = self.make_client()
@@ -294,7 +372,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("live_only=true", app_js)
         self.assertIn('id="range-unit"', index)
         self.assertIn('id="range-suffix"', index)
-        self.assertIn('<select\n                  id="measurement-range"', index)
+        self.assertRegex(index, r"<select\s+id=\"measurement-range\"")
         self.assertIn('<select id="nplc"', index)
         self.assertNotIn('name="measurement_range" form="run-form" type="number"', index)
         self.assertNotIn('name="nplc" form="run-form" type="number"', index)
@@ -303,6 +381,30 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("populateRangeOptions", app_js)
         self.assertIn("populateNplcOptions", app_js)
         self.assertIn("measurementRangeInput.required = !autoRangeEnabled", app_js)
+
+    def test_static_ui_uses_requested_layout_sections(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn("<h1>Keysight Meters</h1>", index)
+        self.assertIn('<p class="subtitle">Local acquisition console</p>', index)
+        self.assertLess(index.index('class="resource-row"'), index.index('class="status-strip"'))
+        self.assertIn('id="resource"', index)
+        self.assertIn('id="resource-select"', index)
+        self.assertIn("Live data view is not implemented yet.", index)
+        self.assertIn('id="open-csv"', index)
+        self.assertLess(index.index('id="stop-run"'), index.index('id="open-csv"'))
+        self.assertIn('class="panel-toggle"', index)
+        self.assertIn("function setPanelExpanded", app_js)
+        self.assertIn('"/api/runs/current/open-csv"', app_js)
+        self.assertIn("updateOpenCsvButton", app_js)
+        self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
+        self.assertIn("background: #e6ede8", styles)
+        self.assertIn("color: #18302b", styles)
+        self.assertIn("background: #f4f7f2", styles)
+        self.assertIn("color: #24332f", styles)
 
     def test_static_ui_exposes_cli_limit_constraints(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"

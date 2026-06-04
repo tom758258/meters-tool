@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import threading
 import time
 from dataclasses import dataclass
@@ -126,6 +127,7 @@ class NoActiveRun(WebRunError):
 
 InstrumentFactory = Callable[[InstrumentConfig], VisaInstrument]
 StorageFactory = Callable[[Path], CsvWriter]
+CsvOpener = Callable[[Path], Any]
 
 
 class WebRunManager:
@@ -134,10 +136,12 @@ class WebRunManager:
         instrument_factory: InstrumentFactory = VisaInstrument,
         measurement_factory: Callable[[str], Any] = create_measurement_plugin,
         storage_factory: StorageFactory = CsvWriter,
+        csv_opener: CsvOpener | None = None,
     ) -> None:
         self._instrument_factory = instrument_factory
         self._measurement_factory = measurement_factory
         self._storage_factory = storage_factory
+        self._csv_opener = csv_opener or _open_with_default_app
         self._lock = threading.Lock()
         self._active: _RunHandle | None = None
         self._starting = False
@@ -385,6 +389,19 @@ class WebRunManager:
             self._last_status = self._status_from_handle(handle)
             return dict(self._last_status)
 
+    def open_current_csv(self) -> dict[str, Any]:
+        status = self.status()
+        if status.get("active"):
+            raise RunAlreadyActive("run is still active")
+        csv_path_text = status.get("csv_path")
+        if not csv_path_text:
+            raise NoActiveRun("no completed CSV available")
+        csv_path = Path(csv_path_text)
+        if not csv_path.exists():
+            raise FileNotFoundError("CSV file not found")
+        self._csv_opener(csv_path)
+        return {"opened": True, "csv_path": str(csv_path)}
+
     def _validate_request(self, request: RunStartRequest) -> argparse.Namespace:
         args = argparse.Namespace(**_model_dict(request))
         args.resource = str(args.resource).strip()
@@ -563,6 +580,15 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
     def api_stop() -> dict[str, Any]:
         return app.state.manager.stop()
 
+    @app.post("/api/runs/current/open-csv")
+    def api_open_csv() -> dict[str, Any]:
+        try:
+            return app.state.manager.open_current_csv()
+        except WebRunError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
     return app
 
 
@@ -586,6 +612,10 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
 
 def _range_limit(value_range: tuple[float, float] | tuple[int, int]) -> dict[str, float | int]:
     return {"min": value_range[0], "max": value_range[1]}
+
+
+def _open_with_default_app(path: Path) -> None:
+    os.startfile(path)  # type: ignore[attr-defined]
 
 
 app = create_app()

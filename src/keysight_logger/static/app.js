@@ -12,6 +12,7 @@ const toggleStatusDetailsButton = document.querySelector("#toggle-status-details
 const resourceInput = document.querySelector("#resource");
 const resourceSelect = document.querySelector("#resource-select");
 const triggerRunButton = document.querySelector("#trigger-run");
+const openCsvButton = document.querySelector("#open-csv");
 const measurementSelect = document.querySelector("#measurement");
 const measurementRangeInput = document.querySelector("#measurement-range");
 const autoRangeCheckbox = document.querySelector("[name='auto_range']");
@@ -36,6 +37,7 @@ const sampleCountInput = document.querySelector("[name='sample_count']");
 const triggerMetadataContainer = document.querySelector("#trigger-metadata-container");
 const triggerMetadataInput = document.querySelector("#trigger-metadata");
 const triggerOptionsPanel = document.querySelector("#trigger-options-panel");
+const panelToggles = [...document.querySelectorAll(".panel-toggle")];
 const modeScopedControls = [...document.querySelectorAll("[data-mode-scope]")];
 const measurementScopedControls = [
   ...document.querySelectorAll("[data-measurement-scope]"),
@@ -116,6 +118,16 @@ function setStatusDetailsVisible(visible) {
   statusDetails.classList.toggle("is-hidden", !visible);
   toggleStatusDetailsButton.setAttribute("aria-expanded", String(visible));
   toggleStatusDetailsButton.textContent = visible ? "Hide Details" : "Show Details";
+}
+
+function setPanelExpanded(button, expanded) {
+  const panel = button.closest(".collapsible-panel");
+  if (!panel) {
+    return;
+  }
+  panel.classList.toggle("is-collapsed", !expanded);
+  button.setAttribute("aria-expanded", String(expanded));
+  button.textContent = expanded ? "Hide" : "Show";
 }
 
 function supportsAutoZero(measurementName) {
@@ -301,6 +313,7 @@ function updateMeasurementUi() {
       control.disabled = !visible;
     }
   }
+  updatePanelSummaries();
 }
 
 function updateRangeVisibility() {
@@ -308,6 +321,7 @@ function updateRangeVisibility() {
   rangeContainer.classList.toggle("is-hidden", autoRangeEnabled);
   measurementRangeInput.disabled = autoRangeEnabled;
   measurementRangeInput.required = !autoRangeEnabled;
+  updatePanelSummaries();
 }
 
 function populateRangeOptions(measurement) {
@@ -420,11 +434,8 @@ function updateTriggerModeUi() {
   }
   validateSwMinInterval();
 
-  const visibleTriggerControls = triggerOptionsPanel.querySelectorAll(
-    "[data-mode-scope]:not(.is-hidden)"
-  );
-  triggerOptionsPanel.classList.toggle("is-hidden", visibleTriggerControls.length === 0);
   updateTriggerButtonUi();
+  updatePanelSummaries();
 }
 
 function updateTriggerButtonUi() {
@@ -440,11 +451,48 @@ function renderStatus(status) {
   statusState.textContent = capitalizeFirst(status.state || "idle");
   statusCaptured.textContent = String(status.captured ?? 0);
   statusErrors.textContent = String(status.errors ?? 0);
-  statusCsv.textContent = status.csv_path || "Default";
+  if (statusCsv) {
+    statusCsv.textContent = status.csv_path || "Default";
+  }
+  updateOpenCsvButton(status);
   appendApiStatusLog(status.latest_status || "idle");
   fatalError.textContent = status.fatal_error || "";
   cleanupStatus.textContent = status.cleanup_status || "";
   rawStatus.textContent = JSON.stringify(status, null, 2);
+}
+
+function updateOpenCsvButton(status) {
+  const ready = !status.active && Boolean(status.csv_path);
+  openCsvButton.disabled = !ready;
+  openCsvButton.classList.toggle("is-ready", ready);
+}
+
+function updatePanelSummaries() {
+  const runSummary = document.querySelector("[data-summary-for='run-setup']");
+  const measurementSummary = document.querySelector("[data-summary-for='measurement-options']");
+  const triggerSummary = document.querySelector("[data-summary-for='trigger-options']");
+  if (runSummary) {
+    const measurement = measurementSelect.value || "current-dc";
+    const mode = triggerModeSelect.value || "software";
+    const maxSamples = document.querySelector("[name='max_samples']")?.value;
+    runSummary.textContent = `${capitalizeFirst(mode)} / ${measurement}${
+      maxSamples ? ` / max ${maxSamples}` : ""
+    }`;
+  }
+  if (measurementSummary) {
+    measurementSummary.textContent = [
+      autoRangeCheckbox.checked ? "Auto range" : "Manual range",
+      autoZeroCheckbox.checked ? "Auto zero" : "No auto zero",
+      nplcSelect.value ? `NPLC ${nplcSelect.value}` : "",
+    ].filter(Boolean).join(", ");
+  }
+  if (triggerSummary) {
+    const mode = triggerModeSelect.value || "software";
+    const timerEnabled = mode === "software" && timerTriggerCheckbox.checked;
+    triggerSummary.textContent = timerEnabled
+      ? `Timer ${timerIntervalInput.value || "unset"} s`
+      : `${capitalizeFirst(mode)} trigger`;
+  }
 }
 
 async function loadCapabilities() {
@@ -527,13 +575,24 @@ resourceSelect.addEventListener("change", () => {
 
 measurementSelect.addEventListener("change", updateMeasurementUi);
 triggerModeSelect.addEventListener("change", updateTriggerModeUi);
-timerIntervalInput.addEventListener("input", updateTriggerButtonUi);
+timerIntervalInput.addEventListener("input", () => {
+  updateTriggerButtonUi();
+  updatePanelSummaries();
+});
 timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
+autoZeroCheckbox.addEventListener("change", updatePanelSummaries);
+nplcSelect.addEventListener("change", updatePanelSummaries);
+document.querySelector("[name='max_samples']").addEventListener("input", updatePanelSummaries);
 swMinIntervalInput.addEventListener("input", validateSwMinInterval);
 toggleStatusDetailsButton.addEventListener("click", () => {
   setStatusDetailsVisible(statusDetails.classList.contains("is-hidden"));
 });
+for (const button of panelToggles) {
+  button.addEventListener("click", () => {
+    setPanelExpanded(button, button.getAttribute("aria-expanded") !== "true");
+  });
+}
 
 document.querySelector("#start-run").addEventListener("click", async () => {
   try {
@@ -578,8 +637,20 @@ document.querySelector("#stop-run").addEventListener("click", async () => {
   }
 });
 
+openCsvButton.addEventListener("click", async () => {
+  try {
+    const result = await api("/api/runs/current/open-csv", { method: "POST" });
+    appendStatusLog(`Opened CSV: ${result.csv_path}`);
+  } catch (error) {
+    appendStatusLog(error.message);
+  }
+});
+
 renderStatusLog();
 setStatusDetailsVisible(false);
+for (const button of panelToggles) {
+  setPanelExpanded(button, true);
+}
 
 loadCapabilities()
   .then(() => {

@@ -91,25 +91,6 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         finally:
             server.stop()
 
-    def test_stop_endpoint_is_accepted_when_trigger_queue_is_full(self):
-        router = TriggerRouter(max_pending_events=1)
-        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
-        _, port = server.start()
-        try:
-            first = self._post_trigger(port)
-            second = self._post_trigger(port)
-            stop = self._post_stop(port)
-            self.assertEqual(202, first)
-            self.assertEqual(429, second)
-            self.assertEqual(202, stop)
-
-            event = router.wait(timeout_s=0.1)
-            self.assertIsNotNone(event)
-            assert event is not None
-            self.assertEqual("stop", event.metadata.get("control"))
-        finally:
-            server.stop()
-
 
 if __name__ == "__main__":
     unittest.main()

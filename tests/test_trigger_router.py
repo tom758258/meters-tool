@@ -29,45 +29,12 @@ class TriggerRouterTests(unittest.TestCase):
     def test_trigger_router_roundtrip(self):
         router = TriggerRouter()
         event = TriggerEvent.new(TriggerSource.SOFTWARE, {"k": "v"})
-        self.assertTrue(router.publish(event))
+        router.publish(event)
         got = router.wait(timeout_s=0.1)
         self.assertIsNotNone(got)
         assert got is not None
         self.assertEqual(event.id, got.id)
         self.assertEqual(TriggerSource.SOFTWARE, got.source)
-
-    def test_trigger_router_rejects_normal_event_when_bounded_queue_is_full(self):
-        router = TriggerRouter(max_pending_events=1)
-        first = TriggerEvent.new(TriggerSource.SOFTWARE, {"seq": "1"})
-        second = TriggerEvent.new(TriggerSource.SOFTWARE, {"seq": "2"})
-
-        self.assertTrue(router.publish(first))
-        self.assertFalse(router.publish(second))
-        self.assertEqual(1, router.size())
-
-        got = router.wait(timeout_s=0.1)
-        self.assertIsNotNone(got)
-        assert got is not None
-        self.assertEqual(first.id, got.id)
-
-    def test_trigger_router_accepts_stop_control_event_when_normal_queue_is_full(self):
-        router = TriggerRouter(max_pending_events=1)
-        trigger_event = TriggerEvent.new(TriggerSource.SOFTWARE)
-        stop_event = TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"})
-
-        self.assertTrue(router.publish(trigger_event))
-        self.assertTrue(router.publish(stop_event))
-
-        got_stop = router.wait(timeout_s=0.1)
-        self.assertIsNotNone(got_stop)
-        assert got_stop is not None
-        self.assertEqual(stop_event.id, got_stop.id)
-        self.assertEqual("stop", got_stop.metadata.get("control"))
-
-        got_trigger = router.wait(timeout_s=0.1)
-        self.assertIsNotNone(got_trigger)
-        assert got_trigger is not None
-        self.assertEqual(trigger_event.id, got_trigger.id)
 
 
 class HardwareTriggerAdapterTests(unittest.TestCase):
