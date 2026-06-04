@@ -444,7 +444,6 @@ class Resistance4wMeasurementTests(unittest.TestCase):
                 "CONF:FRES AUTO",
                 "FRES:RANG:AUTO ON",
                 "FRES:NPLC 1.0",
-                "FRES:ZERO:AUTO ON",
             ],
             inst.commands,
         )
@@ -463,7 +462,6 @@ class Resistance4wMeasurementTests(unittest.TestCase):
                 "CONF:FRES AUTO",
                 "FRES:RANG 1000.0",
                 "FRES:NPLC 1.0",
-                "FRES:ZERO:AUTO OFF",
             ],
             inst.commands,
         )

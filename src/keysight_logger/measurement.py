@@ -326,7 +326,6 @@ class Resistance4wMeasurement(ScalarDmmMeasurement):
         elif config.measurement_range is not None:
             instrument.write(f"FRES:RANG {config.measurement_range}")
         instrument.write(f"FRES:NPLC {config.nplc}")
-        instrument.write(f"FRES:ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
         if config.vm_comp_slope is not None:
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
