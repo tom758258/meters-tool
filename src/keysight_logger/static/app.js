@@ -12,6 +12,8 @@ const resourceSelect = document.querySelector("#resource-select");
 const triggerRunButton = document.querySelector("#trigger-run");
 const measurementSelect = document.querySelector("#measurement");
 const measurementRangeInput = document.querySelector("#measurement-range");
+const autoRangeCheckbox = document.querySelector("[name='auto_range']");
+const rangeContainer = document.querySelector("#range-container");
 const rangeUnit = document.querySelector("#range-unit");
 const rangeSuffix = document.querySelector("#range-suffix");
 const nplcField = document.querySelector("#nplc-field");
@@ -141,6 +143,12 @@ function updateMeasurementUi() {
       control.disabled = !visible;
     }
   }
+}
+
+function updateRangeVisibility() {
+  const autoRangeEnabled = autoRangeCheckbox.checked;
+  rangeContainer.classList.toggle("is-hidden", autoRangeEnabled);
+  measurementRangeInput.disabled = autoRangeEnabled;
 }
 
 function populateRangeOptions(measurement) {
@@ -336,6 +344,7 @@ resourceSelect.addEventListener("change", () => {
 measurementSelect.addEventListener("change", updateMeasurementUi);
 triggerModeSelect.addEventListener("change", updateTriggerModeUi);
 timerIntervalInput.addEventListener("input", updateTriggerButtonUi);
+autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
 
 document.querySelector("#start-run").addEventListener("click", async () => {
   try {
@@ -374,7 +383,10 @@ document.querySelector("#stop-run").addEventListener("click", async () => {
 });
 
 loadCapabilities()
-  .then(pollStatus)
+  .then(() => {
+    updateRangeVisibility();
+    return pollStatus();
+  })
   .catch((error) => {
     latestStatus.textContent = error.message;
   });
