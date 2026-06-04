@@ -231,8 +231,8 @@ def _format_values(values: tuple[float, ...]) -> str:
     return ", ".join(_format_number(value) for value in values)
 
 
-def _format_range_options(definition) -> str:  # noqa: ANN001
-    return _format_values(tuple(value for _label, value in definition.range_options))
+def _format_range_options(options) -> str:  # noqa: ANN001
+    return _format_values(tuple(value for _label, value in options.range_options))
 
 
 def _range_unit(definition) -> str:  # noqa: ANN001
@@ -245,6 +245,11 @@ def _range_unit(definition) -> str:  # noqa: ANN001
 
 def _value_in_options(value: float, options: tuple[float, ...]) -> bool:
     return any(abs(float(value) - float(option)) <= 1e-12 for option in options)
+
+
+def _supported_measurement_types(profile: InstrumentProfile) -> tuple[str, ...]:
+    registered_measurements = set(registered_measurement_types())
+    return tuple(value for value in profile.supported_measurement_types if value in registered_measurements)
 
 
 def _validate_int_range(name: str, value: int, minimum: int, maximum: int, detail: str) -> None:
@@ -270,13 +275,17 @@ def _validate_float_range(
         )
 
 
-def _start_help_epilog() -> str:
-    measurement_names = [format_measurement_type(value) for value in registered_measurement_types()]
+def _start_help_epilog(profile: InstrumentProfile | None = None) -> str:
+    effective_profile = profile or get_default_instrument_profile()
+    measurement_names = [
+        format_measurement_type(value) for value in _supported_measurement_types(effective_profile)
+    ]
     range_lines = []
     for measurement_name in measurement_names:
         definition = get_measurement_definition(measurement_name)
+        options = effective_profile.get_measurement_options(measurement_name)
         range_lines.append(
-            f"  {definition.cli_name}: {_format_values(tuple(value for _label, value in definition.range_options))} {definition.unit}"
+            f"  {definition.cli_name}: {_format_range_options(options)} {definition.unit}"
         )
     return (
         "Limits:\n"
@@ -302,11 +311,8 @@ def _start_help_epilog() -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
-    registered_measurements = set(registered_measurement_types())
     measurement_choices = ", ".join(
-        format_measurement_type(value)
-        for value in default_profile.supported_measurement_types
-        if value in registered_measurements
+        format_measurement_type(value) for value in _supported_measurement_types(default_profile)
     )
     parser = argparse.ArgumentParser(
         prog="keysight-logger",
@@ -339,7 +345,7 @@ def build_parser() -> argparse.ArgumentParser:
     start = sub.add_parser(
         "start-trigger-record",
         formatter_class=KeysightHelpFormatter,
-        epilog=_start_help_epilog(),
+        epilog=_start_help_epilog(default_profile),
     )
     start.add_argument("--resource", required=True, help="VISA resource string")
     start.add_argument(
@@ -614,16 +620,12 @@ def validate_start_args(
     custom_mode = trigger_mode.endswith("-custom")
     profile = instrument_profile or get_default_instrument_profile()
     measurement_type = normalize_measurement_type(args.measurement)
-    registered_measurements = set(registered_measurement_types())
-    supported_measurements = tuple(
-        value
-        for value in profile.supported_measurement_types
-        if value in registered_measurements
-    )
+    supported_measurements = _supported_measurement_types(profile)
     if measurement_type not in supported_measurements:
         choices = ", ".join(format_measurement_type(value) for value in supported_measurements)
         raise ValueError(f"--measurement must be one of: {choices}")
     definition = get_measurement_definition(measurement_type)
+    options = profile.get_measurement_options(measurement_type)
     if not definition.accepts_current_range_alias and args.current_range is not None:
         raise ValueError("--current-range can only be used with --measurement current-dc")
     if args.dcv_input_impedance != "default" and measurement_type != "voltage_dc":
@@ -653,30 +655,30 @@ def validate_start_args(
         )
     _validate_int_range("--sw-queue-max", args.sw_queue_max, *SW_QUEUE_MAX_RANGE, "supported")
     if args.measurement_range is not None:
-        allowed_ranges = tuple(value for _label, value in definition.range_options)
+        allowed_ranges = tuple(value for _label, value in options.range_options)
         if not _value_in_options(args.measurement_range, allowed_ranges):
             raise ValueError(
                 f"--range {_format_number(args.measurement_range)} is not valid for "
                 f"--measurement {definition.cli_name}. Allowed ranges in "
-                f"{_range_unit(definition)}: {_format_range_options(definition)}. "
+                f"{_range_unit(definition)}: {_format_range_options(options)}. "
                 "Use one of the listed range values or omit --range with --auto-range on."
             )
     if args.current_range is not None:
-        allowed_ranges = tuple(value for _label, value in definition.range_options)
+        allowed_ranges = tuple(value for _label, value in options.range_options)
         if not _value_in_options(args.current_range, allowed_ranges):
             raise ValueError(
                 f"--current-range {_format_number(args.current_range)} is not valid for "
                 f"--measurement {definition.cli_name}. Allowed ranges in "
-                f"{_range_unit(definition)}: {_format_range_options(definition)}. "
+                f"{_range_unit(definition)}: {_format_range_options(options)}. "
                 "Use one of the listed current range values."
             )
     measurement_range = resolve_measurement_range(args)
-    if definition.nplc_options:
-        if not _value_in_options(args.nplc, definition.nplc_options):
+    if options.nplc_options:
+        if not _value_in_options(args.nplc, options.nplc_options):
             raise ValueError(
                 f"--nplc {_format_number(args.nplc)} is not valid for "
                 f"--measurement {definition.cli_name}. Allowed NPLC values: "
-                f"{_format_values(definition.nplc_options)}. Use one of the listed values."
+                f"{_format_values(options.nplc_options)}. Use one of the listed values."
             )
     elif args.nplc != NEUTRAL_AC_NPLC:
         raise ValueError(

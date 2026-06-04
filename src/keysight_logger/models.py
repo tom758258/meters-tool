@@ -30,16 +30,55 @@ class InstrumentConfig:
 
 
 @dataclass(frozen=True)
+class MeasurementOptions:
+    measurement_type: str
+    range_options: tuple[tuple[str, float], ...] = ()
+    nplc_options: tuple[float, ...] = ()
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "measurement_type",
+            str(self.measurement_type).strip().lower().replace("-", "_"),
+        )
+
+
+@dataclass(frozen=True)
 class InstrumentProfile:
     vendor: str
     model: str
     aliases: tuple[str, ...]
     reading_memory_limit: int
-    supported_measurement_types: tuple[str, ...]
     supports_buffered_reading_memory: bool
     supports_bus_trigger: bool
     supports_external_trigger: bool
     supports_sample_timer: bool
+    measurement_options: tuple[MeasurementOptions, ...] = ()
+    supported_measurement_types: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if self.measurement_options:
+            object.__setattr__(
+                self,
+                "supported_measurement_types",
+                tuple(option.measurement_type for option in self.measurement_options),
+            )
+        elif self.supported_measurement_types and not self.measurement_options:
+            object.__setattr__(
+                self,
+                "measurement_options",
+                tuple(
+                    MeasurementOptions(measurement_type=measurement_type)
+                    for measurement_type in self.supported_measurement_types
+                ),
+            )
+
+    def get_measurement_options(self, measurement_type: str) -> MeasurementOptions:
+        normalized = str(measurement_type).strip().lower().replace("-", "_")
+        for options in self.measurement_options:
+            if options.measurement_type == normalized:
+                return options
+        raise ValueError(f"{self.model} does not support measurement type: {measurement_type}")
 
     def matches_idn(self, idn: str) -> bool:
         parts = [part.strip().upper() for part in str(idn).split(",")]
@@ -56,6 +95,41 @@ class InstrumentProfile:
 InstrumentCapabilities = InstrumentProfile
 
 
+KEYSIGHT_34461A_CURRENT_RANGES = (
+    ("100 uA", 0.0001),
+    ("1 mA", 0.001),
+    ("10 mA", 0.01),
+    ("100 mA", 0.1),
+    ("1 A", 1.0),
+    ("3 A", 3.0),
+    ("10 A (front 10A terminal)", 10.0),
+)
+KEYSIGHT_34461A_DCV_RANGES = (
+    ("100 mV", 0.1),
+    ("1 V", 1.0),
+    ("10 V", 10.0),
+    ("100 V", 100.0),
+    ("1000 V", 1000.0),
+)
+KEYSIGHT_34461A_ACV_RANGES = (
+    ("100 mV", 0.1),
+    ("1 V", 1.0),
+    ("10 V", 10.0),
+    ("100 V", 100.0),
+    ("750 V", 750.0),
+)
+KEYSIGHT_34461A_RESISTANCE_RANGES = (
+    ("100 Ohm", 100.0),
+    ("1 kOhm", 1_000.0),
+    ("10 kOhm", 10_000.0),
+    ("100 kOhm", 100_000.0),
+    ("1 MOhm", 1_000_000.0),
+    ("10 MOhm", 10_000_000.0),
+    ("100 MOhm", 100_000_000.0),
+)
+KEYSIGHT_34461A_NPLC_OPTIONS = (0.02, 0.2, 1.0, 10.0, 100.0)
+
+
 KEYSIGHT_34461A_PROFILE = InstrumentProfile(
     vendor="Keysight",
     model="34461A",
@@ -65,13 +139,35 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
         "34461A",
     ),
     reading_memory_limit=10000,
-    supported_measurement_types=(
-        "current_dc",
-        "voltage_dc",
-        "current_ac",
-        "voltage_ac",
-        "resistance_2w",
-        "resistance_4w",
+    measurement_options=(
+        MeasurementOptions(
+            measurement_type="current_dc",
+            range_options=KEYSIGHT_34461A_CURRENT_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
+            measurement_type="voltage_dc",
+            range_options=KEYSIGHT_34461A_DCV_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
+            measurement_type="current_ac",
+            range_options=KEYSIGHT_34461A_CURRENT_RANGES,
+        ),
+        MeasurementOptions(
+            measurement_type="voltage_ac",
+            range_options=KEYSIGHT_34461A_ACV_RANGES,
+        ),
+        MeasurementOptions(
+            measurement_type="resistance_2w",
+            range_options=KEYSIGHT_34461A_RESISTANCE_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
+            measurement_type="resistance_4w",
+            range_options=KEYSIGHT_34461A_RESISTANCE_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
     ),
     supports_buffered_reading_memory=True,
     supports_bus_trigger=True,

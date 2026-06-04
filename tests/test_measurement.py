@@ -750,66 +750,11 @@ class MeasurementFactoryTests(unittest.TestCase):
         self.assertFalse(get_measurement_definition("resistance-2w").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("resistance-4w").accepts_current_range_alias)
 
-    def test_registry_exposes_keysight_34461a_range_and_nplc_options(self):
+    def test_registry_keeps_only_logical_measurement_metadata(self):
         current_dc = get_measurement_definition("current-dc")
-        voltage_dc = get_measurement_definition("voltage-dc")
-        current_ac = get_measurement_definition("current-ac")
-        voltage_ac = get_measurement_definition("voltage-ac")
-        resistance_2w = get_measurement_definition("resistance-2w")
-        resistance_4w = get_measurement_definition("resistance-4w")
 
-        self.assertEqual(
-            (
-                ("100 uA", 0.0001),
-                ("1 mA", 0.001),
-                ("10 mA", 0.01),
-                ("100 mA", 0.1),
-                ("1 A", 1.0),
-                ("3 A", 3.0),
-                ("10 A (front 10A terminal)", 10.0),
-            ),
-            current_dc.range_options,
-        )
-        self.assertEqual(
-            (
-                ("100 mV", 0.1),
-                ("1 V", 1.0),
-                ("10 V", 10.0),
-                ("100 V", 100.0),
-                ("1000 V", 1000.0),
-            ),
-            voltage_dc.range_options,
-        )
-        self.assertEqual(
-            (
-                ("100 mV", 0.1),
-                ("1 V", 1.0),
-                ("10 V", 10.0),
-                ("100 V", 100.0),
-                ("750 V", 750.0),
-            ),
-            voltage_ac.range_options,
-        )
-        self.assertEqual(
-            (
-                ("100 Ohm", 100.0),
-                ("1 kOhm", 1_000.0),
-                ("10 kOhm", 10_000.0),
-                ("100 kOhm", 100_000.0),
-                ("1 MOhm", 1_000_000.0),
-                ("10 MOhm", 10_000_000.0),
-                ("100 MOhm", 100_000_000.0),
-            ),
-            resistance_2w.range_options,
-        )
-        self.assertEqual(current_dc.range_options, current_ac.range_options)
-        self.assertEqual(resistance_2w.range_options, resistance_4w.range_options)
-        self.assertEqual((0.02, 0.2, 1.0, 10.0, 100.0), current_dc.nplc_options)
-        self.assertEqual(current_dc.nplc_options, voltage_dc.nplc_options)
-        self.assertEqual(current_dc.nplc_options, resistance_2w.nplc_options)
-        self.assertEqual(current_dc.nplc_options, resistance_4w.nplc_options)
-        self.assertEqual((), current_ac.nplc_options)
-        self.assertEqual((), voltage_ac.nplc_options)
+        self.assertFalse(hasattr(current_dc, "range_options"))
+        self.assertFalse(hasattr(current_dc, "nplc_options"))
 
     def test_unsupported_measurement_plugin_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "Unsupported measurement type"):

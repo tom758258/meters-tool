@@ -7,7 +7,6 @@ CLI-first Python logger for Keysight 34461A DC/AC current, DC/AC voltage, and
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
-
 ## Current Scope
 
 Implemented:

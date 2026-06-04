@@ -6,6 +6,10 @@ from keysight_logger.models import (
     DEFAULT_INSTRUMENT_PROFILE,
     INSTRUMENT_PROFILES,
     KEYSIGHT_34461A_CAPABILITIES,
+    KEYSIGHT_34461A_CURRENT_RANGES,
+    KEYSIGHT_34461A_DCV_RANGES,
+    KEYSIGHT_34461A_NPLC_OPTIONS,
+    KEYSIGHT_34461A_RESISTANCE_RANGES,
     KEYSIGHT_34461A_PROFILE,
     find_instrument_profile_by_idn,
     find_instrument_profile_by_model,
@@ -39,6 +43,40 @@ class CapabilitiesTests(unittest.TestCase):
         self.assertTrue(capabilities.supports_bus_trigger)
         self.assertTrue(capabilities.supports_external_trigger)
         self.assertFalse(capabilities.supports_sample_timer)
+
+    def test_34461a_profile_exposes_measurement_options(self):
+        profile = KEYSIGHT_34461A_PROFILE
+
+        self.assertEqual(
+            profile.supported_measurement_types,
+            tuple(options.measurement_type for options in profile.measurement_options),
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_CURRENT_RANGES,
+            profile.get_measurement_options("current-dc").range_options,
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_DCV_RANGES,
+            profile.get_measurement_options("voltage-dc").range_options,
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_RESISTANCE_RANGES,
+            profile.get_measurement_options("resistance-2w").range_options,
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_RESISTANCE_RANGES,
+            profile.get_measurement_options("resistance-4w").range_options,
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_NPLC_OPTIONS,
+            profile.get_measurement_options("current-dc").nplc_options,
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_NPLC_OPTIONS,
+            profile.get_measurement_options("voltage-dc").nplc_options,
+        )
+        self.assertEqual((), profile.get_measurement_options("current-ac").nplc_options)
+        self.assertEqual((), profile.get_measurement_options("voltage-ac").nplc_options)
 
     def test_profile_lookup_defaults_to_34461a(self):
         self.assertIs(get_default_instrument_profile(), KEYSIGHT_34461A_PROFILE)

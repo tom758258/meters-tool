@@ -23,7 +23,7 @@ from keysight_logger.cli import (
     resolve_trigger_mode,
     validate_start_args,
 )
-from keysight_logger.models import InstrumentProfile
+from keysight_logger.models import InstrumentProfile, MeasurementOptions
 
 
 FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
@@ -31,11 +31,17 @@ FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
     model="FAKE100",
     aliases=("FAKE100",),
     reading_memory_limit=5,
-    supported_measurement_types=("current_dc",),
     supports_buffered_reading_memory=True,
     supports_bus_trigger=True,
     supports_external_trigger=True,
     supports_sample_timer=False,
+    measurement_options=(
+        MeasurementOptions(
+            measurement_type="current_dc",
+            range_options=(("500 mA", 0.5),),
+            nplc_options=(1.0, 2.0),
+        ),
+    ),
 )
 
 
@@ -363,6 +369,82 @@ class CliArgsTests(unittest.TestCase):
             validate_start_args(
                 args,
                 resolve_trigger_mode(args),
+                instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+            )
+
+    def test_profile_controls_measurement_range_validation(self):
+        parser = build_parser()
+
+        accepted = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-dc",
+                "--range",
+                "0.5",
+            ]
+        )
+        validate_start_args(
+            accepted,
+            resolve_trigger_mode(accepted),
+            instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+        rejected = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-dc",
+                "--range",
+                "0.1",
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "Allowed ranges in A: 0.5"):
+            validate_start_args(
+                rejected,
+                resolve_trigger_mode(rejected),
+                instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+            )
+
+    def test_profile_controls_nplc_validation(self):
+        parser = build_parser()
+
+        accepted = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-dc",
+                "--nplc",
+                "2.0",
+            ]
+        )
+        validate_start_args(
+            accepted,
+            resolve_trigger_mode(accepted),
+            instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+        rejected = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-dc",
+                "--nplc",
+                "0.2",
+            ]
+        )
+        with self.assertRaisesRegex(ValueError, "Allowed NPLC values: 1, 2"):
+            validate_start_args(
+                rejected,
+                resolve_trigger_mode(rejected),
                 instrument_profile=FAKE_CURRENT_ONLY_PROFILE,
             )
 
