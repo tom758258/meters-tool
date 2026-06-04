@@ -2085,6 +2085,82 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("FETC?", payload["read_path"])
         self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
 
+    def test_start_dry_run_jsonl_overflow_warnings_are_plan_notes_only(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--trigger-mode",
+                "software-custom",
+                "--measurement",
+                "current-dc",
+                "--dry-run",
+                "--status-format",
+                "jsonl",
+                "--allow-buffer-overflow-risk",
+                "--trigger-count",
+                "100",
+                "--sample-count",
+                "1000",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        lines = [line for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(lines))
+        payload = json.loads(lines[0])
+        self.assertEqual("dry_run", payload["event"])
+        self.assertTrue(any("requested readings exceed" in note for note in payload["notes"]))
+        self.assertFalse(lines[0].startswith("WARNING:"))
+
+    def test_start_jsonl_overflow_warnings_are_status_events(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::WRONG",
+                "--csv",
+                "data\\unused.csv",
+                "--trigger-mode",
+                "software-custom",
+                "--measurement",
+                "current-dc",
+                "--status-format",
+                "jsonl",
+                "--allow-buffer-overflow-risk",
+                "--trigger-count",
+                "101",
+                "--sample-count",
+                "100",
+            ]
+        )
+        ConnectFailingStartInstrument.release_calls = 0
+        ConnectFailingStartInstrument.cleanup_calls = 0
+        ConnectFailingStartInstrument.close_calls = 0
+        stdout = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.VisaInstrument", ConnectFailingStartInstrument),
+            redirect_stdout(stdout),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(3, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertGreaterEqual(len(events), 6)
+        self.assertTrue(all(event["event"] == "status" for event in events[:5]))
+        self.assertTrue(all("WARNING:" in event["message"] for event in events[:5]))
+        self.assertTrue(any(event["event"] == "error" for event in events))
+
     def test_start_simulate_immediate_captures_sample(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -2160,6 +2236,129 @@ class CliCommandTests(unittest.TestCase):
         summary = [event for event in events if event["event"] == "summary"][-1]
         self.assertEqual(1, summary["captured"])
         self.assertEqual(0, summary["errors"])
+
+    def test_start_dry_run_immediate_no_buffered_scpi(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "current-dc",
+                "--dry-run",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        output = stdout.getvalue()
+        self.assertIn("READ?", output)
+        self.assertNotIn("DATA:POINts?", output)
+        self.assertNotIn("DATA:REMove?", output)
+        self.assertNotIn("TRIG:COUNT", output)
+
+    def test_start_dry_run_custom_read_path(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run_custom.csv",
+                "--trigger-mode",
+                "software-custom",
+                "--measurement",
+                "current-dc",
+                "--dry-run",
+                "--trigger-count",
+                "3",
+                "--sample-count",
+                "5",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        output = stdout.getvalue()
+        self.assertIn("DATA:POINts? / DATA:REMove?", output)
+        self.assertIn("TRIG:COUNT 3", output)
+        self.assertIn("SAMP:COUNT 5", output)
+        self.assertIn("TRIG:SOUR BUS", output)
+
+    def test_start_dry_run_conflicts_with_simulate(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "current-dc",
+                "--dry-run",
+                "--simulate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = cmd_start(args)
+
+        self.assertEqual(2, rc)
+        self.assertIn("--dry-run and --simulate cannot be used together", stderr.getvalue())
+
+    def test_start_simulate_immediate_custom_no_max_samples_ok(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\sim_custom.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--trigger-count",
+                "2",
+                "--sample-count",
+                "3",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+            patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            redirect_stdout(stdout),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        self.assertIn("captured=6 errors=0", stdout.getvalue())
+
 
     @patch("keysight_logger.cli.VisaInstrument")
     def test_list_resources_without_verify_prints_resources(self, mock_visa):
@@ -2305,6 +2504,105 @@ class CliCommandTests(unittest.TestCase):
         rc = cmd_soft_stop(8765)
         self.assertEqual(0, rc)
 
+
+    @patch(
+        "keysight_logger.cli.request.urlopen",
+        side_effect=URLError(ConnectionRefusedError(10061, "refused")),
+    )
+    def test_soft_stop_connection_refused_json_returns_formatted_json(self, _mock_urlopen):
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_soft_stop(8765, output_format="json")
+
+        self.assertEqual(0, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(events))
+        self.assertEqual("soft-stop", events[0]["event"])
+        self.assertEqual("already_stopped", events[0]["status"])
+
+class CliCommandJsonTests(unittest.TestCase):
+    def test_soft_trigger_invalid_meta_json_returns_error_event(self):
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_soft_trigger(8765, "{bad json", output_format="json")
+
+        self.assertEqual(2, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(events))
+        self.assertEqual("error", events[0]["event"])
+        self.assertEqual(2, events[0]["exit_code"])
+        self.assertIn("meta must be valid JSON", events[0]["message"])
+
+    @patch("keysight_logger.cli.request.urlopen")
+    def test_soft_trigger_success_json_returns_accepted_event(self, mock_urlopen):
+        class FakeResponse:
+            status = 202
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        mock_urlopen.return_value = FakeResponse()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            rc = cmd_soft_trigger(8765, '{"operator": "tom"}', output_format="json")
+        self.assertEqual(0, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(events))
+        self.assertEqual("soft-trigger", events[0]["event"])
+        self.assertEqual("accepted", events[0]["status"])
+        self.assertEqual(202, events[0]["http_status"])
+
+    @patch("keysight_logger.cli.request.urlopen", side_effect=URLError("offline"))
+    def test_soft_trigger_url_error_json_returns_error_event(self, _mock_urlopen):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            rc = cmd_soft_trigger(8765, "{}", output_format="json")
+        self.assertEqual(3, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(events))
+        self.assertEqual("error", events[0]["event"])
+        self.assertEqual(3, events[0]["exit_code"])
+
+    @patch("keysight_logger.cli.request.urlopen")
+    def test_soft_stop_success_json_returns_accepted_event(self, mock_urlopen):
+        class FakeResponse:
+            status = 204
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        mock_urlopen.return_value = FakeResponse()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            rc = cmd_soft_stop(8765, output_format="json")
+        self.assertEqual(0, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(events))
+        self.assertEqual("soft-stop", events[0]["event"])
+        self.assertEqual("accepted", events[0]["status"])
+        self.assertEqual(204, events[0]["http_status"])
+
+    @patch("keysight_logger.cli.request.urlopen", side_effect=URLError("offline"))
+    def test_soft_stop_url_error_json_returns_error_event(self, _mock_urlopen):
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_soft_stop(8765, output_format="json")
+
+        self.assertEqual(3, rc)
+        events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
+        self.assertEqual(1, len(events))
+        self.assertEqual("error", events[0]["event"])
+        self.assertEqual(3, events[0]["exit_code"])
+        self.assertIn("stop request failed", events[0]["message"])
 
 if __name__ == "__main__":
     unittest.main()

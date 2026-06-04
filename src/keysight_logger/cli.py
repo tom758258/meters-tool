@@ -435,7 +435,7 @@ class CliEventEmitter:
         self._print(message, file=sys.stderr)
 
 
-def _start_plan(args: argparse.Namespace, trigger_mode: str, profile: InstrumentProfile) -> StartCommandPlan:
+def _start_plan(args: argparse.Namespace, trigger_mode: str, profile: InstrumentProfile, buffer_warnings: list[str] | None = None) -> StartCommandPlan:
     measurement_type = normalize_measurement_type(args.measurement)
     measurement_def = get_measurement_definition(measurement_type)
     csv_path = str(resolve_csv_path(args.csv))
@@ -505,7 +505,9 @@ def _start_plan(args: argparse.Namespace, trigger_mode: str, profile: Instrument
         "cleanup_release_to_local",
         "stop_http_server",
     ]
-    notes = []
+    notes: list[str] = []
+    if buffer_warnings:
+        notes.extend(buffer_warnings)
     if trigger_mode.endswith("-custom"):
         notes.append("buffered drain uses DATA:POINts? and DATA:REMove?")
     if trigger_mode == "external":
@@ -1137,24 +1139,29 @@ def print_buffer_overflow_warnings(
     trigger_mode: str,
     instrument_profile: InstrumentProfile | None = None,
     emit_fn=None,  # noqa: ANN001
-) -> None:
+) -> list[str]:
+    warnings: list[str] = []
     if emit_fn is None:
         emit_fn = print
     profile = instrument_profile or get_default_instrument_profile()
     if not trigger_mode.endswith("-custom") or not args.allow_buffer_overflow_risk:
-        return
+        return []
     if args.trigger_count is None or args.sample_count is None:
-        return
+        return []
     memory_limit = profile.reading_memory_limit
     expected_readings = args.trigger_count * args.sample_count
     if expected_readings <= memory_limit:
-        return
+        return []
     model = profile.model
-    emit_fn(f"WARNING: requested readings exceed {model} reading memory.")
-    emit_fn(f"WARNING: requested={expected_readings}, memory_limit={memory_limit}.")
-    emit_fn("WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory.")
-    emit_fn("WARNING: data loss, incomplete rows, or SCPI errors are possible.")
-    emit_fn("WARNING: validate with low counts first and inspect row count/errors.")
+    msg1 = f"WARNING: requested readings exceed {model} reading memory."
+    msg2 = f"WARNING: requested={expected_readings}, memory_limit={memory_limit}."
+    msg3 = "WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory."
+    msg4 = "WARNING: data loss, incomplete rows, or SCPI errors are possible."
+    msg5 = "WARNING: validate with low counts first and inspect row count/errors."
+    for msg in [msg1, msg2, msg3, msg4, msg5]:
+        emit_fn(msg)
+        warnings.append(msg)
+    return warnings
 
 
 def cmd_start(args: argparse.Namespace) -> int:
@@ -1168,14 +1175,27 @@ def cmd_start(args: argparse.Namespace) -> int:
     except ValueError as exc:
         emitter.error(str(exc), rc=2)
         return 2
-    print_buffer_overflow_warnings(
+    if args.dry_run:
+        warnings = print_buffer_overflow_warnings(
+            args,
+            trigger_mode,
+            instrument_profile=instrument_profile,
+            emit_fn=lambda _message: None,
+        )
+    else:
+        warnings = print_buffer_overflow_warnings(
+            args,
+            trigger_mode,
+            instrument_profile=instrument_profile,
+            emit_fn=emitter.status if args.status_format == "jsonl" else emitter.line,
+        )
+
+    plan = _start_plan(
         args,
         trigger_mode,
-        instrument_profile=instrument_profile,
-        emit_fn=emitter.status if args.status_format == "jsonl" else emitter.line,
+        instrument_profile,
+        buffer_warnings=warnings if args.dry_run else None,
     )
-
-    plan = _start_plan(args, trigger_mode, instrument_profile)
     if args.dry_run:
         _emit_start_plan(plan, emitter)
         return 0

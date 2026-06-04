@@ -370,6 +370,63 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
 
         with patch("keysight_logger.instrument.pyvisa", None):
             self.assertEqual("pyvisa_unavailable", instrument.cleanup_release_to_local())
+    def test_cleanup_release_to_local_with_injected_factory_and_unavailable_pyvisa(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+
+        instrument = VisaInstrument(
+            InstrumentConfig(resource_string="USB::FAKE"),
+            resource_manager_factory=lambda: rm,
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            with patch("keysight_logger.instrument.time.sleep", return_value=None):
+                result = instrument.cleanup_release_to_local(timeout_ms=777)
+
+        self.assertEqual(["USB::FAKE"], rm.opened_resources)
+        self.assertIn("cleanup_open:ok", result)
+        self.assertIn("SYST:LOC:ok", result)
+        self.assertIn("cleanup_close:ok", result)
+        self.assertIn("cleanup_rm_close:ok", result)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_injected_factory_enforces_idn_validation_and_cleanup_on_failure(self):
+        session = FakeVisaSession()
+        session.idn_response = "Other Vendor,1234,MY123,1.0"
+        rm = FakeResourceManager(session=session)
+
+        instrument = VisaInstrument(
+            InstrumentConfig(resource_string="USB::FAKE", timeout_ms=4321),
+            resource_manager_factory=lambda: rm,
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            with self.assertRaisesRegex(InstrumentError, "unsupported instrument identity"):
+                instrument.connect()
+
+        self.assertEqual(["query:*IDN?"], session.writes)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_injected_factory_enforces_idn_query_failure_cleanup(self):
+        session = FakeVisaSession()
+        session.fail_query = True
+        rm = FakeResourceManager(session=session)
+
+        instrument = VisaInstrument(
+            InstrumentConfig(resource_string="USB::FAKE", timeout_ms=4321),
+            resource_manager_factory=lambda: rm,
+        )
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            with self.assertRaisesRegex(InstrumentError, "failed to validate instrument identity"):
+                instrument.connect()
+
+        self.assertEqual([], session.writes)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
 
 
 if __name__ == "__main__":
