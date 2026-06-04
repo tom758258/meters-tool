@@ -290,7 +290,10 @@ def build_parser() -> argparse.ArgumentParser:
         dest="measurement_range",
         type=float,
         default=None,
-        help="manual measurement range; amps for current-dc, volts for voltage-dc, ohms for resistance",
+        help=(
+            "manual measurement range; amps for current, volts for voltage, "
+            "ohms for resistance"
+        ),
     )
     start.add_argument(
         "--current-range",

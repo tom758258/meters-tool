@@ -25,7 +25,14 @@ class CapabilitiesTests(unittest.TestCase):
         self.assertIn("34461A", capabilities.aliases)
         self.assertEqual(10000, capabilities.reading_memory_limit)
         self.assertEqual(
-            ("current_dc", "voltage_dc", "resistance_2w", "resistance_4w"),
+            (
+                "current_dc",
+                "voltage_dc",
+                "current_ac",
+                "voltage_ac",
+                "resistance_2w",
+                "resistance_4w",
+            ),
             capabilities.supported_measurement_types,
         )
         self.assertTrue(capabilities.supports_buffered_reading_memory)

@@ -3,11 +3,13 @@ from __future__ import annotations
 import unittest
 
 from keysight_logger.measurement import (
+    CurrentAcMeasurement,
     CurrentDcMeasurement,
     CurrentMeasurement,
     Resistance2wMeasurement,
     Resistance4wMeasurement,
     ScalarDmmMeasurement,
+    VoltageAcMeasurement,
     VoltageDcMeasurement,
     create_measurement_plugin,
     format_measurement_type,
@@ -346,6 +348,158 @@ class VoltageDcMeasurementTests(unittest.TestCase):
         self.assertIn("OUTP:TRIG:SLOP NEG", inst.commands)
 
 
+class CurrentAcMeasurementTests(unittest.TestCase):
+    def test_current_ac_uses_scalar_base_without_inheriting_dc_current(self):
+        measurement = CurrentAcMeasurement()
+
+        self.assertIsInstance(measurement, ScalarDmmMeasurement)
+        self.assertNotIsInstance(measurement, CurrentMeasurement)
+
+    def test_auto_range_writes_current_ac_scpi_without_dc_only_settings(self):
+        inst = FakeInstrument()
+        measurement = CurrentAcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(nplc=10.0, auto_zero=False))
+
+        self.assertEqual(
+            [
+                "CONF:CURR:AC AUTO",
+                "CURR:AC:RANG:AUTO ON",
+            ],
+            inst.commands,
+        )
+
+    def test_manual_range_writes_current_ac_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentAcMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(auto_range=False, measurement_range=0.1),
+        )
+
+        self.assertEqual(
+            [
+                "CONF:CURR:AC AUTO",
+                "CURR:AC:RANG 0.1",
+            ],
+            inst.commands,
+        )
+
+    def test_read_sample_uses_current_ac_metadata_and_fetch_for_hardware(self):
+        inst = FakeInstrument()
+        measurement = CurrentAcMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(inst, TriggerEvent.new(TriggerSource.HARDWARE))
+
+        self.assertEqual("current_ac", sample.measurement_type)
+        self.assertEqual("A", sample.unit)
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual("FETC?", inst.commands[-1])
+
+    def test_buffered_samples_use_current_ac_metadata(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "0.12"
+        measurement = CurrentAcMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual("current_ac", samples[0].measurement_type)
+        self.assertEqual("A", samples[0].unit)
+        self.assertEqual(0.12, samples[0].value)
+
+    def test_vm_comp_slope_writes_output_trigger_slope(self):
+        inst = FakeInstrument()
+        measurement = CurrentAcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(vm_comp_slope="pos"))
+
+        self.assertIn("OUTP:TRIG:SLOP POS", inst.commands)
+
+
+class VoltageAcMeasurementTests(unittest.TestCase):
+    def test_voltage_ac_uses_scalar_base_without_inheriting_current(self):
+        measurement = VoltageAcMeasurement()
+
+        self.assertIsInstance(measurement, ScalarDmmMeasurement)
+        self.assertNotIsInstance(measurement, CurrentMeasurement)
+
+    def test_auto_range_writes_voltage_ac_scpi_without_dc_only_settings(self):
+        inst = FakeInstrument()
+        measurement = VoltageAcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(nplc=10.0, auto_zero=False))
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:AC AUTO",
+                "VOLT:AC:RANG:AUTO ON",
+            ],
+            inst.commands,
+        )
+
+    def test_manual_range_writes_voltage_ac_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = VoltageAcMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(auto_range=False, measurement_range=10.0),
+        )
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:AC AUTO",
+                "VOLT:AC:RANG 10.0",
+            ],
+            inst.commands,
+        )
+
+    def test_read_sample_uses_voltage_ac_metadata_and_fetch_for_hardware(self):
+        inst = FakeInstrument()
+        measurement = VoltageAcMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(inst, TriggerEvent.new(TriggerSource.HARDWARE))
+
+        self.assertEqual("voltage_ac", sample.measurement_type)
+        self.assertEqual("V", sample.unit)
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual("FETC?", inst.commands[-1])
+
+    def test_buffered_samples_use_voltage_ac_metadata(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "12.5"
+        measurement = VoltageAcMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual("voltage_ac", samples[0].measurement_type)
+        self.assertEqual("V", samples[0].unit)
+        self.assertEqual(12.5, samples[0].value)
+
+    def test_vm_comp_slope_writes_output_trigger_slope(self):
+        inst = FakeInstrument()
+        measurement = VoltageAcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(vm_comp_slope="neg"))
+
+        self.assertIn("OUTP:TRIG:SLOP NEG", inst.commands)
+
+
 class Resistance2wMeasurementTests(unittest.TestCase):
     def test_resistance_2w_uses_scalar_base_without_inheriting_current(self):
         measurement = Resistance2wMeasurement()
@@ -514,6 +668,12 @@ class MeasurementFactoryTests(unittest.TestCase):
     def test_create_voltage_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("voltage-dc"), VoltageDcMeasurement)
 
+    def test_create_current_ac_measurement_plugin(self):
+        self.assertIsInstance(create_measurement_plugin("current-ac"), CurrentAcMeasurement)
+
+    def test_create_voltage_ac_measurement_plugin(self):
+        self.assertIsInstance(create_measurement_plugin("voltage-ac"), VoltageAcMeasurement)
+
     def test_create_resistance_2w_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("resistance-2w"), Resistance2wMeasurement)
 
@@ -528,18 +688,31 @@ class MeasurementFactoryTests(unittest.TestCase):
 
     def test_registry_exposes_current_voltage_and_resistance_definitions(self):
         self.assertEqual(
-            ("current_dc", "voltage_dc", "resistance_2w", "resistance_4w"),
+            (
+                "current_dc",
+                "voltage_dc",
+                "current_ac",
+                "voltage_ac",
+                "resistance_2w",
+                "resistance_4w",
+            ),
             registered_measurement_types(),
         )
         self.assertEqual("current_dc", normalize_measurement_type("current-dc"))
         self.assertEqual("voltage-dc", format_measurement_type("voltage_dc"))
+        self.assertEqual("current-ac", format_measurement_type("current_ac"))
+        self.assertEqual("voltage-ac", format_measurement_type("voltage_ac"))
         self.assertEqual("resistance-2w", format_measurement_type("resistance_2w"))
         self.assertEqual("resistance-4w", format_measurement_type("resistance_4w"))
         self.assertEqual("A", get_measurement_definition("current-dc").unit)
+        self.assertEqual("A", get_measurement_definition("current-ac").unit)
+        self.assertEqual("V", get_measurement_definition("voltage-ac").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-2w").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-4w").unit)
         self.assertTrue(get_measurement_definition("current-dc").accepts_current_range_alias)
+        self.assertFalse(get_measurement_definition("current-ac").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("voltage-dc").accepts_current_range_alias)
+        self.assertFalse(get_measurement_definition("voltage-ac").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("resistance-2w").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("resistance-4w").accepts_current_range_alias)
 

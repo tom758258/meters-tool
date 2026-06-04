@@ -101,6 +101,18 @@ VOLTAGE_DC_DEFINITION = MeasurementDefinition(
     unit="V",
     range_label="volts",
 )
+CURRENT_AC_DEFINITION = MeasurementDefinition(
+    cli_name="current-ac",
+    internal_type="current_ac",
+    unit="A",
+    range_label="amps",
+)
+VOLTAGE_AC_DEFINITION = MeasurementDefinition(
+    cli_name="voltage-ac",
+    internal_type="voltage_ac",
+    unit="V",
+    range_label="volts",
+)
 RESISTANCE_2W_DEFINITION = MeasurementDefinition(
     cli_name="resistance-2w",
     internal_type="resistance_2w",
@@ -297,6 +309,38 @@ class VoltageDcMeasurement(ScalarDmmMeasurement):
         self._configured = True
 
 
+class CurrentAcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(CURRENT_AC_DEFINITION)
+
+    def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:CURR:AC AUTO")
+        if config.auto_range:
+            instrument.write("CURR:AC:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"CURR:AC:RANG {config.measurement_range}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class VoltageAcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(VOLTAGE_AC_DEFINITION)
+
+    def configure(self, instrument: VisaInstrument, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:VOLT:AC AUTO")
+        if config.auto_range:
+            instrument.write("VOLT:AC:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"VOLT:AC:RANG {config.measurement_range}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
 class Resistance2wMeasurement(ScalarDmmMeasurement):
     def __init__(self) -> None:
         super().__init__(RESISTANCE_2W_DEFINITION)
@@ -337,12 +381,16 @@ CurrentMeasurement = CurrentDcMeasurement
 _MEASUREMENT_DEFINITIONS = {
     CURRENT_DC_DEFINITION.internal_type: CURRENT_DC_DEFINITION,
     VOLTAGE_DC_DEFINITION.internal_type: VOLTAGE_DC_DEFINITION,
+    CURRENT_AC_DEFINITION.internal_type: CURRENT_AC_DEFINITION,
+    VOLTAGE_AC_DEFINITION.internal_type: VOLTAGE_AC_DEFINITION,
     RESISTANCE_2W_DEFINITION.internal_type: RESISTANCE_2W_DEFINITION,
     RESISTANCE_4W_DEFINITION.internal_type: RESISTANCE_4W_DEFINITION,
 }
 _MEASUREMENT_PLUGIN_TYPES: dict[str, type[MeasurementPlugin]] = {
     CURRENT_DC_DEFINITION.internal_type: CurrentDcMeasurement,
     VOLTAGE_DC_DEFINITION.internal_type: VoltageDcMeasurement,
+    CURRENT_AC_DEFINITION.internal_type: CurrentAcMeasurement,
+    VOLTAGE_AC_DEFINITION.internal_type: VoltageAcMeasurement,
     RESISTANCE_2W_DEFINITION.internal_type: Resistance2wMeasurement,
     RESISTANCE_4W_DEFINITION.internal_type: Resistance4wMeasurement,
 }
