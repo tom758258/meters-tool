@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Keysight Logger</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="toolbar">
+        <div>
+          <p class="eyebrow">Keysight 34461A</p>
+          <h1>Local acquisition console</h1>
+        </div>
+        <div class="run-controls">
+          <button id="refresh-resources" type="button">Scan</button>
+          <button id="start-run" type="button" class="primary">Start</button>
+          <button id="trigger-run" type="button">Trigger</button>
+          <button id="stop-run" type="button" class="danger">Stop</button>
+        </div>
+      </section>
+
+      <section class="status-strip" aria-live="polite">
+        <div>
+          <span>State</span>
+          <strong id="status-state">idle</strong>
+        </div>
+        <div>
+          <span>Captured</span>
+          <strong id="status-captured">0</strong>
+        </div>
+        <div>
+          <span>Errors</span>
+          <strong id="status-errors">0</strong>
+        </div>
+        <div>
+          <span>CSV</span>
+          <strong id="status-csv">auto</strong>
+        </div>
+      </section>
+
+      <section class="grid">
+        <form id="run-form" class="panel">
+          <h2>Run setup</h2>
+          <label>
+            VISA resource
+            <input id="resource" name="resource" list="resource-list" required />
+            <datalist id="resource-list"></datalist>
+          </label>
+          <label>
+            CSV path
+            <input name="csv" placeholder="data/YYYY-MM-DD-HH-MM-SS.csv" />
+          </label>
+          <div class="pair">
+            <label>
+              Measurement
+              <select name="measurement" id="measurement"></select>
+            </label>
+            <label>
+              Trigger mode
+              <select name="trigger_mode" id="trigger-mode"></select>
+            </label>
+          </div>
+          <div class="pair">
+            <label>
+              Timeout ms
+              <input name="timeout_ms" type="number" min="1" value="5000" />
+            </label>
+            <label>
+              Trigger timeout ms
+              <input name="trigger_timeout_ms" type="number" min="1" value="10000" />
+            </label>
+          </div>
+          <div class="pair">
+            <label>
+              Max samples
+              <input name="max_samples" type="number" min="1" />
+            </label>
+            <label>
+              Timer interval s
+              <input name="timer_interval_s" type="number" min="0" step="0.001" />
+            </label>
+          </div>
+        </form>
+
+        <section class="panel">
+          <h2>Measurement options</h2>
+          <div class="switch-row">
+            <label><input name="auto_range" form="run-form" type="checkbox" checked /> Auto range</label>
+            <label><input name="auto_zero" form="run-form" type="checkbox" checked /> Auto zero</label>
+          </div>
+          <div class="pair">
+            <label>
+              Range
+              <input name="measurement_range" form="run-form" type="number" min="0" step="any" />
+            </label>
+            <label>
+              Current range alias
+              <input name="current_range" form="run-form" type="number" min="0" step="any" />
+            </label>
+          </div>
+          <div class="pair">
+            <label>
+              NPLC
+              <input name="nplc" form="run-form" type="number" min="0" step="any" value="1.0" />
+            </label>
+            <label>
+              DCV input Z
+              <select name="dcv_input_impedance" form="run-form">
+                <option value="default">default</option>
+                <option value="10m">10m</option>
+                <option value="auto">auto</option>
+              </select>
+            </label>
+          </div>
+          <label>
+            VM Comp slope
+            <select name="vm_comp_slope" form="run-form">
+              <option value="">leave unchanged</option>
+              <option value="pos">pos</option>
+              <option value="neg">neg</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="panel">
+          <h2>Trigger options</h2>
+          <div class="pair">
+            <label>
+              Trigger count
+              <input name="trigger_count" form="run-form" type="number" min="1" />
+            </label>
+            <label>
+              Sample count
+              <input name="sample_count" form="run-form" type="number" min="1" />
+            </label>
+          </div>
+          <div class="pair">
+            <label>
+              Buffer drain size
+              <input name="buffer_drain_size" form="run-form" type="number" min="1" />
+            </label>
+            <label>
+              HW delay s
+              <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" step="0.001" value="0" />
+            </label>
+          </div>
+          <div class="pair">
+            <label>
+              HW slope
+              <select name="hw_trigger_slope" form="run-form">
+                <option value="neg">neg</option>
+                <option value="pos">pos</option>
+              </select>
+            </label>
+            <label>
+              SW min interval ms
+              <input name="sw_min_interval_ms" form="run-form" type="number" min="0" value="0" />
+            </label>
+          </div>
+          <div class="switch-row">
+            <label><input name="enable_hw_trigger" form="run-form" type="checkbox" /> Legacy external trigger</label>
+            <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> Allow buffer risk</label>
+          </div>
+        </section>
+
+        <section class="panel log-panel">
+          <h2>Status</h2>
+          <p id="latest-status">idle</p>
+          <pre id="fatal-error"></pre>
+          <pre id="cleanup-status"></pre>
+          <pre id="raw-status"></pre>
+        </section>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>
