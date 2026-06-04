@@ -54,7 +54,7 @@
             </select>
           </label>
           <label>
-            CSV path
+            <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
             <input name="csv" placeholder="Default: data/YYYY-MM-DD-HH-MM-SS.csv" />
           </label>
           <div class="pair">
@@ -69,17 +69,17 @@
           </div>
           <div class="pair">
             <label>
-              Timeout ms
+              <span class="label-title">Timeout ms <span class="optional-mark">(Optional)</span></span>
               <input name="timeout_ms" type="number" min="100" max="600000" placeholder="Default: 5000" />
             </label>
             <label data-mode-scope="trigger-timeout">
-              Trigger timeout ms
+              <span class="label-title">Trigger timeout ms <span class="optional-mark">(Optional)</span></span>
               <input name="trigger_timeout_ms" type="number" min="500" max="600000" placeholder="Default: 10000" />
             </label>
           </div>
           <div class="pair">
             <label data-mode-scope="simple">
-              Max samples
+              <span class="label-title">Max samples <span class="optional-mark">(Optional)</span></span>
               <input name="max_samples" type="number" min="1" max="1000000" placeholder="Default: Unlimited" />
             </label>
           </div>
@@ -154,11 +154,11 @@
           </div>
           <div class="pair">
             <label data-mode-scope="custom">
-              Buffer drain size
+              <span class="label-title">Buffer drain size <span class="optional-mark">(Optional)</span></span>
               <input name="buffer_drain_size" form="run-form" type="number" min="1" max="10000" placeholder="Default: No limit" />
             </label>
             <label data-mode-scope="hardware">
-              HW delay s
+              <span class="label-title">HW delay s <span class="optional-mark">(Optional)</span></span>
               <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" max="3600" step="0.001" placeholder="Default: 0" />
             </label>
           </div>
@@ -171,11 +171,11 @@
               </select>
             </label>
             <label id="sw-min-interval-container" data-mode-scope="software-trigger">
-              SW min interval ms
+              <span class="label-title">SW min interval ms <span class="optional-mark">(Optional)</span></span>
               <input name="sw_min_interval_ms" form="run-form" type="number" min="0" max="600000" placeholder="Default: 0 (Disabled)" />
             </label>
             <label id="sw-queue-max-container" data-mode-scope="software-trigger">
-              SW queue max
+              <span class="label-title">SW queue max <span class="optional-mark">(Optional)</span></span>
               <input name="sw_queue_max" form="run-form" type="number" min="0" max="10000" placeholder="Default: 0 (Disabled)" />
             </label>
             <label id="timer-interval-container" data-mode-scope="software" class="is-hidden">
@@ -187,17 +187,35 @@
             <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> Allow buffer risk</label>
           </div>
           <label id="trigger-metadata-container" data-mode-scope="software-trigger">
-            Trigger metadata JSON
+            <span class="label-title">Trigger metadata JSON <span class="optional-mark">(Optional)</span></span>
             <textarea id="trigger-metadata" rows="3" placeholder="{&quot;batch&quot;:&quot;A1&quot;}"></textarea>
           </label>
         </section>
 
         <section class="panel log-panel">
-          <h2>Status</h2>
-          <p id="latest-status">Idle</p>
-          <pre id="fatal-error"></pre>
-          <pre id="cleanup-status"></pre>
-          <pre id="raw-status"></pre>
+          <div class="status-panel-header">
+            <h2>Status</h2>
+            <button
+              id="toggle-status-details"
+              type="button"
+              aria-controls="status-details"
+              aria-expanded="false"
+            >
+              Show Details
+            </button>
+          </div>
+          <div
+            id="latest-status"
+            class="status-log"
+            role="log"
+            aria-live="polite"
+            aria-label="Status log"
+          ></div>
+          <div id="status-details" class="status-details is-hidden">
+            <pre id="fatal-error"></pre>
+            <pre id="cleanup-status"></pre>
+            <pre id="raw-status"></pre>
+          </div>
         </section>
       </section>
     </main>

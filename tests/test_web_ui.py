@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tempfile
 import time
 import unittest
@@ -267,6 +268,67 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("function applyInputLimits", app_js)
         self.assertIn("function validateSwMinInterval", app_js)
         self.assertIn("Use 0 to disable throttling", app_js)
+
+    def test_static_ui_status_log_and_details_toggle(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('id="latest-status"', index)
+        self.assertIn('class="status-log"', index)
+        self.assertIn('role="log"', index)
+        self.assertIn('id="toggle-status-details"', index)
+        self.assertIn('aria-controls="status-details"', index)
+        self.assertIn('aria-expanded="false"', index)
+        self.assertIn('id="status-details" class="status-details is-hidden"', index)
+        self.assertIn('id="fatal-error"', index)
+        self.assertIn('id="cleanup-status"', index)
+        self.assertIn('id="raw-status"', index)
+        self.assertIn("const STATUS_LOG_LINE_COUNT = 5;", app_js)
+        self.assertIn("function appendStatusLog", app_js)
+        self.assertIn("function appendApiStatusLog", app_js)
+        self.assertIn("function setStatusDetailsVisible", app_js)
+        self.assertIn("Show Details", app_js)
+        self.assertIn("Hide Details", app_js)
+        self.assertIn(".status-log", styles)
+        self.assertIn("grid-template-rows: repeat(5, 1.45em)", styles)
+
+    def test_static_ui_marks_blankable_inputs_optional(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+
+        optional_labels = [
+            "CSV path",
+            "Timeout ms",
+            "Trigger timeout ms",
+            "Max samples",
+            "Buffer drain size",
+            "HW delay s",
+            "SW min interval ms",
+            "SW queue max",
+            "Trigger metadata JSON",
+        ]
+        for label in optional_labels:
+            with self.subTest(label=label):
+                self.assertRegex(
+                    index,
+                    rf"{re.escape(label)}\s*<span class=\"optional-mark\">\(Optional\)</span>",
+                )
+
+        required_labels = [
+            "VISA resource",
+            "Range",
+            "Trigger count",
+            "Sample count",
+            "Timer interval s",
+        ]
+        for label in required_labels:
+            with self.subTest(label=label):
+                self.assertNotRegex(
+                    index,
+                    rf"{re.escape(label)}\s*<span class=\"optional-mark\">\(Optional\)</span>",
+                )
 
     def test_static_ui_scopes_trigger_options_by_mode(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"

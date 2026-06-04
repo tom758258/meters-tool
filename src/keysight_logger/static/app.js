@@ -7,6 +7,8 @@ const latestStatus = document.querySelector("#latest-status");
 const fatalError = document.querySelector("#fatal-error");
 const cleanupStatus = document.querySelector("#cleanup-status");
 const rawStatus = document.querySelector("#raw-status");
+const statusDetails = document.querySelector("#status-details");
+const toggleStatusDetailsButton = document.querySelector("#toggle-status-details");
 const resourceInput = document.querySelector("#resource");
 const resourceSelect = document.querySelector("#resource-select");
 const triggerRunButton = document.querySelector("#trigger-run");
@@ -39,8 +41,11 @@ const measurementScopedControls = [
   ...document.querySelectorAll("[data-measurement-scope]"),
 ];
 const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;
+const STATUS_LOG_LINE_COUNT = 5;
 let measurementsByName = new Map();
 let inputLimits = {};
+let statusLogMessages = [];
+let lastApiLatestStatus = "";
 
 function numberOrNull(value) {
   if (value === null || value === undefined || value === "") {
@@ -57,6 +62,60 @@ function textOrNull(value) {
 function capitalizeFirst(value) {
   const text = String(value || "");
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
+
+function renderStatusLog() {
+  const blankLineCount = Math.max(0, STATUS_LOG_LINE_COUNT - statusLogMessages.length);
+  const visibleLines = [
+    ...Array.from({ length: blankLineCount }, () => ""),
+    ...statusLogMessages,
+  ];
+  latestStatus.replaceChildren(
+    ...visibleLines.map((message) => {
+      const line = document.createElement("div");
+      line.className = "status-log-line";
+      line.textContent = message;
+      return line;
+    })
+  );
+}
+
+function formatStatusLogMessage(message) {
+  return capitalizeFirst(String(message || "").trim());
+}
+
+function appendStatusLog(message) {
+  const formatted = formatStatusLogMessage(message);
+  if (!formatted) {
+    return;
+  }
+  if (statusLogMessages[statusLogMessages.length - 1] === formatted) {
+    return;
+  }
+  statusLogMessages = [...statusLogMessages, formatted].slice(-STATUS_LOG_LINE_COUNT);
+  renderStatusLog();
+}
+
+function appendApiStatusLog(message) {
+  const formatted = formatStatusLogMessage(message);
+  if (!formatted) {
+    return;
+  }
+  if (formatted.toLowerCase() === "idle") {
+    lastApiLatestStatus = formatted;
+    return;
+  }
+  if (formatted === lastApiLatestStatus) {
+    return;
+  }
+  lastApiLatestStatus = formatted;
+  appendStatusLog(formatted);
+}
+
+function setStatusDetailsVisible(visible) {
+  statusDetails.classList.toggle("is-hidden", !visible);
+  toggleStatusDetailsButton.setAttribute("aria-expanded", String(visible));
+  toggleStatusDetailsButton.textContent = visible ? "Hide Details" : "Show Details";
 }
 
 function supportsAutoZero(measurementName) {
@@ -382,7 +441,7 @@ function renderStatus(status) {
   statusCaptured.textContent = String(status.captured ?? 0);
   statusErrors.textContent = String(status.errors ?? 0);
   statusCsv.textContent = status.csv_path || "Default";
-  latestStatus.textContent = capitalizeFirst(status.latest_status || "idle");
+  appendApiStatusLog(status.latest_status || "idle");
   fatalError.textContent = status.fatal_error || "";
   cleanupStatus.textContent = status.cleanup_status || "";
   rawStatus.textContent = JSON.stringify(status, null, 2);
@@ -415,7 +474,7 @@ async function loadCapabilities() {
 }
 
 async function refreshResources() {
-  latestStatus.textContent = "Scanning live resources...";
+  appendStatusLog("Scanning live resources...");
   const result = await api("/api/resources?verify=true&live_only=true");
   resourceSelect.replaceChildren(
     ...[
@@ -441,14 +500,14 @@ async function refreshResources() {
     resourceInput.value = result.resources[0].resource;
     resourceSelect.value = result.resources[0].resource;
   }
-  latestStatus.textContent = `Live resources found: ${result.resources.length}`;
+  appendStatusLog(`Live resources found: ${result.resources.length}`);
 }
 
 async function pollStatus() {
   try {
     renderStatus(await api("/api/runs/current"));
   } catch (error) {
-    latestStatus.textContent = error.message;
+    appendStatusLog(error.message);
   }
 }
 
@@ -456,7 +515,7 @@ document.querySelector("#refresh-resources").addEventListener("click", async () 
   try {
     await refreshResources();
   } catch (error) {
-    latestStatus.textContent = error.message;
+    appendStatusLog(error.message);
   }
 });
 
@@ -472,18 +531,21 @@ timerIntervalInput.addEventListener("input", updateTriggerButtonUi);
 timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
 swMinIntervalInput.addEventListener("input", validateSwMinInterval);
+toggleStatusDetailsButton.addEventListener("click", () => {
+  setStatusDetailsVisible(statusDetails.classList.contains("is-hidden"));
+});
 
 document.querySelector("#start-run").addEventListener("click", async () => {
   try {
     const payload = formPayload();
     if (!payload.resource) {
-      latestStatus.textContent = "Select or enter a VISA resource before Start";
+      appendStatusLog("Select or enter a VISA resource before Start");
       resourceInput.focus();
       return;
     }
     validateSwMinInterval();
     if (!form.checkValidity()) {
-      latestStatus.textContent = "Check highlighted run settings before Start";
+      appendStatusLog("Check highlighted run settings before Start");
       form.reportValidity();
       return;
     }
@@ -492,7 +554,7 @@ document.querySelector("#start-run").addEventListener("click", async () => {
       body: JSON.stringify(payload),
     }));
   } catch (error) {
-    latestStatus.textContent = error.message;
+    appendStatusLog(error.message);
   }
 });
 
@@ -504,7 +566,7 @@ document.querySelector("#trigger-run").addEventListener("click", async () => {
       body: JSON.stringify(metadata),
     }));
   } catch (error) {
-    latestStatus.textContent = error.message;
+    appendStatusLog(error.message);
   }
 });
 
@@ -512,9 +574,12 @@ document.querySelector("#stop-run").addEventListener("click", async () => {
   try {
     renderStatus(await api("/api/runs/current/stop", { method: "POST" }));
   } catch (error) {
-    latestStatus.textContent = error.message;
+    appendStatusLog(error.message);
   }
 });
+
+renderStatusLog();
+setStatusDetailsVisible(false);
 
 loadCapabilities()
   .then(() => {
@@ -522,7 +587,7 @@ loadCapabilities()
     return pollStatus();
   })
   .catch((error) => {
-    latestStatus.textContent = error.message;
+    appendStatusLog(error.message);
   });
 
 window.setInterval(pollStatus, 1000);

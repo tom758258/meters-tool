@@ -167,6 +167,18 @@ label {
   font-size: 13px;
 }
 
+.label-title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.optional-mark {
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .field-title {
   display: flex;
   align-items: center;
@@ -263,9 +275,44 @@ button:focus {
   grid-column: 1 / -1;
 }
 
-#latest-status {
-  margin-bottom: 8px;
-  color: var(--ink);
+.status-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.status-panel-header h2 {
+  margin-bottom: 0;
+}
+
+#toggle-status-details {
+  min-height: 32px;
+}
+
+.status-log {
+  display: grid;
+  grid-template-rows: repeat(5, 1.45em);
+  overflow: hidden;
+  border-radius: 6px;
+  background: #111816;
+  color: #dce9e3;
+  padding: 10px 12px;
+  font-family: "Cascadia Mono", "Consolas", monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.status-log-line {
+  overflow: hidden;
+  min-height: 1.45em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-details {
+  margin-top: 10px;
 }
 
 pre {
