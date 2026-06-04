@@ -55,7 +55,7 @@
           </label>
           <label>
             CSV path
-            <input name="csv" placeholder="data/YYYY-MM-DD-HH-MM-SS.csv" />
+            <input name="csv" placeholder="Optional. Default: data/YYYY-MM-DD-HH-MM-SS.csv" />
           </label>
           <div class="pair">
             <label>
@@ -70,17 +70,17 @@
           <div class="pair">
             <label>
               Timeout ms
-              <input name="timeout_ms" type="number" min="1" value="5000" />
+              <input name="timeout_ms" type="number" min="1" placeholder="Optional" />
             </label>
             <label data-mode-scope="hardware">
               Trigger timeout ms
-              <input name="trigger_timeout_ms" type="number" min="1" value="10000" />
+              <input name="trigger_timeout_ms" type="number" min="1" placeholder="Optional. Default: 10000" />
             </label>
           </div>
           <div class="pair">
             <label data-mode-scope="simple">
               Max samples
-              <input name="max_samples" type="number" min="1" />
+              <input name="max_samples" type="number" min="1" placeholder="Optional" />
             </label>
           </div>
         </form>
@@ -152,11 +152,11 @@
           <div class="pair">
             <label data-mode-scope="custom">
               Buffer drain size
-              <input name="buffer_drain_size" form="run-form" type="number" min="1" />
+              <input name="buffer_drain_size" form="run-form" type="number" min="1" placeholder="Optional" />
             </label>
             <label data-mode-scope="hardware">
               HW delay s
-              <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" step="0.001" value="0" />
+              <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" step="0.001" placeholder="Optional" />
             </label>
           </div>
           <div class="pair">
@@ -169,7 +169,7 @@
             </label>
             <label id="sw-min-interval-container" data-mode-scope="software-trigger">
               SW min interval ms
-              <input name="sw_min_interval_ms" form="run-form" type="number" min="0" value="0" />
+              <input name="sw_min_interval_ms" form="run-form" type="number" min="0" placeholder="Optional" />
             </label>
             <label id="timer-interval-container" data-mode-scope="software" class="is-hidden">
               Timer interval s
