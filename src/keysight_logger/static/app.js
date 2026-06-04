@@ -13,6 +13,8 @@ const triggerRunButton = document.querySelector("#trigger-run");
 const measurementSelect = document.querySelector("#measurement");
 const measurementRangeInput = document.querySelector("#measurement-range");
 const autoRangeCheckbox = document.querySelector("[name='auto_range']");
+const autoZeroContainer = document.querySelector("#auto-zero-container");
+const autoZeroCheckbox = document.querySelector("[name='auto_zero']");
 const rangeContainer = document.querySelector("#range-container");
 const rangeUnit = document.querySelector("#range-unit");
 const rangeSuffix = document.querySelector("#range-suffix");
@@ -46,6 +48,10 @@ function textOrNull(value) {
 function capitalizeFirst(value) {
   const text = String(value || "");
   return text ? text.charAt(0).toUpperCase() + text.slice(1) : "";
+}
+
+function supportsAutoZero(measurementName) {
+  return ["current-dc", "voltage-dc", "resistance-2w"].includes(measurementName);
 }
 
 function triggerTimeoutMs(data, hardwareMode) {
@@ -138,6 +144,9 @@ function formatApiError(payload, fallback) {
 
 function updateMeasurementUi() {
   const selected = measurementSelect.value || "current-dc";
+  const autoZeroVisible = supportsAutoZero(selected);
+  autoZeroContainer.classList.toggle("is-hidden", !autoZeroVisible);
+  autoZeroCheckbox.disabled = !autoZeroVisible;
   const measurement = measurementsByName.get(selected);
   const unit = measurement?.unit || "";
   rangeUnit.textContent = "";
