@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 import threading
 import time
 from typing import Callable, Optional
@@ -10,6 +11,7 @@ from .measurement import MeasurementPlugin
 from .models import (
     AcquisitionConfig,
     InstrumentProfile,
+    MeasurementSample,
     TriggerEvent,
     TriggerSource,
     get_default_instrument_profile,
@@ -32,6 +34,39 @@ def _format_csv_permission_error(exc: PermissionError) -> str:
         "reason: permission denied; the file may be open in Excel or another program\n"
         "action: close the file or choose a different --csv path"
     )
+
+
+def _format_status_value(sample: MeasurementSample) -> str:
+    value = float(sample.value)
+    unit = sample.unit
+    scaled_value = value
+    scaled_unit = unit
+    abs_value = abs(value)
+
+    if math.isfinite(value):
+        if unit == "A":
+            if 0 < abs_value < 1e-3:
+                scaled_value = value * 1_000_000
+                scaled_unit = "uA"
+            elif 0 < abs_value < 1:
+                scaled_value = value * 1_000
+                scaled_unit = "mA"
+        elif unit == "V":
+            if 0 < abs_value < 1e-3:
+                scaled_value = value * 1_000_000
+                scaled_unit = "uV"
+            elif 0 < abs_value < 1:
+                scaled_value = value * 1_000
+                scaled_unit = "mV"
+        elif unit == "Ohm":
+            if abs_value >= 1_000_000:
+                scaled_value = value / 1_000_000
+                scaled_unit = "MOhm"
+            elif abs_value >= 1_000:
+                scaled_value = value / 1_000
+                scaled_unit = "kOhm"
+
+    return f"value={scaled_value:.6g} {scaled_unit}"
 
 
 class TriggerAcquisitionEngine:
@@ -68,6 +103,9 @@ class TriggerAcquisitionEngine:
     def _emit(self, text: str) -> None:
         if self._status_cb:
             self._status_cb(text)
+
+    def _emit_capture_status(self, sample: MeasurementSample) -> None:
+        self._emit(f"captured={self._stats.captured} {_format_status_value(sample)}")
 
     def run(
         self,
@@ -147,6 +185,7 @@ class TriggerAcquisitionEngine:
                     slope=hardware_trigger_slope,
                 )
                 return
+            waiting_trigger_emitted = False
             while self._running and not self._stop_event.is_set():
                 wait_s = min(self._config.trigger_timeout_ms / 1000.0, 0.2)
                 if timer_active:
@@ -179,8 +218,11 @@ class TriggerAcquisitionEngine:
                             self._emit("hardware trigger timeout/error")
                         continue
                 if ev is None:
-                    self._emit("waiting trigger")
+                    if not waiting_trigger_emitted:
+                        self._emit("waiting trigger")
+                        waiting_trigger_emitted = True
                     continue
+                waiting_trigger_emitted = False
                 if self._handle_control_event(ev):
                     continue
                 if hw is not None and ev.source == TriggerSource.SOFTWARE:
@@ -280,7 +322,7 @@ class TriggerAcquisitionEngine:
                     for sample in samples:
                         self._storage.write(sample)
                         self._stats.captured += 1
-                    self._emit(f"captured={self._stats.captured}")
+                    self._emit_capture_status(samples[-1])
                     continue
 
                 ready_for_next_trigger = observed_readings >= triggers_sent * sample_count
@@ -376,7 +418,7 @@ class TriggerAcquisitionEngine:
                 for sample in samples:
                     self._storage.write(sample)
                     self._stats.captured += 1
-                self._emit(f"captured={self._stats.captured}")
+                self._emit_capture_status(samples[-1])
             except Exception:
                 if not self._running:
                     return
@@ -401,7 +443,7 @@ class TriggerAcquisitionEngine:
             sample = self._measurement.read_sample(self._instrument, event)
             self._storage.write(sample)
             self._stats.captured += 1
-            self._emit(f"captured={self._stats.captured}")
+            self._emit_capture_status(sample)
         except Exception:
             if not self._running:
                 return

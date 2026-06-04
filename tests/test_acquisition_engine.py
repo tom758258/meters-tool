@@ -65,15 +65,25 @@ class RecordingInstrument(FakeInstrument):
 
 
 class FakeMeasurement:
+    def __init__(
+        self,
+        value: float = 1.23,
+        unit: str = "A",
+        measurement_type: str = "current_dc",
+    ) -> None:
+        self.value = value
+        self.unit = unit
+        self.measurement_type = measurement_type
+
     def configure(self, instrument, config):  # noqa: ANN001, ARG002
         return
 
     def read_sample(self, instrument, trigger):  # noqa: ANN001
         return MeasurementSample(
             timestamp_utc=datetime.now(timezone.utc),
-            measurement_type="current_dc",
-            value=1.23,
-            unit="A",
+            measurement_type=self.measurement_type,
+            value=self.value,
+            unit=self.unit,
             status="ok",
             resource_id=instrument.resource_id,
             trigger_id=trigger.id,
@@ -268,6 +278,66 @@ class AcquisitionEngineTests(unittest.TestCase):
         worker.join(timeout=1)
         self.assertEqual(1, engine.stats.captured)
 
+    def test_waiting_trigger_status_is_emitted_once_while_idle(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run)
+        worker.start()
+        time.sleep(0.25)
+        engine.stop()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, statuses.count("waiting trigger"))
+
+    def test_capture_status_includes_scaled_sample_value(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(value=0.0123, unit="A"),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=1),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(any("captured=1 value=12.3 mA" in s for s in statuses))
+
+    def test_capture_status_formats_resistance_prefix(self):
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(  # type: ignore[arg-type]
+                value=12_300.0,
+                unit="Ohm",
+                measurement_type="resistance_2w",
+            ),
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50, max_samples=1),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertTrue(any("captured=1 value=12.3 kOhm" in s for s in statuses))
+
     def test_stop_only_sets_stop_state_without_instrument_io(self):
         instrument = FakeInstrument()
         router = TriggerRouter()
@@ -429,6 +499,7 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertGreaterEqual(instrument.abort_count, 1)
         self.assertEqual([3], measurement.read_counts)
         self.assertTrue(any("immediate custom capture started" in s for s in statuses))
+        self.assertTrue(any("captured=3 value=2 A" in s for s in statuses))
         self.assertTrue(any("expected readings reached: 3" in s for s in statuses))
 
     def test_immediate_custom_mode_respects_buffer_drain_size(self):
