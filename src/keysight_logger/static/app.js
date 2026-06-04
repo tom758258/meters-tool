@@ -20,6 +20,9 @@ const nplcField = document.querySelector("#nplc-field");
 const nplcSelect = document.querySelector("#nplc");
 const triggerModeSelect = document.querySelector("#trigger-mode");
 const timerIntervalInput = document.querySelector("[name='timer_interval_s']");
+const timerTriggerCheckbox = document.querySelector("#timer-trigger-checkbox");
+const timerIntervalContainer = document.querySelector("#timer-interval-container");
+const swMinIntervalContainer = document.querySelector("#sw-min-interval-container");
 const triggerOptionsPanel = document.querySelector("#trigger-options-panel");
 const modeScopedControls = [...document.querySelectorAll("[data-mode-scope]")];
 const measurementScopedControls = [
@@ -237,6 +240,20 @@ function updateTriggerModeUi() {
       control.disabled = !visible;
     }
   }
+
+  const isSoftware = mode === "software";
+  const timerEnabled = isSoftware && timerTriggerCheckbox.checked;
+
+  timerIntervalContainer.classList.toggle("is-hidden", !timerEnabled);
+  timerIntervalInput.disabled = !timerEnabled;
+
+  if (isSoftware) {
+    swMinIntervalContainer.classList.toggle("is-hidden", timerEnabled);
+    for (const control of swMinIntervalContainer.querySelectorAll("input, select, textarea")) {
+      control.disabled = timerEnabled;
+    }
+  }
+
   const visibleTriggerControls = triggerOptionsPanel.querySelectorAll(
     "[data-mode-scope]:not(.is-hidden)"
   );
@@ -246,7 +263,7 @@ function updateTriggerModeUi() {
 
 function updateTriggerButtonUi() {
   const mode = triggerModeSelect.value || "software";
-  const timerActive = String(timerIntervalInput.value || "").trim() !== "";
+  const timerActive = mode === "software" && timerTriggerCheckbox.checked;
   const visible =
     mode === "software-custom" || (mode === "software" && !timerActive);
   triggerRunButton.classList.toggle("is-hidden", !visible);
@@ -344,6 +361,7 @@ resourceSelect.addEventListener("change", () => {
 measurementSelect.addEventListener("change", updateMeasurementUi);
 triggerModeSelect.addEventListener("change", updateTriggerModeUi);
 timerIntervalInput.addEventListener("input", updateTriggerButtonUi);
+timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
 
 document.querySelector("#start-run").addEventListener("click", async () => {
