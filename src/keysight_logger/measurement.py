@@ -301,6 +301,10 @@ class VoltageDcMeasurement(ScalarDmmMeasurement):
             instrument.write("VOLT:DC:RANG:AUTO ON")
         elif config.measurement_range is not None:
             instrument.write(f"VOLT:DC:RANG {config.measurement_range}")
+        if config.dcv_input_impedance == "10m":
+            instrument.write("VOLT:DC:IMP:AUTO OFF")
+        elif config.dcv_input_impedance == "auto":
+            instrument.write("VOLT:DC:IMP:AUTO ON")
         instrument.write(f"VOLT:DC:NPLC {config.nplc}")
         instrument.write(f"VOLT:DC:ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
         if config.vm_comp_slope is not None:

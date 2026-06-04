@@ -58,6 +58,7 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual("current-dc", args.measurement)
         self.assertIsNone(args.measurement_range)
         self.assertIsNone(args.current_range)
+        self.assertEqual("default", args.dcv_input_impedance)
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
         self.assertIsNone(args.trigger_count)
@@ -321,6 +322,44 @@ class CliArgsTests(unittest.TestCase):
         with self.assertRaisesRegex(
             ValueError,
             "--range is required when --auto-range off",
+        ):
+            validate_start_args(args, resolve_trigger_mode(args))
+
+    def test_voltage_dc_accepts_dcv_input_impedance(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "voltage-dc",
+                "--dcv-input-impedance",
+                "10M",
+            ]
+        )
+
+        validate_start_args(args, resolve_trigger_mode(args))
+
+        self.assertEqual("10m", args.dcv_input_impedance)
+
+    def test_dcv_input_impedance_rejects_non_voltage_dc_measurement(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-dc",
+                "--dcv-input-impedance",
+                "auto",
+            ]
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "--dcv-input-impedance can only be used with --measurement voltage-dc",
         ):
             validate_start_args(args, resolve_trigger_mode(args))
 

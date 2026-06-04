@@ -310,6 +310,40 @@ class VoltageDcMeasurementTests(unittest.TestCase):
             inst.commands,
         )
 
+    def test_voltage_dc_input_impedance_10m_writes_auto_off(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(dcv_input_impedance="10m"))
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC AUTO",
+                "VOLT:DC:RANG:AUTO ON",
+                "VOLT:DC:IMP:AUTO OFF",
+                "VOLT:DC:NPLC 1.0",
+                "VOLT:DC:ZERO:AUTO ON",
+            ],
+            inst.commands,
+        )
+
+    def test_voltage_dc_input_impedance_auto_writes_auto_on(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(dcv_input_impedance="auto"))
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC AUTO",
+                "VOLT:DC:RANG:AUTO ON",
+                "VOLT:DC:IMP:AUTO ON",
+                "VOLT:DC:NPLC 1.0",
+                "VOLT:DC:ZERO:AUTO ON",
+            ],
+            inst.commands,
+        )
+
     def test_read_sample_uses_voltage_metadata_and_fetch_for_hardware(self):
         inst = FakeInstrument()
         measurement = VoltageDcMeasurement()

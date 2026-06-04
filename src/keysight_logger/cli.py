@@ -173,6 +173,13 @@ def parse_on_off(value: str) -> bool:
     raise argparse.ArgumentTypeError("value must be 'on' or 'off'")
 
 
+def parse_dcv_input_impedance(value: str) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in {"default", "10m", "auto"}:
+        return normalized
+    raise argparse.ArgumentTypeError("value must be 'default', '10m', or 'auto'")
+
+
 def resolve_csv_path(csv_path: str | None, now: datetime | None = None) -> Path:
     if csv_path is not None:
         return Path(csv_path)
@@ -317,6 +324,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="compatibility alias for --range with --measurement current-dc",
     )
     start.add_argument(
+        "--dcv-input-impedance",
+        type=parse_dcv_input_impedance,
+        default="default",
+        help=(
+            "DC voltage input impedance: default leaves instrument setting unchanged, "
+            "10m forces 10 MOhm, auto enables instrument Auto/HighZ behavior"
+        ),
+    )
+    start.add_argument(
         "--vm-comp-slope",
         choices=["pos", "neg"],
         default=None,
@@ -455,6 +471,8 @@ def validate_start_args(
     definition = get_measurement_definition(measurement_type)
     if not definition.accepts_current_range_alias and args.current_range is not None:
         raise ValueError("--current-range can only be used with --measurement current-dc")
+    if args.dcv_input_impedance != "default" and measurement_type != "voltage_dc":
+        raise ValueError("--dcv-input-impedance can only be used with --measurement voltage-dc")
     if args.measurement_range is not None and args.measurement_range <= 0:
         raise ValueError("--range must be > 0")
     if args.current_range is not None and args.current_range <= 0:
@@ -566,6 +584,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         auto_range=args.auto_range,
         measurement_range=measurement_range,
         current_range=args.current_range,
+        dcv_input_impedance=args.dcv_input_impedance,
         hw_trigger_delay_s=args.hw_trigger_delay_s,
         vm_comp_slope=args.vm_comp_slope,
     )

@@ -120,6 +120,7 @@ class AcquisitionConfig:
     auto_range: bool = True
     measurement_range: Optional[float] = None
     current_range: Optional[float] = None
+    dcv_input_impedance: str = "default"
     hw_trigger_delay_s: float = 0.0
     vm_comp_slope: Optional[str] = None
 
