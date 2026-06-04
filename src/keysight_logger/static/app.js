@@ -132,8 +132,8 @@ function updateMeasurementUi() {
   const selected = measurementSelect.value || "current-dc";
   const measurement = measurementsByName.get(selected);
   const unit = measurement?.unit || "";
-  rangeUnit.textContent = unit || "range";
-  rangeSuffix.textContent = unit;
+  rangeUnit.textContent = "";
+  rangeSuffix.textContent = "";
   populateRangeOptions(measurement);
   populateNplcOptions(measurement);
   for (const element of measurementScopedControls) {

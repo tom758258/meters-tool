@@ -212,7 +212,7 @@ button:focus {
 
 .input-with-unit input,
 .input-with-unit select {
-  padding-right: 58px;
+  padding-right: 10px;
 }
 
 .input-with-unit span {
