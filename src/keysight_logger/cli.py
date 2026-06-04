@@ -618,7 +618,10 @@ def cmd_start(args: argparse.Namespace) -> int:
                     break
                 time.sleep(0.2)
             if not worker.is_alive() and not stop_controller.stop:
-                print("measurement worker exited before stop was requested")
+                if engine.fatal_error:
+                    print(f"error: {engine.fatal_error}", file=sys.stderr)
+                else:
+                    print("measurement worker exited before stop was requested")
         except KeyboardInterrupt:
             stop_controller.request_signal_stop()
             while worker.is_alive():
@@ -641,6 +644,8 @@ def cmd_start(args: argparse.Namespace) -> int:
                 instrument.close()
                 worker.join(timeout=2)
         print(f"captured={engine.stats.captured} errors={engine.stats.errors}")
+        if engine.fatal_error:
+            return 3
         return 0
     finally:
         print("final cleanup starting")

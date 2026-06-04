@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import json
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 from urllib.error import URLError
 
@@ -11,6 +13,7 @@ from keysight_logger.cli import (
     WindowsKeyboardStopPoller,
     build_parser,
     cmd_list_resources,
+    cmd_start,
     cmd_soft_stop,
     print_buffer_overflow_warnings,
     resolve_trigger_mode,
@@ -1156,6 +1159,73 @@ class FakeMsvcrt:
         return self.keys.pop(0)
 
 
+class FakeStartInstrument:
+    resource_id = "USB::FAKE"
+
+    def __init__(self, _config):
+        self.closed = False
+
+    def connect(self):
+        return None
+
+    def release_to_local(self):
+        return "release:ok"
+
+    def cleanup_release_to_local(self):
+        return "cleanup:ok"
+
+    def close(self):
+        self.closed = True
+
+
+class FakeStartServer:
+    def __init__(self, *_args, **_kwargs):
+        self.stopped = False
+
+    def start(self):
+        return "127.0.0.1", 8765
+
+    def stop(self):
+        self.stopped = True
+
+
+class FakeStartConsoleHandler:
+    input_mode_configured = False
+
+    def __init__(self, _controller):
+        return
+
+    def install(self):
+        return False
+
+    def uninstall(self):
+        return
+
+
+class FakeStartKeyboardPoller:
+    def poll_stop_requested(self):
+        return False
+
+
+class FakeStartMeasurement:
+    def configure(self, _instrument, _config):
+        return
+
+
+class PermissionDeniedCsvWriter:
+    def __init__(self, path):
+        self.path = path
+
+    def open(self):
+        raise PermissionError(13, "Permission denied", str(self.path))
+
+    def close(self):
+        return
+
+    def write(self, _sample):
+        return
+
+
 class WindowsKeyboardStopPollerTests(unittest.TestCase):
     def test_ctrl_c_character_requests_stop(self):
         poller = WindowsKeyboardStopPoller()
@@ -1177,6 +1247,46 @@ class WindowsKeyboardStopPollerTests(unittest.TestCase):
 
 
 class CliCommandTests(unittest.TestCase):
+    def test_start_csv_permission_error_prints_friendly_message(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\locked.csv",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with (
+            patch("keysight_logger.cli.VisaInstrument", FakeStartInstrument),
+            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.cli.CsvWriter", PermissionDeniedCsvWriter),
+            patch(
+                "keysight_logger.cli.create_measurement_plugin",
+                return_value=FakeStartMeasurement(),
+            ),
+            patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            redirect_stdout(stdout),
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(3, rc)
+        self.assertIn("cannot open CSV output file: data\\locked.csv", stderr.getvalue())
+        self.assertIn("file may be open in Excel", stderr.getvalue())
+        self.assertIn("captured=0 errors=1", stdout.getvalue())
+        self.assertNotIn("measurement worker exited before stop was requested", stdout.getvalue())
+
     @patch("keysight_logger.cli.VisaInstrument")
     def test_list_resources_without_verify_prints_resources(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE"]

@@ -24,6 +24,16 @@ class AcquisitionStats:
     errors: int = 0
 
 
+def _format_csv_permission_error(exc: PermissionError) -> str:
+    filename = getattr(exc, "filename", None)
+    target = str(filename) if filename else "CSV output file"
+    return (
+        f"cannot open CSV output file: {target}\n"
+        "reason: permission denied; the file may be open in Excel or another program\n"
+        "action: close the file or choose a different --csv path"
+    )
+
+
 class TriggerAcquisitionEngine:
     def __init__(
         self,
@@ -45,10 +55,15 @@ class TriggerAcquisitionEngine:
         self._running = False
         self._stop_event = threading.Event()
         self._stats = AcquisitionStats()
+        self._fatal_error: Optional[str] = None
 
     @property
     def stats(self) -> AcquisitionStats:
         return self._stats
+
+    @property
+    def fatal_error(self) -> Optional[str]:
+        return self._fatal_error
 
     def _emit(self, text: str) -> None:
         if self._status_cb:
@@ -62,6 +77,7 @@ class TriggerAcquisitionEngine:
     ) -> None:
         self._running = True
         self._stop_event.clear()
+        self._fatal_error = None
         mode = self._resolve_trigger_mode(trigger_mode, enable_hardware_trigger)
         timer_interval_s = self._config.timer_interval_s
         timer_active = timer_interval_s is not None
@@ -101,7 +117,13 @@ class TriggerAcquisitionEngine:
                 "hardware trigger configured "
                 f"slope={hardware_trigger_slope.upper()} delay_s={self._config.hw_trigger_delay_s}"
             )
-        self._storage.open()
+        try:
+            self._storage.open()
+        except PermissionError as exc:
+            self._stats.errors += 1
+            self._fatal_error = _format_csv_permission_error(exc)
+            self._running = False
+            return
         self._emit("recording started")
         if timer_active:
             self._emit(f"software timer enabled interval_s={timer_interval_s}")

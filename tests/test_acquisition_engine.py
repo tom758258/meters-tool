@@ -200,7 +200,29 @@ class CapturingStorage(FakeStorage):
         self.samples.append(sample)
 
 
+class PermissionDeniedStorage(FakeStorage):
+    def open(self) -> None:
+        raise PermissionError(13, "Permission denied", "data\\locked.csv")
+
+
 class AcquisitionEngineTests(unittest.TestCase):
+    def test_storage_open_permission_error_sets_fatal_error(self):
+        engine = TriggerAcquisitionEngine(
+            instrument=FakeInstrument(),  # type: ignore[arg-type]
+            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+            storage=PermissionDeniedStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(trigger_timeout_ms=50),
+            router=TriggerRouter(),
+        )
+
+        engine.run()
+
+        self.assertEqual(0, engine.stats.captured)
+        self.assertEqual(1, engine.stats.errors)
+        self.assertIsNotNone(engine.fatal_error)
+        self.assertIn("cannot open CSV output file: data\\locked.csv", engine.fatal_error)
+        self.assertIn("file may be open in Excel", engine.fatal_error)
+
     def test_custom_mode_uses_profile_buffer_support(self):
         engine = TriggerAcquisitionEngine(
             instrument=RecordingInstrument(),  # type: ignore[arg-type]
