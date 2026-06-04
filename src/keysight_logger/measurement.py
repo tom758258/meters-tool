@@ -85,7 +85,44 @@ class MeasurementDefinition:
     internal_type: str
     unit: str
     range_label: str
+    range_options: tuple[tuple[str, float], ...] = ()
+    nplc_options: tuple[float, ...] = ()
     accepts_current_range_alias: bool = False
+
+
+KEYSIGHT_34461A_CURRENT_RANGES = (
+    ("100 uA", 0.0001),
+    ("1 mA", 0.001),
+    ("10 mA", 0.01),
+    ("100 mA", 0.1),
+    ("1 A", 1.0),
+    ("3 A", 3.0),
+    ("10 A (front 10A terminal)", 10.0),
+)
+KEYSIGHT_34461A_DCV_RANGES = (
+    ("100 mV", 0.1),
+    ("1 V", 1.0),
+    ("10 V", 10.0),
+    ("100 V", 100.0),
+    ("1000 V", 1000.0),
+)
+KEYSIGHT_34461A_ACV_RANGES = (
+    ("100 mV", 0.1),
+    ("1 V", 1.0),
+    ("10 V", 10.0),
+    ("100 V", 100.0),
+    ("750 V", 750.0),
+)
+KEYSIGHT_34461A_RESISTANCE_RANGES = (
+    ("100 Ohm", 100.0),
+    ("1 kOhm", 1_000.0),
+    ("10 kOhm", 10_000.0),
+    ("100 kOhm", 100_000.0),
+    ("1 MOhm", 1_000_000.0),
+    ("10 MOhm", 10_000_000.0),
+    ("100 MOhm", 100_000_000.0),
+)
+KEYSIGHT_34461A_NPLC_OPTIONS = (0.02, 0.2, 1.0, 10.0, 100.0)
 
 
 CURRENT_DC_DEFINITION = MeasurementDefinition(
@@ -93,6 +130,8 @@ CURRENT_DC_DEFINITION = MeasurementDefinition(
     internal_type="current_dc",
     unit="A",
     range_label="amps",
+    range_options=KEYSIGHT_34461A_CURRENT_RANGES,
+    nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
     accepts_current_range_alias=True,
 )
 VOLTAGE_DC_DEFINITION = MeasurementDefinition(
@@ -100,30 +139,38 @@ VOLTAGE_DC_DEFINITION = MeasurementDefinition(
     internal_type="voltage_dc",
     unit="V",
     range_label="volts",
+    range_options=KEYSIGHT_34461A_DCV_RANGES,
+    nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
 )
 CURRENT_AC_DEFINITION = MeasurementDefinition(
     cli_name="current-ac",
     internal_type="current_ac",
     unit="A",
     range_label="amps",
+    range_options=KEYSIGHT_34461A_CURRENT_RANGES,
 )
 VOLTAGE_AC_DEFINITION = MeasurementDefinition(
     cli_name="voltage-ac",
     internal_type="voltage_ac",
     unit="V",
     range_label="volts",
+    range_options=KEYSIGHT_34461A_ACV_RANGES,
 )
 RESISTANCE_2W_DEFINITION = MeasurementDefinition(
     cli_name="resistance-2w",
     internal_type="resistance_2w",
     unit="Ohm",
     range_label="ohms",
+    range_options=KEYSIGHT_34461A_RESISTANCE_RANGES,
+    nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
 )
 RESISTANCE_4W_DEFINITION = MeasurementDefinition(
     cli_name="resistance-4w",
     internal_type="resistance_4w",
     unit="Ohm",
     range_label="ohms",
+    range_options=KEYSIGHT_34461A_RESISTANCE_RANGES,
+    nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
 )
 
 

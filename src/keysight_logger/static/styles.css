@@ -166,6 +166,18 @@ label {
   font-size: 13px;
 }
 
+.field-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.unit-chip {
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
 input,
 select {
   width: 100%;
@@ -190,8 +202,40 @@ button:focus {
   gap: 12px;
 }
 
+.single-field {
+  display: grid;
+}
+
+.input-with-unit {
+  position: relative;
+}
+
+.input-with-unit input,
+.input-with-unit select {
+  padding-right: 58px;
+}
+
+.input-with-unit span {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.input-with-unit span:empty {
+  display: none;
+}
+
 .panel > * + * {
   margin-top: 13px;
+}
+
+.is-hidden {
+  display: none !important;
 }
 
 .switch-row {

@@ -108,6 +108,19 @@ class WebUiApiTests(unittest.TestCase):
             [item["name"] for item in payload["measurements"]],
         )
         self.assertIn("software-custom", payload["trigger_modes"])
+        measurements = {item["name"]: item for item in payload["measurements"]}
+        self.assertEqual(
+            [
+                {"label": "100 mV", "value": 0.1},
+                {"label": "1 V", "value": 1.0},
+                {"label": "10 V", "value": 10.0},
+                {"label": "100 V", "value": 100.0},
+                {"label": "1000 V", "value": 1000.0},
+            ],
+            measurements["voltage-dc"]["range_options"],
+        )
+        self.assertEqual([0.02, 0.2, 1.0, 10.0, 100.0], measurements["voltage-dc"]["nplc_options"])
+        self.assertFalse(measurements["voltage-ac"]["supports_nplc"])
 
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
         client, csv_path = self.make_client()
@@ -176,6 +189,79 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual("current-dc", request.measurement)
         self.assertTrue(request.auto_zero)
+
+    def test_static_ui_omits_cli_compat_only_controls(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertNotIn("Current range alias", index)
+        self.assertNotIn("Legacy external trigger", index)
+        self.assertNotIn("current_range", index)
+        self.assertNotIn("current_range", app_js)
+        self.assertNotIn("enable_hw_trigger", index)
+        self.assertNotIn("enable_hw_trigger", app_js)
+
+    def test_static_ui_exposes_live_resource_select_and_range_unit(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="resource-select"', index)
+        self.assertIn("Live resource", index)
+        self.assertIn("live_only=true", app_js)
+        self.assertIn('id="range-unit"', index)
+        self.assertIn('id="range-suffix"', index)
+        self.assertIn('<select\n                  id="measurement-range"', index)
+        self.assertIn('<select id="nplc"', index)
+        self.assertNotIn('name="measurement_range" form="run-form" type="number"', index)
+        self.assertNotIn('name="nplc" form="run-form" type="number"', index)
+        self.assertIn("resourceSelect.addEventListener", app_js)
+        self.assertIn("updateMeasurementUi", app_js)
+        self.assertIn("populateRangeOptions", app_js)
+        self.assertIn("populateNplcOptions", app_js)
+
+    def test_static_ui_scopes_trigger_options_by_mode(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('data-mode-scope="simple"', index)
+        self.assertIn('data-mode-scope="software"', index)
+        self.assertIn('data-mode-scope="custom"', index)
+        self.assertIn('data-mode-scope="hardware"', index)
+        self.assertIn('data-mode-scope="software-trigger"', index)
+        self.assertIn("function updateTriggerModeUi", app_js)
+        self.assertIn("function modeScopeVisible", app_js)
+        self.assertIn("triggerMode === \"software\"", app_js)
+        self.assertIn("if (customMode)", app_js)
+        self.assertIn("if (hardwareMode)", app_js)
+        self.assertIn("is-hidden", styles)
+
+    def test_static_ui_preserves_hidden_trigger_timeout_payload_contract(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;", app_js)
+        self.assertIn("function triggerTimeoutMs", app_js)
+        self.assertIn(
+            'hardwareMode ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS',
+            app_js,
+        )
+        self.assertIn("trigger_timeout_ms: triggerTimeoutMs(data, hardwareMode)", app_js)
+
+    def test_static_ui_scopes_dcv_input_and_trigger_button(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('data-measurement-scope="voltage-dc"', index)
+        self.assertIn("measurementScopedControls", app_js)
+        self.assertIn("updateTriggerButtonUi", app_js)
+        self.assertIn("mode === \"software-custom\"", app_js)
+        self.assertIn("mode === \"software\" && !timerActive", app_js)
+        self.assertIn("timerIntervalInput.addEventListener", app_js)
 
 
 if __name__ == "__main__":

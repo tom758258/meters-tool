@@ -14,7 +14,7 @@
           <h1>Local acquisition console</h1>
         </div>
         <div class="run-controls">
-          <button id="refresh-resources" type="button">Scan</button>
+          <button id="refresh-resources" type="button">Scan Device</button>
           <button id="start-run" type="button" class="primary">Start</button>
           <button id="trigger-run" type="button">Trigger</button>
           <button id="stop-run" type="button" class="danger">Stop</button>
@@ -45,8 +45,13 @@
           <h2>Run setup</h2>
           <label>
             VISA resource
-            <input id="resource" name="resource" list="resource-list" required />
-            <datalist id="resource-list"></datalist>
+            <input id="resource" name="resource" required />
+          </label>
+          <label>
+            Live resource
+            <select id="resource-select">
+              <option value="">Scan to load live resources</option>
+            </select>
           </label>
           <label>
             CSV path
@@ -67,17 +72,17 @@
               Timeout ms
               <input name="timeout_ms" type="number" min="1" value="5000" />
             </label>
-            <label>
+            <label data-mode-scope="hardware">
               Trigger timeout ms
               <input name="trigger_timeout_ms" type="number" min="1" value="10000" />
             </label>
           </div>
           <div class="pair">
-            <label>
+            <label data-mode-scope="simple">
               Max samples
               <input name="max_samples" type="number" min="1" />
             </label>
-            <label>
+            <label data-mode-scope="software">
               Timer interval s
               <input name="timer_interval_s" type="number" min="0" step="0.001" />
             </label>
@@ -90,22 +95,28 @@
             <label><input name="auto_range" form="run-form" type="checkbox" checked /> Auto range</label>
             <label><input name="auto_zero" form="run-form" type="checkbox" checked /> Auto zero</label>
           </div>
-          <div class="pair">
+          <div class="single-field">
             <label>
-              Range
-              <input name="measurement_range" form="run-form" type="number" min="0" step="any" />
-            </label>
-            <label>
-              Current range alias
-              <input name="current_range" form="run-form" type="number" min="0" step="any" />
+              <span class="field-title">
+                Range
+                <span id="range-unit" class="unit-chip">A</span>
+              </span>
+              <div class="input-with-unit">
+                <select
+                  id="measurement-range"
+                  name="measurement_range"
+                  form="run-form"
+                ></select>
+                <span id="range-suffix">A</span>
+              </div>
             </label>
           </div>
           <div class="pair">
-            <label>
+            <label id="nplc-field">
               NPLC
-              <input name="nplc" form="run-form" type="number" min="0" step="any" value="1.0" />
+              <select id="nplc" name="nplc" form="run-form"></select>
             </label>
-            <label>
+            <label data-measurement-scope="voltage-dc">
               DCV input Z
               <select name="dcv_input_impedance" form="run-form">
                 <option value="default">default</option>
@@ -124,43 +135,42 @@
           </label>
         </section>
 
-        <section class="panel">
+        <section id="trigger-options-panel" class="panel">
           <h2>Trigger options</h2>
           <div class="pair">
-            <label>
+            <label data-mode-scope="custom">
               Trigger count
               <input name="trigger_count" form="run-form" type="number" min="1" />
             </label>
-            <label>
+            <label data-mode-scope="custom">
               Sample count
               <input name="sample_count" form="run-form" type="number" min="1" />
             </label>
           </div>
           <div class="pair">
-            <label>
+            <label data-mode-scope="custom">
               Buffer drain size
               <input name="buffer_drain_size" form="run-form" type="number" min="1" />
             </label>
-            <label>
+            <label data-mode-scope="hardware">
               HW delay s
               <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" step="0.001" value="0" />
             </label>
           </div>
           <div class="pair">
-            <label>
+            <label data-mode-scope="hardware">
               HW slope
               <select name="hw_trigger_slope" form="run-form">
                 <option value="neg">neg</option>
                 <option value="pos">pos</option>
               </select>
             </label>
-            <label>
+            <label data-mode-scope="software-trigger">
               SW min interval ms
               <input name="sw_min_interval_ms" form="run-form" type="number" min="0" value="0" />
             </label>
           </div>
-          <div class="switch-row">
-            <label><input name="enable_hw_trigger" form="run-form" type="checkbox" /> Legacy external trigger</label>
+          <div class="switch-row" data-mode-scope="custom">
             <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> Allow buffer risk</label>
           </div>
         </section>

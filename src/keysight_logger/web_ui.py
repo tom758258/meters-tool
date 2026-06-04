@@ -144,6 +144,12 @@ class WebRunManager:
                     "internal_type": definition.internal_type,
                     "unit": definition.unit,
                     "range_label": definition.range_label,
+                    "range_options": [
+                        {"label": label, "value": value}
+                        for label, value in definition.range_options
+                    ],
+                    "nplc_options": list(definition.nplc_options),
+                    "supports_nplc": bool(definition.nplc_options),
                     "accepts_current_range_alias": definition.accepts_current_range_alias,
                 }
             )
