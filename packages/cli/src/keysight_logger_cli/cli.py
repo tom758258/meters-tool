@@ -12,6 +12,7 @@ from pathlib import Path
 from urllib import request
 from urllib.error import URLError
 
+from keysight_logger_core.command import software_trigger_envelope
 from keysight_logger_core.instrument import VisaInstrument
 from keysight_logger_core.measurement import format_measurement_type
 from keysight_logger_core.models import StartRequest, get_default_instrument_profile
@@ -365,7 +366,7 @@ class CliEventEmitter:
             "status_url": f"{base_url}/status",
             "stop_url": f"{base_url}/stop",
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "trigger_url": f"{base_url}/trigger",
+            "command_url": f"{base_url}/command",
         }
         payload.update(fields)
         self._emit_json(payload)
@@ -425,8 +426,8 @@ class CliStartRunEventSink:
         if event.event == "ready":
             if event.host is not None and event.port is not None:
                 ready_fields = dict(fields)
-                if event.trigger_url is not None:
-                    ready_fields["trigger_url"] = event.trigger_url
+                if event.command_url is not None:
+                    ready_fields["command_url"] = event.command_url
                 if event.stop_url is not None:
                     ready_fields["stop_url"] = event.stop_url
                 if event.status_url is not None:
@@ -516,9 +517,9 @@ def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argpa
         return
     if getattr(args, "command", None) in {
         "list-resources",
-        "soft-trigger",
-        "soft-stop",
-        "soft-status",
+        "send-command",
+        "stop",
+        "status",
         "wait-ready",
     }:
         if not getattr(args, "json", False):
@@ -827,25 +828,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="VM Comp rear-panel output pulse slope; omit to leave unchanged",
     )
 
-    trig = sub.add_parser("soft-trigger", formatter_class=KeysightHelpFormatter)
-    trig.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
-    trig.add_argument(
+    send_command = sub.add_parser("send-command", formatter_class=KeysightHelpFormatter)
+    send_command.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
+    send_command.add_argument(
         "--timeout-ms",
         type=int,
         default=3000,
         help="HTTP client timeout in ms; supported range 100-600000",
     )
-    trig.add_argument("--meta", default="{}", help='JSON metadata, e.g. {"batch":"A"}')
-    trig.add_argument(
+    send_command.add_argument(
+        "--command",
+        dest="command_name",
+        default="software_trigger",
+        help="Meters command name; supported: software_trigger",
+    )
+    send_command.add_argument(
+        "--arguments-json",
+        default="{}",
+        help='JSON command arguments, e.g. {"metadata":{"batch":"A"}}',
+    )
+    send_command.add_argument("--job-id", default=None, help="optional client-generated job id")
+    send_command.add_argument(
         "--format",
         dest="output_format",
         choices=["text", "json"],
         default="text",
         help="output format for the response; default: text",
     )
-    trig.add_argument("--json", action="store_true", help="alias for --format json")
-    trig.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
-    stop = sub.add_parser("soft-stop", formatter_class=KeysightHelpFormatter)
+    send_command.add_argument("--json", action="store_true", help="alias for --format json")
+    send_command.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
+    stop = sub.add_parser("stop", formatter_class=KeysightHelpFormatter)
     stop.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     stop.add_argument(
         "--timeout-ms",
@@ -863,7 +875,7 @@ def build_parser() -> argparse.ArgumentParser:
     stop.add_argument("--json", action="store_true", help="alias for --format json")
     stop.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
 
-    status = sub.add_parser("soft-status", formatter_class=KeysightHelpFormatter)
+    status = sub.add_parser("status", formatter_class=KeysightHelpFormatter)
     status.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     status.add_argument(
         "--timeout-ms",
@@ -1173,7 +1185,7 @@ def _normalized_status_payload(
         "service": worker_status.get("service"),
         "run_id": worker_status.get("run_id"),
         "status": status_value,
-        "trigger_url": worker_status.get("trigger_url"),
+        "command_url": worker_status.get("command_url"),
         "stop_url": worker_status.get("stop_url"),
         "status_url": worker_status.get("status_url"),
         "queue_size": worker_status.get("queue_size"),
@@ -1202,15 +1214,17 @@ def _format_status_text(prefix: str, payload: dict[str, object]) -> str:
     )
 
 
-def cmd_soft_trigger(
+def cmd_send_command(
     port: int,
-    meta: str,
+    arguments_json: str,
     output_format: str = "text",
     dry_run: bool = False,
     timeout_ms: int = 3000,
+    command: str = "software_trigger",
+    job_id: str | None = None,
 ) -> int:
     try:
-        payload = json.dumps(json.loads(meta)).encode("utf-8")
+        arguments = json.loads(arguments_json)
     except json.JSONDecodeError:
         if output_format == "json":
             print(
@@ -1218,30 +1232,82 @@ def cmd_soft_trigger(
                     _client_error_payload(
                         "error",
                         port,
-                        "meta must be valid JSON",
+                        "arguments-json must be valid JSON",
                         exit_code=2,
-                        client_command="soft-trigger",
+                        client_command="send-command",
                         error_phase="validation",
                         request_sent=False,
                         method="POST",
-                        url=_client_url(port, "/trigger"),
-                        endpoint="/trigger",
+                        url=_client_url(port, "/command"),
+                        endpoint="/command",
                         timeout_ms=timeout_ms,
                     ),
                     sort_keys=True,
                 )
             )
         else:
-            print("meta must be valid JSON", file=sys.stderr)
+            print("arguments-json must be valid JSON", file=sys.stderr)
         return 2
+    if command != "software_trigger":
+        message = "command must be software_trigger"
+        if output_format == "json":
+            print(
+                json.dumps(
+                    _client_error_payload(
+                        "error",
+                        port,
+                        message,
+                        exit_code=2,
+                        client_command="send-command",
+                        error_phase="validation",
+                        request_sent=False,
+                        method="POST",
+                        url=_client_url(port, "/command"),
+                        endpoint="/command",
+                        timeout_ms=timeout_ms,
+                    ),
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(message, file=sys.stderr)
+        return 2
+    if not isinstance(arguments, dict):
+        message = "arguments-json must be a JSON object"
+        if output_format == "json":
+            print(
+                json.dumps(
+                    _client_error_payload(
+                        "error",
+                        port,
+                        message,
+                        exit_code=2,
+                        client_command="send-command",
+                        error_phase="validation",
+                        request_sent=False,
+                        method="POST",
+                        url=_client_url(port, "/command"),
+                        endpoint="/command",
+                        timeout_ms=timeout_ms,
+                    ),
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(message, file=sys.stderr)
+        return 2
+    envelope = software_trigger_envelope(
+        metadata=arguments.get("metadata", {}),
+        job_id=job_id,
+    )
     if dry_run:
-        _emit_client_dry_run("soft-trigger", port, json.loads(meta), output_format)
+        _emit_client_dry_run("send-command", port, envelope, output_format, path="/command")
         return 0
-    endpoint = "/trigger"
+    endpoint = "/command"
     req = request.Request(
         _client_url(port, endpoint),
         method="POST",
-        data=payload,
+        data=json.dumps(envelope, separators=(",", ":")).encode("utf-8"),
         headers={"Content-Type": "application/json"},
     )
     started_at = time.monotonic()
@@ -1252,12 +1318,12 @@ def cmd_soft_trigger(
                 print(
                     json.dumps(
                         {
-                            "client_command": "soft-trigger",
+                            "client_command": "send-command",
                             "elapsed_ms": elapsed_ms,
                             "endpoint": endpoint,
-                            "event": "soft-trigger",
+                            "event": "send-command",
                             "http_status": response.status,
-                            "message": "trigger accepted",
+                            "message": "command accepted",
                             "method": "POST",
                             "ok": True,
                             "port": port,
@@ -1273,7 +1339,7 @@ def cmd_soft_trigger(
                     )
                 )
             else:
-                print(f"trigger accepted: {response.status}")
+                print(f"command accepted: {response.status}")
     except URLError as exc:
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         http_status = _client_http_status(exc)
@@ -1283,8 +1349,8 @@ def cmd_soft_trigger(
                     _client_error_payload(
                         "error",
                         port,
-                        f"trigger request failed: {exc}",
-                        client_command="soft-trigger",
+                        f"command request failed: {exc}",
+                        client_command="send-command",
                         error_phase="request",
                         request_sent=True,
                         reachable=http_status is not None,
@@ -1299,19 +1365,19 @@ def cmd_soft_trigger(
                 )
             )
         else:
-            print(f"trigger request failed: {exc}", file=sys.stderr)
+            print(f"command request failed: {exc}", file=sys.stderr)
         return 3
     return 0
 
 
-def cmd_soft_stop(
+def cmd_stop(
     port: int,
     output_format: str = "text",
     dry_run: bool = False,
     timeout_ms: int = 3000,
 ) -> int:
     if dry_run:
-        _emit_client_dry_run("soft-stop", port, {}, output_format)
+        _emit_client_dry_run("stop", port, {}, output_format, path="/stop")
         return 0
     endpoint = "/stop"
     req = request.Request(
@@ -1328,10 +1394,10 @@ def cmd_soft_stop(
                 print(
                     json.dumps(
                         {
-                            "client_command": "soft-stop",
+                            "client_command": "stop",
                             "elapsed_ms": elapsed_ms,
                             "endpoint": endpoint,
-                            "event": "soft-stop",
+                            "event": "stop",
                             "http_status": response.status,
                             "message": "stop accepted",
                             "method": "POST",
@@ -1360,10 +1426,10 @@ def cmd_soft_stop(
                 print(
                     json.dumps(
                         {
-                            "client_command": "soft-stop",
+                            "client_command": "stop",
                             "elapsed_ms": elapsed_ms,
                             "endpoint": endpoint,
-                            "event": "soft-stop",
+                            "event": "stop",
                             "method": "POST",
                             "message": "already stopped (endpoint not listening)",
                             "ok": True,
@@ -1390,7 +1456,7 @@ def cmd_soft_stop(
                         "error",
                         port,
                         f"stop request failed: {exc}",
-                        client_command="soft-stop",
+                        client_command="stop",
                         error_phase="request",
                         request_sent=True,
                         reachable=http_status is not None,
@@ -1410,7 +1476,7 @@ def cmd_soft_stop(
     return 0
 
 
-def cmd_soft_status(
+def cmd_status(
     port: int,
     output_format: str = "text",
     dry_run: bool = False,
@@ -1418,7 +1484,7 @@ def cmd_soft_status(
 ) -> int:
     if dry_run:
         _emit_client_dry_run(
-            "soft-status",
+            "status",
             port,
             None,
             output_format,
@@ -1433,7 +1499,7 @@ def cmd_soft_status(
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         http_status = _client_http_status(exc)
         return _print_client_error(
-            "soft-status",
+            "status",
             port,
             f"status request failed: {exc}",
             output_format,
@@ -1449,7 +1515,7 @@ def cmd_soft_status(
 
     elapsed_ms = int((time.monotonic() - started_at) * 1000)
     payload = _normalized_status_payload(
-        "soft-status",
+        "status",
         port,
         http_status,
         worker_status,
@@ -1539,9 +1605,9 @@ def _validate_client_port_and_timeout(args: argparse.Namespace) -> int | None:
         validate_client_timeout_ms(args.timeout_ms)
     except ValueError as exc:
         diagnostics = {
-            "soft-trigger": ("POST", "/trigger"),
-            "soft-stop": ("POST", "/stop"),
-            "soft-status": ("GET", "/status"),
+            "send-command": ("POST", "/command"),
+            "stop": ("POST", "/stop"),
+            "status": ("GET", "/status"),
             "wait-ready": ("GET", "/status"),
         }
         method, endpoint = diagnostics.get(args.command, (None, None))
@@ -1629,27 +1695,29 @@ def main(argv: list[str] | None = None) -> int:
             output_format=args.output_format,
             dry_run=args.dry_run,
         )
-    if args.command == "soft-trigger":
+    if args.command == "send-command":
         validation_rc = _validate_client_port_and_timeout(args)
         if validation_rc is not None:
             return validation_rc
-        return cmd_soft_trigger(
+        return cmd_send_command(
             args.port,
-            args.meta,
+            args.arguments_json,
             args.output_format,
             args.dry_run,
             args.timeout_ms,
+            command=args.command_name,
+            job_id=args.job_id,
         )
-    if args.command == "soft-stop":
+    if args.command == "stop":
         validation_rc = _validate_client_port_and_timeout(args)
         if validation_rc is not None:
             return validation_rc
-        return cmd_soft_stop(args.port, args.output_format, args.dry_run, args.timeout_ms)
-    if args.command == "soft-status":
+        return cmd_stop(args.port, args.output_format, args.dry_run, args.timeout_ms)
+    if args.command == "status":
         validation_rc = _validate_client_port_and_timeout(args)
         if validation_rc is not None:
             return validation_rc
-        return cmd_soft_status(args.port, args.output_format, args.dry_run, args.timeout_ms)
+        return cmd_status(args.port, args.output_format, args.dry_run, args.timeout_ms)
     if args.command == "wait-ready":
         validation_rc = _validate_client_port_and_timeout(args)
         if validation_rc is not None:

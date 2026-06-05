@@ -12,7 +12,7 @@ semantics, and artifacts belong in instrument-specific workflow documents.
    `GET /status` until a valid status object is reachable.
 4. Correlate stdout events, status responses, and artifacts with `run_id` when
    the worker creates a runtime session.
-5. Use the worker-specific trigger mechanism only after the control plane is
+5. Use worker-specific `POST /command` requests only after the control plane is
    ready.
 6. Use `GET /status` for non-mutating health and progress checks.
 7. Use `POST /stop` or the worker-specific stop client for cooperative

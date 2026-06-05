@@ -51,9 +51,9 @@ Use this order for agent-controlled runs:
    `keysight-logger wait-ready --port <port> --json`. `ready` and
    `wait-ready` are control-plane readiness only; they do not mean a
    measurement has completed.
-5. Call `keysight-logger soft-status --port <port> --json` or direct
+5. Call `keysight-logger status --port <port> --json` or direct
    `GET /status` and verify the returned `run_id` matches stdout JSONL.
-6. Use `POST /trigger` for Meters software-triggered measurement requests. Use
+6. Use `POST /command` for Meters software-triggered measurement requests. Use
    `POST /stop` for graceful stop.
 7. Read stdout JSONL, CSV, `report.json`, and any wrapper summary artifacts.
    Machine decisions should come from structured files and JSON events, not
@@ -74,17 +74,40 @@ explicit `--sw-trigger-port` when they need a stable port. `--sw-trigger-port
 
 In JSONL mode, non-dry-run `start-trigger-record` emits one `ready` event after
 the HTTP control plane starts and before the measurement worker thread starts.
-This is a control-plane readiness signal only. It means `/trigger`, `/stop`,
+This is a control-plane readiness signal only. It means `/command`, `/stop`,
 and `/status` can accept requests; it does not mean the first measurement has
 completed. The `ready` event includes `run_id`, a UUID string that identifies
 the runtime session.
 
-### `POST /trigger`
+### `POST /command`
 
-Publishes one Meters software-triggered measurement request. The request body
-may be a JSON object containing metadata; object values are stored as strings
-in `trigger_metadata` on captured samples. Accepted requests return `202`.
-Rejected requests return `429` with JSON status, for example
+Publishes one Meters software-triggered measurement request. The only Meters
+command in this contract revision is `software_trigger`.
+
+Request body:
+
+```json
+{
+  "command": "software_trigger",
+  "arguments": {
+    "metadata": {}
+  },
+  "job_id": "optional-client-generated-id"
+}
+```
+
+`arguments` may be omitted and defaults to `{}`. If present, it must be a JSON
+object. `arguments.metadata` may be omitted and defaults to `{}`. If present,
+it must be a JSON object with string keys. String metadata values are preserved;
+other JSON values are stored as compact JSON literals in `trigger_metadata` on
+captured samples. `job_id` must be a client-provided string when present and is
+not written to measurement metadata.
+
+Malformed JSON, non-object bodies, unknown top-level fields, a missing or
+non-string `command`, unknown commands, non-object `arguments`, non-object
+metadata, and non-string metadata keys return `400` with structured JSON and do
+not publish queue events or touch instrument I/O. Accepted requests return
+`202`. Queue and rate-limit rejections return `429` with JSON status, for example
 `{"status":"rejected","reason":"queue_full"}` or
 `{"status":"rejected","reason":"rate_limited"}`.
 
@@ -108,7 +131,7 @@ trigger, request stop, mutate queues, trigger measurement, or touch VISA. It is
 safe for non-mutating readiness and progress checks. Unknown `GET` paths return
 `404`.
 
-`keysight-logger soft-status` is the CLI client wrapper for this endpoint. It
+`keysight-logger status` is the CLI client wrapper for this endpoint. It
 normalizes the worker status into the CLI single-response JSON contract without
 mutating worker state. `keysight-logger wait-ready` polls this same endpoint
 until any successful `200` JSON status response is reachable or its deadline
@@ -122,7 +145,7 @@ Status response v1:
   "service": "keysight-meter",
   "run_id": "9f84b6ad-d2aa-4d68-9133-f33a5f6bcb9c",
   "status": "running",
-  "trigger_url": "http://127.0.0.1:8765/trigger",
+  "command_url": "http://127.0.0.1:8765/command",
   "stop_url": "http://127.0.0.1:8765/stop",
   "status_url": "http://127.0.0.1:8765/status",
   "queue_size": 0,
@@ -142,7 +165,7 @@ Fields:
 - `run_id`: current runtime UUID, or `null` if no runtime provider supplied
   one.
 - `status`: `running` or `stopping`.
-- `trigger_url`, `stop_url`, `status_url`: absolute local HTTP URLs.
+- `command_url`, `stop_url`, `status_url`: absolute local HTTP URLs.
 - `queue_size`: pending normal software trigger events.
 - `queue_max`: effective normal trigger queue limit.
 - `min_interval_ms`: configured software trigger rate limit.
@@ -206,8 +229,8 @@ Preflight `report.json` fields:
   `soft_client_dry_runs`, `list_resources_contract_checks`, and
   `mocked_pytest_checks`.
 - `commands`: captured command result objects. Software-triggered simulator
-  cases include nested `client_commands` for `wait-ready`, `soft-status`, and
-  `soft-trigger` calls.
+  cases include nested `client_commands` for `wait-ready`, `status`, and
+  `send-command` calls.
 - `checks`: named verification records.
 
 Live `report.json` fields:

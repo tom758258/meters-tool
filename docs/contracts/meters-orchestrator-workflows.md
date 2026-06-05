@@ -81,7 +81,7 @@ try:
             sys.executable,
             "-m",
             "keysight_logger_cli",
-            "soft-status",
+            "status",
             "--port",
             str(port),
             "--json",
@@ -97,7 +97,7 @@ try:
             sys.executable,
             "-m",
             "keysight_logger_cli",
-            "soft-trigger",
+            "send-command",
             "--port",
             str(port),
             "--json",
@@ -122,7 +122,7 @@ finally:
                 sys.executable,
                 "-m",
                 "keysight_logger_cli",
-                "soft-stop",
+                "stop",
                 "--port",
                 str(port),
                 "--json",
@@ -137,20 +137,20 @@ finally:
 ## Readiness And Status
 
 For Meters workers, the `ready` JSONL event and `wait-ready --json` mean the
-local `/trigger`, `/stop`, and `/status` endpoints can accept requests. They do
+local `/command`, `/stop`, and `/status` endpoints can accept requests. They do
 not mean a measurement has completed.
 
-Use `soft-status --json` or direct `GET /status` as a non-mutating status
+Use `status --json` or direct `GET /status` as a non-mutating status
 check. Verify that returned `run_id` values match the worker stdout JSONL for
 the current run.
 
 ## Trigger And Stop
 
-Use `soft-trigger --json` or direct `POST /trigger` for software-triggered
-Meters measurement requests. Use `soft-stop --json` or direct `POST /stop` for
+Use `send-command --json` or direct `POST /command` for software-triggered
+Meters measurement requests. Use `stop --json` or direct `POST /stop` for
 cooperative cleanup.
 
-If the process has already exited, `soft-stop` may return
+If the process has already exited, `stop` may return
 `status: "already_stopped"` with exit code `0`; this remains a successful
 cleanup result for orchestrators.
 

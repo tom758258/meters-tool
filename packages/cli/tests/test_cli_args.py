@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import io
 import csv
@@ -21,9 +21,9 @@ from keysight_logger_cli.cli import (
     build_parser,
     cmd_list_resources,
     cmd_start,
-    cmd_soft_status,
-    cmd_soft_trigger,
-    cmd_soft_stop,
+    cmd_status,
+    cmd_send_command,
+    cmd_stop,
     cmd_wait_ready,
     get_cli_version,
     main,
@@ -53,9 +53,9 @@ class CliArgsTests(unittest.TestCase):
         for command in [
             "list-resources",
             "start-trigger-record",
-            "soft-trigger",
-            "soft-stop",
-            "soft-status",
+            "send-command",
+            "stop",
+            "status",
             "wait-ready",
         ]:
             self.assertIn(command, help_text)
@@ -73,9 +73,9 @@ class CliArgsTests(unittest.TestCase):
         cases = {
             "list-resources": ["--dry-run", "--json", "--format"],
             "start-trigger-record": ["--dry-run", "--simulate", "--json", "--status-format"],
-            "soft-trigger": ["--dry-run", "--json", "--format", "--timeout-ms"],
-            "soft-stop": ["--dry-run", "--json", "--format", "--timeout-ms"],
-            "soft-status": ["--dry-run", "--json", "--format", "--timeout-ms"],
+            "send-command": ["--dry-run", "--json", "--format", "--timeout-ms"],
+            "stop": ["--dry-run", "--json", "--format", "--timeout-ms"],
+            "status": ["--dry-run", "--json", "--format", "--timeout-ms"],
             "wait-ready": ["--json", "--format", "--timeout-ms"],
         }
         for command, flags in cases.items():
@@ -580,7 +580,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertIsInstance(next(iter(run_ids)), str)
         ready = [event for event in events if event["event"] == "ready"]
         self.assertEqual(1, len(ready))
-        for key in ["run_id", "service", "host", "port", "trigger_url", "stop_url", "status_url"]:
+        for key in ["run_id", "service", "host", "port", "command_url", "stop_url", "status_url"]:
             self.assertIn(key, ready[0])
         samples = [event for event in events if event["event"] == "sample"]
         self.assertEqual(expected_samples, len(samples))
@@ -599,7 +599,7 @@ class CliCommandTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = main(["soft-trigger", "--port", "0"])
+            rc = main(["send-command", "--port", "0"])
 
         self.assertEqual(2, rc)
         self.assertIn("--port 0 is outside the supported range 1-65535", stderr.getvalue())
@@ -608,10 +608,10 @@ class CliCommandTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = cmd_soft_trigger(8765, "{bad json")
+            rc = cmd_send_command(8765, "{bad json")
 
         self.assertEqual(2, rc)
-        self.assertIn("meta must be valid JSON", stderr.getvalue())
+        self.assertIn("arguments-json must be valid JSON", stderr.getvalue())
 
     @patch("keysight_logger_cli.cli.request.urlopen")
     def test_soft_trigger_posts_json_payload(self, mock_urlopen):
@@ -628,18 +628,21 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_trigger(8765, '{"operator": "tom"}')
+            rc = cmd_send_command(8765, '{"metadata":{"operator": "tom"}}')
 
         self.assertEqual(0, rc)
-        self.assertIn("trigger accepted: 202", stdout.getvalue())
+        self.assertIn("command accepted: 202", stdout.getvalue())
         req = mock_urlopen.call_args.args[0]
-        self.assertEqual("http://127.0.0.1:8765/trigger", req.full_url)
+        self.assertEqual("http://127.0.0.1:8765/command", req.full_url)
         self.assertEqual("POST", req.get_method())
-        self.assertEqual(b'{"operator": "tom"}', req.data)
+        self.assertEqual(
+            b'{"command":"software_trigger","arguments":{"metadata":{"operator":"tom"}}}',
+            req.data,
+        )
 
     def test_soft_trigger_json_alias_uses_json_format(self):
         parser = build_parser()
-        args = parser.parse_args(["soft-trigger", "--json"])
+        args = parser.parse_args(["send-command", "--json"])
 
         self.assertEqual("json", args.output_format)
 
@@ -647,24 +650,29 @@ class CliCommandTests(unittest.TestCase):
         parser = build_parser()
 
         with self.assertRaises(SystemExit) as exc:
-            parser.parse_args(["soft-trigger", "--json", "--format", "text"])
+            parser.parse_args(["send-command", "--json", "--format", "text"])
 
         self.assertEqual(2, exc.exception.code)
 
     def test_soft_trigger_dry_run_prints_preview_without_request(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_trigger(8765, '{"operator": "tom"}', dry_run=True)
+            rc = cmd_send_command(8765, '{"metadata":{"operator": "tom"}}', dry_run=True)
 
         self.assertEqual(0, rc)
-        self.assertIn("dry-run soft-trigger:", stdout.getvalue())
-        self.assertIn("http://127.0.0.1:8765/trigger", stdout.getvalue())
+        self.assertIn("dry-run send-command:", stdout.getvalue())
+        self.assertIn("http://127.0.0.1:8765/command", stdout.getvalue())
         mock_urlopen.assert_not_called()
 
     def test_soft_trigger_dry_run_json_emits_preview_object(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_trigger(8765, '{"operator": "tom"}', output_format="json", dry_run=True)
+            rc = cmd_send_command(
+                8765,
+                '{"metadata":{"operator": "tom"}}',
+                output_format="json",
+                dry_run=True,
+            )
 
         self.assertEqual(0, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
@@ -673,13 +681,19 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("dry_run", events[0]["status"])
         self.assertEqual("POST", events[0]["method"])
         self.assertFalse(events[0]["send_request"])
-        self.assertEqual({"operator": "tom"}, events[0]["body"])
+        self.assertEqual(
+            {
+                "command": "software_trigger",
+                "arguments": {"metadata": {"operator": "tom"}},
+            },
+            events[0]["body"],
+        )
         mock_urlopen.assert_not_called()
 
     def test_soft_trigger_dry_run_invalid_json_returns_error(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            rc = cmd_soft_trigger(8765, "{bad json", output_format="json", dry_run=True)
+            rc = cmd_send_command(8765, "{bad json", output_format="json", dry_run=True)
 
         self.assertEqual(2, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
@@ -687,17 +701,25 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("error", events[0]["event"])
 
     def test_soft_trigger_main_dispatches_dry_run(self):
-        with patch("keysight_logger_cli.cli.cmd_soft_trigger", return_value=19) as mock_cmd:
-            rc = main(["soft-trigger", "--dry-run", "--json"])
+        with patch("keysight_logger_cli.cli.cmd_send_command", return_value=19) as mock_cmd:
+            rc = main(["send-command", "--dry-run", "--json"])
 
         self.assertEqual(19, rc)
-        mock_cmd.assert_called_once_with(8765, "{}", "json", True, 3000)
+        mock_cmd.assert_called_once_with(
+            8765,
+            "{}",
+            "json",
+            True,
+            3000,
+            command="software_trigger",
+            job_id=None,
+        )
 
     def test_soft_trigger_timeout_ms_is_validated_before_request(self):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = main(["soft-trigger", "--timeout-ms", "99"])
+            rc = main(["send-command", "--timeout-ms", "99"])
 
         self.assertEqual(2, rc)
         self.assertIn("--timeout-ms 99 is outside the supported range 100-600000", stderr.getvalue())
@@ -715,26 +737,26 @@ class CliCommandTests(unittest.TestCase):
 
         mock_urlopen.return_value = FakeResponse()
 
-        rc = cmd_soft_trigger(8765, "{}", timeout_ms=2000)
+        rc = cmd_send_command(8765, "{}", timeout_ms=2000)
 
         self.assertEqual(0, rc)
         self.assertEqual(2.0, mock_urlopen.call_args.kwargs["timeout"])
 
     @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
-    def test_soft_trigger_url_error_returns_3(self, _mock_urlopen):
+    def test_soft_command_url_error_returns_3(self, _mock_urlopen):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = cmd_soft_trigger(8765, "{}")
+            rc = cmd_send_command(8765, "{}")
 
         self.assertEqual(3, rc)
-        self.assertIn("trigger request failed", stderr.getvalue())
+        self.assertIn("command request failed", stderr.getvalue())
 
     def test_soft_stop_port_is_validated_before_request(self):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = main(["soft-stop", "--port", "65536"])
+            rc = main(["stop", "--port", "65536"])
 
         self.assertEqual(2, rc)
         self.assertIn("--port 65536 is outside the supported range 1-65535", stderr.getvalue())
@@ -754,7 +776,7 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_stop(8765)
+            rc = cmd_stop(8765)
 
         self.assertEqual(0, rc)
         self.assertIn("stop accepted: 204", stdout.getvalue())
@@ -765,7 +787,7 @@ class CliCommandTests(unittest.TestCase):
 
     def test_soft_stop_json_alias_uses_json_format(self):
         parser = build_parser()
-        args = parser.parse_args(["soft-stop", "--json"])
+        args = parser.parse_args(["stop", "--json"])
 
         self.assertEqual("json", args.output_format)
 
@@ -773,24 +795,24 @@ class CliCommandTests(unittest.TestCase):
         parser = build_parser()
 
         with self.assertRaises(SystemExit) as exc:
-            parser.parse_args(["soft-stop", "--json", "--format", "text"])
+            parser.parse_args(["stop", "--json", "--format", "text"])
 
         self.assertEqual(2, exc.exception.code)
 
     def test_soft_stop_dry_run_prints_preview_without_request(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_stop(8765, dry_run=True)
+            rc = cmd_stop(8765, dry_run=True)
 
         self.assertEqual(0, rc)
-        self.assertIn("dry-run soft-stop:", stdout.getvalue())
+        self.assertIn("dry-run stop:", stdout.getvalue())
         self.assertIn("http://127.0.0.1:8765/stop", stdout.getvalue())
         mock_urlopen.assert_not_called()
 
     def test_soft_stop_dry_run_json_emits_preview_object(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_stop(8765, output_format="json", dry_run=True)
+            rc = cmd_stop(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
@@ -803,8 +825,8 @@ class CliCommandTests(unittest.TestCase):
         mock_urlopen.assert_not_called()
 
     def test_soft_stop_main_dispatches_dry_run(self):
-        with patch("keysight_logger_cli.cli.cmd_soft_stop", return_value=21) as mock_cmd:
-            rc = main(["soft-stop", "--dry-run", "--json"])
+        with patch("keysight_logger_cli.cli.cmd_stop", return_value=21) as mock_cmd:
+            rc = main(["stop", "--dry-run", "--json"])
 
         self.assertEqual(21, rc)
         mock_cmd.assert_called_once_with(8765, "json", True, 3000)
@@ -822,7 +844,7 @@ class CliCommandTests(unittest.TestCase):
 
         mock_urlopen.return_value = FakeResponse()
 
-        rc = cmd_soft_stop(8765, timeout_ms=2000)
+        rc = cmd_stop(8765, timeout_ms=2000)
 
         self.assertEqual(0, rc)
         self.assertEqual(2.0, mock_urlopen.call_args.kwargs["timeout"])
@@ -832,14 +854,14 @@ class CliCommandTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = cmd_soft_stop(8765)
+            rc = cmd_stop(8765)
 
         self.assertEqual(3, rc)
         self.assertIn("stop request failed", stderr.getvalue())
 
     def test_soft_status_json_alias_uses_json_format(self):
         parser = build_parser()
-        args = parser.parse_args(["soft-status", "--json"])
+        args = parser.parse_args(["status", "--json"])
 
         self.assertEqual("json", args.output_format)
 
@@ -847,7 +869,7 @@ class CliCommandTests(unittest.TestCase):
         parser = build_parser()
 
         with self.assertRaises(SystemExit) as exc:
-            parser.parse_args(["soft-status", "--json", "--format", "text"])
+            parser.parse_args(["status", "--json", "--format", "text"])
 
         self.assertEqual(2, exc.exception.code)
 
@@ -869,7 +891,7 @@ class CliCommandTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with redirect_stderr(stderr):
-            rc = main(["soft-status", "--port", "0"])
+            rc = main(["status", "--port", "0"])
 
         self.assertEqual(2, rc)
         self.assertIn("--port 0 is outside the supported range 1-65535", stderr.getvalue())
@@ -889,7 +911,7 @@ class CliCommandTests(unittest.TestCase):
             "service": "keysight-meter",
             "run_id": "run-123",
             "status": "running",
-            "trigger_url": "http://127.0.0.1:8765/trigger",
+            "command_url": "http://127.0.0.1:8765/command",
             "stop_url": "http://127.0.0.1:8765/stop",
             "status_url": "http://127.0.0.1:8765/status",
             "queue_size": 0,
@@ -922,7 +944,7 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(0, rc)
         req = mock_urlopen.call_args.args[0]
@@ -930,7 +952,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("GET", req.get_method())
         self.assertEqual(3.0, mock_urlopen.call_args.kwargs["timeout"])
         event = json.loads(stdout.getvalue())
-        self.assertEqual("soft-status", event["event"])
+        self.assertEqual("status", event["event"])
         self.assertTrue(event["ok"])
         self.assertTrue(event["reachable"])
         self.assertTrue(event["running"])
@@ -944,7 +966,7 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765)
+            rc = cmd_status(8765)
 
         self.assertEqual(0, rc)
         output = stdout.getvalue()
@@ -953,7 +975,7 @@ class CliCommandTests(unittest.TestCase):
     def test_soft_status_dry_run_json_emits_get_preview(self):
         stdout = io.StringIO()
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_status(8765, output_format="json", dry_run=True)
+            rc = cmd_status(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
@@ -969,11 +991,11 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(3, rc)
         event = json.loads(stdout.getvalue())
-        self.assertEqual("soft-status", event["event"])
+        self.assertEqual("status", event["event"])
         self.assertFalse(event["ok"])
         self.assertFalse(event["reachable"])
         self.assertEqual(3, event["exit_code"])
@@ -984,7 +1006,7 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
@@ -1470,7 +1492,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertEqual(1, len(FakeCapturingCsvWriter.samples))
         self.assertIn("captured=1 errors=0", stdout.getvalue())
-        self.assertIn("software trigger endpoint: http://127.0.0.1:8765/trigger", stdout.getvalue())
+        self.assertIn("command endpoint: http://127.0.0.1:8765/command", stdout.getvalue())
         self.assertNotIn("ready", stdout.getvalue())
 
     def test_start_simulate_jsonl_emits_parseable_sample_and_summary(self):
@@ -1504,7 +1526,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("keysight-meter", ready[0]["service"])
         self.assertEqual("127.0.0.1", ready[0]["host"])
         self.assertEqual(8765, ready[0]["port"])
-        self.assertEqual("http://127.0.0.1:8765/trigger", ready[0]["trigger_url"])
+        self.assertEqual("http://127.0.0.1:8765/command", ready[0]["command_url"])
         self.assertEqual("http://127.0.0.1:8765/stop", ready[0]["stop_url"])
         self.assertEqual("http://127.0.0.1:8765/status", ready[0]["status_url"])
         self.assertIn("run_id", ready[0])
@@ -1607,7 +1629,7 @@ class CliCommandTests(unittest.TestCase):
             self.assertEqual(1, payload["schema_version"])
             self.assertEqual("keysight-meter", payload["service"])
             self.assertEqual("running", payload["status"])
-            self.assertEqual(f"http://127.0.0.1:{port}/trigger", payload["trigger_url"])
+            self.assertEqual(f"http://127.0.0.1:{port}/command", payload["command_url"])
             self.assertEqual(f"http://127.0.0.1:{port}/stop", payload["stop_url"])
             self.assertEqual(f"http://127.0.0.1:{port}/status", payload["status_url"])
             self.assertEqual(0, payload["queue_size"])
@@ -1619,9 +1641,9 @@ class CliCommandTests(unittest.TestCase):
             self.assertIsInstance(payload["run_id"], str)
 
             trigger_req = request.Request(
-                f"http://127.0.0.1:{port}/trigger",
+                f"http://127.0.0.1:{port}/command",
                 method="POST",
-                data=b"{}",
+                data=b'{"command":"software_trigger"}',
                 headers={"Content-Type": "application/json"},
             )
             with request.urlopen(trigger_req, timeout=1.0) as resp:
@@ -2413,7 +2435,7 @@ class CliCommandTests(unittest.TestCase):
         side_effect=URLError(ConnectionRefusedError(10061, "refused")),
     )
     def test_soft_stop_connection_refused_returns_0(self, _mock_urlopen):
-        rc = cmd_soft_stop(8765)
+        rc = cmd_stop(8765)
         self.assertEqual(0, rc)
 
 
@@ -2425,12 +2447,12 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_stop(8765, output_format="json")
+            rc = cmd_stop(8765, output_format="json")
 
         self.assertEqual(0, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual(1, len(events))
-        self.assertEqual("soft-stop", events[0]["event"])
+        self.assertEqual("stop", events[0]["event"])
         self.assertEqual("already_stopped", events[0]["status"])
 
 class CliCommandJsonTests(unittest.TestCase):
@@ -2440,7 +2462,7 @@ class CliCommandJsonTests(unittest.TestCase):
             "service": "keysight-meter",
             "run_id": "run-123",
             "status": status,
-            "trigger_url": "http://127.0.0.1:8765/trigger",
+            "command_url": "http://127.0.0.1:8765/command",
             "stop_url": "http://127.0.0.1:8765/stop",
             "status_url": "http://127.0.0.1:8765/status",
             "queue_size": 0,
@@ -2509,17 +2531,17 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_trigger(8765, "{bad json", output_format="json")
+            rc = cmd_send_command(8765, "{bad json", output_format="json")
 
         self.assertEqual(2, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual(1, len(events))
         self.assertEqual("error", events[0]["event"])
         self.assertEqual(2, events[0]["exit_code"])
-        self.assertIn("meta must be valid JSON", events[0]["message"])
+        self.assertIn("arguments-json must be valid JSON", events[0]["message"])
         self._assert_error_contract(
             events[0],
-            client_command="soft-trigger",
+            client_command="send-command",
             error_phase="validation",
             exit_code=2,
         )
@@ -2538,27 +2560,27 @@ class CliCommandJsonTests(unittest.TestCase):
         mock_urlopen.return_value = FakeResponse()
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            rc = cmd_soft_trigger(8765, '{"operator": "tom"}', output_format="json")
+            rc = cmd_send_command(8765, '{"metadata":{"operator": "tom"}}', output_format="json")
         self.assertEqual(0, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual(1, len(events))
-        self.assertEqual("soft-trigger", events[0]["event"])
+        self.assertEqual("send-command", events[0]["event"])
         self.assertEqual("accepted", events[0]["status"])
         self.assertEqual(202, events[0]["http_status"])
         self._assert_client_contract(
             events[0],
-            event="soft-trigger",
-            client_command="soft-trigger",
+            event="send-command",
+            client_command="send-command",
             ok=True,
             request_sent=True,
         )
         self.assertTrue(events[0]["reachable"])
 
     @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
-    def test_soft_trigger_url_error_json_returns_error_event(self, _mock_urlopen):
+    def test_soft_command_url_error_json_returns_error_event(self, _mock_urlopen):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            rc = cmd_soft_trigger(8765, "{}", output_format="json")
+            rc = cmd_send_command(8765, "{}", output_format="json")
         self.assertEqual(3, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual(1, len(events))
@@ -2566,7 +2588,7 @@ class CliCommandJsonTests(unittest.TestCase):
         self.assertEqual(3, events[0]["exit_code"])
         self._assert_error_contract(
             events[0],
-            client_command="soft-trigger",
+            client_command="send-command",
             error_phase="request",
             exit_code=3,
         )
@@ -2585,17 +2607,17 @@ class CliCommandJsonTests(unittest.TestCase):
         mock_urlopen.return_value = FakeResponse()
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            rc = cmd_soft_stop(8765, output_format="json")
+            rc = cmd_stop(8765, output_format="json")
         self.assertEqual(0, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual(1, len(events))
-        self.assertEqual("soft-stop", events[0]["event"])
+        self.assertEqual("stop", events[0]["event"])
         self.assertEqual("accepted", events[0]["status"])
         self.assertEqual(204, events[0]["http_status"])
         self._assert_client_contract(
             events[0],
-            event="soft-stop",
-            client_command="soft-stop",
+            event="stop",
+            client_command="stop",
             ok=True,
             request_sent=True,
         )
@@ -2606,7 +2628,7 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_stop(8765, output_format="json")
+            rc = cmd_stop(8765, output_format="json")
 
         self.assertEqual(3, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
@@ -2616,7 +2638,7 @@ class CliCommandJsonTests(unittest.TestCase):
         self.assertIn("stop request failed", events[0]["message"])
         self._assert_error_contract(
             events[0],
-            client_command="soft-stop",
+            client_command="stop",
             error_phase="request",
             exit_code=3,
         )
@@ -2629,14 +2651,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_stop(8765, output_format="json")
+            rc = cmd_stop(8765, output_format="json")
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
-            event="soft-stop",
-            client_command="soft-stop",
+            event="stop",
+            client_command="stop",
             ok=True,
             request_sent=True,
         )
@@ -2647,14 +2669,19 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_trigger(8765, '{"source":"contract"}', output_format="json", dry_run=True)
+            rc = cmd_send_command(
+                8765,
+                '{"metadata":{"source":"contract"}}',
+                output_format="json",
+                dry_run=True,
+            )
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
             event="dry_run",
-            client_command="soft-trigger",
+            client_command="send-command",
             ok=True,
             request_sent=False,
         )
@@ -2666,14 +2693,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_stop(8765, output_format="json", dry_run=True)
+            rc = cmd_stop(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
             event="dry_run",
-            client_command="soft-stop",
+            client_command="stop",
             ok=True,
             request_sent=False,
         )
@@ -2687,14 +2714,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
-            event="soft-status",
-            client_command="soft-status",
+            event="status",
+            client_command="status",
             ok=True,
             request_sent=True,
         )
@@ -2708,14 +2735,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
-            event="soft-status",
-            client_command="soft-status",
+            event="status",
+            client_command="status",
             ok=False,
             request_sent=True,
         )
@@ -2727,14 +2754,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(3, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
-            event="soft-status",
-            client_command="soft-status",
+            event="status",
+            client_command="status",
             ok=False,
             request_sent=True,
         )
@@ -2760,14 +2787,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = cmd_soft_status(8765, output_format="json")
+            rc = cmd_status(8765, output_format="json")
 
         self.assertEqual(3, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
-            event="soft-status",
-            client_command="soft-status",
+            event="status",
+            client_command="status",
             ok=False,
             request_sent=True,
         )
@@ -2778,14 +2805,14 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
-            rc = cmd_soft_status(8765, output_format="json", dry_run=True)
+            rc = cmd_status(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
         event = json.loads(stdout.getvalue())
         self._assert_client_contract(
             event,
             event="dry_run",
-            client_command="soft-status",
+            client_command="status",
             ok=True,
             request_sent=False,
         )
@@ -2861,13 +2888,13 @@ class CliCommandJsonTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with redirect_stdout(stdout):
-            rc = main(["soft-status", "--port", "0", "--json"])
+            rc = main(["status", "--port", "0", "--json"])
 
         self.assertEqual(2, rc)
         event = json.loads(stdout.getvalue())
         self._assert_error_contract(
             event,
-            client_command="soft-status",
+            client_command="status",
             error_phase="validation",
             exit_code=2,
             port=0,

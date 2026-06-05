@@ -79,7 +79,7 @@ def _trigger_description(trigger_mode: str, request: StartRequest) -> str:
     if trigger_mode == "software" and request.timer_interval_s is not None:
         return f"software timer every {request.timer_interval_s:g} s"
     if trigger_mode == "software":
-        return "software trigger endpoint"
+        return "command endpoint"
     if trigger_mode == "external":
         return (
             "external hardware trigger "

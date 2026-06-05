@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Empty, Full, Queue
 from typing import Callable, Optional, Tuple
 
+from .command import CommandValidationError, parse_command_envelope_json
 from .instrument import is_pyvisa_timeout_error
 from .instrument_backend import InstrumentBackend
 from .models import TriggerEvent, TriggerSource
@@ -178,19 +179,24 @@ class SoftwareTriggerAdapter:
                     if stop_cb is not None:
                         threading.Thread(target=stop_cb, daemon=True).start()
                     return
-                if self.path != "/trigger":
+                if self.path != "/command":
                     self.send_response(404)
                     self.end_headers()
                     return
                 content_len = int(self.headers.get("Content-Length", "0"))
                 payload = self.rfile.read(content_len).decode("utf-8") if content_len else "{}"
-                metadata = {}
                 try:
-                    body = json.loads(payload)
-                    if isinstance(body, dict):
-                        metadata = {str(k): str(v) for k, v in body.items()}
-                except json.JSONDecodeError:
-                    metadata = {}
+                    command = parse_command_envelope_json(payload)
+                except CommandValidationError as exc:
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.end_headers()
+                    self.wfile.write(
+                        json.dumps(
+                            {"status": "rejected", "reason": "validation", "message": str(exc)}
+                        ).encode("utf-8")
+                    )
+                    return
                 accepted, reason = self.server.adapter._try_accept_trigger()  # type: ignore[attr-defined]
                 if not accepted:
                     self.send_response(429)
@@ -198,7 +204,7 @@ class SoftwareTriggerAdapter:
                     self.end_headers()
                     self.wfile.write(json.dumps({"status": "rejected", "reason": reason}).encode("utf-8"))
                     return
-                if not router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, metadata=metadata)):
+                if not router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, metadata=command.metadata)):
                     self.send_response(429)
                     self.send_header("Content-Type", "application/json")
                     self.end_headers()
@@ -247,7 +253,7 @@ class SoftwareTriggerAdapter:
             "service": "keysight-meter",
             "run_id": dynamic.get("run_id"),
             "status": status,
-            "trigger_url": f"{base_url}/trigger",
+            "command_url": f"{base_url}/command",
             "stop_url": f"{base_url}/stop",
             "status_url": f"{base_url}/status",
             "queue_size": self._router.size(),

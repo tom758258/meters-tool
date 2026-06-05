@@ -40,14 +40,27 @@ Common lifecycle endpoints are:
 
 - `GET /status`: non-mutating health and progress check. It must not trigger
   unplanned work, mutate queues, or perform device I/O.
-- `POST /trigger`: generic worker trigger hook. Each worker contract defines
-  what trigger means and when it is accepted, ignored, or rejected.
+- `POST /command`: worker command envelope. The common protocol defines only
+  the envelope shape; each worker contract defines supported command names,
+  arguments, acceptance, rejection, and side effects.
 - `POST /stop`: graceful stop request. Stop should request orderly worker
   shutdown through the worker's documented cleanup path.
 
-This common protocol does not define `POST /start` or a generic
-`POST /command`. Instrument-specific commands belong in the worker-specific
-contract for that instrument family.
+The common `POST /command` request envelope is a JSON object with these allowed
+top-level fields:
+
+- `command`: required string command name.
+- `arguments`: optional JSON object; omitted means `{}`.
+- `job_id`: optional client-provided string that workers may echo in command
+  responses or diagnostics.
+
+Workers should reject malformed JSON, a non-object body, unknown top-level
+fields, a missing or non-string `command`, a non-object `arguments`, and a
+non-string `job_id` with a structured validation error. Validation failures
+must not perform device I/O or enqueue domain work.
+
+This common protocol does not define `POST /start`. Instrument-specific
+commands belong in the worker-specific contract for that instrument family.
 
 ## Exit Codes
 

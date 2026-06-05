@@ -1,4 +1,4 @@
-﻿param(
+param(
     [ValidateSet("all", "keysight-34461a")]
     [string]$Target = "all",
     [switch]$ListTargets,
@@ -237,7 +237,7 @@ function Invoke-CapturedStartProcess {
                 -OutDir $OutDir
             $clientResults.Add([pscustomobject]$triggerResult) | Out-Null
             if (-not $triggerResult.success) {
-                $clientFailure = "soft-trigger $index failed"
+                $clientFailure = "send-command $index failed"
                 break
             }
             Start-Sleep -Milliseconds 150
@@ -253,7 +253,7 @@ function Invoke-CapturedStartProcess {
             $stopResult = Invoke-CapturedCommand `
                 -Name "$Name`_timeout_soft_stop" `
                 -FilePath $Python `
-                -Arguments @("-m", "keysight_logger_cli", "soft-stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -Arguments @("-m", "keysight_logger_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
                 -StdOutPath $stopOut `
                 -StdErrPath $stopErr
             $clientResults.Add([pscustomobject]$stopResult) | Out-Null
@@ -305,17 +305,17 @@ function Invoke-SoftTriggerWithRetry {
             -FilePath $Python `
             -Arguments @(
                 "-m", "keysight_logger_cli",
-                "soft-trigger",
+                "send-command",
                 "--format", "json",
                 "--port", [string]$Port,
-                "--meta", $meta
+                "--arguments-json", $meta
             ) `
             -StdOutPath $stdoutPath `
             -StdErrPath $stderrPath
         if ($lastResult.success) {
             try {
                 $event = Get-Content -LiteralPath $stdoutPath -Raw | ConvertFrom-Json -ErrorAction Stop
-                if ($event.event -eq "soft-trigger" -and $event.status -eq "accepted") {
+                if ($event.event -eq "send-command" -and $event.status -eq "accepted") {
                     return $lastResult
                 }
             } catch {
@@ -351,7 +351,7 @@ function Invoke-ReadinessClientChecks {
     $statusResult = Invoke-CapturedCommand `
         -Name "$Name`_soft_status" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "soft-status", "--format", "json", "--port", [string]$Port) `
+        -Arguments @("-m", "keysight_logger_cli", "status", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $statusOut `
         -StdErrPath $statusErr
 
@@ -504,9 +504,9 @@ function Invoke-SimulateCase {
     if ($SoftTriggerCount -gt 0) {
         Assert-Condition ($ready.Count -eq 1) "$Name ready event missing"
         $statusCommand = @($result.client_commands | Where-Object { $_.name -eq "$Name`_soft_status" } | Select-Object -Last 1)
-        Assert-Condition ($statusCommand.Count -eq 1) "$Name soft-status client command missing"
+        Assert-Condition ($statusCommand.Count -eq 1) "$Name status client command missing"
         $statusPayload = Get-Content -LiteralPath $statusCommand[0].stdout -Raw | ConvertFrom-Json -ErrorAction Stop
-        Assert-Condition ($statusPayload.run_id -eq $ready[0].run_id) "$Name soft-status run_id mismatch"
+        Assert-Condition ($statusPayload.run_id -eq $ready[0].run_id) "$Name status run_id mismatch"
     }
     Assert-Condition ($summary.Count -eq 1) "$Name summary event missing"
     Assert-Condition ([int]$summary[0].captured -eq $ExpectedCaptured) "$Name captured count mismatch"
@@ -636,43 +636,43 @@ function Invoke-TargetPreflight {
     $softTriggerResult = Invoke-CapturedCommand `
         -Name "soft_trigger_dry_run" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "soft-trigger", "--dry-run", "--format", "json", "--port", "8765", "--meta", '{"source":"preflight"}') `
+        -Arguments @("-m", "keysight_logger_cli", "send-command", "--dry-run", "--format", "json", "--port", "8765", "--arguments-json", '{"source":"preflight"}') `
         -StdOutPath $softTriggerJson `
         -StdErrPath (Join-Path $outDir "soft_trigger_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softTriggerResult) | Out-Null
-    Assert-Condition ($softTriggerResult.success) "soft-trigger dry-run command failed"
+    Assert-Condition ($softTriggerResult.success) "send-command dry-run command failed"
     $softTrigger = Get-Content -LiteralPath $softTriggerJson -Raw | ConvertFrom-Json -ErrorAction Stop
-    Assert-Condition ($softTrigger.event -eq "dry_run") "soft-trigger dry-run event mismatch"
-    Assert-Condition ($softTrigger.send_request -eq $false) "soft-trigger dry-run should not send HTTP"
+    Assert-Condition ($softTrigger.event -eq "dry_run") "send-command dry-run event mismatch"
+    Assert-Condition ($softTrigger.send_request -eq $false) "send-command dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_trigger_dry_run_json"; success = $true; path = $softTriggerJson }) | Out-Null
 
     $softStopJson = Join-Path $outDir "soft_stop_dry_run.json"
     $softStopResult = Invoke-CapturedCommand `
         -Name "soft_stop_dry_run" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "soft-stop", "--dry-run", "--format", "json", "--port", "8765") `
+        -Arguments @("-m", "keysight_logger_cli", "stop", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStopJson `
         -StdErrPath (Join-Path $outDir "soft_stop_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softStopResult) | Out-Null
-    Assert-Condition ($softStopResult.success) "soft-stop dry-run command failed"
+    Assert-Condition ($softStopResult.success) "stop dry-run command failed"
     $softStop = Get-Content -LiteralPath $softStopJson -Raw | ConvertFrom-Json -ErrorAction Stop
-    Assert-Condition ($softStop.event -eq "dry_run") "soft-stop dry-run event mismatch"
-    Assert-Condition ($softStop.send_request -eq $false) "soft-stop dry-run should not send HTTP"
+    Assert-Condition ($softStop.event -eq "dry_run") "stop dry-run event mismatch"
+    Assert-Condition ($softStop.send_request -eq $false) "stop dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_stop_dry_run_json"; success = $true; path = $softStopJson }) | Out-Null
 
     $softStatusJson = Join-Path $outDir "soft_status_dry_run.json"
     $softStatusResult = Invoke-CapturedCommand `
         -Name "soft_status_dry_run" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "soft-status", "--dry-run", "--format", "json", "--port", "8765") `
+        -Arguments @("-m", "keysight_logger_cli", "status", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStatusJson `
         -StdErrPath (Join-Path $outDir "soft_status_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softStatusResult) | Out-Null
-    Assert-Condition ($softStatusResult.success) "soft-status dry-run command failed"
+    Assert-Condition ($softStatusResult.success) "status dry-run command failed"
     $softStatus = Get-Content -LiteralPath $softStatusJson -Raw | ConvertFrom-Json -ErrorAction Stop
-    Assert-Condition ($softStatus.event -eq "dry_run") "soft-status dry-run event mismatch"
-    Assert-Condition ($softStatus.send_request -eq $false) "soft-status dry-run should not send HTTP"
-    Assert-Condition ($softStatus.method -eq "GET") "soft-status dry-run method mismatch"
+    Assert-Condition ($softStatus.event -eq "dry_run") "status dry-run event mismatch"
+    Assert-Condition ($softStatus.send_request -eq $false) "status dry-run should not send HTTP"
+    Assert-Condition ($softStatus.method -eq "GET") "status dry-run method mismatch"
     $checks.Add([pscustomobject]@{ name = "soft_status_dry_run_json"; success = $true; path = $softStatusJson }) | Out-Null
 
     $listResourcesJson = Join-Path $outDir "list_resources_dry_run.json"

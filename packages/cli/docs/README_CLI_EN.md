@@ -1,4 +1,4 @@
-﻿# Keysight 34461A CLI Logger
+# Keysight 34461A CLI Logger
 
 Current CLI baseline: `cli-v1.3.2`.
 
@@ -202,7 +202,7 @@ form above remains a development fallback.
 2. Choose a resource string.
 3. Start `start-trigger-record` in one terminal.
 4. Send triggers, wait for external trigger edges, or use immediate mode.
-5. Stop with `soft-stop`, Ctrl+C, Ctrl+Break, `q`, or `--max-samples`.
+5. Stop with `stop`, Ctrl+C, Ctrl+Break, `q`, or `--max-samples`.
 6. Inspect the CSV output.
 
 ## Command Reference
@@ -223,9 +223,9 @@ The module form remains an explicit development/fallback alternative:
 | --- | --- | --- |
 | `list-resources` | Print VISA resources discovered by PyVISA. | Find the USB or LAN resource string. Add `--verify` to query `*IDN?`; add `--live-only` to hide stale cached resources; add `--dry-run` to preview discovery actions without touching VISA. |
 | `start-trigger-record` | Connect to the instrument and record samples to CSV. | Main logging command. |
-| `soft-trigger` | POST one software trigger to the local trigger endpoint. | Used with `--trigger-mode software`. |
-| `soft-stop` | POST a graceful stop request to the local stop endpoint. | Stop a running logger from another terminal. |
-| `soft-status` | GET the local status endpoint and normalize the worker status. | Check worker health and correlate `run_id` without mutating state. |
+| `send-command` | POST one `software_trigger` command to the local command endpoint. | Used with `--trigger-mode software`. |
+| `stop` | POST a graceful stop request to the local stop endpoint. | Stop a running logger from another terminal. |
+| `status` | GET the local status endpoint and normalize the worker status. | Check worker health and correlate `run_id` without mutating state. |
 | `wait-ready` | Poll the local status endpoint until the worker control plane is reachable. | Orchestrator readiness gate before trigger/stop/status calls. |
 
 Root options:
@@ -245,18 +245,20 @@ Root options:
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |
 | `--json` | Alias for `--format json`. |
 
-`soft-trigger` options:
+`send-command` options:
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `--port N` | `8765` | Local software trigger server port. Supported range: `1` to `65535`. |
+| `--port N` | `8765` | Local command endpoint port. Supported range: `1` to `65535`. |
 | `--timeout-ms N` | `3000` | HTTP client timeout in milliseconds. Supported range: `100` to `600000`. |
-| `--meta JSON` | `{}` | JSON metadata object sent with the trigger and written to CSV as `trigger_metadata`. Invalid JSON is rejected before sending the request. |
+| `--command NAME` | `software_trigger` | Meters command name. This revision supports only `software_trigger`. |
+| `--arguments-json JSON` | `{}` | JSON command arguments. Use `{"metadata":{...}}` to attach trigger metadata written to CSV as `trigger_metadata`. Invalid JSON is rejected before sending the request. |
+| `--job-id TEXT` | unset | Optional client-generated job id echoed by the command envelope only. |
 | `--format text\|json` | `text` | Response output format. `json` emits one structured object for agent callers. |
 | `--json` | No | Off | Alias for `--format json`. |
 | `--dry-run` | No | Off | Preview the request locally without sending HTTP. |
 
-`soft-stop` options:
+`stop` options:
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -266,7 +268,7 @@ Root options:
 | `--json` | No | Off | Alias for `--format json`. |
 | `--dry-run` | No | Off | Preview the request locally without sending HTTP. |
 
-`soft-status` options:
+`status` options:
 
 | Option | Default | Description |
 | --- | --- | --- |
@@ -289,19 +291,19 @@ Root options:
 
 | Mode | How capture starts | Read path | CSV `trigger_source` | Notes |
 | --- | --- | --- | --- | --- |
-| `software` | `soft-trigger` posts to the local HTTP endpoint, or `--timer-interval-s` creates automatic timer events. | `READ?` | `software` or `timer` | Default when `--trigger-mode` is omitted. Timer mode uses fixed-delay spacing after each capture attempt. |
+| `software` | `send-command` posts to the local HTTP endpoint, or `--timer-interval-s` creates automatic timer events. | `READ?` | `software` or `timer` | Default when `--trigger-mode` is omitted. Timer mode uses fixed-delay spacing after each capture attempt. |
 | `external` | The instrument receives an external hardware trigger edge. | `FETC?` | `hardware` | Use `--trigger-mode external`. |
 | `immediate` | The worker captures without waiting for a trigger event. | `READ?` | `immediate` | Use `--max-samples` for bounded runs. |
 | `immediate-custom` | The instrument runs an explicit immediate trigger/sample sequence and stores readings in memory. | `INIT` + `DATA:POINts?` / `DATA:REMove?` | `immediate-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` is not valid. |
-| `software-custom` | The instrument is armed for bus triggers; each accepted `soft-trigger` sends `*TRG`. | `INIT` + `*TRG` + `DATA:POINts?` / `DATA:REMove?` | `software-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` and `--timer-interval-s` are not valid. |
+| `software-custom` | The instrument is armed for bus triggers; each accepted `send-command` sends `*TRG`. | `INIT` + `*TRG` + `DATA:POINts?` / `DATA:REMove?` | `software-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` and `--timer-interval-s` are not valid. |
 | `external-custom` | The instrument is armed for external trigger edges and stores readings in memory. | `INIT` + external edge + `DATA:POINts?` / `DATA:REMove?` | `external-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` and `--timer-interval-s` are not valid. |
 
 In `external` mode, accidental software triggers are ignored and should not
 break the hardware-trigger flow. In `immediate` mode, software triggers are also
 ignored.
 
-When `--timer-interval-s` is active, ordinary `soft-trigger` requests are
-ignored while `soft-stop` still stops the run. The first timer sample is captured
+When `--timer-interval-s` is active, ordinary `send-command` requests are
+ignored while `stop` still stops the run. The first timer sample is captured
 when recording starts; each later timer sample waits at least the configured
 interval after the previous capture attempt finishes. Timer mode is a simple
 software-mode acquisition path, so `--max-samples` is valid and stops the run
@@ -319,7 +321,7 @@ after that many successful timer CSV rows.
 | `--json` | No | Off | Alias for `--status-format jsonl`. |
 | `--timeout-ms N` | No | `5000` | VISA session timeout in milliseconds. Supported range: `100` to `600000`. |
 | `--trigger-timeout-ms N` | No | `10000` | External/custom trigger wait timeout. Supported range: `500` to `600000`. Timeout re-arms hardware mode and is not itself a capture error. Values that are too short for the expected external edge timing will repeatedly re-arm instead of capturing. |
-| `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/trigger`, `/stop`, and `/status`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
+| `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/command`, `/stop`, and `/status`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
 | `--sw-min-interval-ms N` | No | `0` | Minimum interval between accepted software triggers. Use `0` to disable rate limiting, or use `50` to `600000`. |
 | `--sw-queue-max N` | No | `0` | Maximum queued software triggers. Supported range: `0` to `10000`; `0` uses the default safety cap. |
 | `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | No | `software` | Select exactly one acquisition mode. |
@@ -395,11 +397,11 @@ and alias rules.
 See [Meters Worker Contract](../../../docs/contracts/meters-worker-contract.md) for the Meters worker modes, local
 control endpoints, status payload, and wrapper artifact/report schema.
 
-When the worker is running, `soft-status` wraps non-mutating `GET /status` and
+When the worker is running, `status` wraps non-mutating `GET /status` and
 returns normalized JSON for orchestration health checks:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-status --port 8765 --json
+.\.venv\Scripts\keysight-logger.exe status --port 8765 --json
 ```
 
 Recommended orchestrator flow:
@@ -411,8 +413,8 @@ Recommended orchestrator flow:
 3. For live acquisition, start the worker with an explicit `--resource`; do not
    scan, infer, or guess the VISA resource in an unattended live run.
 4. Wait for the JSONL `ready` event or run `wait-ready --port 8765 --json`,
-   then call `soft-status --port 8765 --json` to verify the `run_id`.
-5. Use `POST /trigger` only for software-triggered modes, and `POST /stop` for
+   then call `status --port 8765 --json` to verify the `run_id`.
+5. Use `POST /command` only for software-triggered modes, and `POST /stop` for
    graceful stop.
 6. Read stdout JSONL plus CSV and wrapper artifacts such as `report.json` for
    pass/fail decisions.
@@ -421,49 +423,49 @@ See [Meters Orchestrator Workflows](../../../docs/contracts/meters-orchestrator-
 Python subprocess workflow.
 
 The `ready` event and `wait-ready` mean the local control plane can accept
-`/trigger`, `/stop`, and `/status` requests. They are not first-sample signals.
+`/command`, `/stop`, and `/status` requests. They are not first-sample signals.
 Use the JSONL `run_id` as the correlation key between stdout runtime events,
-`soft-status` or direct `GET /status`, and wrapper artifacts from the same run.
+`status` or direct `GET /status`, and wrapper artifacts from the same run.
 
-### soft-trigger --format json
+### send-command --format json
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-trigger --port 8765 --format json
+.\.venv\Scripts\keysight-logger.exe send-command --port 8765 --format json
 ```
 
 Output:
 
 ```json
-{"event": "soft-trigger", "http_status": 202, "message": "trigger accepted",
+{"event": "send-command", "http_status": 202, "message": "command accepted",
  "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}
 ```
 
-Invalid `--meta` JSON exits with code 2. Connection or request failures exit
+Invalid `--arguments-json` JSON exits with code 2. Connection or request failures exit
 with code 3. Both emit structured error JSON objects.
 
-### soft-stop --format json
+### stop --format json
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-stop --port 8765 --format json
+.\.venv\Scripts\keysight-logger.exe stop --port 8765 --format json
 ```
 
 Output:
 
 ```json
-{"event": "soft-stop", "http_status": 202, "message": "stop accepted",
+{"event": "stop", "http_status": 202, "message": "stop accepted",
  "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}
 ```
 
 If the endpoint is not listening (process already stopped), exits with code 0
 and emits `{"status": "already_stopped", ...}`.
 
-### soft-status --format json
+### status --format json
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-status --port 8765 --format json
+.\.venv\Scripts\keysight-logger.exe status --port 8765 --format json
 ```
 
-Output includes `event: "soft-status"`, `reachable`, `ok`, `running`,
+Output includes `event: "status"`, `reachable`, `ok`, `running`,
 `stopping`, `run_id`, worker URLs, queue fields, `captured`, `errors`, and
 `fatal_error`. `ok` is worker health: it is `true` only when the endpoint is
 reachable and `fatal_error` is `null`.
@@ -482,7 +484,7 @@ Timeout or invalid status JSON exits with code 3.
 
 | Code | Meaning |
 | --- | --- |
-| `0` | Success, including reachable `soft-status` with `fatal_error` and `soft-stop` when the endpoint is already stopped. |
+| `0` | Success, including reachable `status` with `fatal_error` and `stop` when the endpoint is already stopped. |
 | `2` | Validation or usage error before the requested operation runs. |
 | `3` | Runtime, connection, HTTP request failure, invalid `/status` JSON, or `wait-ready` timeout. |
 
@@ -510,14 +512,14 @@ ranges fail fast with a clear error.
 | `--timer-interval-s` | `0.5` to `86400` seconds, software mode only |
 | `--buffer-drain-size` | `1` to `10000`, custom modes only and capped by reading memory |
 | `--hw-trigger-delay-s` | `0` to `3600` seconds |
-| `soft-trigger --port`, `soft-stop --port`, `soft-status --port`, `wait-ready --port` | `1` to `65535` |
-| `soft-trigger --timeout-ms`, `soft-stop --timeout-ms`, `soft-status --timeout-ms`, `wait-ready --timeout-ms` | `100` to `600000` |
-| `soft-trigger --format`, `soft-stop --format`, `soft-status --format`, `wait-ready --format` | `text` or `json` |
+| `send-command --port`, `stop --port`, `status --port`, `wait-ready --port` | `1` to `65535` |
+| `send-command --timeout-ms`, `stop --timeout-ms`, `status --timeout-ms`, `wait-ready --timeout-ms` | `100` to `600000` |
+| `send-command --format`, `stop --format`, `status --format`, `wait-ready --format` | `text` or `json` |
 
 For Agent or automation use, `start-trigger-record --status-format jsonl` and
 the `--json` alias emit one `ready` event after the local HTTP control plane
-starts. The event includes `trigger_url`, `stop_url`, and `status_url`. Treat it
-as the signal that `/trigger`, `/stop`, and non-mutating `/status` requests can
+starts. The event includes `command_url`, `stop_url`, and `status_url`. Treat it
+as the signal that `/command`, `/stop`, and non-mutating `/status` requests can
 be sent; it is not a first-sample or measurement-complete signal.
 
 `--trigger-timeout-ms` is most important for external trigger modes. If it is
@@ -690,7 +692,7 @@ Use this order when checking a setup:
 3. Run the specific trigger mode needed for the experiment: software, timer,
    external, immediate, or custom/buffered.
 4. Confirm the CSV `measurement_type`, `unit`, `trigger_source`, and row count.
-5. Confirm graceful stop behavior with `soft-stop`, Ctrl+C, Ctrl+Break, or `q`
+5. Confirm graceful stop behavior with `stop`, Ctrl+C, Ctrl+Break, or `q`
    before relying on long unattended runs.
 
 Before relying on unattended acquisition, validate the workflow with an
@@ -787,10 +789,10 @@ Terminal 1, start recording and wait for five software triggers:
 Terminal 2, send one software trigger:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-trigger --port 8765
+.\.venv\Scripts\keysight-logger.exe send-command --port 8765
 ```
 
-Run the `soft-trigger` command five times. The logger stops automatically after
+Run the `send-command` command five times. The logger stops automatically after
 five successful samples because of `--max-samples 5`.
 
 ### Validated Voltage DC Smoke Tests
@@ -1115,12 +1117,12 @@ for the selected front or rear terminals.
 ### Software Trigger With Metadata
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-trigger `
+.\.venv\Scripts\keysight-logger.exe send-command `
   --port 8765 `
-  --meta "{""batch"":""A1"",""operator"":""lab""}"
+  --arguments-json "{""metadata"":{""batch"":""A1"",""operator"":""lab""}}"
 ```
 
-The metadata is accepted by the trigger endpoint and written to the CSV
+The metadata is accepted by the command endpoint and written to the CSV
 `trigger_metadata` field as a JSON object string.
 
 ### Software Trigger Rate Limit And Queue Limit
@@ -1190,7 +1192,7 @@ protective re-arm condition; it should not be counted as an error by itself.
   --nplc 1.0
 ```
 
-Immediate mode does not wait for `soft-trigger` or external trigger edges. Use
+Immediate mode does not wait for `send-command` or external trigger edges. Use
 `--max-samples` to avoid an accidental long continuous run.
 
 ### Immediate Custom Mode
@@ -1235,12 +1237,12 @@ The expected row count is `trigger_count * sample_count`. Requests above the
 From another PowerShell window, send one bus trigger per requested trigger:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-trigger
-.\.venv\Scripts\keysight-logger.exe soft-trigger
+.\.venv\Scripts\keysight-logger.exe send-command
+.\.venv\Scripts\keysight-logger.exe send-command
 ```
 
 This mode arms the DMM with `TRIG:SOUR BUS`, `TRIG:COUNT`, and `SAMP:COUNT`.
-Each accepted HTTP `soft-trigger` sends one `*TRG`. The expected row count is
+Each accepted HTTP `send-command` sends one `*TRG`. The expected row count is
 still `trigger_count * sample_count`; `trigger_count=2` and `sample_count=10`
 should produce 20 CSV rows.
 
@@ -1325,7 +1327,7 @@ pulse slope.
 The logger prints the local control endpoints when it starts:
 
 ```text
-software trigger endpoint: http://127.0.0.1:8765/trigger
+command endpoint: http://127.0.0.1:8765/command
 software stop endpoint: http://127.0.0.1:8765/stop
 software status endpoint: http://127.0.0.1:8765/status
 local stop keys: Ctrl+C, Ctrl+Break, q
@@ -1334,7 +1336,7 @@ local stop keys: Ctrl+C, Ctrl+Break, q
 Stop from another terminal:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe soft-stop --port 8765
+.\.venv\Scripts\keysight-logger.exe stop --port 8765
 ```
 
 Other supported stop methods:
@@ -1354,7 +1356,7 @@ cleanup_release_to_local: ...
 software trigger server stopped
 ```
 
-If `soft-stop` is sent after the logger already exited, it may print:
+If `stop` is sent after the logger already exited, it may print:
 
 ```text
 already stopped (endpoint not listening)
@@ -1401,7 +1403,7 @@ CSV fields:
 | `unit` | Unit, `A` for current, `V` for voltage, `ratio` for DCV Ratio, and `Ohm` for resistance. |
 | `trigger_id` | UUID assigned to the trigger event. |
 | `trigger_source` | `software`, `timer`, `hardware`, `immediate`, `immediate-custom`, `software-custom`, or `external-custom`. |
-| `trigger_metadata` | JSON object string from `soft-trigger --meta`, or `{}`. |
+| `trigger_metadata` | JSON object string from `send-command --arguments-json`, or `{}`. |
 | `measurement_metadata` | JSON object string for measurement-specific context, or `{}`. DCV Ratio can include signal/reference voltage fields from `DATA2?`. |
 | `resource_id` | VISA resource used for the run. |
 | `status` | Sample status, currently `ok` for successful captures. |

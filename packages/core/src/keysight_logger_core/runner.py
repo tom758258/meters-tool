@@ -186,7 +186,7 @@ def run_start_session(
             status_provider=worker_status,
         )
         if control_handle.active:
-            emit_message(f"software trigger endpoint: {control_handle.trigger_url}")
+            emit_message(f"command endpoint: {control_handle.command_url}")
             emit_message(f"software stop endpoint: {control_handle.stop_url}")
             emit_message(f"software status endpoint: {control_handle.status_url}")
             emit_message("local stop keys: Ctrl+C, Ctrl+Break, q")

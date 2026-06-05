@@ -146,7 +146,7 @@ def test_preflight_report_contract():
         wait_ready = next(client for client in command["client_commands"] if client["name"].endswith("_wait_ready"))
         soft_status = next(client for client in command["client_commands"] if client["name"].endswith("_soft_status"))
         assert load_json(Path(wait_ready["stdout"]))["event"] == "wait-ready"
-        assert load_json(Path(soft_status["stdout"]))["event"] == "soft-status"
+        assert load_json(Path(soft_status["stdout"]))["event"] == "status"
 
     measurements = set()
     read_paths = set()

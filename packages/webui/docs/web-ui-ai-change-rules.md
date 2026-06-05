@@ -1,4 +1,4 @@
-﻿# Web UI AI Change Rules
+# Web UI AI Change Rules
 
 This document is the working contract for any AI asked to polish or reorganize
 the Keysight Logger Web UI. It exists to let UI work move quickly without
@@ -50,7 +50,7 @@ Do not change these files for a visual UI task:
 - `packages/core/src/keysight_logger_core/measurement.py`
 - `packages/core/src/keysight_logger_core/models.py`
 - `packages/core/src/keysight_logger_core/storage.py`
-- `packages/core/src/keysight_logger_core/trigger.py`
+- `packages/core/src/keysight_logger_core/command.py`
 - Backend behavior in `packages/webui/src/keysight_logger_webui/web_ui.py`
 
 Do not change any SCPI, VISA, measurement, trigger, timeout, or cleanup
@@ -102,7 +102,7 @@ Do not rename, remove, or repurpose these endpoints:
 - `GET /api/resources?verify=true&live_only=true`
 - `POST /api/runs`
 - `GET /api/runs/current`
-- `POST /api/runs/current/trigger`
+- `POST /api/runs/current/command`
 - `POST /api/runs/current/stop`
 
 Do not change request payload names in `app.js` unless the backend and tests
@@ -144,7 +144,7 @@ Important payload fields currently sent by the UI include:
 - `sw_queue_max`
 
 The Web Trigger button sends a separate JSON object to
-`POST /api/runs/current/trigger`. Empty trigger metadata sends
+`POST /api/runs/current/command`. Empty trigger metadata sends
 `{ "source": "web-ui" }`; non-empty metadata must remain a JSON object and is
 merged into that default object.
 

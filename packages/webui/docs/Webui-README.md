@@ -1,4 +1,4 @@
-﻿# Keysight Logger WebUI README
+# Keysight Logger WebUI README
 
 Updated: 2026-05-29
 
@@ -397,7 +397,7 @@ The browser-facing API surface is:
 - `POST /api/runs`: validates and starts a run.
 - `GET /api/runs/current`: returns current or latest run status.
 - `GET /api/runs/current/events`: returns Server-Sent Events (SSE) stream of run status changes.
-- `POST /api/runs/current/trigger`: queues a software trigger for supported
+- `POST /api/runs/current/command`: queues a software trigger for supported
   modes.
 - `POST /api/runs/current/stop`: requests stop through the Core control plane.
 - `POST /api/runs/current/open-csv`: opens the latest completed CSV.

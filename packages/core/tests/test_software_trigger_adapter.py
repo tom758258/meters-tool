@@ -10,9 +10,9 @@ from keysight_logger_core.trigger import SoftwareTriggerAdapter, TriggerRouter
 
 
 class SoftwareTriggerAdapterTests(unittest.TestCase):
-    def _post_trigger(self, port: int, payload: bytes = b"{}") -> int:
+    def _post_command(self, port: int, payload: bytes = b'{"command":"software_trigger"}') -> int:
         req = request.Request(
-            f"http://127.0.0.1:{port}/trigger",
+            f"http://127.0.0.1:{port}/command",
             method="POST",
             data=payload,
             headers={"Content-Type": "application/json"},
@@ -58,7 +58,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertEqual(1, payload["schema_version"])
             self.assertEqual("keysight-meter", payload["service"])
             self.assertEqual("running", payload["status"])
-            self.assertEqual(f"http://127.0.0.1:{port}/trigger", payload["trigger_url"])
+            self.assertEqual(f"http://127.0.0.1:{port}/command", payload["command_url"])
             self.assertEqual(f"http://127.0.0.1:{port}/stop", payload["stop_url"])
             self.assertEqual(f"http://127.0.0.1:{port}/status", payload["status_url"])
             self.assertEqual(0, payload["queue_size"])
@@ -89,7 +89,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         )
         _, port = server.start()
         try:
-            self.assertEqual(202, self._post_trigger(port))
+            self.assertEqual(202, self._post_command(port))
             status, payload = self._get_json(port)
 
             self.assertEqual(200, status)
@@ -136,12 +136,12 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=100, queue_max=0)
         _, port = server.start()
         try:
-            first = self._post_trigger(port)
-            second = self._post_trigger(port)
+            first = self._post_command(port)
+            second = self._post_command(port)
             self.assertEqual(202, first)
             self.assertEqual(429, second)
             time.sleep(0.12)
-            third = self._post_trigger(port)
+            third = self._post_command(port)
             self.assertEqual(202, third)
         finally:
             server.stop()
@@ -151,28 +151,58 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=1)
         _, port = server.start()
         try:
-            first = self._post_trigger(port)
-            second = self._post_trigger(port)
+            first = self._post_command(port)
+            second = self._post_command(port)
             self.assertEqual(202, first)
             self.assertEqual(429, second)
             event = router.wait(timeout_s=0.1)
             self.assertIsNotNone(event)
-            third = self._post_trigger(port)
+            third = self._post_command(port)
             self.assertEqual(202, third)
         finally:
             server.stop()
 
-    def test_trigger_endpoint_preserves_metadata(self):
+    def test_command_endpoint_preserves_normalized_metadata(self):
         router = TriggerRouter()
         server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
         _, port = server.start()
         try:
-            status = self._post_trigger(port, b'{"batch":"A1","count":3}')
+            status = self._post_command(
+                port,
+                b'{"command":"software_trigger","arguments":{"metadata":{"batch":"A1","count":3,"tags":["x"]}}}',
+            )
             self.assertEqual(202, status)
             event = router.wait(timeout_s=0.1)
             self.assertIsNotNone(event)
             assert event is not None
-            self.assertEqual({"batch": "A1", "count": "3"}, event.metadata)
+            self.assertEqual({"batch": "A1", "count": "3", "tags": '["x"]'}, event.metadata)
+        finally:
+            server.stop()
+
+    def test_command_validation_returns_400_and_does_not_publish(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
+        _, port = server.start()
+        try:
+            self.assertEqual(400, self._post_command(port, b'{"command":"unknown"}'))
+            self.assertIsNone(router.wait(timeout_s=0.01))
+        finally:
+            server.stop()
+
+    def test_trigger_endpoint_returns_404(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
+        _, port = server.start()
+        try:
+            req = request.Request(
+                f"http://127.0.0.1:{port}/trigger",
+                method="POST",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+            )
+            with self.assertRaises(HTTPError) as ctx:
+                request.urlopen(req, timeout=1.0)
+            self.assertEqual(404, ctx.exception.code)
         finally:
             server.stop()
 
@@ -195,8 +225,8 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
         _, port = server.start()
         try:
-            first = self._post_trigger(port)
-            second = self._post_trigger(port)
+            first = self._post_command(port)
+            second = self._post_command(port)
             stop = self._post_stop(port)
             self.assertEqual(202, first)
             self.assertEqual(429, second)

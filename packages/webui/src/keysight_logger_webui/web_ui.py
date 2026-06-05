@@ -35,6 +35,7 @@ from keysight_logger_core import (
     validate_start_request,
 )
 from keysight_logger_core.constants import UTC_PLUS_8
+from keysight_logger_core.command import CommandValidationError, parse_command_envelope
 from keysight_logger_core.instrument import VisaInstrument
 from keysight_logger_core.measurement import (
     get_measurement_definition,
@@ -176,20 +177,19 @@ class _WebControlPlane:
         self._ready_cb()
         return StartControlPlaneHandle(_stop_fn=self.close)
 
-    def trigger(self, metadata: dict[str, Any] | None = None) -> tuple[bool, str]:
+    def send_command(self, payload: dict[str, Any] | None = None) -> tuple[bool, str]:
         with self._lock:
             if self._closed or self._router is None:
                 return False, "run_not_ready"
+            try:
+                command = parse_command_envelope(payload or {})
+            except CommandValidationError as exc:
+                return False, str(exc)
             accepted, reason = self._try_accept_trigger_locked()
             if not accepted:
                 return False, reason
-            event_metadata = {
-                str(key): str(value)
-                for key, value in (metadata or {}).items()
-                if value is not None
-            }
             published = self._router.publish(
-                TriggerEvent.new(TriggerSource.SOFTWARE, event_metadata)
+                TriggerEvent.new(TriggerSource.SOFTWARE, command.metadata)
             )
             if not published:
                 return False, "queue_full"
@@ -442,12 +442,12 @@ class WebRunManager:
             self._last_status = status
             return dict(status)
 
-    def trigger(self, metadata: dict[str, Any] | None = None) -> dict[str, Any]:
+    def send_command(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         with self._lock:
             handle = self._active
             if handle is None or not self._is_handle_active(handle):
                 raise NoActiveRun("no active run")
-        accepted, reason = handle.control_plane.trigger(metadata)
+        accepted, reason = handle.control_plane.send_command(payload)
         if not accepted:
             raise RunValidationError(reason)
         with self._lock:
@@ -787,10 +787,10 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
             media_type="text/event-stream",
         )
 
-    @app.post("/api/runs/current/trigger", status_code=202)
-    def api_trigger(payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
+    @app.post("/api/runs/current/command", status_code=202)
+    def api_command(payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
         try:
-            return app.state.manager.trigger(payload)
+            return app.state.manager.send_command(payload)
         except WebRunError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 

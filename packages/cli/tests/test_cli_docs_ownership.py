@@ -74,10 +74,12 @@ def test_common_worker_protocol_is_lifecycle_only():
 
     assert "lifecycle-only" in text
     assert "GET /status" in text
-    assert "POST /trigger" in text
+    assert "POST /command" in text
     assert "POST /stop" in text
     assert "does not define `POST /start`" in text
-    assert "does not define" in text and "generic" in text and "`POST /command`" in text
+    assert "`command`" in text
+    assert "`arguments`" in text
+    assert "`job_id`" in text
     assert "Meters" not in text
     assert "Keysight" not in text
     assert "34461A" not in text
@@ -102,7 +104,7 @@ def test_cli_jsonl_contract_documents_v15_status_clients():
     assert "`ok`" in text
     assert "optional `fatal_error`" in text
     assert "`summary.ok` is `true`" in text
-    assert "soft-status" in text
+    assert "status" in text
     assert "wait-ready" in text
     assert "client `--timeout-ms`" in text
     assert "Consumers must ignore unknown fields" in text

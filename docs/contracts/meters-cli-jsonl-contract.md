@@ -30,7 +30,7 @@ Supported event values:
 
 Selected fields:
 
-- `ready`: `run_id`, `service`, `host`, `port`, `trigger_url`, `stop_url`,
+- `ready`: `run_id`, `service`, `host`, `port`, `command_url`, `stop_url`,
   `status_url`
 - `status`: `message`, `run_id`
 - `sample`: `run_id`, `captured`, `measurement_type`,
@@ -61,7 +61,7 @@ envelope contract and must exit `3`.
 
 The `ready` event is emitted only by non-dry-run
 `start-trigger-record --status-format jsonl` and the `--json` alias after the
-HTTP control plane starts. It means `/trigger`, `/stop`, and `/status` can
+HTTP control plane starts. It means `/command`, `/stop`, and `/status` can
 accept local HTTP requests. It does not mean the acquisition worker has
 captured a first sample.
 
@@ -70,36 +70,36 @@ captured a first sample.
 These commands accept `--format json` and the `--json` alias:
 
 - `list-resources`
-- `soft-trigger`
-- `soft-stop`
-- `soft-status`
+- `send-command`
+- `stop`
+- `status`
 - `wait-ready`
 
 Alias rules:
 
 - `list-resources --json` is the same as `--format json`
-- `soft-trigger --json` is the same as `--format json`
-- `soft-stop --json` is the same as `--format json`
-- `soft-status --json` is the same as `--format json`
+- `send-command --json` is the same as `--format json`
+- `stop --json` is the same as `--format json`
+- `status --json` is the same as `--format json`
 - `wait-ready --json` is the same as `--format json`
 - `start-trigger-record --json` is the same as `--status-format jsonl`
 
 Conflicts exit with code `2`.
 
-`soft-trigger`, `soft-stop`, and `soft-status` accept client `--timeout-ms`
+`send-command`, `stop`, and `status` accept client `--timeout-ms`
 values from `100` to `600000`. Their default is `3000` ms.
 `wait-ready --timeout-ms` uses the same validation range, defaults to
 `10000` ms, and is an overall readiness deadline. Each `/status` request made
 by `wait-ready` uses at most `1000` ms and polling uses a fixed 200 ms
 interval.
 
-`soft-status` wraps non-mutating `GET /status` and emits a flat normalized JSON
+`status` wraps non-mutating `GET /status` and emits a flat normalized JSON
 object. `wait-ready` emits the same status fields after any successful `200`
 JSON response from `/status`, plus `attempts`, `elapsed_ms`, and `timeout_ms`.
 
 The normalized status fields include:
 
-- `event`: `soft-status` or `wait-ready`
+- `event`: `status` or `wait-ready`
 - `client_command`
 - `method`
 - `url`
@@ -121,7 +121,7 @@ The normalized status fields include:
 - `service`
 - `run_id`
 - `status`
-- `trigger_url`
+- `command_url`
 - `stop_url`
 - `status_url`
 - `queue_size`
@@ -141,7 +141,7 @@ diagnostics, `ok: false`, `reachable: false`, `running: false`,
 `stopping: false`, `error_phase: "request"`, `exit_code: 3`, and `message`.
 `http_status` is included only when an HTTP response was received.
 
-`soft-trigger` and `soft-stop` keep `event: "error"` for request and
+`send-command` and `stop` keep `event: "error"` for request and
 validation failures. In contract `v1.5`, those JSON error objects add
 `client_command`, `ok: false`, `port`, `request_sent`, `error_phase`,
 `reachable`, `method`, `url`, `endpoint`, `timeout_ms`, optional `elapsed_ms`,
@@ -149,13 +149,13 @@ and optional `http_status`. Validation errors use
 `error_phase: "validation"` and `request_sent: false`; request failures use
 `error_phase: "request"` and `request_sent: true`.
 
-Successful `soft-trigger` and `soft-stop` responses include the same additive
+Successful `send-command` and `stop` responses include the same additive
 client diagnostics when knowable: `method`, `url`, `endpoint`, `timeout_ms`,
 and `elapsed_ms`.
 
 ## Dry-Run Previews
 
-`soft-trigger --dry-run`, `soft-stop --dry-run`, and `soft-status --dry-run`
+`send-command --dry-run`, `stop --dry-run`, and `status --dry-run`
 do not send HTTP requests. `wait-ready` has no dry-run mode.
 
 Preview objects include:
@@ -174,8 +174,8 @@ Preview objects include:
 - `schema_version`
 - `timestamp_utc`
 
-`soft-trigger --dry-run` still validates `--port` and `--meta` JSON first.
-`soft-status --dry-run` previews `method: GET`,
+`send-command --dry-run` still validates `--port` and `--arguments-json` JSON first.
+`status --dry-run` previews `method: GET`,
 `url: http://127.0.0.1:<port>/status`, and `body: null`.
 
 `list-resources --dry-run` emits text by default and one dry-run contract

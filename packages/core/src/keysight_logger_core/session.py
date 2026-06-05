@@ -24,7 +24,7 @@ class StartRunEvent:
     fatal_error: str | None = None
     host: str | None = None
     port: int | None = None
-    trigger_url: str | None = None
+    command_url: str | None = None
     stop_url: str | None = None
     status_url: str | None = None
     fields: dict[str, object] = field(default_factory=dict)
@@ -48,7 +48,7 @@ class StartRunEvent:
             run_id=run_id,
             host=handle.host,
             port=handle.port,
-            trigger_url=handle.trigger_url,
+            command_url=handle.command_url,
             stop_url=handle.stop_url,
             status_url=handle.status_url,
         )
@@ -86,7 +86,7 @@ class NullStartRunEventSink:
 class StartControlPlaneHandle:
     host: str | None = None
     port: int | None = None
-    trigger_url: str | None = None
+    command_url: str | None = None
     stop_url: str | None = None
     status_url: str | None = None
     _stop_fn: Callable[[], None] = field(default=lambda: None, repr=False, compare=False)
@@ -153,7 +153,7 @@ class SoftwareTriggerControlPlane:
         return StartControlPlaneHandle(
             host=host,
             port=actual_port,
-            trigger_url=f"{base_url}/trigger",
+            command_url=f"{base_url}/command",
             stop_url=f"{base_url}/stop",
             status_url=f"{base_url}/status",
             _stop_fn=server.stop,

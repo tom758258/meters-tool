@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import json
 import os
@@ -115,17 +115,17 @@ def test_simulator_worker_subprocess_control_plane(tmp_path: Path):
         assert wait_ready_event["run_id"] == ready["run_id"]
         assert wait_ready_event["reachable"] is True
 
-        status = run_client("soft-status", "--port", str(port), "--json")
+        status = run_client("status", "--port", str(port), "--json")
         assert status.returncode == 0, status.stderr + status.stdout
         status_event = json.loads(status.stdout)
-        assert status_event["event"] == "soft-status"
+        assert status_event["event"] == "status"
         assert status_event["run_id"] == ready["run_id"]
         assert status_event["reachable"] is True
 
-        trigger = run_client("soft-trigger", "--port", str(port), "--json")
+        trigger = run_client("send-command", "--port", str(port), "--json")
         assert trigger.returncode == 0, trigger.stderr + trigger.stdout
         trigger_event = json.loads(trigger.stdout)
-        assert trigger_event["event"] == "soft-trigger"
+        assert trigger_event["event"] == "send-command"
         assert trigger_event["status"] == "accepted"
 
         summary = read_event_until(lines, "summary")
@@ -135,7 +135,7 @@ def test_simulator_worker_subprocess_control_plane(tmp_path: Path):
         assert process.wait(timeout=10) == 0
     finally:
         if process.poll() is None:
-            run_client("soft-stop", "--port", str(port), "--json")
+            run_client("stop", "--port", str(port), "--json")
             try:
                 process.wait(timeout=5)
             except subprocess.TimeoutExpired:

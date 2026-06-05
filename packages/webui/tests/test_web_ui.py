@@ -309,10 +309,23 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
 
         triggered = client.post(
-            "/api/runs/current/trigger",
-            json={"source": "web-ui", "batch": "A"},
+            "/api/runs/current/command",
+            json={
+                "command": "software_trigger",
+                "arguments": {"metadata": {"source": "web-ui", "batch": "A"}},
+            },
         )
         self.assertEqual(202, triggered.status_code)
+        self.assertEqual(
+            404,
+            client.post(
+                "/api/runs/current/trigger",
+                json={
+                    "command": "software_trigger",
+                    "arguments": {"metadata": {}},
+                },
+            ).status_code,
+        )
         deadline = time.monotonic() + 1.0
         status = {}
         while time.monotonic() < deadline:

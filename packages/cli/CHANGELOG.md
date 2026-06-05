@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 ## Unreleased
 
@@ -27,7 +27,7 @@
 
 - Added CLI contract `v1.5` additive soft-client diagnostics, subprocess
   orchestrator workflow docs, simulator worker subprocess coverage, and
-  wrapper `wait-ready` / `soft-status` gates before software trigger calls.
+  wrapper `wait-ready` / `status` gates before software trigger calls.
 - Added release-oriented no-hardware validation reporting through
   `scripts/release-cli-check.ps1` plus richer wrapper report metadata.
 - Added Core/CLI boundary guards that prevent legacy root-level Core shim

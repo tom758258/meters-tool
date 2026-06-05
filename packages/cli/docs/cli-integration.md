@@ -1,4 +1,4 @@
-﻿# CLI Integration
+# CLI Integration
 
 This document is for maintainers of the CLI adapter. Shared Core contracts live
 in `docs/integration.md`; user-facing command usage lives in
@@ -18,7 +18,7 @@ trigger handling, cleanup order, JSON schema, or public API.
 - Dry-run plan presentation.
 - Process exit-code mapping.
 - Terminal signal handling, Ctrl+C, Ctrl+Break, and local `q` polling.
-- Client workflows such as `list-resources`, `soft-trigger`, and `soft-stop`.
+- Client workflows such as `list-resources`, `send-command`, and `stop`.
 
 Core owns shared validation, dry-run plan construction, runtime orchestration,
 typed events/results, and cleanup sequencing. See
@@ -82,7 +82,7 @@ should use a Core control plane or backend job controller, as described in
 
 ## Client Commands
 
-`soft-trigger`, `soft-stop`, and `list-resources` are CLI/client workflows.
+`send-command`, `stop`, and `list-resources` are CLI/client workflows.
 They are not Core `StartRequest` workflows and their JSON contracts are
 documented in root `docs/contracts/meters-cli-jsonl-contract.md` and
 `docs/contracts/meters-worker-contract.md`.

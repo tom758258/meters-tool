@@ -1,4 +1,4 @@
-﻿param(
+param(
     [Alias("Model", "Profile")]
     [string]$Target,
 
@@ -225,7 +225,7 @@ function Invoke-CapturedStartProcess {
                 -OutDir $OutDir
             $clientResults.Add([pscustomobject]$triggerResult) | Out-Null
             if (-not $triggerResult.success) {
-                $clientFailure = "soft-trigger $index failed"
+                $clientFailure = "send-command $index failed"
                 break
             }
             Start-Sleep -Milliseconds 250
@@ -241,7 +241,7 @@ function Invoke-CapturedStartProcess {
             $stopResult = Invoke-CapturedCommand `
                 -Name "$Name`_timeout_soft_stop" `
                 -FilePath $Python `
-                -Arguments @("-m", "keysight_logger_cli", "soft-stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -Arguments @("-m", "keysight_logger_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
                 -StdOutPath $stopOut `
                 -StdErrPath $stopErr
             $clientResults.Add([pscustomobject]$stopResult) | Out-Null
@@ -293,17 +293,17 @@ function Invoke-SoftTriggerWithRetry {
             -FilePath $Python `
             -Arguments @(
                 "-m", "keysight_logger_cli",
-                "soft-trigger",
+                "send-command",
                 "--format", "json",
                 "--port", [string]$Port,
-                "--meta", $meta
+                "--arguments-json", $meta
             ) `
             -StdOutPath $stdoutPath `
             -StdErrPath $stderrPath
         if ($lastResult.success) {
             try {
                 $event = Get-Content -LiteralPath $stdoutPath -Raw | ConvertFrom-Json -ErrorAction Stop
-                if ($event.event -eq "soft-trigger" -and $event.status -eq "accepted") {
+                if ($event.event -eq "send-command" -and $event.status -eq "accepted") {
                     return $lastResult
                 }
             } catch {
@@ -339,7 +339,7 @@ function Invoke-ReadinessClientChecks {
     $statusResult = Invoke-CapturedCommand `
         -Name "$Name`_soft_status" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "soft-status", "--format", "json", "--port", [string]$Port) `
+        -Arguments @("-m", "keysight_logger_cli", "status", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $statusOut `
         -StdErrPath $statusErr
 
@@ -591,11 +591,11 @@ function Invoke-LiveCase {
         }
         $statusCommand = @($result.client_commands | Where-Object { $_.name -eq "$($Case.name)_live_soft_status" } | Select-Object -Last 1)
         if ($statusCommand.Count -ne 1) {
-            $failureReasons.Add("soft-status client command missing") | Out-Null
+            $failureReasons.Add("status client command missing") | Out-Null
         } elseif ($ready.Count -eq 1) {
             $statusPayload = Get-Content -LiteralPath $statusCommand[0].stdout -Raw | ConvertFrom-Json -ErrorAction Stop
             if ($statusPayload.run_id -ne $ready[0].run_id) {
-                $failureReasons.Add("soft-status run_id mismatch") | Out-Null
+                $failureReasons.Add("status run_id mismatch") | Out-Null
             }
         }
     }
