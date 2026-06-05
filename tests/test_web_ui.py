@@ -61,6 +61,7 @@ class WebUiApiTests(unittest.TestCase):
             [
                 "current-dc",
                 "voltage-dc",
+                "voltage-dc-ratio",
                 "current-ac",
                 "voltage-ac",
                 "resistance-2w",
@@ -82,6 +83,15 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual([0.02, 0.2, 1.0, 10.0, 100.0], measurements["voltage-dc"]["nplc_options"])
         self.assertFalse(measurements["voltage-ac"]["supports_nplc"])
+        self.assertEqual([3.0, 20.0, 200.0], measurements["voltage-ac"]["ac_bandwidth_hz_options"])
+        self.assertEqual([3.0, 20.0, 200.0], measurements["current-ac"]["ac_bandwidth_hz_options"])
+        self.assertEqual([3, 10], measurements["current-dc"]["current_terminal_options"])
+        self.assertEqual([3, 10], measurements["current-ac"]["current_terminal_options"])
+        self.assertTrue(measurements["voltage-ac"]["supports_ac_bandwidth"])
+        self.assertTrue(measurements["current-dc"]["supports_current_terminal"])
+        self.assertFalse(measurements["voltage-dc"]["supports_ac_bandwidth"])
+        self.assertFalse(measurements["voltage-dc"]["supports_current_terminal"])
+
         limits = payload["limits"]
         self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
         self.assertEqual({"min": 500, "max": 600000}, limits["trigger_timeout_ms"])
@@ -89,6 +99,11 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual({"min": 0.5, "max": 86400.0}, limits["timer_interval_s"])
         self.assertEqual({"min": 0, "max": 600000, "nonzero_min": 50}, limits["sw_min_interval_ms"])
         self.assertEqual({"min": 0, "max": 10000}, limits["sw_queue_max"])
+
+        defaults = payload["defaults"]
+        self.assertEqual("on", defaults["auto_zero"])
+        self.assertIsNone(defaults["ac_bandwidth_hz"])
+        self.assertIsNone(defaults["current_terminal"])
 
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
         client, csv_path = self.make_client()
@@ -220,7 +235,10 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual(200, response.status_code)
 
-        triggered = client.post("/api/runs/current/trigger", json={"batch": "A"})
+        triggered = client.post(
+            "/api/runs/current/trigger",
+            json={"source": "web-ui", "batch": "A"},
+        )
         self.assertEqual(202, triggered.status_code)
         deadline = time.monotonic() + 1.0
         status = {}
@@ -233,6 +251,63 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(1, status["captured"])
         self.assertFalse(status["active"])
         self.assertEqual("stopped", status["state"])
+        self.assertEqual(100, status["sample_capacity"])
+        self.assertEqual(1, len(status["recent_samples"]))
+        sample = status["latest_sample"]
+        self.assertEqual(sample, status["recent_samples"][-1])
+        self.assertEqual(1, sample["sequence"])
+        self.assertEqual("current_dc", sample["measurement_type"])
+        self.assertAlmostEqual(1.23, sample["value"])
+        self.assertEqual("A", sample["unit"])
+        self.assertEqual("ok", sample["status"])
+        self.assertEqual("USB::FAKE", sample["resource_id"])
+        self.assertEqual("software", sample["trigger_source"])
+        self.assertEqual("A", sample["trigger_metadata"]["batch"])
+        self.assertEqual("web-ui", sample["trigger_metadata"]["source"])
+        self.assertRegex(sample["timestamp_utc_plus_8"], r"\+08:00$")
+        self.assertIsInstance(sample["measurement_metadata"], dict)
+
+    def test_live_data_retains_latest_100_samples_until_next_start(self):
+        client, csv_path = self.make_client()
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "trigger_mode": "immediate",
+                "max_samples": 105,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+
+        status = self.wait_until_inactive(client, timeout_s=2.0)
+
+        self.assertEqual(105, status["captured"])
+        self.assertFalse(status["active"])
+        self.assertEqual(100, status["sample_capacity"])
+        self.assertEqual(100, len(status["recent_samples"]))
+        self.assertEqual(6, status["recent_samples"][0]["sequence"])
+        self.assertEqual(105, status["recent_samples"][-1]["sequence"])
+        self.assertEqual(status["recent_samples"][-1], status["latest_sample"])
+
+        next_csv_path = csv_path.with_name("next.csv")
+        restarted = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(next_csv_path),
+                "simulate": True,
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+        self.assertEqual(200, restarted.status_code)
+        restarted_status = self.wait_until_inactive(client, timeout_s=1.0)
+
+        self.assertEqual(1, restarted_status["captured"])
+        self.assertEqual(1, len(restarted_status["recent_samples"]))
+        self.assertEqual(1, restarted_status["latest_sample"]["sequence"])
 
     def test_start_validation_reuses_cli_constraints(self):
         client, csv_path = self.make_client()
@@ -278,7 +353,22 @@ class WebUiApiTests(unittest.TestCase):
         request = RunStartRequest(resource="USB::FAKE")
 
         self.assertEqual("current-dc", request.measurement)
-        self.assertTrue(request.auto_zero)
+        self.assertEqual("on", request.auto_zero)
+        self.assertIsNone(request.ac_bandwidth_hz)
+        self.assertIsNone(request.current_terminal)
+
+    def test_manager_normalizes_legacy_auto_zero_booleans(self):
+        manager = WebRunManager()
+
+        on_request = manager._validate_request(
+            RunStartRequest(resource="USB::FAKE", auto_zero=True)
+        )
+        off_request = manager._validate_request(
+            RunStartRequest(resource="USB::FAKE", auto_zero=False)
+        )
+
+        self.assertEqual("on", on_request.auto_zero)
+        self.assertEqual("off", off_request.auto_zero)
 
     def test_webui_version_flag_uses_project_version(self):
         output = io.StringIO()
@@ -334,11 +424,15 @@ class WebUiApiTests(unittest.TestCase):
         self.assertLess(index.index('class="resource-row"'), index.index('class="status-strip"'))
         self.assertIn('id="resource"', index)
         self.assertIn('id="resource-select"', index)
-        self.assertIn("Live data view is not implemented yet.", index)
+        self.assertNotIn("Live data view is not implemented yet.", index)
+        self.assertIn('id="live-trend-chart"', index)
+        self.assertIn('id="live-samples-body"', index)
+        self.assertIn('id="live-sample-details"', index)
         self.assertIn('id="open-csv"', index)
         self.assertLess(index.index('id="stop-run"'), index.index('id="open-csv"'))
         self.assertIn('class="panel-toggle"', index)
         self.assertIn("function setPanelExpanded", app_js)
+        self.assertIn("function renderLiveData", app_js)
         self.assertIn('"/api/runs/current/open-csv"', app_js)
         self.assertIn("updateOpenCsvButton", app_js)
         self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
@@ -346,6 +440,43 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("color: #18302b", styles)
         self.assertIn("background: #f4f7f2", styles)
         self.assertIn("color: #24332f", styles)
+
+    def test_static_ui_exposes_live_data_panel(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
+
+        for expected in [
+            'id="live-data-summary"',
+            'id="live-data-run"',
+            'id="live-latest-value"',
+            'id="live-latest-time"',
+            'id="live-latest-trigger"',
+            'id="live-trend-chart"',
+            'id="live-chart-empty"',
+            'id="live-samples-body"',
+            'id="live-selected-sample"',
+            'id="live-sample-details"',
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, index)
+
+        for expected in [
+            "function renderLiveData",
+            "function renderLiveChart",
+            "function renderLiveSamplesTable",
+            "function renderLiveSampleDetails",
+            "recent_samples",
+            "latest_sample",
+            "sample_capacity",
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, app_js)
+
+        self.assertIn(".live-trend-chart", styles)
+        self.assertIn(".live-samples-table", styles)
+        self.assertIn(".live-chart-line", styles)
 
     def test_static_ui_exposes_cli_limit_constraints(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
@@ -399,6 +530,8 @@ class WebUiApiTests(unittest.TestCase):
             "Trigger timeout ms",
             "Max samples",
             "Buffer drain size",
+            "AC bandwidth",
+            "Current terminal",
             "HW delay s",
             "SW min interval ms",
             "SW queue max",
@@ -465,7 +598,7 @@ class WebUiApiTests(unittest.TestCase):
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn('data-measurement-scope="voltage-dc"', index)
+        self.assertIn('data-measurement-scope="voltage-dc,voltage-dc-ratio"', index)
         self.assertIn("measurementScopedControls", app_js)
         self.assertIn("updateTriggerButtonUi", app_js)
         self.assertIn("mode === \"software-custom\"", app_js)
@@ -487,6 +620,130 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("payload.sw_queue_max", app_js)
         self.assertIn("function triggerMetadataPayload", app_js)
         self.assertIn("Trigger metadata must be valid JSON object", app_js)
+
+    def test_static_ui_auto_zero_select_and_new_dropdowns(self):
+        static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
+        index = (static_dir / "index.html").read_text(encoding="utf-8")
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('<select name="auto_zero" form="run-form">', index)
+        self.assertNotIn('<input name="auto_zero" form="run-form" type="checkbox"', index)
+
+        self.assertIn('id="ac-bandwidth-container"', index)
+        self.assertIn('id="ac-bandwidth"', index)
+        self.assertIn('id="current-terminal-container"', index)
+        self.assertIn('id="current-terminal"', index)
+
+        self.assertIn('const autoZeroSelect = document.querySelector("[name=\'auto_zero\']");', app_js)
+        self.assertIn('const acBandwidthContainer = document.querySelector("#ac-bandwidth-container");', app_js)
+        self.assertIn('const acBandwidthSelect = document.querySelector("#ac-bandwidth");', app_js)
+        self.assertIn('const currentTerminalContainer = document.querySelector("#current-terminal-container");', app_js)
+        self.assertIn('const currentTerminalSelect = document.querySelector("#current-terminal");', app_js)
+        self.assertIn("function supportsAcBandwidth", app_js)
+        self.assertIn("function supportsCurrentTerminal", app_js)
+        self.assertIn('auto_zero: autoZeroVisible ? (data.get("auto_zero") || "on") : "on",', app_js)
+        self.assertIn("const acBandwidthVisible = supportsAcBandwidth(measurement);", app_js)
+        self.assertIn("const currentTerminalVisible = supportsCurrentTerminal(measurement);", app_js)
+        self.assertIn('payload.ac_bandwidth_hz = numberOrNull(data.get("ac_bandwidth_hz"));', app_js)
+        self.assertIn('payload.current_terminal = numberOrNull(data.get("current_terminal"));', app_js)
+        self.assertIn('acBandwidthSelect.value = "";', app_js)
+        self.assertIn('currentTerminalSelect.value = "";', app_js)
+
+    def test_api_runs_validation_core_v1_1_0_contracts(self):
+        client, csv_path = self.make_client()
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "current-dc",
+                "auto_zero": "once",
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "voltage-ac",
+                "ac_bandwidth_hz": 200.0,
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "current-dc",
+                "auto_range": False,
+                "measurement_range": 10.0,
+                "current_terminal": 10,
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "voltage-dc-ratio",
+                "dcv_input_impedance": "10m",
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "current-dc",
+                "auto_range": False,
+                "measurement_range": 10.0,
+                "current_terminal": 3,
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(422, response.status_code)
+        self.assertIn("cannot be used with the 10 A current range", response.json()["detail"])
 
 
 if __name__ == "__main__":

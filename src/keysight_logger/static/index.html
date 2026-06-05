@@ -105,10 +105,6 @@
             <div class="panel-body">
               <div class="switch-row">
                 <label><input name="auto_range" form="run-form" type="checkbox" checked /> Auto range</label>
-                <label id="auto-zero-container">
-                  <input name="auto_zero" form="run-form" type="checkbox" checked />
-                  Auto zero
-                </label>
               </div>
               <div class="single-field" id="range-container">
                 <label>
@@ -126,11 +122,23 @@
                   </div>
                 </label>
               </div>
+            <label id="auto-zero-container">
+              Auto zero
+              <select name="auto_zero" form="run-form"></select>
+            </label>
             <label id="nplc-field">
               NPLC
               <select id="nplc" name="nplc" form="run-form"></select>
             </label>
-            <label data-measurement-scope="voltage-dc">
+            <label id="ac-bandwidth-container" class="is-hidden">
+              AC bandwidth <span class="optional-mark">(Optional)</span>
+              <select id="ac-bandwidth" name="ac_bandwidth_hz" form="run-form"></select>
+            </label>
+            <label id="current-terminal-container" class="is-hidden">
+              Current terminal <span class="optional-mark">(Optional)</span>
+              <select id="current-terminal" name="current_terminal" form="run-form"></select>
+            </label>
+            <label data-measurement-scope="voltage-dc,voltage-dc-ratio">
               DCV input Z
               <select name="dcv_input_impedance" form="run-form">
                 <option value="default">Default</option>
@@ -210,9 +218,71 @@
           </section>
         </div>
 
-        <section class="panel live-data-panel">
-          <h2>Live data</h2>
-          <div class="live-data-placeholder">Live data view is not implemented yet.</div>
+        <section class="panel live-data-panel" aria-labelledby="live-data-heading">
+          <div class="live-data-header">
+            <div>
+              <h2 id="live-data-heading">Live data</h2>
+              <p id="live-data-summary" class="panel-summary">No samples captured</p>
+            </div>
+            <span id="live-data-run" class="live-data-run">Idle</span>
+          </div>
+
+          <div class="live-latest-grid">
+            <div class="live-latest-value">
+              <span>Latest</span>
+              <strong id="live-latest-value">--</strong>
+              <small id="live-latest-meta">No sample</small>
+            </div>
+            <div>
+              <span>Time UTC+8</span>
+              <strong id="live-latest-time">--</strong>
+            </div>
+            <div>
+              <span>Trigger</span>
+              <strong id="live-latest-trigger">--</strong>
+            </div>
+          </div>
+
+          <div class="live-chart-shell">
+            <svg
+              id="live-trend-chart"
+              class="live-trend-chart"
+              viewBox="0 0 640 180"
+              preserveAspectRatio="none"
+              role="img"
+              aria-label="Live sample value trend"
+            ></svg>
+            <div id="live-chart-empty" class="live-chart-empty">Waiting for samples</div>
+          </div>
+
+          <div class="live-table-wrap">
+            <table class="live-samples-table" aria-label="Recent live samples">
+              <thead>
+                <tr>
+                  <th>Seq</th>
+                  <th>Time UTC+8</th>
+                  <th>Value</th>
+                  <th>Unit</th>
+                  <th>Trigger</th>
+                  <th>Status</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="live-samples-body">
+                <tr>
+                  <td colspan="7">No samples captured</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="live-sample-metadata">
+            <div class="live-metadata-header">
+              <span>Sample details</span>
+              <strong id="live-selected-sample">No sample selected</strong>
+            </div>
+            <pre id="live-sample-details"></pre>
+          </div>
         </section>
 
         <section class="panel log-panel">

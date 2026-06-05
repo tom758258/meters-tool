@@ -87,7 +87,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         with patch("keysight_logger.core.instrument.pyvisa", None):
             with self.assertRaisesRegex(
                 InstrumentError,
-                r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]"',
+                r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]" --link-mode=copy',
             ):
                 VisaInstrument.list_resources()
 
@@ -223,7 +223,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         with patch("keysight_logger.core.instrument.pyvisa", None):
             with self.assertRaisesRegex(
                 InstrumentError,
-                r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]"',
+                r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]" --link-mode=copy',
             ):
                 VisaInstrument.verify_resource("USB::FAKE")
 

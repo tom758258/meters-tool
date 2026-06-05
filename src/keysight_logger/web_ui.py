@@ -16,7 +16,7 @@ try:
     from pydantic import BaseModel
 except ImportError as exc:  # pragma: no cover - exercised only without web deps
     raise RuntimeError(
-        "Web UI dependencies are not installed. Run: pip install -r requirements.txt"
+        'Web UI dependencies are not installed. Run: uv pip install -e ".[dev]" --link-mode=copy'
     ) from exc
 
 from .core import (
@@ -31,6 +31,7 @@ from .core import (
     run_start_session,
     validate_start_request,
 )
+from .core.constants import UTC_PLUS_8
 from .core.instrument import VisaInstrument
 from .core.measurement import (
     get_measurement_definition,
@@ -61,6 +62,7 @@ TRIGGER_MODES = (
     "external-custom",
 )
 PACKAGE_NAME = "keysight-logger-webui"
+LIVE_SAMPLE_CAPACITY = 100
 
 
 class RunStartRequest(BaseModel):
@@ -83,12 +85,14 @@ class RunStartRequest(BaseModel):
     hw_trigger_delay_s: float = 0.0
     measurement: str = "current-dc"
     nplc: float = 1.0
-    auto_zero: bool = True
+    auto_zero: bool | str = "on"
     auto_range: bool = True
     measurement_range: Optional[float] = None
     current_range: Optional[float] = None
     dcv_input_impedance: str = "default"
     vm_comp_slope: Optional[str] = None
+    ac_bandwidth_hz: Optional[float] = None
+    current_terminal: Optional[int] = None
 
 
 @dataclass
@@ -110,6 +114,7 @@ class _RunHandle:
     result: StartRunResult | None = None
     warnings: list[str] = field(default_factory=list)
     cleanup_messages: list[str] = field(default_factory=list)
+    recent_samples: list[dict[str, Any]] = field(default_factory=list)
 
 
 class WebRunError(RuntimeError):
@@ -243,6 +248,8 @@ class WebRunManager:
                 continue
             definition = get_measurement_definition(measurement_type)
             options = profile.get_measurement_options(measurement_type)
+            ac_bandwidth_hz_options = list(getattr(options, "ac_bandwidth_hz_options", ()))
+            current_terminal_options = list(getattr(options, "current_terminal_options", ()))
             measurements.append(
                 {
                     "name": definition.canonical_name,
@@ -256,6 +263,10 @@ class WebRunManager:
                     "nplc_options": list(options.nplc_options),
                     "supports_nplc": bool(options.nplc_options),
                     "accepts_current_range_alias": definition.accepts_current_range_alias,
+                    "ac_bandwidth_hz_options": ac_bandwidth_hz_options,
+                    "current_terminal_options": current_terminal_options,
+                    "supports_ac_bandwidth": bool(ac_bandwidth_hz_options),
+                    "supports_current_terminal": bool(current_terminal_options),
                 }
             )
         return {
@@ -291,11 +302,13 @@ class WebRunManager:
                 "timeout_ms": 5000,
                 "trigger_timeout_ms": 10000,
                 "nplc": 1.0,
-                "auto_zero": True,
+                "auto_zero": "on",
                 "auto_range": True,
                 "dcv_input_impedance": "default",
                 "hw_trigger_slope": "neg",
                 "hw_trigger_delay_s": 0.0,
+                "ac_bandwidth_hz": None,
+                "current_terminal": None,
             },
         }
 
@@ -463,6 +476,25 @@ class WebRunManager:
                 raise RunValidationError("vm_comp_slope must be 'pos' or 'neg'")
         raw["dcv_input_impedance"] = _parse_dcv_input_impedance(raw["dcv_input_impedance"])
 
+        # Normalize legacy boolean payloads while keeping Core's semantic strings.
+        auto_zero_val = raw.get("auto_zero")
+        if isinstance(auto_zero_val, bool):
+            raw["auto_zero"] = "on" if auto_zero_val else "off"
+        elif isinstance(auto_zero_val, str):
+            normalized_val = auto_zero_val.strip().lower()
+            if normalized_val in ("true", "on"):
+                raw["auto_zero"] = "on"
+            elif normalized_val in ("false", "off"):
+                raw["auto_zero"] = "off"
+            elif normalized_val == "once":
+                raw["auto_zero"] = "once"
+            else:
+                raise RunValidationError(
+                    "auto_zero must be 'on', 'off', 'once', or a boolean"
+                )
+        else:
+            raw["auto_zero"] = "on"
+
         start_request = StartRequest(**raw)
         trigger_mode = resolve_trigger_mode(start_request)
         validate_start_request(
@@ -521,6 +553,10 @@ class WebRunManager:
                 handle.latest_status = event.message
             if event.event == "sample":
                 handle.captured = int(event.captured or handle.captured)
+                sample_payload = _sample_payload(event.sample, handle.captured)
+                if sample_payload is not None:
+                    handle.recent_samples.append(sample_payload)
+                    del handle.recent_samples[:-LIVE_SAMPLE_CAPACITY]
             if event.event == "summary":
                 handle.captured = int(event.captured or 0)
                 handle.errors = int(event.errors or 0)
@@ -563,6 +599,7 @@ class WebRunManager:
         state = handle.state
         if state in {"starting", "running", "stopping"} and not active:
             state = "error" if handle.fatal_error else "stopped"
+        recent_samples = [dict(sample) for sample in handle.recent_samples]
         return {
             "run_id": handle.run_id,
             "state": state,
@@ -577,6 +614,9 @@ class WebRunManager:
             "fatal_error": handle.fatal_error,
             "cleanup_status": handle.cleanup_status,
             "warnings": list(handle.warnings),
+            "latest_sample": dict(recent_samples[-1]) if recent_samples else None,
+            "recent_samples": recent_samples,
+            "sample_capacity": LIVE_SAMPLE_CAPACITY,
         }
 
     def _is_handle_active(self, handle: _RunHandle) -> bool:
@@ -600,6 +640,9 @@ class WebRunManager:
             "fatal_error": None,
             "cleanup_status": None,
             "warnings": [],
+            "latest_sample": None,
+            "recent_samples": [],
+            "sample_capacity": LIVE_SAMPLE_CAPACITY,
         }
 
 
@@ -684,6 +727,54 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
     if hasattr(model, "model_dump"):
         return model.model_dump()
     return model.dict()
+
+
+def _sample_payload(sample: Any, sequence: int) -> dict[str, Any] | None:
+    if sample is None:
+        return None
+    timestamp_utc = getattr(sample, "timestamp_utc", None)
+    if hasattr(timestamp_utc, "astimezone"):
+        timestamp_text = timestamp_utc.astimezone(UTC_PLUS_8).isoformat()
+    elif timestamp_utc is None:
+        timestamp_text = None
+    else:
+        timestamp_text = str(timestamp_utc)
+    return {
+        "sequence": sequence,
+        "timestamp_utc_plus_8": timestamp_text,
+        "measurement_type": getattr(sample, "measurement_type", None),
+        "value": getattr(sample, "value", None),
+        "unit": getattr(sample, "unit", None),
+        "trigger_id": getattr(sample, "trigger_id", None),
+        "trigger_source": getattr(sample, "trigger_source", None),
+        "trigger_metadata": _json_safe_mapping(
+            getattr(sample, "trigger_metadata", {})
+        ),
+        "measurement_metadata": _json_safe_mapping(
+            getattr(sample, "measurement_metadata", {})
+        ),
+        "resource_id": getattr(sample, "resource_id", None),
+        "status": getattr(sample, "status", None),
+    }
+
+
+def _json_safe_mapping(value: Any) -> dict[str, Any]:
+    safe_value = _json_safe_value(value or {})
+    if isinstance(safe_value, dict):
+        return safe_value
+    return {}
+
+
+def _json_safe_value(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, dict):
+        return {str(key): _json_safe_value(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_value(item) for item in value]
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return str(value)
 
 
 def _read_project_version() -> str:
