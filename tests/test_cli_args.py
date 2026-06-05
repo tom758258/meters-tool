@@ -3,12 +3,16 @@ from __future__ import annotations
 import io
 import csv
 import json
+import socket
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
+from urllib import request
 from urllib.error import URLError
 
 from keysight_logger.cli import (
@@ -1939,6 +1943,14 @@ class WindowsKeyboardStopPollerTests(unittest.TestCase):
 
 
 class CliCommandTests(unittest.TestCase):
+    def _unused_local_port(self) -> int:
+        while True:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.bind(("127.0.0.1", 0))
+                port = int(sock.getsockname()[1])
+            if port >= 1024:
+                return port
+
     def _run_cmd_start_with_simulate_harness(
         self,
         args,
@@ -2302,6 +2314,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertIn("dry-run plan:", stdout.getvalue())
         self.assertIn("CONF:VOLT:DC AUTO", stdout.getvalue())
+        self.assertNotIn("software status endpoint:", stdout.getvalue())
         mock_visa.assert_not_called()
         mock_server.assert_not_called()
 
@@ -2527,6 +2540,108 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, rc)
         events = self._parse_jsonl_events(output)
         self._assert_success_jsonl_events(events, expected_samples=1)
+
+    def test_start_simulate_status_endpoint_reports_worker_status(self):
+        parser = build_parser()
+        port = self._unused_local_port()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_status.csv",
+                "--trigger-mode",
+                "software",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+                "--sw-trigger-port",
+                str(port),
+                "--sw-min-interval-ms",
+                "50",
+                "--sw-queue-max",
+                "7",
+            ]
+        )
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        result = {}
+
+        def run_command() -> None:
+            try:
+                with (
+                    patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+                    patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+                    patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+                    patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+                    redirect_stdout(stdout),
+                    redirect_stderr(stderr),
+                ):
+                    result["rc"] = cmd_start(args)
+            except BaseException as exc:  # pragma: no cover - re-raised in the test thread
+                result["exception"] = exc
+
+        worker = threading.Thread(target=run_command)
+        worker.start()
+        payload = None
+        try:
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline:
+                try:
+                    with request.urlopen(f"http://127.0.0.1:{port}/status", timeout=0.5) as resp:
+                        payload = json.loads(resp.read().decode("utf-8"))
+                        self.assertEqual(200, resp.status)
+                        break
+                except (OSError, TimeoutError, URLError):
+                    if not worker.is_alive():
+                        break
+                    time.sleep(0.05)
+
+            self.assertIsNotNone(payload)
+            assert payload is not None
+            self.assertEqual(1, payload["schema_version"])
+            self.assertEqual("keysight-meter", payload["service"])
+            self.assertEqual("running", payload["status"])
+            self.assertEqual(f"http://127.0.0.1:{port}/trigger", payload["trigger_url"])
+            self.assertEqual(f"http://127.0.0.1:{port}/stop", payload["stop_url"])
+            self.assertEqual(f"http://127.0.0.1:{port}/status", payload["status_url"])
+            self.assertEqual(0, payload["queue_size"])
+            self.assertEqual(7, payload["queue_max"])
+            self.assertEqual(50, payload["min_interval_ms"])
+            self.assertEqual(0, payload["captured"])
+            self.assertEqual(0, payload["errors"])
+            self.assertIsNone(payload["fatal_error"])
+
+            trigger_req = request.Request(
+                f"http://127.0.0.1:{port}/trigger",
+                method="POST",
+                data=b"{}",
+                headers={"Content-Type": "application/json"},
+            )
+            with request.urlopen(trigger_req, timeout=1.0) as resp:
+                self.assertEqual(202, resp.status)
+        finally:
+            if worker.is_alive():
+                try:
+                    stop_req = request.Request(
+                        f"http://127.0.0.1:{port}/stop",
+                        method="POST",
+                        data=b"{}",
+                        headers={"Content-Type": "application/json"},
+                    )
+                    request.urlopen(stop_req, timeout=1.0).close()
+                except (OSError, TimeoutError, URLError):
+                    pass
+            worker.join(timeout=5.0)
+
+        self.assertFalse(worker.is_alive())
+        if "exception" in result:
+            raise result["exception"]
+        self.assertEqual(0, result.get("rc"))
+        self.assertIn(f"software status endpoint: http://127.0.0.1:{port}/status", stdout.getvalue())
 
     def test_start_simulate_jsonl_trigger_mode_matrix(self):
         parser = build_parser()

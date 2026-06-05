@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import time
+from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Empty, Full, Queue
 from typing import Callable, Optional, Tuple
@@ -45,6 +46,9 @@ class TriggerRouter:
 
     def size(self) -> int:
         return self._queue.qsize()
+
+    def max_size(self) -> int:
+        return self._queue.maxsize
 
     def _is_control_event(self, event: TriggerEvent) -> bool:
         return bool(event.metadata.get("control"))
@@ -118,6 +122,7 @@ class HardwareTriggerAdapter:
         except Exception:
             pass
 
+
 class SoftwareTriggerAdapter:
     def __init__(
         self,
@@ -127,6 +132,7 @@ class SoftwareTriggerAdapter:
         min_interval_ms: int = 0,
         queue_max: int = 0,
         stop_cb: Optional[Callable[[], None]] = None,
+        status_provider: Optional[Callable[[], dict[str, object]]] = None,
     ) -> None:
         self._router = router
         self._host = host
@@ -134,6 +140,7 @@ class SoftwareTriggerAdapter:
         self._min_interval_ms = max(0, int(min_interval_ms))
         self._queue_max = max(0, int(queue_max))
         self._stop_cb = stop_cb
+        self._status_provider = status_provider
         self._last_accepted_monotonic = 0.0
         self._guard = threading.Lock()
         self._server: Optional[ThreadingHTTPServer] = None
@@ -143,6 +150,19 @@ class SoftwareTriggerAdapter:
         router = self._router
 
         class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):  # type: ignore[override]
+                if self.path != "/status":
+                    self.send_response(404)
+                    self.end_headers()
+                    return
+                payload = self.server.adapter._status_payload()  # type: ignore[attr-defined]
+                body = json.dumps(payload, sort_keys=True).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
             def do_POST(self):  # type: ignore[override]
                 if self.path == "/stop":
                     router.publish(
@@ -207,6 +227,35 @@ class SoftwareTriggerAdapter:
                     return False, "rate_limited"
                 self._last_accepted_monotonic = now
             return True, ""
+
+    def _status_payload(self) -> dict[str, object]:
+        dynamic: dict[str, object] = {}
+        if self._status_provider is not None:
+            try:
+                provided = self._status_provider()
+                if isinstance(provided, dict):
+                    dynamic = provided
+            except Exception:
+                dynamic = {}
+        status = str(dynamic.get("status") or "running")
+        if status not in {"running", "stopping"}:
+            status = "running"
+        base_url = f"http://{self._host}:{self._port}"
+        return {
+            "schema_version": 1,
+            "service": "keysight-meter",
+            "status": status,
+            "trigger_url": f"{base_url}/trigger",
+            "stop_url": f"{base_url}/stop",
+            "status_url": f"{base_url}/status",
+            "queue_size": self._router.size(),
+            "queue_max": self._queue_max if self._queue_max > 0 else self._router.max_size(),
+            "min_interval_ms": self._min_interval_ms,
+            "captured": dynamic.get("captured"),
+            "errors": dynamic.get("errors"),
+            "fatal_error": dynamic.get("fatal_error"),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        }
 
     def stop(self) -> None:
         if self._server is not None:

@@ -1327,12 +1327,21 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     stop_controller = StopController(engine.stop)
 
+    def worker_status() -> dict[str, object]:
+        return {
+            "status": "stopping" if stop_controller.stop else "running",
+            "captured": engine.stats.captured,
+            "errors": engine.stats.errors,
+            "fatal_error": engine.fatal_error,
+        }
+
     server = SoftwareTriggerAdapter(
         router,
         port=args.sw_trigger_port,
         min_interval_ms=args.sw_min_interval_ms,
         queue_max=args.sw_queue_max,
         stop_cb=stop_controller.request_http_stop,
+        status_provider=worker_status,
     )
 
     def handle_stop_signal(signum, frame):  # noqa: ARG001
@@ -1370,6 +1379,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         host, port = server.start()
         emitter.line(f"software trigger endpoint: http://{host}:{port}/trigger")
         emitter.line(f"software stop endpoint: http://{host}:{port}/stop")
+        emitter.line(f"software status endpoint: http://{host}:{port}/status")
         emitter.line("local stop keys: Ctrl+C, Ctrl+Break, q")
         worker = threading.Thread(
             target=engine.run,

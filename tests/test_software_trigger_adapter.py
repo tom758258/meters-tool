@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 import unittest
 from urllib import request
@@ -31,6 +32,101 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         )
         with request.urlopen(req, timeout=1.0) as resp:
             return resp.status
+
+    def _get_json(self, port: int, path: str = "/status") -> tuple[int, dict]:
+        req = request.Request(f"http://127.0.0.1:{port}{path}", method="GET")
+        with request.urlopen(req, timeout=1.0) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+            return resp.status, payload
+
+    def _get_status_code(self, port: int, path: str) -> int:
+        req = request.Request(f"http://127.0.0.1:{port}{path}", method="GET")
+        try:
+            with request.urlopen(req, timeout=1.0) as resp:
+                return resp.status
+        except HTTPError as err:
+            return err.code
+
+    def test_status_endpoint_returns_base_json(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=0, queue_max=0)
+        _, port = server.start()
+        try:
+            status, payload = self._get_json(port)
+
+            self.assertEqual(200, status)
+            self.assertEqual(1, payload["schema_version"])
+            self.assertEqual("keysight-meter", payload["service"])
+            self.assertEqual("running", payload["status"])
+            self.assertEqual(f"http://127.0.0.1:{port}/trigger", payload["trigger_url"])
+            self.assertEqual(f"http://127.0.0.1:{port}/stop", payload["stop_url"])
+            self.assertEqual(f"http://127.0.0.1:{port}/status", payload["status_url"])
+            self.assertEqual(0, payload["queue_size"])
+            self.assertEqual(TriggerRouter.DEFAULT_MAX_PENDING_EVENTS, payload["queue_max"])
+            self.assertEqual(0, payload["min_interval_ms"])
+            self.assertIsNone(payload["captured"])
+            self.assertIsNone(payload["errors"])
+            self.assertIsNone(payload["fatal_error"])
+            self.assertIn("timestamp_utc", payload)
+        finally:
+            server.stop()
+
+    def test_status_endpoint_includes_limits_queue_size_and_provider_values(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(
+            router,
+            port=0,
+            min_interval_ms=50,
+            queue_max=3,
+            status_provider=lambda: {
+                "status": "stopping",
+                "captured": 2,
+                "errors": 1,
+                "fatal_error": "capture failed",
+            },
+        )
+        _, port = server.start()
+        try:
+            self.assertEqual(202, self._post_trigger(port))
+            status, payload = self._get_json(port)
+
+            self.assertEqual(200, status)
+            self.assertEqual("stopping", payload["status"])
+            self.assertEqual(1, payload["queue_size"])
+            self.assertEqual(3, payload["queue_max"])
+            self.assertEqual(50, payload["min_interval_ms"])
+            self.assertEqual(2, payload["captured"])
+            self.assertEqual(1, payload["errors"])
+            self.assertEqual("capture failed", payload["fatal_error"])
+        finally:
+            server.stop()
+
+    def test_status_provider_exception_returns_nullable_dynamic_fields(self):
+        def failing_provider() -> dict[str, object]:
+            raise RuntimeError("status unavailable")
+
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, status_provider=failing_provider)
+        _, port = server.start()
+        try:
+            status, payload = self._get_json(port)
+
+            self.assertEqual(200, status)
+            self.assertEqual("running", payload["status"])
+            self.assertIsNone(payload["captured"])
+            self.assertIsNone(payload["errors"])
+            self.assertIsNone(payload["fatal_error"])
+        finally:
+            server.stop()
+
+    def test_unknown_get_path_returns_404(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0)
+        _, port = server.start()
+        try:
+            self.assertEqual(404, self._get_status_code(port, "/unknown"))
+        finally:
+            server.stop()
 
     def test_rate_limit_returns_429(self):
         router = TriggerRouter()

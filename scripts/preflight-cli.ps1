@@ -26,7 +26,7 @@ function Assert-UnderTmpRoot {
     $pathFull = Get-FullPath $Path
     $comparison = [System.StringComparison]::OrdinalIgnoreCase
     if (-not $pathFull.StartsWith($tmpFull + [System.IO.Path]::DirectorySeparatorChar, $comparison)) {
-        throw "Refusing to clean path outside .tmp_tests: $pathFull"
+        throw "Refusing to clean or write path outside .tmp_tests: $pathFull"
     }
 }
 
@@ -117,6 +117,134 @@ function Invoke-CapturedCommand {
     }
 }
 
+function Invoke-CapturedStartProcess {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$Arguments,
+        [Parameter(Mandatory = $true)][string]$StdOutPath,
+        [Parameter(Mandatory = $true)][string]$StdErrPath,
+        [int]$TimeoutSeconds = 30,
+        [int]$SoftTriggerCount = 0,
+        [int]$SoftTriggerPort = 0,
+        [Parameter(Mandatory = $true)][string]$OutDir
+    )
+
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = $Python
+    $psi.WorkingDirectory = $RepoRoot
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.Arguments = Join-ProcessArguments -Arguments $Arguments
+
+    $startedAt = Get-Date
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $clientResults = [System.Collections.Generic.List[object]]::new()
+    $clientFailure = $null
+    $timedOut = $false
+
+    if ($SoftTriggerCount -gt 0) {
+        for ($index = 1; $index -le $SoftTriggerCount; $index++) {
+            $triggerResult = Invoke-SoftTriggerWithRetry `
+                -Name "$Name`_soft_trigger_$index" `
+                -Port $SoftTriggerPort `
+                -CaseName $Name `
+                -Index $index `
+                -OutDir $OutDir
+            $clientResults.Add([pscustomobject]$triggerResult) | Out-Null
+            if (-not $triggerResult.success) {
+                $clientFailure = "soft-trigger $index failed"
+                break
+            }
+            Start-Sleep -Milliseconds 150
+        }
+    }
+
+    $exited = $process.WaitForExit($TimeoutSeconds * 1000)
+    if (-not $exited) {
+        $timedOut = $true
+        if ($SoftTriggerPort -gt 0) {
+            $stopOut = Join-Path $OutDir "$Name`_timeout_soft_stop.json"
+            $stopErr = Join-Path $OutDir "$Name`_timeout_soft_stop.stderr.txt"
+            $stopResult = Invoke-CapturedCommand `
+                -Name "$Name`_timeout_soft_stop" `
+                -FilePath $Python `
+                -Arguments @("-m", "keysight_logger.cli", "soft-stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -StdOutPath $stopOut `
+                -StdErrPath $stopErr
+            $clientResults.Add([pscustomobject]$stopResult) | Out-Null
+            $exited = $process.WaitForExit(5000)
+        }
+    }
+    if (-not $exited) {
+        $process.Kill()
+        $process.WaitForExit()
+    }
+    $process.WaitForExit()
+    $finishedAt = Get-Date
+    $stdout = $stdoutTask.GetAwaiter().GetResult()
+    $stderr = $stderrTask.GetAwaiter().GetResult()
+    Set-Content -LiteralPath $StdOutPath -Value $stdout -Encoding UTF8
+    Set-Content -LiteralPath $StdErrPath -Value $stderr -Encoding UTF8
+
+    return [ordered]@{
+        name = $Name
+        command = $Python
+        arguments = $Arguments
+        exit_code = $process.ExitCode
+        duration_seconds = [math]::Round(($finishedAt - $startedAt).TotalSeconds, 3)
+        stdout = $StdOutPath
+        stderr = $StdErrPath
+        success = (($process.ExitCode -eq 0) -and (-not $timedOut) -and ($null -eq $clientFailure))
+        timed_out = $timedOut
+        client_failure = $clientFailure
+        client_commands = @($clientResults.ToArray())
+    }
+}
+
+function Invoke-SoftTriggerWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][int]$Port,
+        [Parameter(Mandatory = $true)][string]$CaseName,
+        [Parameter(Mandatory = $true)][int]$Index,
+        [Parameter(Mandatory = $true)][string]$OutDir
+    )
+
+    $meta = [ordered]@{ case = $CaseName; index = "$Index" } | ConvertTo-Json -Compress
+    $lastResult = $null
+    for ($attempt = 1; $attempt -le 40; $attempt++) {
+        $stdoutPath = Join-Path $OutDir "$Name`_attempt_$attempt.json"
+        $stderrPath = Join-Path $OutDir "$Name`_attempt_$attempt.stderr.txt"
+        $lastResult = Invoke-CapturedCommand `
+            -Name "$Name`_attempt_$attempt" `
+            -FilePath $Python `
+            -Arguments @(
+                "-m", "keysight_logger.cli",
+                "soft-trigger",
+                "--format", "json",
+                "--port", [string]$Port,
+                "--meta", $meta
+            ) `
+            -StdOutPath $stdoutPath `
+            -StdErrPath $stderrPath
+        if ($lastResult.success) {
+            try {
+                $event = Get-Content -LiteralPath $stdoutPath -Raw | ConvertFrom-Json -ErrorAction Stop
+                if ($event.event -eq "soft-trigger" -and $event.status -eq "accepted") {
+                    return $lastResult
+                }
+            } catch {
+                # Retry until the trigger server is ready and emits valid JSON.
+            }
+        }
+        Start-Sleep -Milliseconds 250
+    }
+    return $lastResult
+}
+
 function Read-JsonLines {
     param([Parameter(Mandatory = $true)][string]$Path)
     $events = @()
@@ -139,13 +267,129 @@ function Assert-Condition {
     }
 }
 
-function Test-CsvHasRows {
+function Test-CsvRowCount {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {
-        return $false
+        return 0
     }
     $rows = @(Import-Csv -LiteralPath $Path)
-    return ($rows.Count -ge 1)
+    return $rows.Count
+}
+
+function New-SafeCaseName {
+    param([Parameter(Mandatory = $true)][string]$Name)
+    return ($Name -replace '[^A-Za-z0-9_.-]', '_')
+}
+
+function New-StartBaseArgs {
+    param(
+        [Parameter(Mandatory = $true)][string]$Resource,
+        [Parameter(Mandatory = $true)][string]$CsvPath,
+        [Parameter(Mandatory = $true)][string]$Port
+    )
+    return @(
+        "-m", "keysight_logger.cli",
+        "start-trigger-record",
+        "--resource", $Resource,
+        "--csv", $CsvPath,
+        "--sw-trigger-port", $Port,
+        "--auto-range", "on",
+        "--auto-zero", "off",
+        "--nplc", "1.0",
+        "--status-format", "jsonl"
+    )
+}
+
+function Invoke-DryRunCase {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$ModeArgs,
+        [Parameter(Mandatory = $true)][string]$ExpectedMeasurement,
+        [Parameter(Mandatory = $true)][string]$ExpectedReadPath,
+        [Parameter(Mandatory = $true)][string]$OutDir,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Commands,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Checks
+    )
+
+    $safeName = New-SafeCaseName -Name $Name
+    $jsonl = Join-Path $OutDir "$safeName.jsonl"
+    $stderr = Join-Path $OutDir "$safeName.stderr.txt"
+    $csv = Join-Path $OutDir "$safeName.csv"
+    $port = [string](Get-Random -Minimum 20000 -Maximum 60000)
+    $args = @((New-StartBaseArgs -Resource "SIM::34461A" -CsvPath $csv -Port $port) + $ModeArgs + @("--dry-run"))
+
+    $result = Invoke-CapturedCommand `
+        -Name $Name `
+        -FilePath $Python `
+        -Arguments $args `
+        -StdOutPath $jsonl `
+        -StdErrPath $stderr
+    $Commands.Add([pscustomobject]$result) | Out-Null
+    Assert-Condition ($result.success) "$Name failed"
+    $events = @(Read-JsonLines -Path $jsonl)
+    Assert-Condition ($events.Count -eq 1) "$Name should emit one JSONL event"
+    Assert-Condition ($events[0].event -eq "dry_run") "$Name event type mismatch"
+    Assert-Condition ($events[0].measurement_cli_name -eq $ExpectedMeasurement) "$Name measurement mismatch"
+    Assert-Condition ($events[0].read_path -eq $ExpectedReadPath) "$Name read path mismatch"
+    $Checks.Add([pscustomobject]@{
+        name = $Name
+        success = $true
+        jsonl = $jsonl
+        csv = $csv
+        stderr = $stderr
+        read_path = $ExpectedReadPath
+    }) | Out-Null
+}
+
+function Invoke-SimulateCase {
+    param(
+        [Parameter(Mandatory = $true)][string]$Name,
+        [Parameter(Mandatory = $true)][string[]]$ModeArgs,
+        [Parameter(Mandatory = $true)][int]$ExpectedCaptured,
+        [int]$SoftTriggerCount = 0,
+        [Parameter(Mandatory = $true)][string]$OutDir,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Commands,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Checks
+    )
+
+    $safeName = New-SafeCaseName -Name $Name
+    $jsonl = Join-Path $OutDir "$safeName.jsonl"
+    $stderr = Join-Path $OutDir "$safeName.stderr.txt"
+    $csv = Join-Path $OutDir "$safeName.csv"
+    $port = Get-Random -Minimum 20000 -Maximum 60000
+    $args = @(
+        (New-StartBaseArgs -Resource "SIM::34461A" -CsvPath $csv -Port ([string]$port)) +
+        $ModeArgs +
+        @("--simulate")
+    )
+
+    $result = Invoke-CapturedStartProcess `
+        -Name $Name `
+        -Arguments $args `
+        -StdOutPath $jsonl `
+        -StdErrPath $stderr `
+        -TimeoutSeconds 45 `
+        -SoftTriggerCount $SoftTriggerCount `
+        -SoftTriggerPort $port `
+        -OutDir $OutDir
+    $Commands.Add([pscustomobject]$result) | Out-Null
+    Assert-Condition ($result.success) "$Name failed"
+    $events = @(Read-JsonLines -Path $jsonl)
+    $summary = @($events | Where-Object { $_.event -eq "summary" } | Select-Object -Last 1)
+    Assert-Condition ($summary.Count -eq 1) "$Name summary event missing"
+    Assert-Condition ([int]$summary[0].captured -eq $ExpectedCaptured) "$Name captured count mismatch"
+    Assert-Condition ([int]$summary[0].errors -eq 0) "$Name errors should be 0"
+    $rowCount = Test-CsvRowCount -Path $csv
+    Assert-Condition ($rowCount -ge $ExpectedCaptured) "$Name CSV row count mismatch"
+    $Checks.Add([pscustomobject]@{
+        name = $Name
+        success = $true
+        captured = [int]$summary[0].captured
+        errors = [int]$summary[0].errors
+        jsonl = $jsonl
+        csv = $csv
+        stderr = $stderr
+    }) | Out-Null
 }
 
 function Invoke-TargetPreflight {
@@ -154,78 +398,114 @@ function Invoke-TargetPreflight {
     $outDir = Join-Path $PreflightRoot $ResolvedTarget
     Clear-OutputDirectory -Path $outDir
 
-    $dryRunJsonl = Join-Path $outDir "dry_run.jsonl"
-    $dryRunCsv = Join-Path $outDir "dry_run.csv"
-    $simulateJsonl = Join-Path $outDir "simulate.jsonl"
-    $simulateCsv = Join-Path $outDir "simulate.csv"
-    $softTriggerJson = Join-Path $outDir "soft_trigger.json"
-    $softStopJson = Join-Path $outDir "soft_stop.json"
-    $pytestOut = Join-Path $outDir "pytest_list_resources.stdout.txt"
-    $pytestErr = Join-Path $outDir "pytest_list_resources.stderr.txt"
-
     $checks = [System.Collections.Generic.List[object]]::new()
     $commands = [System.Collections.Generic.List[object]]::new()
 
-    $startBaseArgs = @(
-        "-m", "keysight_logger.cli",
-        "start-trigger-record",
-        "--resource", "SIM::34461A",
-        "--trigger-mode", "immediate",
-        "--measurement", "current-dc",
-        "--auto-range", "on",
-        "--auto-zero", "off",
-        "--nplc", "1.0",
-        "--max-samples", "1",
-        "--status-format", "jsonl"
+    $measurements = @(
+        "current-dc",
+        "voltage-dc",
+        "current-ac",
+        "voltage-ac",
+        "resistance-2w",
+        "resistance-4w"
     )
 
-    $dryRunArgs = @($startBaseArgs + @("--csv", $dryRunCsv, "--dry-run"))
-    $dryRunResult = Invoke-CapturedCommand `
-        -Name "start_dry_run" `
-        -FilePath $Python `
-        -Arguments $dryRunArgs `
-        -StdOutPath $dryRunJsonl `
-        -StdErrPath (Join-Path $outDir "dry_run.stderr.txt")
-    $commands.Add([pscustomobject]$dryRunResult) | Out-Null
-    Assert-Condition ($dryRunResult.success) "dry-run command failed"
-    $dryRunEvents = @(Read-JsonLines -Path $dryRunJsonl)
-    Assert-Condition ($dryRunEvents.Count -eq 1) "dry-run should emit one JSONL event"
-    Assert-Condition ($dryRunEvents[0].event -eq "dry_run") "dry-run event type mismatch"
-    Assert-Condition ($dryRunEvents[0].trigger_mode -eq "immediate") "dry-run trigger mode mismatch"
-    Assert-Condition ($dryRunEvents[0].measurement_cli_name -eq "current-dc") "dry-run measurement mismatch"
-    Assert-Condition ($dryRunEvents[0].read_path -like "*READ?*") "dry-run read path should mention READ?"
-    $checks.Add([pscustomobject]@{ name = "dry_run_jsonl_plan"; success = $true; path = $dryRunJsonl }) | Out-Null
+    foreach ($measurement in $measurements) {
+        Invoke-DryRunCase `
+            -Name "dry_run_immediate_$measurement" `
+            -ModeArgs @("--trigger-mode", "immediate", "--measurement", $measurement, "--max-samples", "1") `
+            -ExpectedMeasurement $measurement `
+            -ExpectedReadPath "READ?" `
+            -OutDir $outDir `
+            -Commands $commands `
+            -Checks $checks
+    }
 
-    $simulateArgs = @($startBaseArgs + @("--csv", $simulateCsv, "--simulate"))
-    $simulateResult = Invoke-CapturedCommand `
-        -Name "start_simulate" `
-        -FilePath $Python `
-        -Arguments $simulateArgs `
-        -StdOutPath $simulateJsonl `
-        -StdErrPath (Join-Path $outDir "simulate.stderr.txt")
-    $commands.Add([pscustomobject]$simulateResult) | Out-Null
-    Assert-Condition ($simulateResult.success) "simulate command failed"
-    $simulateEvents = @(Read-JsonLines -Path $simulateJsonl)
-    $summary = @($simulateEvents | Where-Object { $_.event -eq "summary" } | Select-Object -Last 1)
-    Assert-Condition ($summary.Count -eq 1) "simulate summary event missing"
-    Assert-Condition ([int]$summary[0].captured -eq 1) "simulate summary captured should be 1"
-    Assert-Condition ([int]$summary[0].errors -eq 0) "simulate summary errors should be 0"
-    Assert-Condition (Test-CsvHasRows -Path $simulateCsv) "simulate CSV should contain at least one data row"
-    $checks.Add([pscustomobject]@{
-        name = "simulate_jsonl_summary"
-        success = $true
-        captured = [int]$summary[0].captured
-        errors = [int]$summary[0].errors
-        jsonl = $simulateJsonl
-        csv = $simulateCsv
-    }) | Out-Null
+    Invoke-DryRunCase `
+        -Name "dry_run_external_read_path" `
+        -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1") `
+        -ExpectedMeasurement "current-dc" `
+        -ExpectedReadPath "FETC?" `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
 
+    Invoke-DryRunCase `
+        -Name "dry_run_buffered_read_path" `
+        -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
+        -ExpectedMeasurement "current-dc" `
+        -ExpectedReadPath "DATA:POINts? / DATA:REMove?" `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    foreach ($measurement in $measurements) {
+        Invoke-SimulateCase `
+            -Name "simulate_immediate_$measurement" `
+            -ModeArgs @("--trigger-mode", "immediate", "--measurement", $measurement, "--max-samples", "1") `
+            -ExpectedCaptured 1 `
+            -OutDir $outDir `
+            -Commands $commands `
+            -Checks $checks
+    }
+
+    Invoke-SimulateCase `
+        -Name "simulate_software_trigger" `
+        -ModeArgs @("--trigger-mode", "software", "--measurement", "current-dc", "--max-samples", "2") `
+        -ExpectedCaptured 2 `
+        -SoftTriggerCount 2 `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    Invoke-SimulateCase `
+        -Name "simulate_software_timer" `
+        -ModeArgs @("--trigger-mode", "software", "--timer-interval-s", "0.5", "--measurement", "current-dc", "--max-samples", "1") `
+        -ExpectedCaptured 1 `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    Invoke-SimulateCase `
+        -Name "simulate_immediate_custom" `
+        -ModeArgs @("--trigger-mode", "immediate-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
+        -ExpectedCaptured 2 `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    Invoke-SimulateCase `
+        -Name "simulate_software_custom" `
+        -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "2", "--sample-count", "1") `
+        -ExpectedCaptured 2 `
+        -SoftTriggerCount 2 `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    Invoke-SimulateCase `
+        -Name "simulate_external" `
+        -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1") `
+        -ExpectedCaptured 1 `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    Invoke-SimulateCase `
+        -Name "simulate_external_custom" `
+        -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
+        -ExpectedCaptured 2 `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    $softTriggerJson = Join-Path $outDir "soft_trigger_dry_run.json"
     $softTriggerResult = Invoke-CapturedCommand `
         -Name "soft_trigger_dry_run" `
         -FilePath $Python `
         -Arguments @("-m", "keysight_logger.cli", "soft-trigger", "--dry-run", "--format", "json", "--port", "8765", "--meta", '{"source":"preflight"}') `
         -StdOutPath $softTriggerJson `
-        -StdErrPath (Join-Path $outDir "soft_trigger.stderr.txt")
+        -StdErrPath (Join-Path $outDir "soft_trigger_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softTriggerResult) | Out-Null
     Assert-Condition ($softTriggerResult.success) "soft-trigger dry-run command failed"
     $softTrigger = Get-Content -LiteralPath $softTriggerJson -Raw | ConvertFrom-Json -ErrorAction Stop
@@ -233,12 +513,13 @@ function Invoke-TargetPreflight {
     Assert-Condition ($softTrigger.send_request -eq $false) "soft-trigger dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_trigger_dry_run_json"; success = $true; path = $softTriggerJson }) | Out-Null
 
+    $softStopJson = Join-Path $outDir "soft_stop_dry_run.json"
     $softStopResult = Invoke-CapturedCommand `
         -Name "soft_stop_dry_run" `
         -FilePath $Python `
         -Arguments @("-m", "keysight_logger.cli", "soft-stop", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStopJson `
-        -StdErrPath (Join-Path $outDir "soft_stop.stderr.txt")
+        -StdErrPath (Join-Path $outDir "soft_stop_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softStopResult) | Out-Null
     Assert-Condition ($softStopResult.success) "soft-stop dry-run command failed"
     $softStop = Get-Content -LiteralPath $softStopJson -Raw | ConvertFrom-Json -ErrorAction Stop
@@ -246,6 +527,8 @@ function Invoke-TargetPreflight {
     Assert-Condition ($softStop.send_request -eq $false) "soft-stop dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_stop_dry_run_json"; success = $true; path = $softStopJson }) | Out-Null
 
+    $pytestOut = Join-Path $outDir "pytest_list_resources.stdout.txt"
+    $pytestErr = Join-Path $outDir "pytest_list_resources.stderr.txt"
     $pytestResult = Invoke-CapturedCommand `
         -Name "pytest_list_resources_mocked" `
         -FilePath $Python `
@@ -254,7 +537,7 @@ function Invoke-TargetPreflight {
         -StdErrPath $pytestErr
     $commands.Add([pscustomobject]$pytestResult) | Out-Null
     Assert-Condition ($pytestResult.success) "mocked list-resources pytest coverage failed"
-    $checks.Add([pscustomobject]@{ name = "list_resources_mocked_pytest"; success = $true; stdout = $pytestOut }) | Out-Null
+    $checks.Add([pscustomobject]@{ name = "list_resources_mocked_pytest"; success = $true; stdout = $pytestOut; stderr = $pytestErr }) | Out-Null
 
     $report = [ordered]@{
         schema_version = 1
@@ -267,7 +550,7 @@ function Invoke-TargetPreflight {
     }
     $reportPath = Join-Path $outDir "report.json"
     $summaryPath = Join-Path $outDir "summary.md"
-    $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $reportPath -Encoding UTF8
+    $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $reportPath -Encoding UTF8
 
     $summaryLines = @(
         "# CLI Preflight Summary",
@@ -275,11 +558,12 @@ function Invoke-TargetPreflight {
         "- Target: $ResolvedTarget",
         "- Status: passed",
         "- Output directory: $outDir",
-        "- Dry-run JSONL: $dryRunJsonl",
-        "- Simulate JSONL: $simulateJsonl",
-        "- Simulate CSV: $simulateCsv",
-        "- Simulate summary: captured=1 errors=0",
-        "- Mocked list-resources coverage: passed"
+        "- Measurements covered by dry-run and simulator immediate: $($measurements -join ', ')",
+        "- Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?",
+        "- Simulator trigger modes covered: immediate, software, software timer, immediate-custom, software-custom, external, external-custom",
+        "- Soft client dry-runs: passed",
+        "- Mocked list-resources coverage: passed",
+        "- Report: $reportPath"
     )
     Set-Content -LiteralPath $summaryPath -Value $summaryLines -Encoding UTF8
 
