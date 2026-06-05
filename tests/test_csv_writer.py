@@ -4,8 +4,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from keysight_logger.models import MeasurementSample
-from keysight_logger.storage import CsvWriter
+from keysight_logger.core.models import MeasurementSample
+from keysight_logger.core.storage import CsvWriter
 
 
 class CsvWriterTests(unittest.TestCase):

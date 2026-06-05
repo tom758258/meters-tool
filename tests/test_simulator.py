@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger.models import InstrumentConfig
-from keysight_logger.simulator import SimulatedVisaInstrument
+from keysight_logger.core.models import InstrumentConfig
+from keysight_logger.core.simulator import SimulatedVisaInstrument
 
 
 class SimulatedVisaInstrumentTests(unittest.TestCase):

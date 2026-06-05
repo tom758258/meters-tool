@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added an internal `InstrumentBackend` Protocol and start/acquisition-path
+  factory for live VISA, simulator, and test backends.
 - Added root `keysight-logger --version`, parser/help coverage, and dry-run
   contract assertions for no-hardware CLI workflows.
 - Added preflight `-ListTargets`, constrained `-OutputRoot`, and summary count

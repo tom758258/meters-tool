@@ -26,19 +26,21 @@ from keysight_logger.cli import (
     cmd_soft_stop,
     get_cli_version,
     main,
-    print_buffer_overflow_warnings,
-    resolve_csv_path,
-    resolve_trigger_mode,
-    validate_start_args,
 )
-from keysight_logger.instrument import InstrumentError
-from keysight_logger.models import (
+from keysight_logger.core.instrument import InstrumentError
+from keysight_logger.core.models import (
     InstrumentProfile,
     MeasurementOptions,
     TriggerEvent,
     TriggerSource,
 )
-from keysight_logger.simulator import SimulatedVisaInstrument
+from keysight_logger.core.simulator import SimulatedVisaInstrument
+from keysight_logger.core.validation import (
+    print_buffer_overflow_warnings,
+    resolve_csv_path,
+    resolve_trigger_mode,
+    validate_start_args,
+)
 
 
 FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
@@ -2026,7 +2028,15 @@ class CliCommandTests(unittest.TestCase):
         if csv_writer is not None:
             patches.append(patch("keysight_logger.cli.CsvWriter", csv_writer))
         if instrument_cls is not None:
-            patches.append(patch("keysight_logger.cli.SimulatedVisaInstrument", instrument_cls))
+            patches.append(
+                patch(
+                    "keysight_logger.cli.create_instrument_backend",
+                    side_effect=lambda config, *, simulate, measurement_type: instrument_cls(
+                        config,
+                        measurement_type=measurement_type,
+                    ),
+                )
+            )
 
         with ExitStack() as stack:
             for active_patch in patches:
@@ -2273,9 +2283,10 @@ class CliCommandTests(unittest.TestCase):
         )
         stdout = io.StringIO()
         stderr = io.StringIO()
+        fake_backend = FakeStartInstrument(None)
 
         with (
-            patch("keysight_logger.cli.VisaInstrument", FakeStartInstrument),
+            patch("keysight_logger.cli.create_instrument_backend", return_value=fake_backend),
             patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
             patch("keysight_logger.cli.CsvWriter", PermissionDeniedCsvWriter),
             patch(
@@ -2316,9 +2327,10 @@ class CliCommandTests(unittest.TestCase):
         ConnectFailingStartInstrument.close_calls = 0
         stdout = io.StringIO()
         stderr = io.StringIO()
+        fake_backend = ConnectFailingStartInstrument(None)
 
         with (
-            patch("keysight_logger.cli.VisaInstrument", ConnectFailingStartInstrument),
+            patch("keysight_logger.cli.create_instrument_backend", return_value=fake_backend),
             patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
             patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
@@ -2355,7 +2367,7 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with (
-            patch("keysight_logger.cli.VisaInstrument") as mock_visa,
+            patch("keysight_logger.cli.create_instrument_backend") as mock_factory,
             patch("keysight_logger.cli.SoftwareTriggerAdapter") as mock_server,
             redirect_stdout(stdout),
         ):
@@ -2365,7 +2377,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertIn("dry-run plan:", stdout.getvalue())
         self.assertIn("CONF:VOLT:DC AUTO", stdout.getvalue())
         self.assertNotIn("software status endpoint:", stdout.getvalue())
-        mock_visa.assert_not_called()
+        mock_factory.assert_not_called()
         mock_server.assert_not_called()
 
     def test_start_dry_run_jsonl_outputs_one_plan_object(self):
@@ -2532,9 +2544,10 @@ class CliCommandTests(unittest.TestCase):
         ConnectFailingStartInstrument.cleanup_calls = 0
         ConnectFailingStartInstrument.close_calls = 0
         stdout = io.StringIO()
+        fake_backend = ConnectFailingStartInstrument(None)
 
         with (
-            patch("keysight_logger.cli.VisaInstrument", ConnectFailingStartInstrument),
+            patch("keysight_logger.cli.create_instrument_backend", return_value=fake_backend),
             redirect_stdout(stdout),
         ):
             rc = cmd_start(args)

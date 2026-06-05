@@ -6,7 +6,7 @@ import unittest
 from urllib import request
 from urllib.error import HTTPError
 
-from keysight_logger.trigger import SoftwareTriggerAdapter, TriggerRouter
+from keysight_logger.core.trigger import SoftwareTriggerAdapter, TriggerRouter
 
 
 class SoftwareTriggerAdapterTests(unittest.TestCase):

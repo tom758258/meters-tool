@@ -5,15 +5,15 @@ import time
 import unittest
 from datetime import datetime, timezone
 
-from keysight_logger.acquisition import TriggerAcquisitionEngine
-from keysight_logger.models import (
+from keysight_logger.core.acquisition import TriggerAcquisitionEngine
+from keysight_logger.core.models import (
     AcquisitionConfig,
     InstrumentProfile,
     MeasurementSample,
     TriggerEvent,
     TriggerSource,
 )
-from keysight_logger.trigger import TriggerRouter
+from keysight_logger.core.trigger import TriggerRouter
 
 
 FAKE_NO_BUFFER_PROFILE = InstrumentProfile(

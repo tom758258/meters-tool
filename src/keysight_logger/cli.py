@@ -8,40 +8,34 @@ import signal
 import sys
 import threading
 import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request
 from urllib.error import URLError
 
-from .acquisition import TriggerAcquisitionEngine
-from .instrument import InstrumentConfig, InstrumentError, VisaInstrument
-from .measurement import (
+from .core.acquisition import TriggerAcquisitionEngine
+from .core.instrument import InstrumentConfig, InstrumentError, VisaInstrument
+from .core.instrument_backend import create_instrument_backend
+from .core.measurement import (
     create_measurement_plugin,
     format_measurement_type,
-    get_measurement_definition,
-    normalize_measurement_type,
-    registered_measurement_types,
 )
-from .models import AcquisitionConfig, InstrumentProfile, get_default_instrument_profile
-from .simulator import SimulatedVisaInstrument
-from .storage import CsvWriter, UTC_PLUS_8
-from .trigger import HardwareTriggerAdapter, SoftwareTriggerAdapter, TriggerRouter
+from .core.models import AcquisitionConfig, get_default_instrument_profile
+from .core.run_plan import StartCommandPlan, build_start_plan
+from .core.storage import CsvWriter
+from .core.trigger import SoftwareTriggerAdapter, TriggerRouter
+from .core.validation import (
+    print_buffer_overflow_warnings,
+    resolve_csv_path,
+    resolve_measurement_range,
+    resolve_trigger_mode,
+    start_help_epilog as _start_help_epilog,
+    supported_measurement_types as _supported_measurement_types,
+    validate_client_port,
+    validate_start_args,
+)
 
 
-TIMER_INTERVAL_S_RANGE = (0.5, 86400.0)
-TRIGGER_TIMEOUT_MS_RANGE = (500, 600000)
-TIMEOUT_MS_RANGE = (100, 600000)
-TRIGGER_COUNT_RANGE = (1, 1000000)
-SAMPLE_COUNT_RANGE = (1, 1000000)
-BUFFER_DRAIN_SIZE_RANGE = (1, 10000)
-MAX_SAMPLES_RANGE = (1, 1000000)
-SW_TRIGGER_PORT_RANGE = (0, 65535)
-CLIENT_PORT_RANGE = (1, 65535)
-SW_MIN_INTERVAL_MS_RANGE = (0, 600000)
-SW_QUEUE_MAX_RANGE = (0, 10000)
-HW_TRIGGER_DELAY_S_RANGE = (0.0, 3600.0)
-NEUTRAL_AC_NPLC = 1.0
 CLI_EVENT_SCHEMA_VERSION = 1
 PACKAGE_NAME = "keysight-logger"
 
@@ -246,153 +240,6 @@ def parse_dcv_input_impedance(value: str) -> str:
     raise argparse.ArgumentTypeError("value must be 'default', '10m', or 'auto'")
 
 
-def resolve_csv_path(csv_path: str | None, now: datetime | None = None) -> Path:
-    if csv_path is not None:
-        return Path(csv_path)
-    effective_now = now or datetime.now(UTC_PLUS_8)
-    if effective_now.tzinfo is None:
-        effective_now = effective_now.replace(tzinfo=UTC_PLUS_8)
-    timestamp = effective_now.astimezone(UTC_PLUS_8).strftime("%Y-%m-%d-%H-%M-%S")
-    return Path("data") / f"{timestamp}.csv"
-
-
-def resolve_measurement_range(args: argparse.Namespace) -> float | None:
-    if args.measurement_range is not None and args.current_range is not None:
-        raise ValueError("--range and --current-range cannot be used together")
-    if args.measurement_range is not None:
-        return args.measurement_range
-    return args.current_range
-
-
-def _format_number(value: float | int) -> str:
-    numeric = float(value)
-    if numeric.is_integer():
-        return str(int(numeric))
-    return f"{numeric:g}"
-
-
-def _format_values(values: tuple[float, ...]) -> str:
-    return ", ".join(_format_number(value) for value in values)
-
-
-def _format_range_options(options) -> str:  # noqa: ANN001
-    return _format_values(tuple(value for _label, value in options.range_options))
-
-
-def _range_unit(definition) -> str:  # noqa: ANN001
-    if definition.unit == "A":
-        return "A"
-    if definition.unit == "V":
-        return "V"
-    return "Ohm"
-
-
-def _value_in_options(value: float, options: tuple[float, ...]) -> bool:
-    return any(abs(float(value) - float(option)) <= 1e-12 for option in options)
-
-
-def _supported_measurement_types(profile: InstrumentProfile) -> tuple[str, ...]:
-    registered_measurements = set(registered_measurement_types())
-    return tuple(value for value in profile.supported_measurement_types if value in registered_measurements)
-
-
-def _validate_int_range(name: str, value: int, minimum: int, maximum: int, detail: str) -> None:
-    if value < minimum or value > maximum:
-        raise ValueError(
-            f"{name} {value} is outside the {detail} range {minimum}-{maximum}. "
-            f"Use a value from {minimum} to {maximum}."
-        )
-
-
-def _validate_float_range(
-    name: str,
-    value: float,
-    minimum: float,
-    maximum: float,
-    unit: str,
-) -> None:
-    if value < minimum or value > maximum:
-        raise ValueError(
-            f"{name} {_format_number(value)} is outside the supported range "
-            f"{_format_number(minimum)}-{_format_number(maximum)} {unit}. "
-            f"Use a value from {_format_number(minimum)} to {_format_number(maximum)} {unit}."
-        )
-
-
-def _start_help_epilog(profile: InstrumentProfile | None = None) -> str:
-    effective_profile = profile or get_default_instrument_profile()
-    measurement_names = [
-        format_measurement_type(value) for value in _supported_measurement_types(effective_profile)
-    ]
-    range_lines = []
-    for measurement_name in measurement_names:
-        definition = get_measurement_definition(measurement_name)
-        options = effective_profile.get_measurement_options(measurement_name)
-        range_lines.append(
-            f"  {definition.cli_name}: {_format_range_options(options)} {definition.unit}"
-        )
-    return (
-        "Limits:\n"
-        f"  measurement choices: {', '.join(measurement_names)}\n"
-        "  NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100\n"
-        "  AC current/voltage do not support NPLC SCPI; omit --nplc or use 1.0\n"
-        "  range choices by measurement:\n"
-        + "\n".join(range_lines)
-        + "\n"
-        "  --timer-interval-s: 0.5-86400 s, software mode only\n"
-        "  --trigger-timeout-ms: 500-600000 ms\n"
-        "  --timeout-ms: 100-600000 ms\n"
-        "  --trigger-count/--sample-count: 1-1000000, custom modes only\n"
-        "  --buffer-drain-size: 1-10000, custom modes only\n"
-        "  --max-samples: 1-1000000, simple modes only\n"
-        "  --sw-trigger-port: 0 or 1024-65535; 0 lets the server choose\n"
-        "  --sw-min-interval-ms: 0 or 50-600000 ms\n"
-        "  --sw-queue-max: 0-10000\n"
-        "  --hw-trigger-delay-s: 0-3600 s\n"
-        "  custom trigger_count * sample_count > 10000 requires --allow-buffer-overflow-risk"
-    )
-
-
-class _PlanRecorder:
-    def __init__(self) -> None:
-        self.commands: list[str] = []
-
-    def write(self, command: str) -> None:
-        self.commands.append(command)
-
-    def query(self, command: str) -> str:
-        self.commands.append(f"query:{command}")
-        return "1.23"
-
-    def query_ascii_float(self, command: str) -> float:
-        self.commands.append(command)
-        return 1.23
-
-    def set_timeout_ms(self, timeout_ms: int) -> None:  # noqa: ARG002
-        return None
-
-    @property
-    def resource_id(self) -> str:
-        return "<dry-run>"
-
-
-@dataclass
-class StartCommandPlan:
-    trigger_mode: str
-    measurement_type: str
-    measurement_cli_name: str
-    measurement_unit: str
-    csv_path: str
-    resource: str
-    simulate: bool
-    dry_run: bool
-    status_format: str
-    scpi_commands: list[str]
-    read_path: str
-    cleanup_steps: list[str]
-    notes: list[str]
-
-
 class CliEventEmitter:
     def __init__(self, print_fn=print, output_format: str = "text") -> None:  # noqa: ANN001
         self._print = print_fn
@@ -492,106 +339,6 @@ class CliEventEmitter:
             )
             return
         self._print(message, file=sys.stderr)
-
-
-def _start_plan(args: argparse.Namespace, trigger_mode: str, profile: InstrumentProfile, buffer_warnings: list[str] | None = None) -> StartCommandPlan:
-    measurement_type = normalize_measurement_type(args.measurement)
-    measurement_def = get_measurement_definition(measurement_type)
-    csv_path = str(resolve_csv_path(args.csv))
-    config = AcquisitionConfig(
-        measurement_type=measurement_type,
-        trigger_timeout_ms=args.trigger_timeout_ms,
-        max_samples=args.max_samples,
-        trigger_count=args.trigger_count,
-        sample_count=args.sample_count,
-        timer_interval_s=args.timer_interval_s,
-        buffer_drain_size=args.buffer_drain_size,
-        allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
-        nplc=args.nplc,
-        auto_zero=args.auto_zero,
-        auto_range=args.auto_range,
-        measurement_range=resolve_measurement_range(args),
-        current_range=args.current_range,
-        dcv_input_impedance=args.dcv_input_impedance,
-        hw_trigger_delay_s=args.hw_trigger_delay_s,
-        vm_comp_slope=args.vm_comp_slope,
-    )
-    measurement = create_measurement_plugin(measurement_type)
-    recorder = _PlanRecorder()
-    measurement.configure(recorder, config)
-    if trigger_mode == "external":
-        HardwareTriggerAdapter(recorder).configure_external_trigger(
-            slope=args.hw_trigger_slope,
-            delay_s=args.hw_trigger_delay_s,
-        )
-    elif trigger_mode == "immediate-custom":
-        measurement.configure_immediate_custom(
-            recorder,
-            config,
-            trigger_count=args.trigger_count,
-            sample_count=args.sample_count,
-        )
-        measurement.start_buffered_capture(recorder)
-    elif trigger_mode == "software-custom":
-        measurement.configure_software_custom(
-            recorder,
-            config,
-            trigger_count=args.trigger_count,
-            sample_count=args.sample_count,
-        )
-        measurement.start_buffered_capture(recorder)
-    elif trigger_mode == "external-custom":
-        measurement.configure_external_custom(
-            recorder,
-            config,
-            trigger_count=args.trigger_count,
-            sample_count=args.sample_count,
-            slope=args.hw_trigger_slope,
-            delay_s=args.hw_trigger_delay_s,
-        )
-        measurement.start_buffered_capture(recorder)
-    scpi_commands = recorder.commands
-    if trigger_mode.endswith("-custom"):
-        read_path = "DATA:POINts? / DATA:REMove?"
-    elif trigger_mode == "external":
-        read_path = "FETC?"
-    else:
-        read_path = "READ?"
-    cleanup_steps = [
-        "wait for worker",
-        "release_to_local",
-        "close",
-        "cleanup_release_to_local",
-        "stop_http_server",
-    ]
-    notes: list[str] = []
-    if buffer_warnings:
-        notes.extend(buffer_warnings)
-    if trigger_mode.endswith("-custom"):
-        notes.append("buffered drain uses DATA:POINts? and DATA:REMove?")
-    if trigger_mode == "external":
-        notes.append("hardware trigger uses INIT + status-byte polling before FETC?")
-    if trigger_mode == "software-custom":
-        notes.append("software-custom uses BUS trigger plus *TRG")
-    if trigger_mode == "immediate-custom":
-        notes.append("immediate-custom uses IMM trigger source")
-    if args.simulate:
-        notes.append("simulate uses deterministic fake instrument values")
-    return StartCommandPlan(
-        trigger_mode=trigger_mode,
-        measurement_type=measurement_type,
-        measurement_cli_name=measurement_def.cli_name,
-        measurement_unit=measurement_def.unit,
-        csv_path=csv_path,
-        resource=args.resource,
-        simulate=args.simulate,
-        dry_run=args.dry_run,
-        status_format=args.status_format,
-        scpi_commands=scpi_commands,
-        read_path=read_path,
-        cleanup_steps=cleanup_steps,
-        notes=notes,
-    )
 
 
 def _emit_start_plan(plan: StartCommandPlan, emitter: CliEventEmitter) -> None:
@@ -1158,204 +905,6 @@ def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False)
     return 0
 
 
-def validate_client_port(port: int, command_name: str) -> None:
-    if port < CLIENT_PORT_RANGE[0] or port > CLIENT_PORT_RANGE[1]:
-        raise ValueError(
-            f"--port {port} is outside the supported range 1-65535 for {command_name}. "
-            "Use a TCP port from 1 to 65535."
-        )
-
-
-def resolve_trigger_mode(args: argparse.Namespace) -> str:
-    trigger_mode = args.trigger_mode or "software"
-    if args.enable_hw_trigger:
-        if args.trigger_mode is not None and args.trigger_mode != "external":
-            raise ValueError("--enable-hw-trigger conflicts with --trigger-mode; use external")
-        trigger_mode = "external"
-    return trigger_mode
-
-
-def validate_start_args(
-    args: argparse.Namespace,
-    trigger_mode: str,
-    instrument_profile: InstrumentProfile | None = None,
-) -> None:
-    custom_mode = trigger_mode.endswith("-custom")
-    profile = instrument_profile or get_default_instrument_profile()
-    measurement_type = normalize_measurement_type(args.measurement)
-    supported_measurements = _supported_measurement_types(profile)
-    if measurement_type not in supported_measurements:
-        choices = ", ".join(format_measurement_type(value) for value in supported_measurements)
-        raise ValueError(f"--measurement must be one of: {choices}")
-    definition = get_measurement_definition(measurement_type)
-    options = profile.get_measurement_options(measurement_type)
-    if not definition.accepts_current_range_alias and args.current_range is not None:
-        raise ValueError("--current-range can only be used with --measurement current-dc")
-    if args.dcv_input_impedance != "default" and measurement_type != "voltage_dc":
-        raise ValueError("--dcv-input-impedance can only be used with --measurement voltage-dc")
-    if args.measurement_range is not None and args.current_range is not None:
-        raise ValueError("--range and --current-range cannot be used together")
-    _validate_int_range("--timeout-ms", args.timeout_ms, *TIMEOUT_MS_RANGE, "supported")
-    _validate_int_range(
-        "--trigger-timeout-ms",
-        args.trigger_timeout_ms,
-        *TRIGGER_TIMEOUT_MS_RANGE,
-        "supported",
-    )
-    if args.sw_trigger_port != 0 and (
-        args.sw_trigger_port < 1024 or args.sw_trigger_port > SW_TRIGGER_PORT_RANGE[1]
-    ):
-        raise ValueError(
-            f"--sw-trigger-port {args.sw_trigger_port} is outside the supported values. "
-            "Use 0 to let the server choose a port, or use a port from 1024 to 65535."
-        )
-    if args.sw_min_interval_ms != 0 and (
-        args.sw_min_interval_ms < 50 or args.sw_min_interval_ms > SW_MIN_INTERVAL_MS_RANGE[1]
-    ):
-        raise ValueError(
-            f"--sw-min-interval-ms {args.sw_min_interval_ms} is outside the supported values. "
-            "Use 0 to disable throttling, or use a value from 50 to 600000 ms."
-        )
-    _validate_int_range("--sw-queue-max", args.sw_queue_max, *SW_QUEUE_MAX_RANGE, "supported")
-    if args.measurement_range is not None:
-        allowed_ranges = tuple(value for _label, value in options.range_options)
-        if not _value_in_options(args.measurement_range, allowed_ranges):
-            raise ValueError(
-                f"--range {_format_number(args.measurement_range)} is not valid for "
-                f"--measurement {definition.cli_name}. Allowed ranges in "
-                f"{_range_unit(definition)}: {_format_range_options(options)}. "
-                "Use one of the listed range values or omit --range with --auto-range on."
-            )
-    if args.current_range is not None:
-        allowed_ranges = tuple(value for _label, value in options.range_options)
-        if not _value_in_options(args.current_range, allowed_ranges):
-            raise ValueError(
-                f"--current-range {_format_number(args.current_range)} is not valid for "
-                f"--measurement {definition.cli_name}. Allowed ranges in "
-                f"{_range_unit(definition)}: {_format_range_options(options)}. "
-                "Use one of the listed current range values."
-            )
-    measurement_range = resolve_measurement_range(args)
-    if options.nplc_options:
-        if not _value_in_options(args.nplc, options.nplc_options):
-            raise ValueError(
-                f"--nplc {_format_number(args.nplc)} is not valid for "
-                f"--measurement {definition.cli_name}. Allowed NPLC values: "
-                f"{_format_values(options.nplc_options)}. Use one of the listed values."
-            )
-    elif args.nplc != NEUTRAL_AC_NPLC:
-        raise ValueError(
-            f"--nplc {_format_number(args.nplc)} is not valid for "
-            f"--measurement {definition.cli_name}. AC measurements do not support NPLC SCPI. "
-            "Omit --nplc or use the neutral default value 1.0."
-        )
-    _validate_float_range(
-        "--hw-trigger-delay-s",
-        args.hw_trigger_delay_s,
-        *HW_TRIGGER_DELAY_S_RANGE,
-        "s",
-    )
-    if not args.auto_range and measurement_range is None and measurement_type == "current_dc":
-        raise ValueError("--range or --current-range is required when --auto-range off")
-    if not args.auto_range and measurement_range is None:
-        raise ValueError("--range is required when --auto-range off")
-    if args.max_samples is not None:
-        _validate_int_range("--max-samples", args.max_samples, *MAX_SAMPLES_RANGE, "supported")
-    if args.trigger_count is not None:
-        _validate_int_range(
-            "--trigger-count",
-            args.trigger_count,
-            *TRIGGER_COUNT_RANGE,
-            "34461A supported",
-        )
-    if args.sample_count is not None:
-        _validate_int_range(
-            "--sample-count",
-            args.sample_count,
-            *SAMPLE_COUNT_RANGE,
-            "34461A supported",
-        )
-    if args.timer_interval_s is not None:
-        if args.timer_interval_s < TIMER_INTERVAL_S_RANGE[0]:
-            raise ValueError(
-                f"--timer-interval-s {_format_number(args.timer_interval_s)} is below "
-                f"the supported minimum {_format_number(TIMER_INTERVAL_S_RANGE[0])} s. "
-                "This is a PC-side timer and is not reliable below 0.5 s."
-            )
-        if args.timer_interval_s > TIMER_INTERVAL_S_RANGE[1]:
-            raise ValueError(
-                f"--timer-interval-s {_format_number(args.timer_interval_s)} is outside "
-                "the supported range 0.5-86400 s. Use a value from 0.5 to 86400 s."
-            )
-        if trigger_mode != "software":
-            raise ValueError("--timer-interval-s requires --trigger-mode software")
-    if args.buffer_drain_size is not None:
-        max_buffer_drain_size = min(BUFFER_DRAIN_SIZE_RANGE[1], profile.reading_memory_limit)
-        _validate_int_range(
-            "--buffer-drain-size",
-            args.buffer_drain_size,
-            BUFFER_DRAIN_SIZE_RANGE[0],
-            max_buffer_drain_size,
-            f"{profile.model} reading-memory",
-        )
-        if not custom_mode:
-            raise ValueError("--buffer-drain-size requires a custom trigger mode")
-    if args.allow_buffer_overflow_risk and not custom_mode:
-        raise ValueError("--allow-buffer-overflow-risk requires a custom trigger mode")
-    if custom_mode:
-        if args.max_samples is not None:
-            raise ValueError("--max-samples cannot be used with custom trigger modes")
-        if args.trigger_count is None:
-            raise ValueError("--trigger-count is required with custom trigger modes")
-        if args.sample_count is None:
-            raise ValueError("--sample-count is required with custom trigger modes")
-        memory_limit = profile.reading_memory_limit
-        expected_readings = args.trigger_count * args.sample_count
-        if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
-            raise ValueError(
-                f"custom mode expected readings {expected_readings} exceed "
-                f"{profile.model} reading memory {memory_limit}; "
-                "add --allow-buffer-overflow-risk to proceed."
-            )
-    else:
-        if args.trigger_count is not None:
-            raise ValueError("--trigger-count requires a custom trigger mode")
-        if args.sample_count is not None:
-            raise ValueError("--sample-count requires a custom trigger mode")
-        if getattr(args, "simulate", False) and args.max_samples is None:
-            raise ValueError("--simulate requires --max-samples with simple trigger modes")
-
-
-def print_buffer_overflow_warnings(
-    args: argparse.Namespace,
-    trigger_mode: str,
-    instrument_profile: InstrumentProfile | None = None,
-    emit_fn=None,  # noqa: ANN001
-) -> list[str]:
-    warnings: list[str] = []
-    if emit_fn is None:
-        emit_fn = print
-    profile = instrument_profile or get_default_instrument_profile()
-    if not trigger_mode.endswith("-custom") or not args.allow_buffer_overflow_risk:
-        return []
-    if args.trigger_count is None or args.sample_count is None:
-        return []
-    memory_limit = profile.reading_memory_limit
-    expected_readings = args.trigger_count * args.sample_count
-    if expected_readings <= memory_limit:
-        return []
-    model = profile.model
-    msg1 = f"WARNING: requested readings exceed {model} reading memory."
-    msg2 = f"WARNING: requested={expected_readings}, memory_limit={memory_limit}."
-    msg3 = "WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory."
-    msg4 = "WARNING: data loss, incomplete rows, or SCPI errors are possible."
-    msg5 = "WARNING: validate with low counts first and inspect row count/errors."
-    for msg in [msg1, msg2, msg3, msg4, msg5]:
-        emit_fn(msg)
-        warnings.append(msg)
-    return warnings
-
-
 def cmd_start(args: argparse.Namespace) -> int:
     instrument_profile = get_default_instrument_profile()
     emitter = CliEventEmitter(print_fn=print, output_format=args.status_format)
@@ -1382,7 +931,7 @@ def cmd_start(args: argparse.Namespace) -> int:
             emit_fn=emitter.status if args.status_format == "jsonl" else emitter.line,
         )
 
-    plan = _start_plan(
+    plan = build_start_plan(
         args,
         trigger_mode,
         instrument_profile,
@@ -1416,10 +965,10 @@ def cmd_start(args: argparse.Namespace) -> int:
         hw_trigger_delay_s=args.hw_trigger_delay_s,
         vm_comp_slope=args.vm_comp_slope,
     )
-    instrument = (
-        SimulatedVisaInstrument(iconfig, measurement_type=measurement_type)
-        if args.simulate
-        else VisaInstrument(iconfig)
+    instrument = create_instrument_backend(
+        iconfig,
+        simulate=args.simulate,
+        measurement_type=measurement_type,
     )
     router = TriggerRouter(max_pending_events=args.sw_queue_max)
     storage = CsvWriter(csv_path)
