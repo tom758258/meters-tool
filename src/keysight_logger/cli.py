@@ -6,6 +6,7 @@ import importlib.metadata
 import json
 import signal
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request
@@ -29,6 +30,12 @@ from .core.validation import (
 
 CLI_EVENT_SCHEMA_VERSION = 1
 PACKAGE_NAME = "keysight-logger"
+
+
+class StatusPayloadError(ValueError):
+    def __init__(self, message: str, http_status: int) -> None:
+        super().__init__(message)
+        self.http_status = http_status
 
 
 class KeysightHelpFormatter(
@@ -330,6 +337,7 @@ class CliEventEmitter:
                 "captured": captured,
                 "errors": errors,
                 "event": "summary",
+                "ok": fatal_error is None,
                 "schema_version": CLI_EVENT_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }
@@ -496,7 +504,13 @@ def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argpa
             parser.error(f"--json conflicts with --status-format {status_format}")
         args.status_format = "jsonl"
         return
-    if getattr(args, "command", None) in {"list-resources", "soft-trigger", "soft-stop"}:
+    if getattr(args, "command", None) in {
+        "list-resources",
+        "soft-trigger",
+        "soft-stop",
+        "soft-status",
+        "wait-ready",
+    }:
         if not getattr(args, "json", False):
             return
         output_format = _last_option_value(argv, "--format")
@@ -538,22 +552,45 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
     )
 
 
-def _emit_client_dry_run(command_name: str, port: int, body, output_format: str) -> None:  # noqa: ANN001
+def validate_client_timeout_ms(timeout_ms: int) -> None:
+    if timeout_ms < 100 or timeout_ms > 600000:
+        raise ValueError(f"--timeout-ms {timeout_ms} is outside the supported range 100-600000")
+
+
+def _client_timeout_s(timeout_ms: int) -> float:
+    return timeout_ms / 1000.0
+
+
+def _emit_client_dry_run(
+    command_name: str,
+    port: int,
+    body,  # noqa: ANN001
+    output_format: str,
+    *,
+    method: str = "POST",
+    path: str | None = None,
+) -> None:
+    if path is None:
+        path = f"/{command_name.split('-')[-1]}"
     payload = {
         "body": body,
+        "client_command": command_name,
         "event": "dry_run",
-        "method": "POST",
+        "method": method,
+        "ok": True,
+        "port": port,
+        "request_sent": False,
         "schema_version": CLI_EVENT_SCHEMA_VERSION,
         "send_request": False,
         "status": "dry_run",
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-        "url": f"http://127.0.0.1:{port}/{command_name.split('-')[-1]}",
+        "url": f"http://127.0.0.1:{port}{path}",
     }
     if output_format == "json":
         print(json.dumps(payload, sort_keys=True))
         return
     print(f"dry-run {command_name}:")
-    print(f"  method: POST")
+    print(f"  method: {method}")
     print(f"  url: {payload['url']}")
     print(f"  body: {json.dumps(body, sort_keys=True)}")
     print("  send_request: false")
@@ -781,6 +818,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     trig = sub.add_parser("soft-trigger", formatter_class=KeysightHelpFormatter)
     trig.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
+    trig.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=3000,
+        help="HTTP client timeout in ms; supported range 100-600000",
+    )
     trig.add_argument("--meta", default="{}", help='JSON metadata, e.g. {"batch":"A"}')
     trig.add_argument(
         "--format",
@@ -794,6 +837,12 @@ def build_parser() -> argparse.ArgumentParser:
     stop = sub.add_parser("soft-stop", formatter_class=KeysightHelpFormatter)
     stop.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     stop.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=3000,
+        help="HTTP client timeout in ms; supported range 100-600000",
+    )
+    stop.add_argument(
         "--format",
         dest="output_format",
         choices=["text", "json"],
@@ -802,6 +851,41 @@ def build_parser() -> argparse.ArgumentParser:
     )
     stop.add_argument("--json", action="store_true", help="alias for --format json")
     stop.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
+
+    status = sub.add_parser("soft-status", formatter_class=KeysightHelpFormatter)
+    status.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
+    status.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=3000,
+        help="HTTP client timeout in ms; supported range 100-600000",
+    )
+    status.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["text", "json"],
+        default="text",
+        help="output format for the response; default: text",
+    )
+    status.add_argument("--json", action="store_true", help="alias for --format json")
+    status.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
+
+    wait = sub.add_parser("wait-ready", formatter_class=KeysightHelpFormatter)
+    wait.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
+    wait.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=10000,
+        help="overall wait deadline in ms; supported range 100-600000",
+    )
+    wait.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["text", "json"],
+        default="text",
+        help="output format for the response; default: text",
+    )
+    wait.add_argument("--json", action="store_true", help="alias for --format json")
 
     return parser
 
@@ -906,20 +990,178 @@ def cmd_list_resources(
     return 0
 
 
-def cmd_soft_trigger(port: int, meta: str, output_format: str = "text", dry_run: bool = False) -> int:
+def _client_command_name(event: str) -> str:
+    return event if event != "error" else "unknown"
+
+
+def _client_error_payload(
+    event: str,
+    port: int,
+    message: str,
+    exit_code: int = 3,
+    *,
+    client_command: str | None = None,
+    error_phase: str = "request",
+    request_sent: bool = True,
+    reachable: bool = False,
+    http_status: int | None = None,
+) -> dict[str, object]:
+    payload = {
+        "client_command": client_command or _client_command_name(event),
+        "error_phase": error_phase,
+        "event": event,
+        "exit_code": exit_code,
+        "message": message,
+        "ok": False,
+        "port": port,
+        "request_sent": request_sent,
+        "reachable": False,
+        "running": False,
+        "schema_version": CLI_EVENT_SCHEMA_VERSION,
+        "stopping": False,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    payload["reachable"] = reachable
+    if http_status is not None:
+        payload["http_status"] = http_status
+    return payload
+
+
+def _client_http_status(exc: BaseException) -> int | None:
+    http_status = getattr(exc, "http_status", None)
+    if isinstance(http_status, int):
+        return http_status
+    code = getattr(exc, "code", None)
+    if isinstance(code, int):
+        return code
+    status = getattr(exc, "status", None)
+    return status if isinstance(status, int) else None
+
+
+def _print_client_error(
+    event: str,
+    port: int,
+    message: str,
+    output_format: str,
+    *,
+    error_phase: str = "request",
+    request_sent: bool = True,
+    reachable: bool = False,
+    http_status: int | None = None,
+) -> int:
+    if output_format == "json":
+        print(
+            json.dumps(
+                _client_error_payload(
+                    event,
+                    port,
+                    message,
+                    client_command=event,
+                    error_phase=error_phase,
+                    request_sent=request_sent,
+                    reachable=reachable,
+                    http_status=http_status,
+                ),
+                sort_keys=True,
+            )
+        )
+    else:
+        print(message, file=sys.stderr)
+    return 3
+
+
+def _fetch_worker_status(port: int, timeout_ms: int) -> tuple[int, dict[str, object]]:
+    req = request.Request(f"http://127.0.0.1:{port}/status", method="GET")
+    with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
+        http_status = int(response.status)
+        raw_payload = response.read()
+        try:
+            worker_status = json.loads(raw_payload.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise StatusPayloadError(
+                f"status endpoint returned invalid JSON: {exc}",
+                http_status,
+            ) from exc
+        if not isinstance(worker_status, dict):
+            raise StatusPayloadError("status endpoint returned invalid JSON object", http_status)
+        return http_status, worker_status
+
+
+def _normalized_status_payload(
+    event: str,
+    port: int,
+    http_status: int,
+    worker_status: dict[str, object],
+    extra: dict[str, object] | None = None,
+) -> dict[str, object]:
+    status_value = worker_status.get("status")
+    fatal_error = worker_status.get("fatal_error")
+    payload = {
+        "event": event,
+        "client_command": event,
+        "schema_version": CLI_EVENT_SCHEMA_VERSION,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "ok": fatal_error is None,
+        "reachable": True,
+        "request_sent": True,
+        "running": status_value == "running",
+        "stopping": status_value == "stopping",
+        "port": port,
+        "http_status": http_status,
+        "worker_schema_version": worker_status.get("schema_version"),
+        "worker_timestamp_utc": worker_status.get("timestamp_utc"),
+        "service": worker_status.get("service"),
+        "run_id": worker_status.get("run_id"),
+        "status": status_value,
+        "trigger_url": worker_status.get("trigger_url"),
+        "stop_url": worker_status.get("stop_url"),
+        "status_url": worker_status.get("status_url"),
+        "queue_size": worker_status.get("queue_size"),
+        "queue_max": worker_status.get("queue_max"),
+        "min_interval_ms": worker_status.get("min_interval_ms"),
+        "captured": worker_status.get("captured"),
+        "errors": worker_status.get("errors"),
+        "fatal_error": fatal_error,
+    }
+    if extra is not None:
+        payload.update(extra)
+    return payload
+
+
+def _format_status_text(prefix: str, payload: dict[str, object]) -> str:
+    fatal_error = payload.get("fatal_error")
+    fatal_text = "null" if fatal_error is None else str(fatal_error)
+    return (
+        f"{prefix}: {payload.get('status')} "
+        f"captured={payload.get('captured')} "
+        f"errors={payload.get('errors')} "
+        f"fatal_error={fatal_text} "
+        f"run_id={payload.get('run_id')}"
+    )
+
+
+def cmd_soft_trigger(
+    port: int,
+    meta: str,
+    output_format: str = "text",
+    dry_run: bool = False,
+    timeout_ms: int = 3000,
+) -> int:
     try:
         payload = json.dumps(json.loads(meta)).encode("utf-8")
     except json.JSONDecodeError:
         if output_format == "json":
             print(
                 json.dumps(
-                    {
-                        "event": "error",
-                        "exit_code": 2,
-                        "message": "meta must be valid JSON",
-                        "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                    },
+                    _client_error_payload(
+                        "error",
+                        port,
+                        "meta must be valid JSON",
+                        exit_code=2,
+                        client_command="soft-trigger",
+                        error_phase="validation",
+                        request_sent=False,
+                    ),
                     sort_keys=True,
                 )
             )
@@ -936,14 +1178,19 @@ def cmd_soft_trigger(port: int, meta: str, output_format: str = "text", dry_run:
         headers={"Content-Type": "application/json"},
     )
     try:
-        with request.urlopen(req, timeout=3) as response:
+        with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
             if output_format == "json":
                 print(
                     json.dumps(
                         {
+                            "client_command": "soft-trigger",
                             "event": "soft-trigger",
                             "http_status": response.status,
                             "message": "trigger accepted",
+                            "ok": True,
+                            "port": port,
+                            "reachable": True,
+                            "request_sent": True,
                             "schema_version": CLI_EVENT_SCHEMA_VERSION,
                             "status": "accepted",
                             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -954,16 +1201,20 @@ def cmd_soft_trigger(port: int, meta: str, output_format: str = "text", dry_run:
             else:
                 print(f"trigger accepted: {response.status}")
     except URLError as exc:
+        http_status = _client_http_status(exc)
         if output_format == "json":
             print(
                 json.dumps(
-                    {
-                        "event": "error",
-                        "exit_code": 3,
-                        "message": f"trigger request failed: {exc}",
-                        "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                    },
+                    _client_error_payload(
+                        "error",
+                        port,
+                        f"trigger request failed: {exc}",
+                        client_command="soft-trigger",
+                        error_phase="request",
+                        request_sent=True,
+                        reachable=http_status is not None,
+                        http_status=http_status,
+                    ),
                     sort_keys=True,
                 )
             )
@@ -973,7 +1224,12 @@ def cmd_soft_trigger(port: int, meta: str, output_format: str = "text", dry_run:
     return 0
 
 
-def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False) -> int:
+def cmd_soft_stop(
+    port: int,
+    output_format: str = "text",
+    dry_run: bool = False,
+    timeout_ms: int = 3000,
+) -> int:
     if dry_run:
         _emit_client_dry_run("soft-stop", port, {}, output_format)
         return 0
@@ -984,14 +1240,19 @@ def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False)
         headers={"Content-Type": "application/json"},
     )
     try:
-        with request.urlopen(req, timeout=3) as response:
+        with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
             if output_format == "json":
                 print(
                     json.dumps(
                         {
+                            "client_command": "soft-stop",
                             "event": "soft-stop",
                             "http_status": response.status,
                             "message": "stop accepted",
+                            "ok": True,
+                            "port": port,
+                            "reachable": True,
+                            "request_sent": True,
                             "schema_version": CLI_EVENT_SCHEMA_VERSION,
                             "status": "accepted",
                             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -1010,8 +1271,13 @@ def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False)
                 print(
                     json.dumps(
                         {
+                            "client_command": "soft-stop",
                             "event": "soft-stop",
                             "message": "already stopped (endpoint not listening)",
+                            "ok": True,
+                            "port": port,
+                            "reachable": False,
+                            "request_sent": True,
                             "schema_version": CLI_EVENT_SCHEMA_VERSION,
                             "status": "already_stopped",
                             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -1022,16 +1288,20 @@ def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False)
             else:
                 print("already stopped (endpoint not listening)")
             return 0
+        http_status = _client_http_status(exc)
         if output_format == "json":
             print(
                 json.dumps(
-                    {
-                        "event": "error",
-                        "exit_code": 3,
-                        "message": f"stop request failed: {exc}",
-                        "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                    },
+                    _client_error_payload(
+                        "error",
+                        port,
+                        f"stop request failed: {exc}",
+                        client_command="soft-stop",
+                        error_phase="request",
+                        request_sent=True,
+                        reachable=http_status is not None,
+                        http_status=http_status,
+                    ),
                     sort_keys=True,
                 )
             )
@@ -1039,6 +1309,139 @@ def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False)
             print(f"stop request failed: {exc}", file=sys.stderr)
         return 3
     return 0
+
+
+def cmd_soft_status(
+    port: int,
+    output_format: str = "text",
+    dry_run: bool = False,
+    timeout_ms: int = 3000,
+) -> int:
+    if dry_run:
+        _emit_client_dry_run(
+            "soft-status",
+            port,
+            None,
+            output_format,
+            method="GET",
+            path="/status",
+        )
+        return 0
+    try:
+        http_status, worker_status = _fetch_worker_status(port, timeout_ms)
+    except (URLError, ValueError) as exc:
+        http_status = _client_http_status(exc)
+        return _print_client_error(
+            "soft-status",
+            port,
+            f"status request failed: {exc}",
+            output_format,
+            error_phase="request",
+            request_sent=True,
+            reachable=http_status is not None,
+            http_status=http_status,
+        )
+
+    payload = _normalized_status_payload("soft-status", port, http_status, worker_status)
+    if output_format == "json":
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(_format_status_text("status", payload))
+    return 0
+
+
+def cmd_wait_ready(port: int, output_format: str = "text", timeout_ms: int = 10000) -> int:
+    deadline = time.monotonic() + _client_timeout_s(timeout_ms)
+    attempts = 0
+    last_error: Exception | None = None
+    start = time.monotonic()
+
+    while True:
+        remaining_s = deadline - time.monotonic()
+        if remaining_s <= 0:
+            break
+        attempts += 1
+        try:
+            request_timeout_ms = max(1, min(1000, int(remaining_s * 1000)))
+            http_status, worker_status = _fetch_worker_status(port, request_timeout_ms)
+            elapsed_ms = int((time.monotonic() - start) * 1000)
+            payload = _normalized_status_payload(
+                "wait-ready",
+                port,
+                http_status,
+                worker_status,
+                extra={
+                    "attempts": attempts,
+                    "elapsed_ms": elapsed_ms,
+                    "timeout_ms": timeout_ms,
+                },
+            )
+            if output_format == "json":
+                print(json.dumps(payload, sort_keys=True))
+            else:
+                print(
+                    "ready: "
+                    f"http://127.0.0.1:{port}/status "
+                    f"status={payload.get('status')} "
+                    f"run_id={payload.get('run_id')}"
+                )
+            return 0
+        except (URLError, ValueError) as exc:
+            last_error = exc
+
+        remaining_s = deadline - time.monotonic()
+        if remaining_s <= 0:
+            break
+        time.sleep(min(0.2, remaining_s))
+
+    message = f"timed out waiting for status endpoint after {timeout_ms} ms"
+    if last_error is not None:
+        message = f"{message}: {last_error}"
+    if output_format == "json":
+        elapsed_ms = int((time.monotonic() - start) * 1000)
+        http_status = _client_http_status(last_error) if last_error is not None else None
+        payload = _client_error_payload(
+            "wait-ready",
+            port,
+            message,
+            error_phase="request",
+            request_sent=attempts > 0,
+            reachable=http_status is not None,
+            http_status=http_status,
+        )
+        payload.update({"attempts": attempts, "elapsed_ms": elapsed_ms, "timeout_ms": timeout_ms})
+        print(json.dumps(payload, sort_keys=True))
+    else:
+        print(message, file=sys.stderr)
+    return 3
+
+
+def _validate_client_port_and_timeout(args: argparse.Namespace) -> int | None:
+    try:
+        validate_client_port(args.port)
+        validate_client_timeout_ms(args.timeout_ms)
+    except ValueError as exc:
+        if args.output_format == "json":
+            print(
+                json.dumps(
+                    {
+                        **_client_error_payload(
+                            "error",
+                            args.port,
+                            str(exc),
+                            exit_code=2,
+                            client_command=args.command,
+                            error_phase="validation",
+                            request_sent=False,
+                        )
+                    },
+                    sort_keys=True,
+                )
+            )
+        else:
+            print(str(exc), file=sys.stderr)
+        return 2
+    return None
 
 
 def cmd_start(args: argparse.Namespace) -> int:
@@ -1099,47 +1502,31 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=args.dry_run,
         )
     if args.command == "soft-trigger":
-        try:
-            validate_client_port(args.port)
-        except ValueError as exc:
-            if args.output_format == "json":
-                print(
-                    json.dumps(
-                        {
-                            "event": "error",
-                            "exit_code": 2,
-                            "message": str(exc),
-                            "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                        },
-                        sort_keys=True,
-                    )
-                )
-            else:
-                print(str(exc), file=sys.stderr)
-            return 2
-        return cmd_soft_trigger(args.port, args.meta, args.output_format, args.dry_run)
+        validation_rc = _validate_client_port_and_timeout(args)
+        if validation_rc is not None:
+            return validation_rc
+        return cmd_soft_trigger(
+            args.port,
+            args.meta,
+            args.output_format,
+            args.dry_run,
+            args.timeout_ms,
+        )
     if args.command == "soft-stop":
-        try:
-            validate_client_port(args.port)
-        except ValueError as exc:
-            if args.output_format == "json":
-                print(
-                    json.dumps(
-                        {
-                            "event": "error",
-                            "exit_code": 2,
-                            "message": str(exc),
-                            "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                        },
-                        sort_keys=True,
-                    )
-                )
-            else:
-                print(str(exc), file=sys.stderr)
-            return 2
-        return cmd_soft_stop(args.port, args.output_format, args.dry_run)
+        validation_rc = _validate_client_port_and_timeout(args)
+        if validation_rc is not None:
+            return validation_rc
+        return cmd_soft_stop(args.port, args.output_format, args.dry_run, args.timeout_ms)
+    if args.command == "soft-status":
+        validation_rc = _validate_client_port_and_timeout(args)
+        if validation_rc is not None:
+            return validation_rc
+        return cmd_soft_status(args.port, args.output_format, args.dry_run, args.timeout_ms)
+    if args.command == "wait-ready":
+        validation_rc = _validate_client_port_and_timeout(args)
+        if validation_rc is not None:
+            return validation_rc
+        return cmd_wait_ready(args.port, args.output_format, args.timeout_ms)
     if args.command == "start-trigger-record":
         return cmd_start(args)
     return 2

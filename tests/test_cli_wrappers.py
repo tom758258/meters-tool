@@ -116,11 +116,11 @@ def test_preflight_report_contract():
     assert Path(report["output_dir"]).resolve() == output_dir.resolve()
 
     assert report["summary_counts"] == {
-        "commands_total": 24,
-        "checks_total": 24,
+        "commands_total": 25,
+        "checks_total": 25,
         "dry_run_cases": 8,
         "simulate_cases": 12,
-        "soft_client_dry_runs": 2,
+        "soft_client_dry_runs": 3,
         "list_resources_contract_checks": 1,
         "mocked_pytest_checks": 1,
     }
@@ -128,6 +128,20 @@ def test_preflight_report_contract():
     assert_command_artifacts(report["commands"], output_dir.resolve())
     assert all(command["success"] for command in report["commands"])
     assert all(check["success"] for check in report["checks"])
+    soft_cases = [
+        command
+        for command in report["commands"]
+        if command["name"] in {"simulate_software_trigger", "simulate_software_custom"}
+    ]
+    assert len(soft_cases) == 2
+    for command in soft_cases:
+        client_names = [client["name"] for client in command["client_commands"]]
+        assert any(name.endswith("_wait_ready") for name in client_names)
+        assert any(name.endswith("_soft_status") for name in client_names)
+        wait_ready = next(client for client in command["client_commands"] if client["name"].endswith("_wait_ready"))
+        soft_status = next(client for client in command["client_commands"] if client["name"].endswith("_soft_status"))
+        assert load_json(Path(wait_ready["stdout"]))["event"] == "wait-ready"
+        assert load_json(Path(soft_status["stdout"]))["event"] == "soft-status"
 
     measurements = set()
     read_paths = set()
@@ -153,8 +167,8 @@ def test_preflight_report_contract():
 
     summary = summary_path.read_text(encoding="utf-8")
     assert "- Status: passed" in summary
-    assert "- Commands total: 24" in summary
-    assert "- Checks total: 24" in summary
+    assert "- Commands total: 25" in summary
+    assert "- Checks total: 25" in summary
     assert "Measurements covered by dry-run and simulator immediate" in summary
     assert "Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?" in summary
     assert f"- Report: {report_path}" in summary

@@ -21,7 +21,9 @@ def test_integration_docs_are_indexed():
         "docs/core-integration.md",
         "docs/cli-integration.md",
         "docs/webui-integration.md",
+        "docs/common-worker-protocol.md",
         "docs/cli-jsonl-contract.md",
+        "docs/cli-orchestrator-workflows.md",
         "docs/worker-contract.md",
         "docs/hardware-test-plan.md",
         "docs/session-handoff.md",
@@ -57,3 +59,41 @@ def test_webui_integration_forbids_cli_json_scraping():
     assert "Do not scrape CLI" in text
     assert "CLI JSON/JSONL is not the required WebUI wire format" in text
     assert "measurement_cli_name" in text
+
+
+def test_common_worker_protocol_is_lifecycle_only():
+    text = read_doc("docs", "common-worker-protocol.md")
+
+    assert "lifecycle-only" in text
+    assert "GET /status" in text
+    assert "POST /trigger" in text
+    assert "POST /stop" in text
+    assert "does not define `POST /start`" in text
+    assert "does not define" in text and "generic" in text and "`POST /command`" in text
+
+
+def test_worker_contract_documents_cross_instrument_boundary():
+    text = read_doc("docs", "worker-contract.md")
+
+    assert "Cross-Instrument Compatibility" in text
+    assert "Common Worker Protocol" in text
+    assert "Meters worker contract only" in text
+    assert "GET /status" in text
+    assert "does not change state" in text
+    assert "mutate queues" in text
+
+
+def test_cli_jsonl_contract_documents_v14_status_clients():
+    text = read_doc("docs", "cli-jsonl-contract.md")
+
+    assert "Runtime contract revision: `v1.4`" in text
+    assert "`summary`:" in text
+    assert "`ok`" in text
+    assert "optional `fatal_error`" in text
+    assert "`summary.ok` is `true`" in text
+    assert "soft-status" in text
+    assert "wait-ready" in text
+    assert "client `--timeout-ms`" in text
+    assert "Consumers must ignore unknown fields" in text
+    assert "client_command" in text
+    assert "request_sent" in text

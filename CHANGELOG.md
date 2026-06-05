@@ -2,7 +2,13 @@
 
 ## Unreleased
 
-- No unreleased changes yet.
+- Added CLI contract `v1.4` additive soft-client diagnostics, subprocess
+  orchestrator workflow docs, simulator worker subprocess coverage, and
+  wrapper `wait-ready` / `soft-status` gates before software trigger calls.
+- Removed legacy root-level Core module compatibility shims such as
+  `keysight_logger.measurement` and `keysight_logger.instrument`. Python
+  integrations should use `keysight_logger.core` or `keysight_logger.core.*`;
+  CLI command behavior is unchanged.
 
 ## cli-v1.2.0 - 2026-05-29
 
