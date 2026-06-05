@@ -4,6 +4,16 @@
 
 - No unreleased changes yet.
 
+## v1.0.0-core - 2026-05-26
+
+- Completed the Core/Cli separation on the Core branch by removing adapter
+  runtime code, wrapper scripts, adapter-specific tests, and legacy top-level
+  re-export shims.
+- Renamed package metadata to `keysight-logger-core` and removed console
+  script metadata while preserving the `keysight_logger.core` public import
+  boundary.
+- Removed the adapter measurement-name alias from Core measurement metadata.
+
 ## v1.1.7-cli
 
 - Added an internal `InstrumentBackend` Protocol and start/acquisition-path
