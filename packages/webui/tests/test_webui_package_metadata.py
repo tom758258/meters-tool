@@ -79,7 +79,7 @@ def test_webui_distribution_uses_adapter_metadata_and_console_script():
     dev_dependencies = pyproject["project"]["optional-dependencies"]["dev"]
 
     assert project["name"] == "keysight-logger-webui"
-    assert project["version"] == "1.2.1"
+    assert project["version"] == "1.2.2"
     assert project["version"] == FALLBACK_WEBUI_VERSION
     assert "FastAPI" in project["description"] or "Web UI" in project["description"]
     assert "keysight-logger-core>=1.2.0,<1.3" in dependencies

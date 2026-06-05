@@ -40,6 +40,26 @@ Open:
 http://127.0.0.1:8767/
 ```
 
+## Build Launcher EXE
+
+The `.venv\Scripts\keysight-logger-webui-launcher.exe` wrapper is created by
+the editable Python install above. To build the optional standalone
+`dist\keysight-logger-webui-launcher.exe`, install PyInstaller into the local
+venv first:
+
+```powershell
+uv pip install pyinstaller
+```
+
+Then run the release-build command from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name keysight-logger-webui-launcher --paths packages/webui/src --paths packages/core/src --add-data "packages/webui/src/keysight_logger_webui/static;keysight_logger_webui/static" packages/webui/src/keysight_logger_webui/launcher.py
+```
+
+PyInstaller is a local release-build tool, not a WebUI runtime dependency, so
+new environments do not install it through `packages/webui[dev]`.
+
 ## Validation
 
 Focused no-hardware validation:
@@ -63,7 +83,4 @@ behavior, or Core public API exports.
 - [User Guide](docs/USER_GUIDE.md)
 - [Detailed WebUI README](docs/Webui-README.md)
 - [Web UI Change Rules](docs/web-ui-ai-change-rules.md)
-- [Web UI Session Handoff](docs/session-handoff.md)
-- [Validation History](docs/validation-history.md)
-- [Project Plan](docs/project-plan.md)
 - [Changelog](CHANGELOG.md)

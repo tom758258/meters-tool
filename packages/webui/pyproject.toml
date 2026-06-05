@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "keysight-logger-webui"
-version = "1.2.1"
+version = "1.2.2"
 description = "Web UI adapter for Keysight 34461A acquisition using Keysight Logger Core"
 requires-python = ">=3.10"
 dependencies = [

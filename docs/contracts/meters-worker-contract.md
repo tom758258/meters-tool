@@ -10,9 +10,9 @@ does not change instrument behavior.
 
 ## Cross-Instrument Compatibility
 
-This is the Meters worker contract only. Future Power, Scope, and KSON workers
-should keep their own worker contracts for their command models and
-instrument-specific runtime behavior.
+This is the Meters worker contract only. Future instrument workers should keep
+their own worker contracts for their command models and instrument-specific
+runtime behavior.
 
 Orchestrators should depend only on the common lifecycle for cross-instrument
 coordination: process start, stdout JSONL observation, the JSONL `ready` event,
@@ -26,10 +26,10 @@ instrument setup belong to this document, not the common protocol.
 execution contract. It does not open VISA, create the CSV writer, start the
 HTTP control server, start the acquisition worker, or write to the instrument.
 
-`start-trigger-record --simulate` runs the normal acquisition engine against the
-deterministic simulator. It starts the local HTTP control server, writes normal
-CSV/runtime output, and is intended for workflow validation without hardware.
-Simple simulate modes require a finite bound such as `--max-samples`.
+`start-trigger-record --simulate` runs the normal acquisition engine against
+the deterministic simulator. It starts the local HTTP control server, writes
+normal CSV/runtime output, and is intended for workflow validation without
+hardware. Simple simulate modes require a finite bound such as `--max-samples`.
 
 Live `start-trigger-record` is the default mode. It opens the explicit VISA
 resource, validates the 34461A identity, starts the local HTTP control server,
@@ -63,13 +63,13 @@ Use this order for agent-controlled runs:
 wrapper artifacts for one non-dry-run session.
 
 For a complete Python subprocess example, see
-[`cli-orchestrator-workflows.md`](cli-orchestrator-workflows.md).
+[Meters Orchestrator Workflows](meters-orchestrator-workflows.md).
 
 ## Control Plane
 
 The worker listens on `127.0.0.1` by default. Orchestrators should pass an
-explicit `--sw-trigger-port` when they need a stable port. `--sw-trigger-port 0`
-lets the operating system choose a port; JSONL callers should read the
+explicit `--sw-trigger-port` when they need a stable port. `--sw-trigger-port
+0` lets the operating system choose a port; JSONL callers should read the
 `ready` event to discover the selected local control URLs.
 
 In JSONL mode, non-dry-run `start-trigger-record` emits one `ready` event after
@@ -111,7 +111,8 @@ safe for non-mutating readiness and progress checks. Unknown `GET` paths return
 `keysight-logger soft-status` is the CLI client wrapper for this endpoint. It
 normalizes the worker status into the CLI single-response JSON contract without
 mutating worker state. `keysight-logger wait-ready` polls this same endpoint
-until any valid `200` JSON status response is reachable or its deadline expires.
+until any successful `200` JSON status response is reachable or its deadline
+expires.
 
 Status response v1:
 
@@ -138,7 +139,8 @@ Fields:
 
 - `schema_version`: integer contract version, currently `1`.
 - `service`: fixed string, `keysight-meter`.
-- `run_id`: current runtime UUID, or `null` if no runtime provider supplied one.
+- `run_id`: current runtime UUID, or `null` if no runtime provider supplied
+  one.
 - `status`: `running` or `stopping`.
 - `trigger_url`, `stop_url`, `status_url`: absolute local HTTP URLs.
 - `queue_size`: pending normal software trigger events.
@@ -162,15 +164,16 @@ status object with nullable `captured`, `errors`, and `fatal_error`.
 JSON object per line for runtime events. Use JSONL for process observation,
 sample events, errors, and final summaries.
 
-See [CLI JSON / JSONL Contract](cli-jsonl-contract.md) for the event schema,
-single-response client JSON, alias rules, and dry-run preview objects.
+See [Meters CLI JSON / JSONL Contract](meters-cli-jsonl-contract.md) for the
+event schema, single-response client JSON, alias rules, and dry-run preview
+objects.
 
 ## Artifacts
 
 Primary worker artifacts:
 
-- CSV: one row per captured sample using the field order documented in
-  `docs/README_CLI_EN.md`.
+- CSV: one row per captured sample using the field order documented in the CLI
+  guide.
 - stdout: human text by default, or JSONL when `--status-format jsonl` or
   `--json` is used.
 - stderr: validation, connection, or request errors that are not represented as
@@ -202,9 +205,9 @@ Preflight `report.json` fields:
   `commands_total`, `checks_total`, `dry_run_cases`, `simulate_cases`,
   `soft_client_dry_runs`, `list_resources_contract_checks`, and
   `mocked_pytest_checks`.
-- `commands`: captured command result objects.
-  Software-triggered simulator cases include nested `client_commands` for
-  `wait-ready`, `soft-status`, and `soft-trigger` calls.
+- `commands`: captured command result objects. Software-triggered simulator
+  cases include nested `client_commands` for `wait-ready`, `soft-status`, and
+  `soft-trigger` calls.
 - `checks`: named verification records.
 
 Live `report.json` fields:
@@ -222,14 +225,11 @@ Live `report.json` fields:
 - `artifact_paths`
 - `status`: `planned`, `confirmation_required`, `passed`, `failed`, or
   `preflight_failed`.
-- `plan_only`: `true` when `live-cli-check.ps1 -PlanOnly` generated only
-  live dry-run plans.
-- `live_executed`: `true` only after the wrapper starts live acquisition
-  cases.
+- `plan_only`: `true` when `live-cli-check.ps1 -PlanOnly` generated only live
+  dry-run plans.
+- `live_executed`: `true` only after the wrapper starts live acquisition cases.
 - `cases`: live case result objects.
-- `dry_runs`: dry-run plan records for each selected live case. Planned,
-  confirmation-required, and live reports all include dry-run records after
-  those plans are generated.
+- `dry_runs`: dry-run plan records for each selected live case.
 - `commands`: captured command result objects.
 
 Interactive live and `-PlanOnly` wrapper runs execute preflight before case

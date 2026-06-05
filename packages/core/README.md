@@ -6,7 +6,7 @@ by downstream adapters for Keysight 34461A integrations.
 Core owns the shared request model, validation, dry-run planning, runtime
 session orchestration, event/result types, control-plane interfaces, profile
 metadata, and safety rules for the Keysight 34461A acquisition runtime.
-Core v1.2.0 is the monorepo package baseline for downstream CLI and WebUI
+Core v1.2.1 is the monorepo package baseline for downstream CLI and WebUI
 adapters. It keeps the Core public API and runtime behavior stable while
 aligning package metadata and adapter dependency ranges.
 
@@ -28,10 +28,5 @@ ranges, docs, and tests.
 ## Documentation
 
 - [Core Integration](docs/integration.md)
-- [Hardware Test Plan](docs/hardware-test-plan.md)
 - [Supported Models](docs/supported-models.md)
-- [Branch Handoff Index](docs/session-handoff.md)
-- [Core Handoff](docs/session-handoff.md)
-- [Validation History](docs/validation-history.md)
-- [Project Plan](docs/project-plan.md)
 - [Changelog](CHANGELOG.md)

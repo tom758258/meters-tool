@@ -2,7 +2,7 @@
     [ValidateSet("keysight-34461a")]
     [string]$Target = "keysight-34461a",
 
-    [string]$Release = "cli-v1.3.1",
+    [string]$Release = "cli-v1.3.2",
 
     [string]$Resource = "SIM::34461A",
 

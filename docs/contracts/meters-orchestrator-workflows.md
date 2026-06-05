@@ -1,15 +1,20 @@
-﻿# CLI Orchestrator Workflows
+# Meters Orchestrator Workflows
 
 This document gives subprocess-oriented workflows for agents that drive the
-Keysight meter CLI. Shared event fields are defined in
-[`cli-jsonl-contract.md`](cli-jsonl-contract.md); meter worker endpoints are
-defined in [`worker-contract.md`](worker-contract.md).
+Keysight meter CLI. Shared lifecycle guidance is defined in
+[Common Orchestrator Workflows](common-orchestrator-workflows.md). Shared event
+envelope rules are defined in
+[Common CLI JSON / JSONL Contract](common-cli-jsonl-contract.md). Meters event
+fields are defined in
+[Meters CLI JSON / JSONL Contract](meters-cli-jsonl-contract.md), and meter
+worker endpoints are defined in
+[Meters Worker Contract](meters-worker-contract.md).
 
 ## Simulator Software Trigger Workflow
 
 Use a simulator-only worker for automated orchestration tests. The worker emits
-JSONL on stdout; client commands emit one JSON object to stdout when called with
-`--json` or `--format json`.
+JSONL on stdout; client commands emit one JSON object to stdout when called
+with `--json` or `--format json`.
 
 ```python
 from __future__ import annotations
@@ -56,7 +61,15 @@ try:
     assert ready is not None
 
     wait_ready = subprocess.run(
-        [sys.executable, "-m", "keysight_logger_cli", "wait-ready", "--port", str(port), "--json"],
+        [
+            sys.executable,
+            "-m",
+            "keysight_logger_cli",
+            "wait-ready",
+            "--port",
+            str(port),
+            "--json",
+        ],
         text=True,
         capture_output=True,
         check=True,
@@ -64,7 +77,15 @@ try:
     assert json.loads(wait_ready.stdout)["run_id"] == ready["run_id"]
 
     status = subprocess.run(
-        [sys.executable, "-m", "keysight_logger_cli", "soft-status", "--port", str(port), "--json"],
+        [
+            sys.executable,
+            "-m",
+            "keysight_logger_cli",
+            "soft-status",
+            "--port",
+            str(port),
+            "--json",
+        ],
         text=True,
         capture_output=True,
         check=True,
@@ -72,7 +93,15 @@ try:
     assert json.loads(status.stdout)["run_id"] == ready["run_id"]
 
     subprocess.run(
-        [sys.executable, "-m", "keysight_logger_cli", "soft-trigger", "--port", str(port), "--json"],
+        [
+            sys.executable,
+            "-m",
+            "keysight_logger_cli",
+            "soft-trigger",
+            "--port",
+            str(port),
+            "--json",
+        ],
         text=True,
         capture_output=True,
         check=True,
@@ -89,13 +118,41 @@ try:
 finally:
     if worker.poll() is None:
         subprocess.run(
-            [sys.executable, "-m", "keysight_logger_cli", "soft-stop", "--port", str(port), "--json"],
+            [
+                sys.executable,
+                "-m",
+                "keysight_logger_cli",
+                "soft-stop",
+                "--port",
+                str(port),
+                "--json",
+            ],
             text=True,
             capture_output=True,
             check=False,
         )
         worker.terminate()
 ```
+
+## Readiness And Status
+
+For Meters workers, the `ready` JSONL event and `wait-ready --json` mean the
+local `/trigger`, `/stop`, and `/status` endpoints can accept requests. They do
+not mean a measurement has completed.
+
+Use `soft-status --json` or direct `GET /status` as a non-mutating status
+check. Verify that returned `run_id` values match the worker stdout JSONL for
+the current run.
+
+## Trigger And Stop
+
+Use `soft-trigger --json` or direct `POST /trigger` for software-triggered
+Meters measurement requests. Use `soft-stop --json` or direct `POST /stop` for
+cooperative cleanup.
+
+If the process has already exited, `soft-stop` may return
+`status: "already_stopped"` with exit code `0`; this remains a successful
+cleanup result for orchestrators.
 
 ## Live Mode Resource Rule
 
@@ -104,10 +161,3 @@ previous explicit discovery step. Do not scan, guess, or rotate through VISA
 resource strings inside an orchestrator. A live acquisition subprocess should
 fail closed when `--resource` is missing or does not match the intended
 instrument.
-
-## Cleanup Rule
-
-Use `soft-stop --json` for cooperative cleanup when the worker is still running.
-If the process has already exited, `soft-stop` may return
-`status: "already_stopped"` with exit code `0`; this remains a successful cleanup
-result for orchestrators.

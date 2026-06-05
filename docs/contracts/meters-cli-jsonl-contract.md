@@ -1,24 +1,22 @@
-# CLI JSON / JSONL Contract
+# Meters CLI JSON / JSONL Contract
 
 Schema version: `1`
 
 Runtime contract revision: `v1.5`
 
-For the broader worker control plane, runtime modes, and wrapper artifact
-schema, see [Meters Worker Contract](worker-contract.md).
+This document defines Meters-specific CLI JSON and JSONL payloads. Shared
+envelope rules, schema version policy, parsing guidance, and generic client
+diagnostics are defined in
+[Common CLI JSON / JSONL Contract](common-cli-jsonl-contract.md). The Meters
+worker control plane and artifacts are defined in
+[Meters Worker Contract](meters-worker-contract.md).
 
-## JSONL events
+Consumers must ignore unknown fields, following the common envelope contract.
+
+## JSONL Events
 
 `start-trigger-record --status-format jsonl` emits one JSON object per line.
 `start-trigger-record --json` is an alias for the same JSONL output.
-
-In JSON or JSONL mode, every non-empty stdout line must be a JSON object.
-Human-readable text belongs to text mode or stderr. Orchestrators should not
-depend on text-mode stdout.
-
-Consumers must ignore unknown fields. New optional fields may be added under
-schema version `1`. Removing required fields or changing required field types
-requires a major schema version bump.
 
 Supported event values:
 
@@ -30,16 +28,10 @@ Supported event values:
 - `summary`
 - `dry_run`
 
-Common fields:
-
-- `event`
-- `schema_version`
-- `timestamp_utc`
-- `run_id` on non-dry-run `start-trigger-record` runtime events
-
 Selected fields:
 
-- `ready`: `run_id`, `service`, `host`, `port`, `trigger_url`, `stop_url`, `status_url`
+- `ready`: `run_id`, `service`, `host`, `port`, `trigger_url`, `stop_url`,
+  `status_url`
 - `status`: `message`, `run_id`
 - `sample`: `run_id`, `captured`, `measurement_type`,
   `measurement_metadata`, `message`, `resource_id`, `status`, `trigger_id`,
@@ -55,22 +47,17 @@ For one non-dry-run `start-trigger-record` session, `ready`, `status`,
 measurement has no extra metadata. `voltage-dc-ratio` can include
 signal/reference voltage metadata when the backend supports `DATA2?`.
 
-Machine callers should parse JSONL, single-response JSON, CSV files, and
-wrapper `report.json` artifacts. Human-readable text is diagnostic output, not
-the agent contract.
-
 `run_id` is a UUID string generated after validation for each non-dry-run
 `start-trigger-record` session. It is included on runtime JSONL events so
 agents can correlate stdout JSONL, `/status`, and wrapper artifacts for the
-same acquisition run. This is backward-compatible: `schema_version` remains
-`1`, and existing parsers may ignore the optional field.
-
-Dry-run preview objects do not include `run_id` because dry-run does not start
-a runtime session.
+same acquisition run. Dry-run preview objects do not include `run_id` because
+dry-run does not start a runtime session.
 
 `summary.ok` is `true` when the runtime completed without a fatal error and
 `false` when `fatal_error` is present. Consumers should still check the process
 exit code and treat a missing final summary as an incomplete or failed runtime.
+Meters fatal acquisition failures are fatal worker failures for the common
+envelope contract and must exit `3`.
 
 The `ready` event is emitted only by non-dry-run
 `start-trigger-record --status-format jsonl` and the `--json` alias after the
@@ -78,11 +65,7 @@ HTTP control plane starts. It means `/trigger`, `/stop`, and `/status` can
 accept local HTTP requests. It does not mean the acquisition worker has
 captured a first sample.
 
-Argparse usage errors may still be reported on process stderr with exit code
-`2`. Structured errors that occur after command handling has entered JSON or
-JSONL mode are emitted as JSON objects.
-
-## Single-response JSON
+## Single-Response JSON
 
 These commands accept `--format json` and the `--json` alias:
 
@@ -107,11 +90,13 @@ Conflicts exit with code `2`.
 values from `100` to `600000`. Their default is `3000` ms.
 `wait-ready --timeout-ms` uses the same validation range, defaults to
 `10000` ms, and is an overall readiness deadline. Each `/status` request made
-by `wait-ready` uses at most `1000` ms and polling uses a fixed 200 ms interval.
+by `wait-ready` uses at most `1000` ms and polling uses a fixed 200 ms
+interval.
 
 `soft-status` wraps non-mutating `GET /status` and emits a flat normalized JSON
 object. `wait-ready` emits the same status fields after any successful `200`
 JSON response from `/status`, plus `attempts`, `elapsed_ms`, and `timeout_ms`.
+
 The normalized status fields include:
 
 - `event`: `soft-status` or `wait-ready`
@@ -148,31 +133,30 @@ The normalized status fields include:
 
 Reachable status responses exit `0` even when `fatal_error` is not `null`.
 Machine callers should read `ok` and `fatal_error` to distinguish worker
-health from client reachability. Unreachable endpoints, HTTP request failures,
-invalid `/status` JSON, and `wait-ready` deadline expiry exit `3` and emit a
-JSON object with `event`, `ok: false`, `reachable: false`, `running: false`,
-`stopping: false`, `port`, `request_sent`, `error_phase: "request"`,
-`client_command`, `method`, `url`, `endpoint`, `timeout_ms`, `elapsed_ms`,
-`exit_code: 3`, and `message`. `http_status` is included only when an HTTP
-response was received.
+health from client reachability.
+
+Unreachable endpoints, HTTP request failures, invalid `/status` JSON, and
+`wait-ready` deadline expiry exit `3` and emit a JSON object with request
+diagnostics, `ok: false`, `reachable: false`, `running: false`,
+`stopping: false`, `error_phase: "request"`, `exit_code: 3`, and `message`.
+`http_status` is included only when an HTTP response was received.
 
 `soft-trigger` and `soft-stop` keep `event: "error"` for request and
 validation failures. In contract `v1.5`, those JSON error objects add
 `client_command`, `ok: false`, `port`, `request_sent`, `error_phase`,
 `reachable`, `method`, `url`, `endpoint`, `timeout_ms`, optional `elapsed_ms`,
-and optional `http_status`. Validation errors use `error_phase: "validation"`
-and `request_sent: false`; request failures use `error_phase: "request"` and
-`request_sent: true`.
+and optional `http_status`. Validation errors use
+`error_phase: "validation"` and `request_sent: false`; request failures use
+`error_phase: "request"` and `request_sent: true`.
 
 Successful `soft-trigger` and `soft-stop` responses include the same additive
 client diagnostics when knowable: `method`, `url`, `endpoint`, `timeout_ms`,
 and `elapsed_ms`.
 
-## Dry-run previews
+## Dry-Run Previews
 
-`soft-trigger --dry-run`, `soft-stop --dry-run`, and
-`soft-status --dry-run` do not send HTTP requests. `wait-ready` has no dry-run
-mode.
+`soft-trigger --dry-run`, `soft-stop --dry-run`, and `soft-status --dry-run`
+do not send HTTP requests. `wait-ready` has no dry-run mode.
 
 Preview objects include:
 
@@ -194,9 +178,9 @@ Preview objects include:
 `soft-status --dry-run` previews `method: GET`,
 `url: http://127.0.0.1:<port>/status`, and `body: null`.
 
-`list-resources --dry-run` emits text by default and one dry-run contract object
-when combined with `--json`. It exits `0` and does not create a VISA resource
-manager, list VISA resources, open resources, query `*IDN?`, or run
+`list-resources --dry-run` emits text by default and one dry-run contract
+object when combined with `--json`. It exits `0` and does not create a VISA
+resource manager, list VISA resources, open resources, query `*IDN?`, or run
 release/local cleanup.
 
 The JSON dry-run object includes:

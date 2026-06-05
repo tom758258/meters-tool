@@ -4,8 +4,8 @@ This document is the working contract for any AI asked to polish or reorganize
 the Keysight Logger Web UI. It exists to let UI work move quickly without
 damaging the measurement, trigger, VISA, or cleanup behavior underneath.
 
-Read this file before changing code. Also read `AGENTS.md` and
-`docs/session-handoff.md`.
+Read this file before changing code. Also read `AGENTS.md` and the current
+task context.
 
 ## Goal
 
@@ -35,8 +35,6 @@ Optional, only when needed to protect existing UI behavior with tests:
 
 Optional documentation updates:
 
-- `docs/session-handoff.md`, for current progress, validation results,
-  or newly discovered UI risks.
 - `docs/web-ui-ai-change-rules.md`, only when the UI contract itself changes or
   this document becomes stale.
 

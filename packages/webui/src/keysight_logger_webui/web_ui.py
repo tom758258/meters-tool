@@ -65,7 +65,7 @@ TRIGGER_MODES = (
     "external-custom",
 )
 PACKAGE_NAME = "keysight-logger-webui"
-FALLBACK_WEBUI_VERSION = "1.2.1"
+FALLBACK_WEBUI_VERSION = "1.2.2"
 LIVE_SAMPLE_CAPACITY = 5000
 
 

@@ -1,56 +1,34 @@
-# Keysight Logger
+# Keysight Logger Monorepo
 
-Python tooling for logging measurements from a Keysight 34461A digital
-multimeter over VISA.
+This workspace contains three separately installable packages:
 
-## Quick Start
+- `packages/core`: `keysight-logger-core` `1.2.1`, imported as `keysight_logger_core`
+- `packages/cli`: `keysight-logger-cli` `1.3.2`, imported as `keysight_logger_cli`, console command `keysight-logger`
+- `packages/webui`: `keysight-logger-webui` `1.2.2`, imported as `keysight_logger_webui`, console command `keysight-logger-webui`
 
-From PowerShell:
+The root `pyproject.toml` is workspace tooling only. Package metadata lives in each package directory.
+
+## Install
 
 ```powershell
 uv venv .venv
-uv pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]" --link-mode=copy
 ```
 
-If `uv` warns that hardlinking failed and it is falling back to copying files,
-the install usually still succeeded. On cross-drive or hardlink-restricted
-setups, use:
+## Test
 
 ```powershell
-uv pip install -e ".[dev]" --link-mode=copy
+.\.venv\Scripts\python.exe -m pytest packages/core/tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/cli/tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider
 ```
 
-After installation, run the CLI with:
+If Windows temp permissions block pytest, rerun with a repo-local temp root such as `--basetemp .tmp_tests\pytest_tmp`.
 
-```powershell
-.\.venv\Scripts\keysight-logger.exe <command> [options]
-```
+## Docs
 
-The generated `.venv\Scripts\keysight-logger.exe` file is an install artifact,
-not a tracked project file. If it is missing, rerun the editable install above.
-If PowerShell activation is blocked, keep using explicit `.venv\Scripts\...`
-commands.
-
-No-hardware validation:
-
-```powershell
-uv pip install -e ".[dev]"
-.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.ps1 -Target keysight-34461a
-.\.venv\Scripts\keysight-logger.exe list-resources --dry-run --json
-```
-
-`list-resources --dry-run` does not create a VISA resource manager, list/open
-VISA resources, query instruments, or run release/local cleanup.
-
-See the CLI guide for full command usage.
-
-## Documentation
-
-- [CLI Guide - English](docs/README_CLI_EN.md)
-- [Changelog](CHANGELOG.md)
-- [Supported Models](docs/supported-models.md)
-- [CLI Guide - Traditional Chinese](docs/README_CLI_ZH-TW.md) - planned
-- [UI Guide - English](docs/README_UI_EN.md) - planned
-- [UI Guide - Traditional Chinese](docs/README_UI_ZH-TW.md) - planned
+- Core: [README](packages/core/README.md), [integration](packages/core/docs/integration.md), [supported models](packages/core/docs/supported-models.md)
+- CLI: [README](packages/cli/README.md), [CLI guide](packages/cli/docs/README_CLI_EN.md), [integration](packages/cli/docs/cli-integration.md), [Meters JSONL contract](docs/contracts/meters-cli-jsonl-contract.md), [Meters worker contract](docs/contracts/meters-worker-contract.md)
+- WebUI: [README](packages/webui/README.md), [WebUI guide](packages/webui/docs/Webui-README.md), [user guide](packages/webui/docs/USER_GUIDE.md), [change rules](packages/webui/docs/web-ui-ai-change-rules.md)
+- Workspace: [architecture](docs/architecture/monorepo-layout.md), [public contracts](docs/contracts)

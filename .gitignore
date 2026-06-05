@@ -42,3 +42,6 @@ uv.lock
 
 #Data file
 data
+
+# Local private project notes and validation records
+Local/

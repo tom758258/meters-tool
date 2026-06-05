@@ -1,5 +1,7 @@
 # Agent Instructions
 
+These instructions guide coding agents working in this repository. They are long-term working rules, not a project status log. Keep tracked public documentation limited to durable README, changelog, architecture, contract, integration, user-guide, supported-model, and change-rule content. Do not publish personal paths, real instrument identifiers, local network addresses, or transient project status in tracked docs.
+
 ## 1. Think Before Coding
 
 - State assumptions before changing behavior.
@@ -11,7 +13,7 @@
 
 - Implement the minimum code needed for the requested behavior.
 - Do not add speculative features, generic frameworks, or one-use abstractions.
-- Do not add configurability unless the request or project handoff requires it.
+- Do not add configurability unless the request or current task context requires it.
 - If a change becomes large, reassess whether a smaller fix satisfies the goal.
 
 ## 3. Make Surgical Edits
@@ -28,3 +30,44 @@
 - For bug fixes, prefer a test or focused reproduction that fails before the fix and passes after it.
 - For refactors, verify behavior before and after where practical.
 - For multi-step work, keep the plan short and tie every step to a concrete check.
+
+## 5. Package Metadata Boundary
+
+- `packages/*/pyproject.toml` files are product/package identity boundary files. Do not change them without explicit user approval.
+- Root `pyproject.toml` is workspace tooling only. Changes there affect test/tool behavior, not package identity.
+- Before modifying any `pyproject.toml`, stop and ask the user. Clearly state whether the change affects package name, package version, package description, dependencies or optional dependency groups, console scripts or entry points, build system, pytest/ruff/mypy/tool configuration, or Core/CLI/WebUI package ownership.
+- Do not rename the package, add or remove console scripts, or change dependency relationships as part of unrelated Core, CLI, WebUI, test, or documentation work.
+- For branch separation work, treat Core, CLI, and WebUI package metadata as separate product decisions. Do not assume Core package metadata should be merged into CLI or WebUI branches, or that CLI/WebUI metadata should be copied back into Core.
+
+## 6. Project-Specific Safety Rules
+
+- This project controls a Keysight 34461A through VISA/SCPI. Treat instrument-affecting changes as high risk.
+- Get user confirmation before changing SCPI behavior, VISA timeout, trigger wait strategy, `TRIG:DEL`, `NPLC`, Auto Zero, Auto Range, VM Comp, or stop/release/local behavior.
+- Preserve the current stop design: `engine.stop()` only sets stop state and stop events; VISA I/O belongs on the worker/cleanup path.
+- Preserve the current cleanup order unless explicitly changing it: wait for worker, `release_to_local`, close, cleanup release, stop HTTP server.
+- Hardware trigger timeout is a normal protective re-arm condition, not an error. Do not count it as `errors` unless the requested behavior changes.
+- Hardware-triggered reads use `FETC?` after the trigger adapter arms and completes measurement. Software-triggered reads use `READ?`.
+- Avoid high-risk query polling conflicts; do not introduce repeated `*OPC?` polling without explicit approval.
+
+## 7. Testing Rules
+
+- Run the narrowest relevant tests first, then broader tests when practical.
+- Common commands:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages/core/tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/cli/tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider
+```
+
+- Full test runs may hit local Windows temp or pytest cache permission warnings. Report that clearly and rely on focused tests plus real instrument validation when full tests are blocked by environment permissions.
+- Do not hide failed or skipped verification. State exactly what ran and what did not.
+
+## 8. Documentation Boundary
+
+- Keep long-term agent rules in this file.
+- Keep tracked public docs limited to README, changelog, architecture, contracts, integration guides, user guides, supported models, and change rules.
+- Keep current planning, package status, validation records, and hardware-specific operator context outside tracked public docs.
+- Do not add personal filesystem paths, real VISA resources, instrument serial numbers, or link-local/private lab IP addresses to tracked docs.
+- Do not duplicate large status sections here.

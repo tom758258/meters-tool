@@ -2,13 +2,18 @@
 
 ## Unreleased
 
+- No unreleased changes.
+
+## cli-v1.3.2
+
 - Added a packaged fallback version so PyInstaller-built CLI executables can
   answer `--version` when distribution metadata and local `pyproject.toml` are
   unavailable.
 - Documented the optional standalone `dist\keysight-logger.exe` PyInstaller
   build and no-hardware smoke checks.
+- Updated package metadata and wrapper report expectations to version `1.3.2`.
 
-## cli-v1.3.1 - 2026-06-01
+## cli-v1.3.1
 
 - Released the CLI package from the unified monorepo layout after merging the
   Core, CLI, and WebUI product branches into `main` while preserving package
@@ -18,7 +23,7 @@
 - Updated the Core dependency range to `keysight-logger-core>=1.2.0,<1.3`.
 - Updated package metadata to version `1.3.1`.
 
-## cli-v1.2.1 - 2026-05-31
+## cli-v1.2.1
 
 - Added CLI contract `v1.5` additive soft-client diagnostics, subprocess
   orchestrator workflow docs, simulator worker subprocess coverage, and
@@ -33,7 +38,7 @@
   CLI command behavior is unchanged.
 - Updated package metadata to version `1.2.1`.
 
-## cli-v1.2.0 - 2026-05-29
+## cli-v1.2.0
 
 - Released the CLI branch after merging `Core-v1.1.0` while preserving the
   `keysight-logger` package identity, console script, CLI JSON/JSONL contract,
@@ -51,10 +56,10 @@
   behavior.
 - Updated package metadata to version `1.2.0`.
 
-## cli-v1.1.8 - 2026-05-26
+## cli-v1.1.8
 
-- Recorded the `core-v1.0.0` merge-base baseline on the CLI branch while
-  preserving the CLI file tree and command-line behavior.
+- Recorded the CLI branch merge-base baseline from Core v1.0.0 while preserving
+  the CLI file tree and command-line behavior.
 - Kept the CLI distribution as `keysight-logger` with the `keysight-logger`
   console script, adapter-owned JSON/JSONL contracts, wrapper scripts, and
   CLI-specific tests.
@@ -64,7 +69,7 @@
   measurement logic, stop flow, cleanup order, release/local behavior, NPLC,
   Auto Range/Zero, VM Comp behavior, or CLI JSON/JSONL schema changed.
 
-## v1.1.7-cli
+## cli-v1.1.7
 
 - Added an internal `InstrumentBackend` Protocol and start/acquisition-path
   factory for live VISA, simulator, and test backends.
@@ -76,12 +81,12 @@
   contract assertions for no-hardware CLI workflows.
 - Added preflight `-ListTargets`, constrained `-OutputRoot`, and summary count
   reporting.
-- Recorded completed USB hardware validation, AC real-signal sanity checks,
-  live discovery checks, and LAN basic wrapper validation.
+- Documented USB, AC, live discovery, and LAN smoke-test guidance for
+  operator-provided resources.
 - Updated active docs to prefer the installed console script and document
   no-hardware validation plus local install troubleshooting.
 
-## v1.1.6-cli
+## cli-v1.1.6
 
 - Released the current patch baseline for control-plane and discovery behavior.
 - Documented JSONL `ready` events for non-dry-run workers and preserved
@@ -92,7 +97,7 @@
   acquisition/read paths, stop flow, cleanup order, and measurement logic
   unchanged.
 
-## v1.1.5-cli
+## cli-v1.1.5
 
 - Kept acquisition behavior unchanged while making successful
   `list-resources --verify` / `--live-only` checks run best-effort

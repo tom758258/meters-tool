@@ -45,7 +45,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\p
 VISA resources, query instruments, or run release/local cleanup.
 
 Build the optional standalone console exe with PyInstaller from an environment
-that already has CLI and Core installed:
+that already has CLI and Core installed. PyInstaller is a local release-build
+tool, not a CLI runtime dependency, so install it into the venv before
+rebuilding on a fresh machine:
+
+```powershell
+uv pip install pyinstaller
+```
 
 ```powershell
 .\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py
@@ -75,18 +81,13 @@ See the CLI guide for full command usage.
 
 - [CLI Guide - English](docs/README_CLI_EN.md)
 - [Changelog](CHANGELOG.md)
-- [Project Plan](docs/project-plan.md)
-- [Core Integration](docs/integration.md)
 - [CLI Integration](docs/cli-integration.md)
-- [WebUI Integration](docs/webui-integration.md)
-- [Common Worker Protocol](docs/common-worker-protocol.md)
-- [CLI JSON / JSONL Contract](docs/cli-jsonl-contract.md)
-- [CLI Orchestrator Workflows](docs/cli-orchestrator-workflows.md)
-- [Worker Contract](docs/worker-contract.md)
-- [Hardware Test Plan](docs/hardware-test-plan.md)
-- [Current Handoff](docs/session-handoff.md)
-- [Validation History](docs/validation-history.md)
-- [Supported Models](docs/supported-models.md)
+- [Common Worker Protocol](../../docs/contracts/common-worker-protocol.md)
+- [Common CLI JSON / JSONL Contract](../../docs/contracts/common-cli-jsonl-contract.md)
+- [Meters CLI JSON / JSONL Contract](../../docs/contracts/meters-cli-jsonl-contract.md)
+- [Common Orchestrator Workflows](../../docs/contracts/common-orchestrator-workflows.md)
+- [Meters Orchestrator Workflows](../../docs/contracts/meters-orchestrator-workflows.md)
+- [Meters Worker Contract](../../docs/contracts/meters-worker-contract.md)
 - [CLI Guide - Traditional Chinese](docs/README_CLI_ZH-TW.md) - planned
 - [UI Guide - English](docs/README_UI_EN.md) - planned
 - [UI Guide - Traditional Chinese](docs/README_UI_ZH-TW.md) - planned

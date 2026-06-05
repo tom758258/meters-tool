@@ -3,21 +3,24 @@
 Schema version: `1`
 
 This provisional protocol defines the minimum lifecycle shape shared by
-instrument workers that are launched and observed by an orchestrator. It is
-kept in the Meters repository until a shared orchestrator or common-docs
-location exists.
+instrument workers that are launched and observed by an orchestrator. It lives
+in this repository until a shared orchestrator repository or common contract
+document set exists.
 
-This document is lifecycle-only. It does not define instrument setup,
-measurement commands, SCPI, VISA behavior, Power commands, Scope commands, KSON
-commands, or worker-specific acquisition semantics. Each worker must document
-those details in its own worker contract.
+This document is lifecycle-only. It does not define instrument configuration,
+domain commands, transport behavior, device command languages, or
+worker-specific runtime semantics. Each instrument family must document those
+details in its own worker contract.
 
 ## Lifecycle
 
 An orchestrator starts a worker as a subprocess and observes stdout. In JSON or
-JSONL mode, stdout must contain only JSON object lines; human-readable messages
-belong in text mode or stderr. Empty stdout lines are ignored by consumers, but
-workers should avoid emitting them in machine mode.
+JSONL mode, stdout must contain only JSON object lines. Empty stdout lines are
+ignored by consumers, but workers should avoid emitting them in machine mode.
+
+Human-readable text is diagnostic output, not the agent contract. It belongs in
+text mode or stderr, and orchestrators must not parse it for pass/fail
+decisions.
 
 A worker emits a `ready` JSONL event when its local control plane is ready to
 accept lifecycle requests. `ready` is not a measurement-complete signal and
@@ -27,12 +30,16 @@ does not imply instrument readiness beyond the worker-specific contract.
 runtime session. Dry-run or plan-only commands may omit `run_id` when they do
 not create a runtime session.
 
+Consumers must ignore unknown fields in JSON objects. Workers may add optional
+fields under schema version `1`; removing required fields or changing required
+field types requires a major schema version bump.
+
 ## HTTP Endpoints
 
 Common lifecycle endpoints are:
 
 - `GET /status`: non-mutating health and progress check. It must not trigger
-  acquisition, mutate queues, or perform instrument I/O.
+  unplanned work, mutate queues, or perform device I/O.
 - `POST /trigger`: generic worker trigger hook. Each worker contract defines
   what trigger means and when it is accepted, ignored, or rejected.
 - `POST /stop`: graceful stop request. Stop should request orderly worker
@@ -48,8 +55,8 @@ Workers should preserve these process exit code meanings:
 
 - `0`: success, accepted request, or dry-run success.
 - `2`: usage error, validation error, or bad input.
-- `3`: runtime error, connection error, HTTP request failure, or fatal
-  acquisition failure.
+- `3`: runtime error, connection error, HTTP request failure, or fatal worker
+  failure.
 
 Workers may emit structured JSON errors before exiting when command handling
 has reached JSON or JSONL mode. Argument parser usage errors may still use

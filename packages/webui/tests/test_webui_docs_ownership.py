@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 
@@ -18,19 +19,22 @@ def test_webui_docs_are_package_local():
         "docs/USER_GUIDE.md",
         "docs/Webui-README.md",
         "docs/web-ui-ai-change-rules.md",
-        "docs/web-ui-ai-change-handoff.md",
-        "docs/session-handoff.md",
-        "docs/validation-history.md",
-        "docs/project-plan.md",
     ):
         assert (PACKAGE_ROOT / path).exists()
 
-    for cli_doc in (
+    cli_docs = (
         "docs/cli-integration.md",
-        "docs/cli-jsonl-contract.md",
-        "docs/worker-contract.md",
+        f"docs/cli-{'jsonl'}-contract.md",
+        f"docs/common-cli-{'jsonl'}-contract.md",
+        f"docs/meters-cli-{'jsonl'}-contract.md",
+        f"docs/common-{'worker'}-protocol.md",
+        f"docs/meters-worker-{'contract'}.md",
+        f"docs/common-{'orchestrator'}-workflows.md",
+        f"docs/meters-{'orchestrator'}-workflows.md",
+        f"docs/worker-{'contract'}.md",
         "docs/README_CLI_EN.md",
-    ):
+    )
+    for cli_doc in cli_docs:
         assert not (PACKAGE_ROOT / cli_doc).exists()
 
 
@@ -53,10 +57,22 @@ def test_webui_docs_point_to_new_import_and_static_paths():
         for path in (
             ("README.md",),
             ("docs", "Webui-README.md"),
-            ("docs", "project-plan.md"),
+            ("docs", "web-ui-ai-change-rules.md"),
         )
     )
 
     assert "keysight_logger_webui" in text
     assert "keysight_logger_core" in text
     assert "packages/webui/src/keysight_logger_webui/static" in text
+
+
+def test_webui_changelog_contains_only_webui_release_headings():
+    text = read_doc("CHANGELOG.md")
+    headings = re.findall(r"^## (.+)$", text, re.MULTILINE)
+
+    for heading in headings:
+        if heading == "Unreleased":
+            continue
+        assert heading.startswith("webui-v")
+        assert not heading.startswith("core-v")
+        assert not heading.startswith("cli-v")

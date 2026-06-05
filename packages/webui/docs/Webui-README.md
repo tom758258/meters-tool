@@ -6,10 +6,9 @@ This document is the detailed operator and maintainer guide for the WebUI
 adapter branch. It explains how to install, run, use, validate, and maintain the
 local browser console for Keysight 34461A acquisition.
 
-For current branch status, release notes, validation state, and next work, use
-`docs/session-handoff.md`. For Core API and ownership rules, use
-`docs/integration.md`. For hardware validation workflow, use
-`docs/hardware-test-plan.md`.
+For release notes, use the package changelog. For Core API and ownership rules,
+use the Core integration guide. Keep this guide focused on durable public
+operator and maintainer behavior.
 
 ## Purpose
 
@@ -88,7 +87,7 @@ Check the wrapper:
 Expected package metadata version for this release branch:
 
 ```text
-keysight-logger-webui 1.2.1
+keysight-logger-webui 1.2.2
 ```
 
 Start the server:
@@ -507,13 +506,17 @@ Focused WebUI/Core no-hardware validation:
 ```
 
 Build the optional local launcher exe with PyInstaller from an environment that
-already has WebUI and Core installed:
+already has WebUI and Core installed. PyInstaller is a local release-build tool,
+not a WebUI runtime dependency, so install it into the venv before rebuilding on
+a fresh machine:
+
+```powershell
+uv pip install pyinstaller
+```
 
 ```powershell
 .\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name keysight-logger-webui-launcher --paths packages/webui/src --paths packages/core/src --add-data "packages/webui/src/keysight_logger_webui/static;keysight_logger_webui/static" packages/webui/src/keysight_logger_webui/launcher.py
 ```
-
-PyInstaller is a local release-build tool, not a WebUI runtime dependency.
 
 Broader no-hardware validation when practical:
 
@@ -521,8 +524,9 @@ Broader no-hardware validation when practical:
 uv run pytest tests -q -p no:cacheprovider
 ```
 
-Live validation requires an operator-provided VISA resource and should follow
-`docs/hardware-test-plan.md`.
+Live validation requires an operator-provided VISA resource. Start with a
+low-risk immediate-mode smoke test, Auto Range on, and `max_samples=1` before
+using trigger modes or longer acquisitions.
 
 Full test runs may hit local Windows temp or pytest cache permission warnings.
 Report those clearly and rely on focused tests plus real instrument validation
@@ -574,7 +578,8 @@ Scan finds no live resources:
 - Confirm the instrument is connected and powered.
 - Confirm VISA drivers are installed and the resource appears outside the app.
 - Try entering the known VISA resource manually.
-- Follow `docs/hardware-test-plan.md` before live acquisition.
+- Before live acquisition, start with a low-risk immediate-mode smoke test,
+  Auto Range on, and `max_samples=1`.
 
 Open CSV is disabled:
 
@@ -600,10 +605,5 @@ Live panel has no samples:
 - `README.md`: top-level quick start.
 - `docs/USER_GUIDE.md`: operator-facing WebUI usage guide.
 - `docs/Webui-README.md`: this detailed WebUI guide.
-- `docs/session-handoff.md`: current WebUI branch status and next work.
 - `docs/web-ui-ai-change-rules.md`: rules for UI changes.
-- `docs/integration.md`: Core public API and adapter boundary.
-- `docs/hardware-test-plan.md`: no-hardware and live hardware validation.
-- `docs/validation-history.md`: historical validation records.
-- `docs/project-plan.md`: durable project direction and roadmap.
-- `docs/session-handoff.md`: thin branch-neutral handoff index.
+- `../CHANGELOG.md`: package release notes.

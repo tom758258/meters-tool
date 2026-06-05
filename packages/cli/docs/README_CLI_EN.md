@@ -1,21 +1,17 @@
 ﻿# Keysight 34461A CLI Logger
 
-Current CLI baseline: `cli-v1.3.1`.
+Current CLI baseline: `cli-v1.3.2`.
 
 ## Documentation Set
 
 - [CLI Guide - English](README_CLI_EN.md) - current document.
 - [Changelog](../CHANGELOG.md) - release notes and pending baseline.
-- [Project Plan](project-plan.md) - durable project direction and roadmap.
 - [CLI Integration](cli-integration.md) - CLI adapter maintenance boundary.
-- [CLI JSON / JSONL Contract](cli-jsonl-contract.md) - command-line JSON
-  schema and alias rules.
-- [CLI Orchestrator Workflows](cli-orchestrator-workflows.md) - subprocess
-  examples for agents and automation.
-- [Worker Contract](worker-contract.md) - Meters worker control plane, JSONL,
-  and artifact contract for agents and orchestrators.
-- [Supported Models](supported-models.md) - CLI validation target matrix.
-- [Hardware Test Plan](hardware-test-plan.md) - preflight and live validation workflow.
+- [Common CLI JSON / JSONL Contract](../../../docs/contracts/common-cli-jsonl-contract.md) - shared command-line JSON envelope rules.
+- [Meters CLI JSON / JSONL Contract](../../../docs/contracts/meters-cli-jsonl-contract.md) - Meters command-line JSON schema and alias rules.
+- [Common Orchestrator Workflows](../../../docs/contracts/common-orchestrator-workflows.md) - shared subprocess lifecycle guidance.
+- [Meters Orchestrator Workflows](../../../docs/contracts/meters-orchestrator-workflows.md) - Meters subprocess examples for agents and automation.
+- [Meters Worker Contract](../../../docs/contracts/meters-worker-contract.md) - Meters worker control plane, JSONL, and artifact contract for agents and orchestrators.
 - [CLI Guide - Traditional Chinese](README_CLI_ZH-TW.md) - planned.
 - [UI Guide - English](README_UI_EN.md) - planned.
 - [UI Guide - Traditional Chinese](README_UI_ZH-TW.md) - planned.
@@ -25,7 +21,7 @@ DCV ratio, and 2-wire or 4-wire resistance measurements over VISA.
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
-`cli-v1.3.1` is the current CLI baseline after unifying the former Core, CLI,
+`cli-v1.3.2` is the current CLI baseline after unifying the former Core, CLI,
 and WebUI branches into the monorepo `main` branch while keeping independent
 package metadata, console scripts, JSON/JSONL contracts, wrapper scripts, and
 tests. It continues to expose Core v1.1.0 measurement fields through the CLI:
@@ -70,11 +66,10 @@ Important limitations:
 
 - This project is currently focused on Keysight 34461A current, voltage,
   DCV ratio, and 2-wire or 4-wire resistance logging.
-- AC current and AC voltage trigger/acquisition flows have been checked on a
-  real instrument. ACI and ACV real-signal sanity checks have also been run
-  with CLI readings matching the 34461A front-panel readings. AC modes expose
-  the 34461A `3`, `20`, and `200` Hz bandwidth settings through
-  `--ac-bandwidth-hz`.
+- AC modes expose the 34461A `3`, `20`, and `200` Hz bandwidth settings through
+  `--ac-bandwidth-hz`. Before production use, run a low-risk live-resource
+  smoke test with an operator-provided VISA resource and compare the CLI row to
+  the 34461A front-panel reading.
 - `--nplc` and `--auto-zero` are DC/resistance controls. AC current and AC
   voltage accept only the neutral default `--nplc 1.0`; any other NPLC value is
   rejected because AC modes do not write NPLC SCPI. AC modes also do not write
@@ -154,7 +149,13 @@ wrapper. It is not a standalone executable for machines without the project
 environment.
 
 To build the optional standalone console exe, use PyInstaller from an
-environment that already has the CLI and Core packages installed:
+environment that already has the CLI and Core packages installed. PyInstaller
+is a local release-build tool, not a CLI runtime dependency, so install it into
+the venv before rebuilding on a fresh machine:
+
+```powershell
+uv pip install pyinstaller
+```
 
 ```powershell
 .\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py
@@ -359,7 +360,7 @@ without touching the instrument:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1 `
@@ -388,10 +389,10 @@ Machine callers should parse JSONL, single-response JSON, CSV files, and wrapper
 `report.json` artifacts for decisions. Human text messages are diagnostic and
 may change for readability.
 
-See [CLI JSON / JSONL Contract](cli-jsonl-contract.md) for the current schema
+See [Meters CLI JSON / JSONL Contract](../../../docs/contracts/meters-cli-jsonl-contract.md) for the current schema
 and alias rules.
 
-See [Worker Contract](worker-contract.md) for the Meters worker modes, local
+See [Meters Worker Contract](../../../docs/contracts/meters-worker-contract.md) for the Meters worker modes, local
 control endpoints, status payload, and wrapper artifact/report schema.
 
 When the worker is running, `soft-status` wraps non-mutating `GET /status` and
@@ -416,7 +417,7 @@ Recommended orchestrator flow:
 6. Read stdout JSONL plus CSV and wrapper artifacts such as `report.json` for
    pass/fail decisions.
 
-See [CLI Orchestrator Workflows](cli-orchestrator-workflows.md) for a complete
+See [Meters Orchestrator Workflows](../../../docs/contracts/meters-orchestrator-workflows.md) for a complete
 Python subprocess workflow.
 
 The `ready` event and `wait-ready` mean the local control plane can accept
@@ -625,7 +626,7 @@ Preview the discovery contract without touching VISA:
 Verified output is tab-separated:
 
 ```text
-live    USB0::0x2A8D::0x1301::MY60045220::0::INSTR    Keysight Technologies,34461A,...
+live    USB0::<vendor_id>::<product_id>::<serial>::0::INSTR    Keysight Technologies,34461A,...
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...
 ```
 
@@ -644,7 +645,7 @@ Verified JSON output is a single object:
     {
       "detail": "Keysight Technologies,34461A,...",
       "live": true,
-      "resource": "USB0::0x2A8D::0x1301::MY60045220::0::INSTR",
+      "resource": "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR",
       "status": "live"
     }
   ],
@@ -662,7 +663,7 @@ stale entries, and adds `live_only`:
     {
       "detail": "Keysight Technologies,34461A,...",
       "live": true,
-      "resource": "USB0::0x2A8D::0x1301::MY60045220::0::INSTR",
+      "resource": "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR",
       "status": "live"
     }
   ],
@@ -673,8 +674,8 @@ stale entries, and adds `live_only`:
 Example resource strings:
 
 ```text
-USB0::0x2A8D::0x1301::MY60045220::0::INSTR
-TCPIP0::169.254.4.61::hislip0::INSTR
+USB0::<vendor_id>::<product_id>::<serial>::0::INSTR
+TCPIP0::<host>::hislip0::INSTR
 ```
 
 ### Real-Instrument Validation Path
@@ -692,14 +693,11 @@ Use this order when checking a setup:
 5. Confirm graceful stop behavior with `soft-stop`, Ctrl+C, Ctrl+Break, or `q`
    before relying on long unattended runs.
 
-The project has been validated on a Keysight 34461A for DC current logging,
-DC voltage smoke checks, 2-wire and 4-wire resistance smoke checks,
-software/timer/external/immediate modes, all three custom buffered modes, JSON
-resource verification, live-resource filtering, and the documented stop paths.
-AC current and AC voltage trigger/acquisition flows have also been checked on a
-real instrument, including software timer under software mode. ACI and ACV
-real-signal sanity checks have been run with CLI readings matching the 34461A
-front-panel readings.
+Before relying on unattended acquisition, validate the workflow with an
+operator-provided Keysight 34461A VISA resource. Start with immediate mode, Auto
+Range on, and `--max-samples 1`, then expand to the intended measurement,
+trigger mode, and buffered mode. For AC current and AC voltage, compare the CLI
+CSV row to the 34461A front-panel reading during the smoke test.
 
 ### Current DC Smoke Test
 
@@ -707,7 +705,7 @@ One immediate current sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\current_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -724,7 +722,7 @@ Dry-run 10 A terminal check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --trigger-mode immediate `
   --measurement current-dc `
   --auto-range off `
@@ -756,7 +754,7 @@ the current path is safe for the 10 A input terminal and expected current.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\current_10a_terminal_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -775,7 +773,7 @@ Terminal 1, start recording and wait for five software triggers:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\software_5.csv" `
   --trigger-mode software `
   --max-samples 5 `
@@ -809,7 +807,7 @@ Dry-run Auto Zero once check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --auto-zero once `
@@ -836,7 +834,7 @@ Auto range, one immediate voltage sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -850,7 +848,7 @@ Manual 10 V range, one immediate voltage sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_range10_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -865,7 +863,7 @@ Live Auto Zero once smoke check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_auto_zero_once_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -879,16 +877,15 @@ Live Auto Zero once smoke check:
 For voltage rows, expect `measurement_type=voltage_dc` and `unit=V` in the CSV.
 Voltage can also be selected with custom/buffered modes through
 `--measurement voltage-dc`; those paths use the same measurement configuration
-and the existing custom-mode trigger/read flow. The voltage custom-mode
-combinations have only had rough real-instrument checks so far; run a longer
-buffered validation before relying on voltage buffered acquisition for
-production runs.
+and the existing custom-mode trigger/read flow. Run a longer buffered validation
+with the operator-provided VISA resource before relying on voltage buffered
+acquisition for production runs.
 
 DCV Input Z smoke check, Auto mode:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_dcv_input_z_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -903,7 +900,7 @@ DCV Input Z smoke check, fixed 10 MOhm:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_dcv_input_z_10m_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -930,7 +927,7 @@ Dry-run DCV Ratio check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
   --max-samples 1 `
@@ -955,7 +952,7 @@ Live DCV Ratio smoke check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_dc_ratio_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
@@ -974,15 +971,15 @@ when the backend supports `DATA2?`.
 AC current and AC voltage use the same trigger/read flow as other scalar
 measurements. They configure the 34461A AC function, Auto Range/manual range,
 and optional AC bandwidth. The CLI does not write NPLC or Auto Zero SCPI for AC
-measurements. Trigger/acquisition flows have been checked on a real instrument,
-and ACI/ACV real-signal sanity checks have matched the 34461A front-panel
-readings.
+measurements. For live smoke testing, start with immediate mode, Auto Range on,
+and `--max-samples 1`, then compare the CLI CSV row to the 34461A front-panel
+reading.
 
 Dry-run AC bandwidth check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-ac `
   --ac-bandwidth-hz 20 `
@@ -1009,7 +1006,7 @@ Suggested Auto Range AC voltage smoke test:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\voltage_ac_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-ac `
@@ -1022,7 +1019,7 @@ Suggested manual-range AC current smoke test:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\current_ac_range100ma_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-ac `
@@ -1032,9 +1029,9 @@ Suggested manual-range AC current smoke test:
 ```
 
 For AC rows, expect `measurement_type=voltage_ac` with `unit=V`, or
-`measurement_type=current_ac` with `unit=A`. AC trigger/acquisition flows were
-checked on a real instrument, and ACI/ACV real-signal sanity checks matched the
-34461A front-panel readings.
+`measurement_type=current_ac` with `unit=A`. During live smoke testing, compare
+the CLI CSV row to the 34461A front-panel reading before relying on longer
+acquisitions.
 
 ### Validated Resistance 2-Wire Smoke Tests
 
@@ -1045,7 +1042,7 @@ Auto range, one immediate resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\resistance_2w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1059,7 +1056,7 @@ Manual 1000 Ohm range, one immediate resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\resistance_2w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1088,7 +1085,7 @@ Auto range, one immediate 4-wire resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\resistance_4w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1101,7 +1098,7 @@ Manual 1000 Ohm range, one immediate 4-wire resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\resistance_4w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1130,7 +1127,7 @@ The metadata is accepted by the trigger endpoint and written to the CSV
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\software_limited.csv" `
   --trigger-mode software `
   --sw-min-interval-ms 250 `
@@ -1145,7 +1142,7 @@ full, the HTTP endpoint returns `429`.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\software_timer_100.csv" `
   --trigger-mode software `
   --timer-interval-s 1.0 `
@@ -1163,7 +1160,7 @@ logger, not a no-loss precision timing mode.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\external_10.csv" `
   --trigger-mode external `
   --max-samples 10 `
@@ -1183,7 +1180,7 @@ protective re-arm condition; it should not be counted as an error by itself.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\immediate_100.csv" `
   --trigger-mode immediate `
   --max-samples 100 `
@@ -1200,7 +1197,7 @@ Immediate mode does not wait for `soft-trigger` or external trigger edges. Use
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\immediate_custom_1000.csv" `
   --trigger-mode immediate-custom `
   --trigger-count 1 `
@@ -1224,7 +1221,7 @@ The expected row count is `trigger_count * sample_count`. Requests above the
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\software_custom_20.csv" `
   --trigger-mode software-custom `
   --trigger-count 2 `
@@ -1251,7 +1248,7 @@ should produce 20 CSV rows.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\external_custom_10.csv" `
   --trigger-mode external-custom `
   --trigger-count 1 `
@@ -1275,7 +1272,7 @@ external edge.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "TCPIP0::169.254.4.61::hislip0::INSTR" `
+  --resource "TCPIP0::<host>::hislip0::INSTR" `
   --csv ".\data\lan_software.csv" `
   --trigger-mode software `
   --max-samples 5
@@ -1295,7 +1292,7 @@ for diagnosis.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\software_high_accuracy.csv" `
   --trigger-mode software `
   --auto-range off `
@@ -1316,7 +1313,7 @@ pulse slope.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::0x2A8D::0x1301::MY60045220::0::INSTR" `
+  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
   --csv ".\data\vm_comp_pos.csv" `
   --trigger-mode software `
   --max-samples 5 `

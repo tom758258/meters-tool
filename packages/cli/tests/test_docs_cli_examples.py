@@ -14,7 +14,6 @@ def test_active_docs_prefer_console_script_for_runnable_cli_examples():
     forbidden_docs = [
         repo_root / "README.md",
         repo_root / "docs" / "cli-integration.md",
-        repo_root / "docs" / "session-handoff.md",
     ]
 
     for path in forbidden_docs:

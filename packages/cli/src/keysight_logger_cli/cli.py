@@ -30,7 +30,7 @@ from keysight_logger_core.validation import (
 
 CLI_EVENT_SCHEMA_VERSION = 1
 PACKAGE_NAME = "keysight-logger-cli"
-FALLBACK_CLI_VERSION = "1.3.1"
+FALLBACK_CLI_VERSION = "1.3.2"
 
 
 class StatusPayloadError(ValueError):

@@ -2,8 +2,8 @@
 
 This document is for maintainers of the CLI adapter. Shared Core contracts live
 in `docs/integration.md`; user-facing command usage lives in
-`docs/README_CLI_EN.md`; JSON/JSONL schema details live in
-`docs/cli-jsonl-contract.md`.
+`docs/README_CLI_EN.md`; shared and Meters JSON/JSONL schema details live in
+root `docs/contracts/`.
 
 This is documentation-only. It does not change runtime behavior, SCPI, VISA,
 trigger handling, cleanup order, JSON schema, or public API.
@@ -67,7 +67,8 @@ adapter maps them to:
   failures, and fatal acquisition failures.
 
 The CLI JSON/JSONL schema remains the source of truth for command-line agents
-and wrappers. See `docs/cli-jsonl-contract.md` and `docs/worker-contract.md`.
+and wrappers. See root `docs/contracts/meters-cli-jsonl-contract.md` and
+`docs/contracts/meters-worker-contract.md`.
 
 ## Terminal Stop Handling
 
@@ -83,7 +84,8 @@ should use a Core control plane or backend job controller, as described in
 
 `soft-trigger`, `soft-stop`, and `list-resources` are CLI/client workflows.
 They are not Core `StartRequest` workflows and their JSON contracts are
-documented in `docs/cli-jsonl-contract.md` and `docs/worker-contract.md`.
+documented in root `docs/contracts/meters-cli-jsonl-contract.md` and
+`docs/contracts/meters-worker-contract.md`.
 
 Keep these commands adapter-shaped: validate client inputs, format text/JSON,
 and avoid changing acquisition or VISA behavior as part of client command
