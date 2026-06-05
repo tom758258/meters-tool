@@ -9,6 +9,7 @@ const cleanupStatus = document.querySelector("#cleanup-status");
 const rawStatus = document.querySelector("#raw-status");
 const statusDetails = document.querySelector("#status-details");
 const toggleStatusDetailsButton = document.querySelector("#toggle-status-details");
+const subtitle = document.querySelector(".subtitle");
 const liveDataSummary = document.querySelector("#live-data-summary");
 const liveLatestValue = document.querySelector("#live-latest-value");
 const liveLatestTime = document.querySelector("#live-latest-time");
@@ -998,8 +999,19 @@ function updatePanelSummaries() {
   }
 }
 
+function applyAppMetadata(app) {
+  if (!subtitle) {
+    return;
+  }
+  const version = app?.version;
+  subtitle.textContent = version
+    ? `Local acquisition console · v${version}`
+    : "Local acquisition console";
+}
+
 async function loadCapabilities() {
   const capabilities = await api("/api/capabilities");
+  applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
   measurementsByName = new Map(
     capabilities.measurements.map((item) => [item.name, item])

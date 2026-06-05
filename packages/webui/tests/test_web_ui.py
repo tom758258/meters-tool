@@ -3,6 +3,7 @@
 import contextlib
 import io
 import re
+import sys
 import tempfile
 import time
 import unittest
@@ -59,6 +60,10 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual(200, response.status_code)
         payload = response.json()
+        self.assertEqual(
+            {"name": "keysight-logger-webui", "version": get_webui_version()},
+            payload["app"],
+        )
         self.assertEqual(
             [
                 "current-dc",
@@ -450,6 +455,39 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("keysight-logger-webui", output.getvalue())
         self.assertIn(get_webui_version(), output.getvalue())
 
+    def test_webui_server_uses_shutdown_friendly_uvicorn_options(self):
+        configs = []
+
+        class FakeConfig:
+            def __init__(self, app, **kwargs):
+                self.app = app
+                self.kwargs = kwargs
+
+        class FakeServer:
+            def __init__(self, config):
+                self.config = config
+
+            def handle_exit(self, sig, frame):
+                self.should_exit = True
+
+            def run(self):
+                configs.append(self.config)
+
+        original_uvicorn = sys.modules.get("uvicorn")
+        sys.modules["uvicorn"] = SimpleNamespace(Config=FakeConfig, Server=FakeServer)
+        try:
+            exit_code = main(["--host", "127.0.0.1", "--port", "8769"])
+        finally:
+            if original_uvicorn is None:
+                sys.modules.pop("uvicorn", None)
+            else:
+                sys.modules["uvicorn"] = original_uvicorn
+
+        self.assertEqual(0, exit_code)
+        self.assertEqual("127.0.0.1", configs[0].kwargs["host"])
+        self.assertEqual(8769, configs[0].kwargs["port"])
+        self.assertEqual("off", configs[0].kwargs["lifespan"])
+
     def test_static_ui_omits_cli_compat_only_controls(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
@@ -491,6 +529,10 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertIn("<h1>Keysight Meters</h1>", index)
         self.assertIn('<p class="subtitle">Local acquisition console</p>', index)
+        self.assertIn('const subtitle = document.querySelector(".subtitle");', app_js)
+        self.assertIn("function applyAppMetadata", app_js)
+        self.assertIn("applyAppMetadata(capabilities.app)", app_js)
+        self.assertIn("Local acquisition console · v${version}", app_js)
         self.assertLess(index.index('class="resource-row"'), index.index('class="grid"'))
         self.assertNotIn('class="status-strip"', index)
         self.assertIn('id="resource"', index)
@@ -924,6 +966,9 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("id: 0", first_event)
         self.assertIn('"state":"idle"', first_event)
         self.assertIn('"active":false', first_event)
+
+        manager.close_event_streams()
+        self.assertIsNone(asyncio.run(get_next(response.body_iterator)))
 
     def test_static_js_contains_sse_init_and_handlers(self):
         static_dir = Path(__file__).parent.parent / "src" / "keysight_logger_webui" / "static"

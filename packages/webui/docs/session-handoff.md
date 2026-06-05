@@ -28,6 +28,9 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
   `/api/runs/current`, `/api/runs/current/trigger`,
   `/api/runs/current/stop`, `/api/runs/current/open-csv`, and
   `/api/csv/select-folder`.
+- `/api/capabilities` includes WebUI app metadata:
+  `app.name` and `app.version`, sourced from the package version used by
+  `keysight-logger-webui --version`.
 - `/api/runs/current` exposes WebUI-owned Live data fields:
   `latest_sample`, `recent_samples`, and `sample_capacity`.
 - The browser UI remains in `packages/webui/src/keysight_logger_webui/static/`.
@@ -79,7 +82,9 @@ http://127.0.0.1:8767/
 
 The Web UI now uses this structure:
 
-- Header title is `Keysight Meters`; subtitle is `Local acquisition console`.
+- Header title is `Keysight Meters`; subtitle starts as
+  `Local acquisition console` and updates to include the WebUI package version
+  after `/api/capabilities` loads.
 - Resource row is above the status strip.
 - Resource row contains `VISA resource`, `Live resource`, and `Scan Device`.
 - Scan still calls `/api/resources?verify=true&live_only=true`.
@@ -339,7 +344,10 @@ passed with 74 tests and 123 subtests.
   behavior.
 - The WebUI server process is Uvicorn/FastAPI, so `q` is not a supported
   server-exit key. `Ctrl+C` depends on the terminal delivering SIGINT; if it
-  does not, stop the listening `python.exe` by PID.
+  does not, stop the listening `python.exe` by PID. The server entry point uses
+  shutdown-friendly Uvicorn options and tells the SSE status stream to close
+  before Uvicorn cancels active requests, so normal `Ctrl+C` exits should not
+  produce traceback noise.
 - Avoid reintroducing CLI adapter imports or top-level legacy backend imports.
 - Hardware-facing changes must stay behind explicit user confirmation and be
   recorded in `docs/hardware-test-plan.md`.

@@ -251,6 +251,7 @@ class WebRunManager:
         self._last_status = self._idle_status()
         self._status_version = 0
         self._status_cv = threading.Condition(self._lock)
+        self._close_event_streams = False
 
     def _publish_status_locked(self, handle_or_status: _RunHandle | dict[str, Any]) -> None:
         if isinstance(handle_or_status, _RunHandle):
@@ -259,6 +260,11 @@ class WebRunManager:
             self._last_status = dict(handle_or_status)
         self._status_version += 1
         self._status_cv.notify_all()
+
+    def close_event_streams(self) -> None:
+        with self._lock:
+            self._close_event_streams = True
+            self._status_cv.notify_all()
 
     def capabilities(self) -> dict[str, Any]:
         profile = get_default_instrument_profile()
@@ -291,6 +297,10 @@ class WebRunManager:
                 }
             )
         return {
+            "app": {
+                "name": PACKAGE_NAME,
+                "version": get_webui_version(),
+            },
             "instrument_profile": {
                 "vendor": profile.vendor,
                 "model": profile.model,
@@ -742,10 +752,18 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
 
             while True:
                 with manager._lock:
-                    while manager._status_version == last_version:
+                    if manager._close_event_streams:
+                        break
+                    while (
+                        manager._status_version == last_version
+                        and not manager._close_event_streams
+                    ):
                         signaled = manager._status_cv.wait(timeout=5.0)
                         if not signaled:
                             break
+
+                    if manager._close_event_streams:
+                        break
 
                     if manager._status_version > last_version:
                         last_version = manager._status_version
@@ -763,7 +781,10 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
                 else:
                     yield ": keepalive\n\n"
 
-        return StreamingResponse(event_generator(), media_type="text/event-stream")
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/event-stream",
+        )
 
     @app.post("/api/runs/current/trigger", status_code=202)
     def api_trigger(payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
@@ -809,10 +830,31 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--port", type=int, default=8767)
     args = parser.parse_args(argv)
 
+    manager = WebRunManager()
+    _run_uvicorn_app(create_app(manager), manager, host=args.host, port=args.port)
+    return 0
+
+
+def _run_uvicorn_app(
+    app: FastAPI,
+    manager: WebRunManager,
+    *,
+    host: str,
+    port: int,
+) -> None:
     import uvicorn
 
-    uvicorn.run(create_app(), host=args.host, port=args.port)
-    return 0
+    class WebUiServer(uvicorn.Server):
+        def handle_exit(self, sig: int, frame: Any) -> None:
+            manager.close_event_streams()
+            super().handle_exit(sig, frame)
+
+    config = uvicorn.Config(app, host=host, port=port, lifespan="off")
+    server = WebUiServer(config=config)
+    try:
+        server.run()
+    except KeyboardInterrupt:
+        pass
 
 
 def _model_dict(model: BaseModel) -> dict[str, Any]:
