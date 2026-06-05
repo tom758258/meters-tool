@@ -4,6 +4,24 @@
 
 - No unreleased changes yet.
 
+## cli-v1.2.0 - 2026-05-29
+
+- Released the CLI branch after merging `Core-v1.1.0` while preserving the
+  `keysight-logger` package identity, console script, CLI JSON/JSONL contract,
+  wrapper scripts, compatibility shims, and CLI-owned tests.
+- Exposed Core v1.1.0 measurement capabilities through the CLI:
+  `--measurement voltage-dc-ratio`, `--auto-zero once`, `--ac-bandwidth-hz`,
+  and `--current-terminal`.
+- Documented DCV Ratio `measurement_metadata`, CLI exit code meanings,
+  agent/orchestrator JSONL parsing rules, and the worker flow:
+  dry-run, simulate, live worker, wait for `ready`, `GET /status`,
+  trigger/stop, then read JSONL/CSV/report artifacts.
+- Strengthened CLI JSONL schema tests for `ready` fields, dry-run absence of
+  runtime identifiers, consistent runtime `run_id`, sample
+  `measurement_metadata`, summary counts, and structured JSON error exit-code
+  behavior.
+- Updated package metadata to version `1.2.0`.
+
 ## cli-v1.1.8 - 2026-05-26
 
 - Recorded the `core-v1.0.0` merge-base baseline on the CLI branch while
