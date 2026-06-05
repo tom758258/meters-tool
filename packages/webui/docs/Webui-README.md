@@ -55,6 +55,12 @@ The Windows console wrapper is:
 .\.venv\Scripts\keysight-logger-webui.exe
 ```
 
+The Windows GUI launcher wrapper is:
+
+```powershell
+.\.venv\Scripts\keysight-logger-webui-launcher.exe
+```
+
 The default local server is:
 
 ```text
@@ -82,7 +88,7 @@ Check the wrapper:
 Expected package metadata version for this release branch:
 
 ```text
-keysight-logger-webui 1.2.0
+keysight-logger-webui 1.2.1
 ```
 
 Start the server:
@@ -90,6 +96,16 @@ Start the server:
 ```powershell
 .\.venv\Scripts\keysight-logger-webui.exe --port 8767
 ```
+
+Or start the double-click launcher:
+
+```powershell
+.\.venv\Scripts\keysight-logger-webui-launcher.exe
+```
+
+The launcher defaults to `127.0.0.1:8767`, disables the port field while
+`Use default port 8767` is selected, opens the browser after Start, and keeps
+the window available so Quit can stop the local Uvicorn server.
 
 Open:
 
@@ -460,10 +476,12 @@ Preferred WebUI frontend files:
 Backend adapter file:
 
 - `packages/webui/src/keysight_logger_webui/web_ui.py`
+- `packages/webui/src/keysight_logger_webui/launcher.py`
 
 Tests:
 
 - `tests/test_web_ui.py`
+- `packages/webui/tests/test_launcher.py`
 - Core contract and package boundary tests listed in the validation commands
   below.
 
@@ -485,8 +503,17 @@ node --check packages\webui\src\keysight_logger_webui\static\app.js
 Focused WebUI/Core no-hardware validation:
 
 ```powershell
-uv run pytest tests/test_web_ui.py tests/test_core_public_api.py tests/test_core_validation.py tests/test_core_run_plan.py tests/test_core_runner.py packages/webui/tests/test_webui_package_metadata.py packages/webui/tests/test_webui_docs_ownership.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests/test_webui_package_metadata.py packages/webui/tests/test_web_ui.py packages/webui/tests/test_launcher.py -q -p no:cacheprovider
 ```
+
+Build the optional local launcher exe with PyInstaller from an environment that
+already has WebUI and Core installed:
+
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name keysight-logger-webui-launcher --paths packages/webui/src --paths packages/core/src --add-data "packages/webui/src/keysight_logger_webui/static;keysight_logger_webui/static" packages/webui/src/keysight_logger_webui/launcher.py
+```
+
+PyInstaller is a local release-build tool, not a WebUI runtime dependency.
 
 Broader no-hardware validation when practical:
 
@@ -571,6 +598,7 @@ Live panel has no samples:
 ## Documentation Map
 
 - `README.md`: top-level quick start.
+- `docs/USER_GUIDE.md`: operator-facing WebUI usage guide.
 - `docs/Webui-README.md`: this detailed WebUI guide.
 - `docs/session-handoff.md`: current WebUI branch status and next work.
 - `docs/web-ui-ai-change-rules.md`: rules for UI changes.

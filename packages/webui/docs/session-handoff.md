@@ -14,13 +14,23 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
 ## Current Status
 
 - Branch: `main`.
-- Release tag target: `webui-v1.2.0`.
+- Release tag target: `webui-v1.2.1`.
+- Release state: ready for the final documentation commit, then tag
+  `webui-v1.2.1`.
 - Purpose: WebUI adapter package on top of the independent Core runtime.
 - Core `core-v1.2.0` package metadata and dependency alignment are available.
 - Distribution metadata is the WebUI adapter package
-  `keysight-logger-webui` version `1.2.0`.
+  `keysight-logger-webui` version `1.2.1`.
 - The Web UI starts with the uv-installed console wrapper
   `keysight-logger-webui`; the wrapper supports `--version`.
+- The legacy `keysight_logger` namespace is intentionally absent. Use
+  `keysight_logger_webui` for module execution and imports.
+- The GUI launcher entry point is `keysight-logger-webui-launcher`; it defaults
+  to `127.0.0.1:8767`, opens the browser after Start, and uses Quit to stop the
+  local server. Existing-server detection remains strict on
+  `/api/capabilities` app metadata; newly started servers may become launcher
+  ready once `/` responds so a temporary capabilities failure does not block the
+  browser.
 - `packages/webui/src/keysight_logger_webui/web_ui.py` adapts browser payloads to Core
   `StartRequest`, validates through Core, and runs Core `run_start_session()`.
 - The Web UI API preserves the existing browser-facing endpoints:
@@ -29,11 +39,14 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
   `/api/runs/current/stop`, `/api/runs/current/open-csv`, and
   `/api/csv/select-folder`.
 - `/api/capabilities` includes WebUI app metadata:
-  `app.name` and `app.version`, sourced from the package version used by
-  `keysight-logger-webui --version`.
+  `app.name` and `app.version`, sourced from installed distribution metadata,
+  local `pyproject.toml`, or the built-in WebUI fallback version used by
+  packaged launchers.
 - `/api/runs/current` exposes WebUI-owned Live data fields:
   `latest_sample`, `recent_samples`, and `sample_capacity`.
 - The browser UI remains in `packages/webui/src/keysight_logger_webui/static/`.
+- Operator-facing documentation is available in `docs/USER_GUIDE.md`; the
+  detailed `docs/Webui-README.md` remains the maintainer/developer guide.
 - The Live data panel is implemented. It renders the latest sample, a
   browser-side trend chart, a recent-samples table, and selected-sample
   metadata details from Core sample events.
@@ -56,7 +69,8 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
 - CLI: complete on the separate CLI branch. CLI-specific runtime, wrapper,
   console behavior, and JSONL/artifact contracts remain adapter-owned and are
   not part of this WebUI release.
-- WebUI: ready for `webui-v1.2.0` after current no-hardware validation.
+- WebUI: ready for `webui-v1.2.1` after current no-hardware validation and
+  operator guide documentation.
   Existing browser UI and API behavior are preserved while using Core
   `StartRequest`, Core validation, and Core `run_start_session()` underneath.
 
@@ -66,6 +80,12 @@ Runtime entry point:
 
 ```powershell
 .\.venv\Scripts\keysight-logger-webui.exe --port 8767
+```
+
+GUI launcher entry point:
+
+```powershell
+.\.venv\Scripts\keysight-logger-webui-launcher.exe
 ```
 
 Version check:
@@ -209,6 +229,75 @@ Frontend behavior:
 
 ## Latest Validation
 
+Latest CI namespace fix and final documentation validation for the
+`webui-v1.2.1` release tag target:
+
+Windows Python 3.12 CI note: Tkinter may import successfully even when hosted
+runner Tcl/Tk files are incomplete. Launcher lifecycle tests now create the Tk
+root through the skip-aware helper, so that environment skips Tk-dependent
+launcher tests instead of failing before launcher logic runs.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\core\tests\test_core_package_metadata.py tests\test_workspace_layout.py packages\webui\tests\test_webui_package_metadata.py packages\webui\tests\test_webui_docs_ownership.py -q -p no:cacheprovider
+```
+
+Result: 12 passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_full
+```
+
+Result: 409 passed, 1 warning, 149 subtests passed on 2026-06-01.
+The same command without `--basetemp` hit a local Windows temp permission error
+under `C:\Users\tom75\AppData\Local\Temp\pytest-of-tom75`; the workspace
+basetemp rerun passed.
+
+After the Windows Python 3.12 Tk skip fix:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests\test_launcher.py -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_launcher
+```
+
+Result: 9 passed, 1 skipped, 4 subtests passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_full
+```
+
+Result: 408 passed, 1 skipped, 1 warning, 149 subtests passed on 2026-06-01.
+
+Latest launcher timeout fix validation for the `webui-v1.2.1` release tag
+target:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests\test_launcher.py packages\webui\tests\test_web_ui.py packages\webui\tests\test_webui_package_metadata.py -q -p no:cacheprovider
+```
+
+Result: 48 passed, 1 warning, 68 subtests passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests\test_web_ui.py packages\webui\tests\test_launcher.py packages\core\tests\test_core_public_api.py packages\core\tests\test_core_validation.py packages\core\tests\test_core_run_plan.py packages\core\tests\test_core_runner.py packages\webui\tests\test_webui_package_metadata.py packages\webui\tests\test_webui_docs_ownership.py -q -p no:cacheprovider
+```
+
+Result: 98 passed, 1 warning, 127 subtests passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\keysight-logger-webui.exe --version
+.\.venv\Scripts\python.exe -m keysight_logger_webui --version
+```
+
+Result: both printed `keysight-logger-webui 1.2.1`.
+
+Executable smoke validation:
+
+- Started `.\.venv\Scripts\keysight-logger-webui.exe --port 8767`, polled
+  `/api/capabilities`, received `app.name="keysight-logger-webui"`,
+  `app.version="1.2.1"`, and seven measurements, then stopped the spawned
+  process.
+- Rebuilt `dist\keysight-logger-webui-launcher.exe` with PyInstaller 6.20.0.
+- Brief Start-Process smoke confirmed the rebuilt GUI launcher process stayed
+  running until stopped.
+
 Latest WebUI SSE Live Data implementation validation:
 
 ```powershell
@@ -238,6 +327,38 @@ Result: passed on 2026-06-01.
 ```
 
 Result: 34 passed, 1 warning, 64 subtests passed on 2026-06-01.
+
+Latest no-hardware validation for the `webui-v1.2.1` release tag target:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests/test_webui_package_metadata.py packages/webui/tests/test_web_ui.py packages/webui/tests/test_launcher.py -q -p no:cacheprovider
+```
+
+Result: 39 passed, 1 warning, 68 subtests passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests -q -p no:cacheprovider
+```
+
+Result: 42 passed, 1 warning, 68 subtests passed on 2026-06-01.
+
+```powershell
+uv pip install -e packages\webui --link-mode=copy
+.\.venv\Scripts\keysight-logger-webui.exe --version
+```
+
+Result: refreshed `keysight-logger-webui` from `1.1.0` to `1.2.1`; version
+printed `keysight-logger-webui 1.2.1`. The launcher wrapper
+`.\.venv\Scripts\keysight-logger-webui-launcher.exe` exists. The first editable
+install attempt was blocked by a running `keysight-logger-webui.exe` process
+locking the wrapper; stopping that process allowed the install to complete.
+
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name keysight-logger-webui-launcher --paths packages\webui\src --paths packages\core\src --add-data "packages\webui\src\keysight_logger_webui\static;keysight_logger_webui\static" packages\webui\src\keysight_logger_webui\launcher.py
+```
+
+Result: built `dist\keysight-logger-webui-launcher.exe`; brief Start-Process
+smoke confirmed the GUI process stayed running until stopped.
 
 Latest no-hardware validation for the `webui-v1.2.0` release tag target:
 
@@ -354,8 +475,8 @@ passed with 74 tests and 123 subtests.
 
 ## Next Conversation
 
-1. Commit the WebUI release-ready state.
-2. Tag the commit as `webui-v1.2.0`.
+1. Commit the final WebUI user-guide documentation update.
+2. Tag that commit as `webui-v1.2.1`.
 3. Keep LAN validation and real AC signal validation deferred until those test
    environments are available.
 4. Record any future live validation results in this file and

@@ -18,7 +18,7 @@ validation, runtime orchestration, trigger routing, and cleanup behavior.
 
 ## Current Baseline
 
-Release tag target: `webui-v1.2.0`.
+Release tag target: `webui-v1.2.1`.
 
 The maintained runtime boundary is:
 
@@ -26,14 +26,16 @@ The maintained runtime boundary is:
 - Web UI adapter and HTTP endpoints: `packages/webui/src/keysight_logger_webui/web_ui.py`
 - Static browser UI: `packages/webui/src/keysight_logger_webui/static/`
 
-The distribution metadata is `keysight-logger-webui` version `1.2.0`. It
-publishes the WebUI console script `keysight-logger-webui`; install it through
-uv.
+The distribution metadata is `keysight-logger-webui` version `1.2.1`. It
+publishes the WebUI console script `keysight-logger-webui` and the
+double-click GUI launcher script `keysight-logger-webui-launcher`; install them
+through uv.
 
 ```powershell
 uv pip install -e ".[dev]" --link-mode=copy
 .\.venv\Scripts\keysight-logger-webui.exe --version
 .\.venv\Scripts\keysight-logger-webui.exe --port 8767
+.\.venv\Scripts\keysight-logger-webui-launcher.exe
 ```
 
 The Web UI supports the Core measurement and trigger modes surfaced by
@@ -90,6 +92,7 @@ or reorder cleanup.
 ## Documentation Index
 
 - Core contract: `docs/integration.md`
+- User guide: `docs/USER_GUIDE.md`
 - Detailed WebUI README: `docs/Webui-README.md`
 - Web UI rules: `docs/web-ui-ai-change-rules.md`
 - Web UI handoff: `docs/session-handoff.md`

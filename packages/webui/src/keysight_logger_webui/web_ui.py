@@ -65,6 +65,7 @@ TRIGGER_MODES = (
     "external-custom",
 )
 PACKAGE_NAME = "keysight-logger-webui"
+FALLBACK_WEBUI_VERSION = "1.2.1"
 LIVE_SAMPLE_CAPACITY = 5000
 
 
@@ -820,7 +821,56 @@ def get_webui_version() -> str:
     try:
         return importlib.metadata.version(PACKAGE_NAME)
     except importlib.metadata.PackageNotFoundError:
+        pass
+
+    try:
         return _read_project_version()
+    except (OSError, KeyError, RuntimeError, ValueError):
+        return FALLBACK_WEBUI_VERSION
+
+
+def _uvicorn_log_config() -> dict[str, Any]:
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "default": {
+                "format": "%(levelname)s: %(message)s",
+            },
+            "access": {
+                "format": "%(levelname)s: %(message)s",
+            },
+        },
+        "handlers": {
+            "default": {
+                "class": "logging.StreamHandler",
+                "formatter": "default",
+                "stream": "ext://sys.stderr",
+            },
+            "access": {
+                "class": "logging.StreamHandler",
+                "formatter": "access",
+                "stream": "ext://sys.stdout",
+            },
+        },
+        "loggers": {
+            "uvicorn": {
+                "handlers": ["default"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "uvicorn.error": {
+                "handlers": ["default"],
+                "level": "INFO",
+                "propagate": False,
+            },
+            "uvicorn.access": {
+                "handlers": ["access"],
+                "level": "INFO",
+                "propagate": False,
+            },
+        },
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -831,17 +881,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     manager = WebRunManager()
-    _run_uvicorn_app(create_app(manager), manager, host=args.host, port=args.port)
+    server = create_uvicorn_server(manager, host=args.host, port=args.port)
+    _run_uvicorn_server(server)
     return 0
 
 
-def _run_uvicorn_app(
-    app: FastAPI,
+def create_uvicorn_server(
     manager: WebRunManager,
     *,
     host: str,
     port: int,
-) -> None:
+) -> Any:
     import uvicorn
 
     class WebUiServer(uvicorn.Server):
@@ -849,8 +899,17 @@ def _run_uvicorn_app(
             manager.close_event_streams()
             super().handle_exit(sig, frame)
 
-    config = uvicorn.Config(app, host=host, port=port, lifespan="off")
-    server = WebUiServer(config=config)
+    config = uvicorn.Config(
+        create_app(manager),
+        host=host,
+        port=port,
+        lifespan="off",
+        log_config=_uvicorn_log_config(),
+    )
+    return WebUiServer(config=config)
+
+
+def _run_uvicorn_server(server: Any) -> None:
     try:
         server.run()
     except KeyboardInterrupt:

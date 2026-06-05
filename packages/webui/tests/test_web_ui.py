@@ -2,6 +2,8 @@
 
 import contextlib
 import io
+import importlib.metadata
+import logging.config
 import re
 import sys
 import tempfile
@@ -9,6 +11,7 @@ import time
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 try:
     from fastapi.testclient import TestClient
@@ -18,9 +21,11 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
 if TestClient is not None:
     from keysight_logger_webui.web_ui import (
         CsvFolderSelectionUnavailable,
+        FALLBACK_WEBUI_VERSION,
         RunAlreadyActive,
         RunStartRequest,
         WebRunManager,
+        _uvicorn_log_config,
         create_app,
         get_webui_version,
         main,
@@ -111,6 +116,27 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("on", defaults["auto_zero"])
         self.assertIsNone(defaults["ac_bandwidth_hz"])
         self.assertIsNone(defaults["current_terminal"])
+
+    def test_capabilities_use_fallback_version_when_package_metadata_is_unavailable(self):
+        client, _csv_path = self.make_client()
+
+        with (
+            patch(
+                "keysight_logger_webui.web_ui.importlib.metadata.version",
+                side_effect=importlib.metadata.PackageNotFoundError,
+            ),
+            patch(
+                "keysight_logger_webui.web_ui._read_project_version",
+                side_effect=FileNotFoundError("pyproject.toml"),
+            ),
+        ):
+            response = client.get("/api/capabilities")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"name": "keysight-logger-webui", "version": FALLBACK_WEBUI_VERSION},
+            response.json()["app"],
+        )
 
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
         client, csv_path = self.make_client()
@@ -455,6 +481,32 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("keysight-logger-webui", output.getvalue())
         self.assertIn(get_webui_version(), output.getvalue())
 
+    def test_webui_version_uses_fallback_when_metadata_and_project_are_unavailable(self):
+        with (
+            patch(
+                "keysight_logger_webui.web_ui.importlib.metadata.version",
+                side_effect=importlib.metadata.PackageNotFoundError,
+            ),
+            patch(
+                "keysight_logger_webui.web_ui._read_project_version",
+                side_effect=FileNotFoundError("pyproject.toml"),
+            ),
+        ):
+            self.assertEqual(FALLBACK_WEBUI_VERSION, get_webui_version())
+
+    def test_uvicorn_log_config_uses_standard_logging_formatters(self):
+        log_config = _uvicorn_log_config()
+
+        logging.config.dictConfig(log_config)
+
+        self.assertEqual(1, log_config["version"])
+        self.assertFalse(log_config["disable_existing_loggers"])
+        self.assertIn("default", log_config["formatters"])
+        self.assertIn("access", log_config["formatters"])
+        self.assertNotIn("()", log_config["formatters"]["default"])
+        self.assertEqual("default", log_config["handlers"]["default"]["formatter"])
+        self.assertEqual("access", log_config["handlers"]["access"]["formatter"])
+
     def test_webui_server_uses_shutdown_friendly_uvicorn_options(self):
         configs = []
 
@@ -487,6 +539,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("127.0.0.1", configs[0].kwargs["host"])
         self.assertEqual(8769, configs[0].kwargs["port"])
         self.assertEqual("off", configs[0].kwargs["lifespan"])
+        self.assertEqual(_uvicorn_log_config(), configs[0].kwargs["log_config"])
 
     def test_static_ui_omits_cli_compat_only_controls(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"

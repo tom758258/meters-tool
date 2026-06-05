@@ -2,7 +2,21 @@
 
 ## Unreleased
 
-No unreleased changes.
+- No unreleased changes.
+
+## webui-v1.2.1 - 2026-06-01
+
+- Bumped package metadata to `keysight-logger-webui 1.2.1` for the
+  `webui-v1.2.1` tag target.
+- Added the `keysight-logger-webui-launcher` GUI entry point for double-click
+  local startup on `127.0.0.1:8767` with browser auto-open and Quit-driven
+  server shutdown.
+- Shared shutdown-friendly Uvicorn server creation between the terminal entry
+  point and launcher without changing Core, SCPI, VISA, trigger, stop, or CSV
+  behavior.
+- Added `docs/USER_GUIDE.md` as the operator-facing WebUI guide.
+- Removed the temporary legacy `keysight_logger.web_ui` compatibility shim so
+  the workspace keeps the Core/CLI/WebUI import boundaries clean.
 
 ## webui-v1.2.0 - 2026-06-01
 

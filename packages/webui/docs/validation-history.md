@@ -6,6 +6,47 @@ This file records validation history for the WebUI adapter package after
 merging the independent Core runtime. Detailed CLI wrapper, JSONL,
 soft-trigger, and artifact validation belongs to the CLI package docs.
 
+## WebUI v1.2.1 Release Validation
+
+- Target release: `webui-v1.2.1`.
+- Package metadata: `keysight-logger-webui` version `1.2.1`.
+- Added GUI launcher entry point `keysight-logger-webui-launcher` using the
+  same FastAPI app and shutdown-friendly Uvicorn server path as the terminal
+  wrapper.
+- Added `docs/USER_GUIDE.md` as the operator-facing WebUI guide.
+- Removed the temporary legacy `keysight_logger.web_ui` compatibility shim so
+  Core and workspace package-boundary tests continue to require the old
+  `keysight_logger` namespace to be absent.
+- Made launcher Tk lifecycle tests skip cleanly when a hosted Windows Python
+  runner can import `tkinter` but cannot create a Tk root because Tcl/Tk runtime
+  files are missing.
+- No Core runtime, SCPI, VISA timeout, trigger wait strategy, cleanup order,
+  measurement logic, or CSV behavior changed in this release.
+- `.\.venv\Scripts\python.exe -m pytest packages\core\tests\test_core_package_metadata.py tests\test_workspace_layout.py packages\webui\tests\test_webui_package_metadata.py packages\webui\tests\test_webui_docs_ownership.py -q -p no:cacheprovider`
+  passed with `12 passed`.
+- `.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_full`
+  passed with `408 passed, 1 skipped, 1 warning, 149 subtests passed` after the
+  Windows Python 3.12 Tk skip fix.
+- `.\.venv\Scripts\python.exe -m pytest packages\webui\tests\test_launcher.py -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_launcher`
+  passed with `9 passed, 1 skipped, 4 subtests passed`.
+- `.\.venv\Scripts\python.exe -m pytest packages\webui\tests\test_webui_package_metadata.py packages\webui\tests\test_web_ui.py packages\webui\tests\test_launcher.py -q -p no:cacheprovider`
+  passed with `39 passed, 1 warning, 68 subtests passed`.
+- `.\.venv\Scripts\python.exe -m pytest packages\webui\tests -q -p no:cacheprovider`
+  passed with `42 passed, 1 warning, 68 subtests passed`.
+- `uv pip install -e packages\core -e packages\webui --link-mode=copy` was
+  interrupted by a locked `keysight-logger-webui.exe`; after stopping that
+  running wrapper process, `uv pip install -e packages\webui --link-mode=copy`
+  upgraded `keysight-logger-webui` from `1.1.0` to `1.2.1`.
+- `.\.venv\Scripts\keysight-logger-webui.exe --version` reported
+  `keysight-logger-webui 1.2.1`, and
+  `.\.venv\Scripts\keysight-logger-webui-launcher.exe` exists.
+- Installed PyInstaller as a local release-build tool and built
+  `dist\keysight-logger-webui-launcher.exe` with `--onefile --windowed`,
+  WebUI/Core source paths, and bundled WebUI static files.
+- EXE smoke: started `dist\keysight-logger-webui-launcher.exe` briefly and
+  stopped the process; it remained running after startup, which confirms the
+  GUI process launched without immediately exiting.
+
 ## WebUI v1.2.0 Release Validation
 
 - Target release: `webui-v1.2.0`.

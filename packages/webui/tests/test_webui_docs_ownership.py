@@ -15,6 +15,7 @@ def test_webui_docs_are_package_local():
     assert (PACKAGE_ROOT / "CHANGELOG.md").exists()
 
     for path in (
+        "docs/USER_GUIDE.md",
         "docs/Webui-README.md",
         "docs/web-ui-ai-change-rules.md",
         "docs/web-ui-ai-change-handoff.md",

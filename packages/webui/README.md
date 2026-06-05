@@ -25,6 +25,15 @@ After install, Windows creates the WebUI console wrapper:
 .\.venv\Scripts\keysight-logger-webui.exe --port 8767
 ```
 
+For double-click use, start the GUI launcher:
+
+```powershell
+.\.venv\Scripts\keysight-logger-webui-launcher.exe
+```
+
+The launcher defaults to `127.0.0.1:8767`, opens the browser after Start, and
+uses Quit to stop the local server.
+
 Open:
 
 ```text
@@ -36,7 +45,7 @@ http://127.0.0.1:8767/
 Focused no-hardware validation:
 
 ```powershell
-uv run pytest tests/test_web_ui.py tests/test_core_public_api.py tests/test_core_validation.py tests/test_core_run_plan.py tests/test_core_runner.py packages/webui/tests/test_webui_package_metadata.py packages/webui/tests/test_webui_docs_ownership.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests/test_webui_package_metadata.py packages/webui/tests/test_web_ui.py packages/webui/tests/test_launcher.py -q -p no:cacheprovider
 ```
 
 Then run the broader suite when practical:
@@ -51,13 +60,10 @@ behavior, or Core public API exports.
 
 ## Documentation
 
-- [Core Integration](docs/integration.md)
+- [User Guide](docs/USER_GUIDE.md)
 - [Detailed WebUI README](docs/Webui-README.md)
 - [Web UI Change Rules](docs/web-ui-ai-change-rules.md)
 - [Web UI Session Handoff](docs/session-handoff.md)
-- [Hardware Test Plan](docs/hardware-test-plan.md)
-- [Branch Handoff Index](docs/session-handoff.md)
 - [Validation History](docs/validation-history.md)
-- [Supported Models](docs/supported-models.md)
 - [Project Plan](docs/project-plan.md)
 - [Changelog](CHANGELOG.md)
