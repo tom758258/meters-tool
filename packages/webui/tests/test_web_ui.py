@@ -7,6 +7,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 try:
     from fastapi.testclient import TestClient
@@ -15,6 +16,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
 
 if TestClient is not None:
     from keysight_logger_webui.web_ui import (
+        CsvFolderSelectionUnavailable,
         RunAlreadyActive,
         RunStartRequest,
         WebRunManager,
@@ -195,6 +197,46 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual({"opened": True, "csv_path": str(csv_path)}, response.json())
         self.assertEqual([csv_path], opened_paths)
 
+    def test_select_csv_folder_returns_timestamped_csv_path(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        folder_path = Path(self.tempdir.name)
+        manager = WebRunManager(directory_selector=lambda: folder_path)
+        client = self.make_client_with_manager(manager)
+
+        response = client.post("/api/csv/select-folder")
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertTrue(payload["selected"])
+        self.assertEqual(str(folder_path), payload["folder_path"])
+        csv_path = Path(payload["csv_path"])
+        self.assertEqual(folder_path, csv_path.parent)
+        self.assertRegex(csv_path.name, r"^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}\.csv$")
+
+    def test_select_csv_folder_cancel_returns_empty_selection(self):
+        manager = WebRunManager(directory_selector=lambda: None)
+        client = self.make_client_with_manager(manager)
+
+        response = client.post("/api/csv/select-folder")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(
+            {"selected": False, "folder_path": None, "csv_path": None},
+            response.json(),
+        )
+
+    def test_select_csv_folder_unavailable_returns_503(self):
+        def unavailable():
+            raise CsvFolderSelectionUnavailable("folder selection dialog is unavailable")
+
+        manager = WebRunManager(directory_selector=unavailable)
+        client = self.make_client_with_manager(manager)
+
+        response = client.post("/api/csv/select-folder")
+
+        self.assertEqual(503, response.status_code)
+        self.assertEqual("folder selection dialog is unavailable", response.json()["detail"])
+
     def test_run_start_rejects_second_run_while_active(self):
         tempdir = tempfile.TemporaryDirectory()
         self.tempdir = tempdir
@@ -251,7 +293,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(1, status["captured"])
         self.assertFalse(status["active"])
         self.assertEqual("stopped", status["state"])
-        self.assertEqual(100, status["sample_capacity"])
+        self.assertEqual(5000, status["sample_capacity"])
         self.assertEqual(1, len(status["recent_samples"]))
         sample = status["latest_sample"]
         self.assertEqual(sample, status["recent_samples"][-1])
@@ -267,8 +309,11 @@ class WebUiApiTests(unittest.TestCase):
         self.assertRegex(sample["timestamp_utc_plus_8"], r"\+08:00$")
         self.assertIsInstance(sample["measurement_metadata"], dict)
 
-    def test_live_data_retains_latest_100_samples_until_next_start(self):
-        client, csv_path = self.make_client()
+    def test_live_data_retains_latest_5000_samples_until_next_start(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
         response = client.post(
             "/api/runs",
             json={
@@ -276,19 +321,43 @@ class WebUiApiTests(unittest.TestCase):
                 "csv": str(csv_path),
                 "simulate": True,
                 "trigger_mode": "immediate",
-                "max_samples": 105,
+                "max_samples": 1,
             },
         )
         self.assertEqual(200, response.status_code)
+        initial_status = self.wait_until_inactive(client, timeout_s=1.0)
+        self.assertEqual(1, initial_status["captured"])
 
-        status = self.wait_until_inactive(client, timeout_s=2.0)
+        for sequence in range(2, 5006):
+            manager._record_event(
+                SimpleNamespace(
+                    run_id=initial_status["run_id"],
+                    event="sample",
+                    message=None,
+                    captured=sequence,
+                    sample=SimpleNamespace(
+                        timestamp_utc=None,
+                        measurement_type="current_dc",
+                        value=1.23,
+                        unit="A",
+                        trigger_id=None,
+                        trigger_source="immediate",
+                        trigger_metadata={},
+                        measurement_metadata={},
+                        resource_id="USB::FAKE",
+                        status="ok",
+                    ),
+                )
+            )
 
-        self.assertEqual(105, status["captured"])
+        status = client.get("/api/runs/current").json()
+
+        self.assertEqual(5005, status["captured"])
         self.assertFalse(status["active"])
-        self.assertEqual(100, status["sample_capacity"])
-        self.assertEqual(100, len(status["recent_samples"]))
+        self.assertEqual(5000, status["sample_capacity"])
+        self.assertEqual(5000, len(status["recent_samples"]))
         self.assertEqual(6, status["recent_samples"][0]["sequence"])
-        self.assertEqual(105, status["recent_samples"][-1]["sequence"])
+        self.assertEqual(5005, status["recent_samples"][-1]["sequence"])
         self.assertEqual(status["recent_samples"][-1], status["latest_sample"])
 
         next_csv_path = csv_path.with_name("next.csv")
@@ -426,7 +495,8 @@ class WebUiApiTests(unittest.TestCase):
         self.assertNotIn('class="status-strip"', index)
         self.assertIn('id="resource"', index)
         self.assertIn('id="resource-select"', index)
-        self.assertIn('name="csv" placeholder="Default"', index)
+        self.assertIn('id="select-csv-folder"', index)
+        self.assertIn('id="csv-path-input" name="csv" placeholder="Default"', index)
         self.assertNotIn("Live data view is not implemented yet.", index)
         self.assertIn('id="live-trend-chart"', index)
         self.assertIn('id="live-samples-body"', index)
@@ -440,6 +510,8 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('button.textContent = expanded ? "-" : "+";', app_js)
         self.assertIn("function renderLiveData", app_js)
         self.assertIn('"/api/runs/current/open-csv"', app_js)
+        self.assertIn('"/api/csv/select-folder"', app_js)
+        self.assertIn("csvInput.value = result.csv_path", app_js)
         self.assertIn("updateOpenCsvButton", app_js)
         self.assertIn("grid-template-columns: minmax(192px, 0.2fr) minmax(0, 0.8fr)", styles)
         self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
@@ -495,8 +567,8 @@ class WebUiApiTests(unittest.TestCase):
             "liveChartBaselineValue",
             "status.run_id || null",
             "gridLineCountPerSide = 5",
-            "averageAbsDeviation / 3",
-            "maxAbsDeviation / gridLineCountPerSide",
+            "const LIVE_CHART_VISIBLE_GRID_LIMIT = 4;",
+            "maxAbsDeviation / LIVE_CHART_VISIBLE_GRID_LIMIT",
             "function renderLiveSamplesTable",
             "function renderLiveSampleDetails",
             "function renderLiveStats",

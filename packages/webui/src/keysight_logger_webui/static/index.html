@@ -42,10 +42,15 @@
               <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
-              <label>
-                <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
-                <input name="csv" placeholder="Default" />
-              </label>
+              <div class="csv-path-field">
+                <div class="csv-path-header">
+                  <label for="csv-path-input">
+                    <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
+                  </label>
+                  <button id="select-csv-folder" type="button">Select</button>
+                </div>
+                <input id="csv-path-input" name="csv" placeholder="Default" />
+              </div>
             <label>
               Measurement
               <select name="measurement" id="measurement"></select>

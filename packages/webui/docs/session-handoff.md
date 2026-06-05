@@ -26,7 +26,8 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
 - The Web UI API preserves the existing browser-facing endpoints:
   `/api/capabilities`, `/api/resources`, `/api/runs`,
   `/api/runs/current`, `/api/runs/current/trigger`,
-  `/api/runs/current/stop`, and `/api/runs/current/open-csv`.
+  `/api/runs/current/stop`, `/api/runs/current/open-csv`, and
+  `/api/csv/select-folder`.
 - `/api/runs/current` exposes WebUI-owned Live data fields:
   `latest_sample`, `recent_samples`, and `sample_capacity`.
 - The browser UI remains in `packages/webui/src/keysight_logger_webui/static/`.
@@ -82,6 +83,9 @@ The Web UI now uses this structure:
 - Resource row is above the status strip.
 - Resource row contains `VISA resource`, `Live resource`, and `Scan Device`.
 - Scan still calls `/api/resources?verify=true&live_only=true`.
+- Run Setup keeps manual `CSV path` entry and adds `Select`, which asks the
+  local WebUI backend to open a Windows folder picker and fill a timestamped
+  `.csv` file path.
 - Status strip shows `State`, `Captured`, `Errors`, and `CSV`.
 - `Open CSV` sits after `Stop`.
 - Measurement, trigger, run setup, and status detail controls are grouped into
@@ -100,8 +104,8 @@ GET /api/runs/current
 Additional status fields:
 
 - `latest_sample`: latest serialized Core sample, or `null`.
-- `recent_samples`: bounded list of the latest 100 serialized samples.
-- `sample_capacity`: `100`.
+- `recent_samples`: bounded list of the latest 5000 serialized samples.
+- `sample_capacity`: `5000`.
 
 Sample fields:
 
@@ -122,9 +126,30 @@ Behavior:
 - Samples are captured from Core `sample` events already emitted by
   `run_start_session()`.
 - WebUI does not perform extra VISA reads for Live data.
-- Stopped runs keep the latest 100 samples for operator review.
+- Stopped runs keep the latest 5000 samples for operator review.
 - Starting a new run creates a fresh sample window.
-- The chart is browser-side only and does not change CSV output.
+- The chart is browser-side only and does not change CSV output. It keeps the
+  first numeric sample in a run as the baseline and rescales each render so the
+  largest visible deviation maps to four grid steps from center.
+
+## CSV Select Behavior
+
+Backend endpoint:
+
+```text
+POST /api/csv/select-folder
+```
+
+Behavior:
+
+- Opens a local folder picker on the machine running the WebUI backend.
+- On selection, returns the selected folder plus a timestamped
+  `YYYY-MM-DD-HH-MM-SS.csv` path inside that folder.
+- On cancel, returns `{ "selected": false, "folder_path": null, "csv_path": null }`.
+- If the folder picker is unavailable, returns `503` and the browser appends
+  the error to the Status log.
+- This only fills the existing `CSV path` input. The actual run still uses the
+  input value at `Start` time, so operators can edit or clear it manually.
 
 ## Open CSV Behavior
 
@@ -178,6 +203,20 @@ Frontend behavior:
   remain available.
 
 ## Latest Validation
+
+Focused WebUI validation after CSV Select and Live data capacity changes:
+
+```powershell
+node --check packages\webui\src\keysight_logger_webui\static\app.js
+```
+
+Result: passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_webui_csv_live
+```
+
+Result: 34 passed, 1 warning, 64 subtests passed on 2026-06-01.
 
 Latest no-hardware validation for the `webui-v1.2.0` release tag target:
 
@@ -280,7 +319,8 @@ passed with 74 tests and 123 subtests.
 ## Active Risks
 
 - The WebUI control plane uses Core router events for software trigger and stop.
-  Focused API tests should cover start, trigger, stop, and Open CSV behavior.
+  Focused API tests should cover start, trigger, stop, CSV Select, and Open CSV
+  behavior.
 - The WebUI server process is Uvicorn/FastAPI, so `q` is not a supported
   server-exit key. `Ctrl+C` depends on the terminal delivering SIGINT; if it
   does not, stop the listening `python.exe` by PID.

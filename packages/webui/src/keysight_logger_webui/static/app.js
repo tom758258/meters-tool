@@ -34,6 +34,8 @@ const liveSampleDetails = document.querySelector("#live-sample-details");
 const closeLiveSampleDetailsButton = document.querySelector("#close-live-sample-details");
 const resourceInput = document.querySelector("#resource");
 const resourceSelect = document.querySelector("#resource-select");
+const csvInput = document.querySelector("[name='csv']");
+const selectCsvFolderButton = document.querySelector("#select-csv-folder");
 const triggerRunButton = document.querySelector("#trigger-run");
 const openCsvButton = document.querySelector("#open-csv");
 const measurementSelect = document.querySelector("#measurement");
@@ -72,6 +74,7 @@ const measurementScopedControls = [
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;
 const STATUS_LOG_LINE_COUNT = 5;
+const LIVE_CHART_VISIBLE_GRID_LIMIT = 4;
 const SOFTWARE_TRIGGER_QUEUED_BURST_COUNT = 5;
 const SOFTWARE_TRIGGER_QUEUED_BURST_MS = 2000;
 let measurementsByName = new Map();
@@ -747,14 +750,11 @@ function renderLiveChart(samples) {
     : values[0];
   const deviations = values.map((value) => value - baseline);
   const absDeviations = deviations.map((value) => Math.abs(value));
-  const averageAbsDeviation =
-    absDeviations.reduce((total, value) => total + value, 0) / absDeviations.length;
   const maxAbsDeviation = Math.max(...absDeviations);
   const baselineMagnitude = Math.max(Math.abs(baseline), 1);
   const minimumGridValue = baselineMagnitude * 1e-9;
   const gridStepValue = Math.max(
-    averageAbsDeviation / 3,
-    maxAbsDeviation / gridLineCountPerSide,
+    maxAbsDeviation / LIVE_CHART_VISIBLE_GRID_LIMIT,
     minimumGridValue
   );
   const plotWidth = width - padding * 2;
@@ -1073,6 +1073,21 @@ document.querySelector("#refresh-resources").addEventListener("click", async () 
 resourceSelect.addEventListener("change", () => {
   if (resourceSelect.value) {
     resourceInput.value = resourceSelect.value;
+  }
+});
+
+selectCsvFolderButton.addEventListener("click", async () => {
+  try {
+    appendStatusLog("Opening CSV folder selector...");
+    const result = await api("/api/csv/select-folder", { method: "POST" });
+    if (result.selected && result.csv_path) {
+      csvInput.value = result.csv_path;
+      appendStatusLog(`CSV path selected: ${result.csv_path}`);
+    } else {
+      appendStatusLog("CSV folder selection cancelled");
+    }
+  } catch (error) {
+    appendStatusLog(error.message);
   }
 });
 

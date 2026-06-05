@@ -270,7 +270,7 @@ The status response includes Live data fields owned by the WebUI:
 - `recent_samples`
 - `sample_capacity`
 
-The sample window is bounded to the latest 100 samples.
+The sample window is bounded to the latest 5000 samples.
 
 Sample fields include:
 
@@ -293,10 +293,49 @@ live panel.
 Stopped runs keep the latest sample window for operator review. Starting a new
 run creates a fresh sample window.
 
-## CSV Output And Open CSV
+The browser-side trend chart keeps the first numeric sample in a run as the
+baseline and rescales on every render so the largest visible deviation maps to
+four grid steps from the center line. This affects only chart display, not raw
+sample values, statistics, CSV output, or API sample payloads.
+
+## CSV Output, Select, And Open CSV
 
 The run payload can include an optional `csv` path. If omitted, Core/default
 behavior chooses the CSV output path.
+
+The `CSV path` field also has a `Select` button. It calls:
+
+```text
+POST /api/csv/select-folder
+```
+
+Backend behavior:
+
+- Opens a folder picker on the machine running the WebUI backend.
+- On selection, returns:
+
+```json
+{
+  "selected": true,
+  "folder_path": "C:\\path\\to\\folder",
+  "csv_path": "C:\\path\\to\\folder\\2026-06-01-14-30-05.csv"
+}
+```
+
+- On cancel, returns:
+
+```json
+{ "selected": false, "folder_path": null, "csv_path": null }
+```
+
+- Returns `503` if the folder picker is unavailable.
+
+Frontend behavior:
+
+- A selected folder fills the existing `CSV path` input with the returned
+  timestamped `.csv` path.
+- Operators can still manually edit or clear the CSV path.
+- `Start` uses the input value at the moment it is clicked.
 
 The Open CSV button calls:
 
@@ -339,6 +378,8 @@ The browser-facing API surface is:
   modes.
 - `POST /api/runs/current/stop`: requests stop through the Core control plane.
 - `POST /api/runs/current/open-csv`: opens the latest completed CSV.
+- `POST /api/csv/select-folder`: opens a local folder picker and returns a
+  timestamped CSV path for the existing CSV input.
 
 Do not rename, remove, or repurpose these endpoints without updating frontend
 code, tests, and documentation together.

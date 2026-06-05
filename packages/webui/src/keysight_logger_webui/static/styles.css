@@ -158,6 +158,34 @@ button:disabled:hover {
   gap: 10px;
 }
 
+.csv-path-field {
+  display: grid;
+  gap: 7px;
+}
+
+.csv-path-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+}
+
+.csv-path-header label {
+  min-width: 0;
+}
+
+.csv-path-header button {
+  justify-self: end;
+  min-height: 28px;
+  border: 1px solid var(--ink);
+  background: var(--panel);
+  padding: 0 10px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 .status-strip {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

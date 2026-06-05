@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import importlib.metadata
 import os
+import subprocess
 import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -62,7 +64,7 @@ TRIGGER_MODES = (
     "external-custom",
 )
 PACKAGE_NAME = "keysight-logger-webui"
-LIVE_SAMPLE_CAPACITY = 100
+LIVE_SAMPLE_CAPACITY = 5000
 
 
 class RunStartRequest(BaseModel):
@@ -133,7 +135,12 @@ class NoActiveRun(WebRunError):
     status_code = 409
 
 
+class CsvFolderSelectionUnavailable(WebRunError):
+    status_code = 503
+
+
 CsvOpener = Callable[[Path], Any]
+DirectorySelector = Callable[[], Path | str | None]
 
 
 class _WebControlPlane:
@@ -231,9 +238,11 @@ class WebRunManager:
         *,
         runner_dependencies: StartRunnerDependencies | None = None,
         csv_opener: CsvOpener | None = None,
+        directory_selector: DirectorySelector | None = None,
     ) -> None:
         self._runner_dependencies = runner_dependencies
         self._csv_opener = csv_opener or _open_with_default_app
+        self._directory_selector = directory_selector or _select_directory_with_dialog
         self._lock = threading.Lock()
         self._active: _RunHandle | None = None
         self._starting = False
@@ -452,6 +461,25 @@ class WebRunManager:
             raise FileNotFoundError("CSV file not found")
         self._csv_opener(csv_path)
         return {"opened": True, "csv_path": str(csv_path)}
+
+    def select_csv_folder(self) -> dict[str, Any]:
+        try:
+            selected = self._directory_selector()
+        except CsvFolderSelectionUnavailable:
+            raise
+        except Exception as exc:
+            raise CsvFolderSelectionUnavailable(str(exc) or "folder selection unavailable") from exc
+
+        if selected is None or not str(selected).strip():
+            return {"selected": False, "folder_path": None, "csv_path": None}
+
+        folder_path = Path(str(selected))
+        csv_path = folder_path / f"{datetime.now().strftime('%Y-%m-%d-%H-%M-%S')}.csv"
+        return {
+            "selected": True,
+            "folder_path": str(folder_path),
+            "csv_path": str(csv_path),
+        }
 
     def _validate_request(self, request: RunStartRequest) -> StartRequest:
         raw = _model_dict(request)
@@ -700,6 +728,13 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
         except FileNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    @app.post("/api/csv/select-folder")
+    def api_select_csv_folder() -> dict[str, Any]:
+        try:
+            return app.state.manager.select_csv_folder()
+        except WebRunError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+
     return app
 
 
@@ -814,6 +849,29 @@ def _parse_dcv_input_impedance(value: str) -> str:
 
 def _open_with_default_app(path: Path) -> None:
     os.startfile(path)  # type: ignore[attr-defined]
+
+
+def _select_directory_with_dialog() -> Path | None:
+    script = (
+        "$shell = New-Object -ComObject Shell.Application; "
+        "$folder = $shell.BrowseForFolder(0, 'Select CSV output folder', 0); "
+        "if ($folder -ne $null) { [Console]::Out.Write($folder.Self.Path) }"
+    )
+    try:
+        completed = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-STA", "-Command", script],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception as exc:  # pragma: no cover - platform/runtime dependent
+        raise CsvFolderSelectionUnavailable("folder selection dialog is unavailable") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.strip() or "folder selection dialog is unavailable"
+        raise CsvFolderSelectionUnavailable(detail)
+
+    selected = completed.stdout.strip()
+    return Path(selected) if selected else None
 
 
 app = create_app()
