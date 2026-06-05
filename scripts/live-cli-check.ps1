@@ -8,7 +8,9 @@ param(
     [string]$Resource,
 
     [ValidateSet("minimal", "basic", "external", "full")]
-    [string]$Suite = "minimal"
+    [string]$Suite = "minimal",
+
+    [switch]$PlanOnly
 )
 
 Set-StrictMode -Version Latest
@@ -514,6 +516,74 @@ function Invoke-LiveCase {
     }
 }
 
+function Write-LiveArtifacts {
+    param(
+        [Parameter(Mandatory = $true)][string]$Status,
+        [Parameter(Mandatory = $true)][bool]$PlanOnlyRun,
+        [Parameter(Mandatory = $true)][bool]$LiveExecuted,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CaseItems,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$DryRunItems,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CommandItems
+    )
+
+    $report = [ordered]@{
+        schema_version = 1
+        target = $resolvedTarget
+        connection = $resolvedConnection
+        suite = $Suite
+        resource = $Resource
+        generated_at = (Get-Date).ToUniversalTime().ToString("o")
+        output_dir = $runDir
+        status = $Status
+        plan_only = $PlanOnlyRun
+        live_executed = $LiveExecuted
+        cases = @($CaseItems)
+        dry_runs = @($DryRunItems)
+        commands = @($CommandItems)
+    }
+    $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $reportPath -Encoding UTF8
+
+    $summaryLines = @(
+        "# Live CLI Check Summary",
+        "",
+        "- Target: $resolvedTarget",
+        "- Connection: $resolvedConnection",
+        "- Suite: $Suite",
+        "- Resource: $Resource",
+        "- Status: $Status",
+        "- Plan only: $PlanOnlyRun",
+        "- Live executed: $LiveExecuted",
+        "- Output directory: $runDir",
+        "- Report: $reportPath",
+        "",
+        "## Dry Runs"
+    )
+    if ($DryRunItems.Count -eq 0) {
+        $summaryLines += "- No dry-run plans generated."
+    } else {
+        foreach ($dryRun in $DryRunItems) {
+            $summaryLines += "- $($dryRun.name): measurement=$($dryRun.plan.measurement_cli_name) trigger=$($dryRun.plan.trigger_mode) read_path=$($dryRun.plan.read_path) csv=$($dryRun.csv)"
+        }
+    }
+
+    $summaryLines += @(
+        "",
+        "## Cases"
+    )
+    if ($CaseItems.Count -eq 0) {
+        $summaryLines += "- No live cases executed."
+    } else {
+        foreach ($result in $CaseItems) {
+            $line = "- $($result.name): status=$($result.status) captured=$($result.captured) errors=$($result.errors) csv_rows=$($result.csv_rows) csv=$($result.csv)"
+            if ($result.status -ne "passed") {
+                $line += " failure_reasons=$($result.failure_reasons -join '; ')"
+            }
+            $summaryLines += $line
+        }
+    }
+    Set-Content -LiteralPath $summaryPath -Value $summaryLines -Encoding UTF8
+}
+
 if ([string]::IsNullOrWhiteSpace($Resource)) {
     Fail-Usage "Missing -Resource. Live checks never scan or guess a VISA resource."
 }
@@ -544,18 +614,13 @@ $preflightResult = Invoke-CapturedCommand `
 $commands.Add([pscustomobject]$preflightResult) | Out-Null
 
 if (-not $preflightResult.success) {
-    $report = [ordered]@{
-        schema_version = 1
-        target = $resolvedTarget
-        connection = $resolvedConnection
-        suite = $Suite
-        resource = $Resource
-        generated_at = (Get-Date).ToUniversalTime().ToString("o")
-        output_dir = $runDir
-        status = "preflight_failed"
-        commands = @($commands.ToArray())
-    }
-    $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $reportPath -Encoding UTF8
+    Write-LiveArtifacts `
+        -Status "preflight_failed" `
+        -PlanOnlyRun ([bool]$PlanOnly) `
+        -LiveExecuted $false `
+        -CaseItems @() `
+        -DryRunItems @() `
+        -CommandItems @($commands.ToArray())
     throw "Preflight failed. See $preflightOut and $preflightErr"
 }
 
@@ -567,10 +632,14 @@ Write-Host "Suite: $Suite"
 Write-Host "Resource: $Resource"
 Write-Host "Output directory: $runDir"
 Write-Host ""
-Write-Host "Possible state changes:"
-Write-Host "  Connects to the explicit VISA resource and validates 34461A identity."
-Write-Host "  Sends the existing CLI clear/reset and measurement setup sequence for each case."
-Write-Host "  Uses best-effort release/local cleanup; no initial state snapshot/restore is available."
+if ($PlanOnly) {
+    Write-Host "PlanOnly: generating dry-run plans only; no VISA resource will be opened."
+} else {
+    Write-Host "Possible state changes:"
+    Write-Host "  Connects to the explicit VISA resource and validates 34461A identity."
+    Write-Host "  Sends the existing CLI clear/reset and measurement setup sequence for each case."
+    Write-Host "  Uses best-effort release/local cleanup; no initial state snapshot/restore is available."
+}
 
 foreach ($case in $cases) {
     $caseName = New-SafeCaseName -Name $case.name
@@ -590,7 +659,28 @@ foreach ($case in $cases) {
     $commands.Add($dryRun.command) | Out-Null
 }
 
+if ($PlanOnly) {
+    Write-LiveArtifacts `
+        -Status "planned" `
+        -PlanOnlyRun $true `
+        -LiveExecuted $false `
+        -CaseItems @() `
+        -DryRunItems @($dryRunResults.ToArray()) `
+        -CommandItems @($commands.ToArray())
+    Write-Host "live CLI plan generated: $Suite"
+    Write-Host "summary: $summaryPath"
+    exit 0
+}
+
 if ([Console]::IsInputRedirected) {
+    Write-LiveArtifacts `
+        -Status "confirmation_required" `
+        -PlanOnlyRun $false `
+        -LiveExecuted $false `
+        -CaseItems @() `
+        -DryRunItems @($dryRunResults.ToArray()) `
+        -CommandItems @($commands.ToArray())
+    Write-Host "summary: $summaryPath"
     throw "Live suite requires interactive Enter confirmation; stdin is redirected."
 }
 
@@ -598,6 +688,7 @@ Write-Host ""
 [void](Read-Host "Press Enter to run suite '$Suite', or Ctrl+C to cancel")
 
 $suiteStatus = "passed"
+$liveExecuted = $true
 foreach ($caseInfo in @($dryRunResults.ToArray())) {
     $case = @($cases | Where-Object { $_.name -eq $caseInfo.name } | Select-Object -First 1)[0]
     $liveResult = Invoke-LiveCase `
@@ -617,42 +708,13 @@ foreach ($caseInfo in @($dryRunResults.ToArray())) {
     }
 }
 
-$report = [ordered]@{
-    schema_version = 1
-    target = $resolvedTarget
-    connection = $resolvedConnection
-    suite = $Suite
-    resource = $Resource
-    generated_at = (Get-Date).ToUniversalTime().ToString("o")
-    output_dir = $runDir
-    status = $suiteStatus
-    cases = @($caseResults.ToArray())
-    dry_runs = @($dryRunResults.ToArray())
-    commands = @($commands.ToArray())
-}
-$report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $reportPath -Encoding UTF8
-
-$summaryLines = @(
-    "# Live CLI Check Summary",
-    "",
-    "- Target: $resolvedTarget",
-    "- Connection: $resolvedConnection",
-    "- Suite: $Suite",
-    "- Resource: $Resource",
-    "- Status: $suiteStatus",
-    "- Output directory: $runDir",
-    "- Report: $reportPath",
-    "",
-    "## Cases"
-)
-foreach ($result in @($caseResults.ToArray())) {
-    $line = "- $($result.name): status=$($result.status) captured=$($result.captured) errors=$($result.errors) csv_rows=$($result.csv_rows) csv=$($result.csv)"
-    if ($result.status -ne "passed") {
-        $line += " failure_reasons=$($result.failure_reasons -join '; ')"
-    }
-    $summaryLines += $line
-}
-Set-Content -LiteralPath $summaryPath -Value $summaryLines -Encoding UTF8
+Write-LiveArtifacts `
+    -Status $suiteStatus `
+    -PlanOnlyRun $false `
+    -LiveExecuted $liveExecuted `
+    -CaseItems @($caseResults.ToArray()) `
+    -DryRunItems @($dryRunResults.ToArray()) `
+    -CommandItems @($commands.ToArray())
 
 if ($suiteStatus -ne "passed") {
     throw "Live CLI suite failed: $Suite. See $summaryPath"

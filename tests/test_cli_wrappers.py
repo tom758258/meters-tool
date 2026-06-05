@@ -1,0 +1,311 @@
+from __future__ import annotations
+
+import json
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+POWERSHELL = shutil.which("powershell.exe")
+PYTHON = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
+
+
+def require_wrapper_tools() -> None:
+    if POWERSHELL is None:
+        pytest.skip("powershell.exe is required for wrapper script tests")
+    if not PYTHON.exists():
+        pytest.skip(f"venv Python is required for wrapper script tests: {PYTHON}")
+
+
+def run_wrapper(script: str, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+    require_wrapper_tools()
+    return subprocess.run(
+        [
+            POWERSHELL or "powershell.exe",
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(REPO_ROOT / script),
+            *args,
+        ],
+        cwd=REPO_ROOT,
+        input=stdin,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def load_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def load_jsonl(path: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for line in path.read_text(encoding="utf-8-sig").splitlines()
+        if line.strip()
+    ]
+
+
+def assert_under_tmp_tests(path_text: str) -> Path:
+    path = Path(path_text).resolve()
+    tmp_root = (REPO_ROOT / ".tmp_tests").resolve()
+    assert path == tmp_root or tmp_root in path.parents
+    return path
+
+
+def report_from_summary_output(output: str) -> Path:
+    match = re.search(r"summary:\s*(.+)", output)
+    assert match, output
+    summary = Path(match.group(1).strip()).resolve()
+    assert summary.exists()
+    report = summary.with_name("report.json")
+    assert report.exists()
+    return report
+
+
+def assert_command_artifacts(commands: list[dict], output_dir: Path) -> None:
+    required = {
+        "name",
+        "command",
+        "arguments",
+        "exit_code",
+        "duration_seconds",
+        "stdout",
+        "stderr",
+        "success",
+    }
+    for command in commands:
+        assert required <= command.keys()
+        stdout = Path(command["stdout"]).resolve()
+        stderr = Path(command["stderr"]).resolve()
+        assert stdout.exists(), command
+        assert stderr.exists(), command
+        assert output_dir == stdout or output_dir in stdout.parents
+        assert output_dir == stderr or output_dir in stderr.parents
+
+
+def test_preflight_report_contract():
+    output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / "preflight"
+    result = run_wrapper(
+        "scripts/preflight-cli.ps1",
+        "-Target",
+        "keysight-34461a",
+        "-OutputRoot",
+        str(output_root.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    output_dir = output_root / "keysight-34461a"
+    report_path = output_dir / "report.json"
+    summary_path = output_dir / "summary.md"
+    assert report_path.exists()
+    assert summary_path.exists()
+
+    report = load_json(report_path)
+    assert report["schema_version"] == 1
+    assert report["target"] == "keysight-34461a"
+    assert report["status"] == "passed"
+    assert_under_tmp_tests(report["output_dir"])
+    assert Path(report["output_dir"]).resolve() == output_dir.resolve()
+
+    assert report["summary_counts"] == {
+        "commands_total": 24,
+        "checks_total": 24,
+        "dry_run_cases": 8,
+        "simulate_cases": 12,
+        "soft_client_dry_runs": 2,
+        "list_resources_contract_checks": 1,
+        "mocked_pytest_checks": 1,
+    }
+
+    assert_command_artifacts(report["commands"], output_dir.resolve())
+    assert all(command["success"] for command in report["commands"])
+    assert all(check["success"] for check in report["checks"])
+
+    measurements = set()
+    read_paths = set()
+    for check in report["checks"]:
+        if not check["name"].startswith("dry_run_") or "jsonl" not in check:
+            continue
+        events = load_jsonl(Path(check["jsonl"]))
+        assert len(events) == 1
+        event = events[0]
+        assert event["event"] == "dry_run"
+        measurements.add(event["measurement_cli_name"])
+        read_paths.add(event["read_path"])
+
+    assert measurements == {
+        "current-dc",
+        "voltage-dc",
+        "current-ac",
+        "voltage-ac",
+        "resistance-2w",
+        "resistance-4w",
+    }
+    assert read_paths == {"READ?", "FETC?", "DATA:POINts? / DATA:REMove?"}
+
+    summary = summary_path.read_text(encoding="utf-8")
+    assert "- Status: passed" in summary
+    assert "- Commands total: 24" in summary
+    assert "- Checks total: 24" in summary
+    assert "Measurements covered by dry-run and simulator immediate" in summary
+    assert "Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?" in summary
+    assert f"- Report: {report_path}" in summary
+
+
+def test_preflight_rejects_output_root_outside_tmp_tests():
+    bad_root = REPO_ROOT / ".tmp_bad"
+    assert not bad_root.exists()
+
+    result = run_wrapper(
+        "scripts/preflight-cli.ps1",
+        "-Target",
+        "keysight-34461a",
+        "-OutputRoot",
+        ".tmp_bad",
+    )
+
+    assert result.returncode != 0
+    assert "Only paths under .tmp_tests are allowed" in result.stdout + result.stderr
+    assert not bad_root.exists()
+
+
+def test_live_plan_only_minimal_report_contract():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-Suite",
+        "minimal",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    assert report["schema_version"] == 1
+    assert report["status"] == "planned"
+    assert report["plan_only"] is True
+    assert report["live_executed"] is False
+    assert report["suite"] == "minimal"
+    assert report["resource"] == "SIM::34461A"
+    assert report["cases"] == []
+    assert_under_tmp_tests(report["output_dir"])
+
+    assert [dry_run["name"] for dry_run in report["dry_runs"]] == [
+        "minimal_current_dc_immediate"
+    ]
+    plan = report["dry_runs"][0]["plan"]
+    assert plan["event"] == "dry_run"
+    assert plan["trigger_mode"] == "immediate"
+    assert plan["measurement_cli_name"] == "current-dc"
+    assert plan["read_path"] == "READ?"
+    assert plan["cleanup_steps"] == [
+        "wait for worker",
+        "release_to_local",
+        "close",
+        "cleanup_release_to_local",
+        "stop_http_server",
+    ]
+
+
+def test_live_plan_only_full_report_contract():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-Suite",
+        "full",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report_path = report_from_summary_output(result.stdout)
+    report = load_json(report_path)
+    output_dir = Path(report["output_dir"]).resolve()
+    assert report["status"] == "planned"
+    assert report["plan_only"] is True
+    assert report["live_executed"] is False
+    assert report["cases"] == []
+    assert_under_tmp_tests(report["output_dir"])
+
+    expected_names = [
+        "basic_immediate_current_dc",
+        "basic_immediate_voltage_dc",
+        "basic_immediate_current_ac",
+        "basic_immediate_voltage_ac",
+        "basic_immediate_resistance_2w",
+        "basic_immediate_resistance_4w",
+        "basic_software_trigger",
+        "basic_software_timer",
+        "basic_immediate_custom",
+        "basic_software_custom",
+        "external_simple",
+        "external_custom",
+    ]
+    assert [dry_run["name"] for dry_run in report["dry_runs"]] == expected_names
+
+    expected_read_paths = {
+        "basic_immediate_current_dc": "READ?",
+        "basic_immediate_voltage_dc": "READ?",
+        "basic_immediate_current_ac": "READ?",
+        "basic_immediate_voltage_ac": "READ?",
+        "basic_immediate_resistance_2w": "READ?",
+        "basic_immediate_resistance_4w": "READ?",
+        "basic_software_trigger": "READ?",
+        "basic_software_timer": "READ?",
+        "basic_immediate_custom": "DATA:POINts? / DATA:REMove?",
+        "basic_software_custom": "DATA:POINts? / DATA:REMove?",
+        "external_simple": "FETC?",
+        "external_custom": "DATA:POINts? / DATA:REMove?",
+    }
+    for dry_run in report["dry_runs"]:
+        assert dry_run["plan"]["read_path"] == expected_read_paths[dry_run["name"]]
+        command = dry_run["command"]
+        assert command["success"]
+        assert Path(command["stdout"]).resolve().exists()
+        assert Path(command["stderr"]).resolve().exists()
+
+    assert_command_artifacts(report["commands"], output_dir)
+
+
+def test_live_redirected_stdin_writes_confirmation_required_report():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-Suite",
+        "minimal",
+        stdin="",
+    )
+    assert result.returncode != 0
+    assert "Live suite requires interactive Enter confirmation; stdin is redirected." in (
+        result.stdout + result.stderr
+    )
+
+    report = load_json(report_from_summary_output(result.stdout + result.stderr))
+    assert report["status"] == "confirmation_required"
+    assert report["plan_only"] is False
+    assert report["live_executed"] is False
+    assert report["cases"] == []
+    assert [dry_run["name"] for dry_run in report["dry_runs"]] == [
+        "minimal_current_dc_immediate"
+    ]
