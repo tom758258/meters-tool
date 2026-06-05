@@ -1876,6 +1876,34 @@ class FailingReadSimulatedVisaInstrument(SimulatedVisaInstrument):
         return super().query_ascii_float(command)
 
 
+class ShortBufferedReadSimulatedVisaInstrument(SimulatedVisaInstrument):
+    def query(self, command: str) -> str:
+        if command.strip().upper().startswith("DATA:REMOVE?"):
+            return "1.23"
+        return super().query(command)
+
+
+class QueuePressureStopStartServer:
+    trigger_accepted = False
+    stop_accepted = False
+
+    def __init__(self, router, *_args, **_kwargs):
+        self._router = router
+        self.stopped = False
+
+    def start(self):
+        type(self).trigger_accepted = self._router.publish(
+            TriggerEvent.new(TriggerSource.SOFTWARE, {"queued": "first"})
+        )
+        type(self).stop_accepted = self._router.publish(
+            TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"})
+        )
+        return "127.0.0.1", 8765
+
+    def stop(self):
+        self.stopped = True
+
+
 class WindowsKeyboardStopPollerTests(unittest.TestCase):
     def test_ctrl_c_character_requests_stop(self):
         poller = WindowsKeyboardStopPoller()
@@ -1905,13 +1933,15 @@ class CliCommandTests(unittest.TestCase):
         trigger_metadata=None,
         csv_writer=FakeCapturingCsvWriter,
         instrument_cls=None,
+        server_cls=None,
     ):
         stdout = io.StringIO()
         stderr = io.StringIO()
-        server_cls = make_publishing_start_server(
-            trigger_count=software_trigger_count,
-            metadata=trigger_metadata,
-        )
+        if server_cls is None:
+            server_cls = make_publishing_start_server(
+                trigger_count=software_trigger_count,
+                metadata=trigger_metadata,
+            )
         patches = [
             patch("keysight_logger.cli.SoftwareTriggerAdapter", server_cls),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
@@ -2435,6 +2465,78 @@ class CliCommandTests(unittest.TestCase):
                 events = self._parse_jsonl_events(output)
                 self._assert_success_jsonl_events(events, expected_samples)
 
+    def test_start_simulate_external_jsonl_uses_hardware_trigger_event(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_external.csv",
+                "--trigger-mode",
+                "external",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+
+        rc, output, _stderr = self._run_cmd_start_with_simulate_harness(args)
+
+        self.assertEqual(0, rc)
+        events = self._parse_jsonl_events(output)
+        self._assert_success_jsonl_events(events, expected_samples=1)
+        sample = [event for event in events if event["event"] == "sample"][-1]
+        self.assertEqual("hardware", sample["trigger_source"])
+        summary = [event for event in events if event["event"] == "summary"][-1]
+        self.assertEqual(1, summary["captured"])
+        self.assertEqual(0, summary["errors"])
+
+    def test_start_simulate_immediate_custom_jsonl_drains_buffer_in_batches(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_immediate_custom_batches.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--trigger-count",
+                "1",
+                "--sample-count",
+                "5",
+                "--buffer-drain-size",
+                "2",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+
+        rc, output, _stderr = self._run_cmd_start_with_simulate_harness(args)
+
+        self.assertEqual(0, rc)
+        events = self._parse_jsonl_events(output)
+        self._assert_success_jsonl_events(events, expected_samples=5)
+        samples = [event for event in events if event["event"] == "sample"]
+        self.assertEqual(
+            ["2", "2", "2", "2", "1"],
+            [sample["trigger_metadata"]["buffer_batch_size"] for sample in samples],
+        )
+        self.assertEqual(
+            ["0", "1", "2", "3", "4"],
+            [sample["trigger_metadata"]["buffer_index"] for sample in samples],
+        )
+
     def test_start_simulate_jsonl_emits_error_and_fatal_summary_on_read_failure(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -2470,6 +2572,124 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, summary["captured"])
         self.assertEqual(1, summary["errors"])
         self.assertIn("simulated read failure", summary["fatal_error"])
+
+    def test_start_simulate_jsonl_emits_error_on_malformed_buffered_read(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_buffered_failure.csv",
+                "--trigger-mode",
+                "immediate-custom",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--trigger-count",
+                "1",
+                "--sample-count",
+                "2",
+                "--buffer-drain-size",
+                "2",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+
+        rc, output, _stderr = self._run_cmd_start_with_simulate_harness(
+            args,
+            instrument_cls=ShortBufferedReadSimulatedVisaInstrument,
+        )
+
+        self.assertEqual(3, rc)
+        events = self._parse_jsonl_events(output)
+        errors = [event for event in events if event["event"] == "error"]
+        self.assertTrue(errors)
+        self.assertIn("buffered capture failure", errors[-1]["message"])
+        self.assertIn("Expected 2 buffered readings, got 1", errors[-1]["message"])
+        summary = [event for event in events if event["event"] == "summary"][-1]
+        self.assertEqual(0, summary["captured"])
+        self.assertEqual(1, summary["errors"])
+        self.assertIn("buffered capture failure", summary["fatal_error"])
+
+    def test_start_simulate_jsonl_csv_permission_error_is_structured(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\locked_simulate.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+
+        rc, output, stderr = self._run_cmd_start_with_simulate_harness(
+            args,
+            csv_writer=PermissionDeniedCsvWriter,
+        )
+
+        self.assertEqual(3, rc)
+        self.assertEqual("", stderr)
+        events = self._parse_jsonl_events(output)
+        errors = [event for event in events if event["event"] == "error"]
+        self.assertTrue(errors)
+        self.assertIn("cannot open CSV output file: data\\locked_simulate.csv", errors[-1]["message"])
+        summary = [event for event in events if event["event"] == "summary"][-1]
+        self.assertEqual(0, summary["captured"])
+        self.assertEqual(1, summary["errors"])
+        self.assertIn("cannot open CSV output file", summary["fatal_error"])
+
+    def test_start_simulate_queue_pressure_stop_control_is_accepted(self):
+        parser = build_parser()
+        QueuePressureStopStartServer.trigger_accepted = False
+        QueuePressureStopStartServer.stop_accepted = False
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_stop_pressure.csv",
+                "--trigger-mode",
+                "software-custom",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--trigger-count",
+                "1",
+                "--sample-count",
+                "1",
+                "--sw-queue-max",
+                "1",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+
+        rc, output, _stderr = self._run_cmd_start_with_simulate_harness(
+            args,
+            server_cls=QueuePressureStopStartServer,
+        )
+
+        self.assertEqual(0, rc)
+        self.assertTrue(QueuePressureStopStartServer.trigger_accepted)
+        self.assertTrue(QueuePressureStopStartServer.stop_accepted)
+        events = self._parse_jsonl_events(output)
+        summary = [event for event in events if event["event"] == "summary"][-1]
+        self.assertEqual(0, summary["captured"])
+        self.assertEqual(0, summary["errors"])
 
     def test_start_simulate_writes_real_csv_smoke(self):
         parser = build_parser()

@@ -33,6 +33,34 @@ class SimulatedVisaInstrumentTests(unittest.TestCase):
         self.assertEqual("1.23,2.23", instrument.query("DATA:REMove? 2"))
         self.assertEqual("1", instrument.query("DATA:POINts?"))
 
+    def test_bus_triggers_do_not_exceed_configured_buffered_points(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34461A"),
+            measurement_type="current_dc",
+        )
+
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write("TRIG:COUNT 2")
+        instrument.write("SAMP:COUNT 3")
+        instrument.write("INIT")
+        for _index in range(4):
+            instrument.write("*TRG")
+
+        self.assertEqual("6", instrument.query("DATA:POINts?"))
+
+    def test_status_byte_tracks_armed_external_completion_and_abort(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34461A"),
+            measurement_type="current_dc",
+        )
+
+        instrument.write("TRIG:SOUR EXT")
+        instrument.write("INIT")
+        self.assertEqual(0x20, instrument.read_status_byte())
+
+        instrument.write("ABOR")
+        self.assertEqual(0, instrument.read_status_byte())
+
 
 if __name__ == "__main__":
     unittest.main()
