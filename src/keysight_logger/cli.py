@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import importlib.metadata
 import json
 import signal
 import sys
@@ -42,6 +43,7 @@ SW_QUEUE_MAX_RANGE = (0, 10000)
 HW_TRIGGER_DELAY_S_RANGE = (0.0, 3600.0)
 NEUTRAL_AC_NPLC = 1.0
 CLI_EVENT_SCHEMA_VERSION = 1
+PACKAGE_NAME = "keysight-logger"
 
 
 class KeysightHelpFormatter(
@@ -57,6 +59,37 @@ class KeysightArgumentParser(argparse.ArgumentParser):
         parsed = super().parse_args(args, namespace)
         _apply_json_aliases(parsed, raw_args, self)
         return parsed
+
+
+def _read_project_version() -> str:
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        tomllib = None
+    if tomllib is not None:
+        with pyproject_path.open("rb") as fh:
+            data = tomllib.load(fh)
+        return str(data["project"]["version"])
+
+    in_project = False
+    for raw_line in pyproject_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_project = line == "[project]"
+            continue
+        if in_project and line.startswith("version") and "=" in line:
+            return line.split("=", 1)[1].strip().strip('"')
+    raise RuntimeError(f"Could not read project version from {pyproject_path}")
+
+
+def get_cli_version() -> str:
+    try:
+        return importlib.metadata.version(PACKAGE_NAME)
+    except importlib.metadata.PackageNotFoundError:
+        return _read_project_version()
 
 
 class StopController:
@@ -669,6 +702,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="keysight-logger",
         formatter_class=KeysightHelpFormatter,
     )
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"keysight-logger {get_cli_version()}",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     list_resources = sub.add_parser(
@@ -928,6 +966,7 @@ def cmd_list_resources(
             print_fn(f"  live_only: {str(live_only).lower()}")
             print_fn(f"  effective_verify: {str(effective_verify).lower()}")
             print_fn("  dry_run_performs_visa_io: false")
+            print_fn("  VISA I/O: no")
             print_fn("  planned real-run actions:")
             print_fn(f"    list VISA resources: {'yes' if actions['list_visa_resources'] else 'no'}")
             print_fn(f"    open each resource: {'yes' if actions['open_each_resource'] else 'no'}")

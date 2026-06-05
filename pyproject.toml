@@ -16,6 +16,9 @@ dev = [
     "pytest>=8.0.0",
 ]
 
+[project.scripts]
+keysight-logger = "keysight_logger.cli:main"
+
 [tool.setuptools]
 package-dir = {"" = "src"}
 

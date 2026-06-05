@@ -1,6 +1,8 @@
 param(
     [ValidateSet("all", "keysight-34461a")]
-    [string]$Target = "all"
+    [string]$Target = "all",
+    [switch]$ListTargets,
+    [string]$OutputRoot = ".tmp_tests\cli_preflight"
 )
 
 Set-StrictMode -Version Latest
@@ -8,11 +10,10 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
-$PreflightRoot = Join-Path $TmpRoot "cli_preflight"
-$Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
-if (-not (Test-Path -LiteralPath $Python)) {
-    throw "Python executable not found: $Python"
+if ($ListTargets) {
+    Write-Output "keysight-34461a"
+    return
 }
 
 function Get-FullPath {
@@ -26,8 +27,26 @@ function Assert-UnderTmpRoot {
     $pathFull = Get-FullPath $Path
     $comparison = [System.StringComparison]::OrdinalIgnoreCase
     if (-not $pathFull.StartsWith($tmpFull + [System.IO.Path]::DirectorySeparatorChar, $comparison)) {
-        throw "Refusing to clean or write path outside .tmp_tests: $pathFull"
+        throw "Only paths under .tmp_tests are allowed for -OutputRoot and preflight output: $pathFull"
     }
+}
+
+function Resolve-OutputRoot {
+    param([Parameter(Mandatory = $true)][string]$Path)
+    if ([System.IO.Path]::IsPathRooted($Path)) {
+        $resolved = Get-FullPath $Path
+    } else {
+        $resolved = Get-FullPath (Join-Path $RepoRoot $Path)
+    }
+    Assert-UnderTmpRoot -Path $resolved
+    return $resolved
+}
+
+$PreflightRoot = Resolve-OutputRoot -Path $OutputRoot
+$Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+
+if (-not (Test-Path -LiteralPath $Python)) {
+    throw "Python executable not found: $Python"
 }
 
 function Clear-OutputDirectory {
@@ -570,14 +589,27 @@ function Invoke-TargetPreflight {
     Assert-Condition ($pytestResult.success) "mocked list-resources pytest coverage failed"
     $checks.Add([pscustomobject]@{ name = "list_resources_mocked_pytest"; success = $true; stdout = $pytestOut; stderr = $pytestErr }) | Out-Null
 
+    $checkItems = @($checks.ToArray())
+    $commandItems = @($commands.ToArray())
+    $summaryCounts = [ordered]@{
+        commands_total = $commandItems.Count
+        checks_total = $checkItems.Count
+        dry_run_cases = @($checkItems | Where-Object { $_.name -like "dry_run_*" }).Count
+        simulate_cases = @($checkItems | Where-Object { $_.name -like "simulate_*" }).Count
+        soft_client_dry_runs = @($checkItems | Where-Object { $_.name -in @("soft_trigger_dry_run_json", "soft_stop_dry_run_json") }).Count
+        list_resources_contract_checks = @($checkItems | Where-Object { $_.name -eq "list_resources_dry_run_json" }).Count
+        mocked_pytest_checks = @($checkItems | Where-Object { $_.name -eq "list_resources_mocked_pytest" }).Count
+    }
+
     $report = [ordered]@{
         schema_version = 1
         target = $ResolvedTarget
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
         output_dir = $outDir
         status = "passed"
-        commands = @($commands.ToArray())
-        checks = @($checks.ToArray())
+        summary_counts = $summaryCounts
+        commands = $commandItems
+        checks = $checkItems
     }
     $reportPath = Join-Path $outDir "report.json"
     $summaryPath = Join-Path $outDir "summary.md"
@@ -589,6 +621,13 @@ function Invoke-TargetPreflight {
         "- Target: $ResolvedTarget",
         "- Status: passed",
         "- Output directory: $outDir",
+        "- Commands total: $($summaryCounts.commands_total)",
+        "- Checks total: $($summaryCounts.checks_total)",
+        "- Dry-run cases: $($summaryCounts.dry_run_cases)",
+        "- Simulate cases: $($summaryCounts.simulate_cases)",
+        "- Soft client dry-runs: $($summaryCounts.soft_client_dry_runs)",
+        "- list-resources contract checks: $($summaryCounts.list_resources_contract_checks)",
+        "- Mocked pytest checks: $($summaryCounts.mocked_pytest_checks)",
         "- Measurements covered by dry-run and simulator immediate: $($measurements -join ', ')",
         "- Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?",
         "- Simulator trigger modes covered: immediate, software, software timer, immediate-custom, software-custom, external, external-custom",

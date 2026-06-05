@@ -85,7 +85,10 @@ class FakeVisaIOError(Exception):
 class VisaInstrumentStaticTests(unittest.TestCase):
     def test_pyvisa_unavailable_raises_instrument_error(self):
         with patch("keysight_logger.instrument.pyvisa", None):
-            with self.assertRaisesRegex(InstrumentError, "pyvisa is not installed"):
+            with self.assertRaisesRegex(
+                InstrumentError,
+                r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]"',
+            ):
                 VisaInstrument.list_resources()
 
     def test_list_resources_injected_factory_works_without_pyvisa_and_closes(self):
@@ -218,7 +221,10 @@ class VisaInstrumentStaticTests(unittest.TestCase):
 
     def test_verify_resource_no_factory_with_pyvisa_unavailable_raises_instrument_error(self):
         with patch("keysight_logger.instrument.pyvisa", None):
-            with self.assertRaisesRegex(InstrumentError, "pyvisa is not installed"):
+            with self.assertRaisesRegex(
+                InstrumentError,
+                r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]"',
+            ):
                 VisaInstrument.verify_resource("USB::FAKE")
 
     def test_infer_transport_detects_usb_lan_and_unknown(self):

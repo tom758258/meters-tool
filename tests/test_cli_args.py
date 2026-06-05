@@ -24,6 +24,7 @@ from keysight_logger.cli import (
     cmd_start,
     cmd_soft_trigger,
     cmd_soft_stop,
+    get_cli_version,
     main,
     print_buffer_overflow_warnings,
     resolve_csv_path,
@@ -60,6 +61,48 @@ FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
 
 
 class CliArgsTests(unittest.TestCase):
+    def test_top_level_help_lists_version_and_subcommands(self):
+        parser = build_parser()
+        stdout = io.StringIO()
+
+        with self.assertRaises(SystemExit) as exc, redirect_stdout(stdout):
+            parser.parse_args(["--help"])
+
+        self.assertEqual(0, exc.exception.code)
+        help_text = stdout.getvalue()
+        self.assertIn("--version", help_text)
+        for command in ["list-resources", "start-trigger-record", "soft-trigger", "soft-stop"]:
+            self.assertIn(command, help_text)
+
+    def test_version_outputs_package_version_without_subcommand(self):
+        stdout = io.StringIO()
+
+        with self.assertRaises(SystemExit) as exc, redirect_stdout(stdout):
+            main(["--version"])
+
+        self.assertEqual(0, exc.exception.code)
+        self.assertEqual(f"keysight-logger {get_cli_version()}\n", stdout.getvalue())
+
+    def test_subcommand_help_lists_agent_flags(self):
+        cases = {
+            "list-resources": ["--dry-run", "--json", "--format"],
+            "start-trigger-record": ["--dry-run", "--simulate", "--json", "--status-format"],
+            "soft-trigger": ["--dry-run", "--json", "--format"],
+            "soft-stop": ["--dry-run", "--json", "--format"],
+        }
+        for command, flags in cases.items():
+            with self.subTest(command=command):
+                parser = build_parser()
+                stdout = io.StringIO()
+
+                with self.assertRaises(SystemExit) as exc, redirect_stdout(stdout):
+                    parser.parse_args([command, "--help"])
+
+                self.assertEqual(0, exc.exception.code)
+                help_text = stdout.getvalue()
+                for flag in flags:
+                    self.assertIn(flag, help_text)
+
     def test_start_defaults(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -2354,6 +2397,23 @@ class CliCommandTests(unittest.TestCase):
         payload = json.loads(lines[0])
         self.assertEqual("dry_run", payload["event"])
         self.assertNotEqual("ready", payload["event"])
+        for key in [
+            "cleanup_steps",
+            "csv_path",
+            "dry_run",
+            "measurement_cli_name",
+            "measurement_type",
+            "measurement_unit",
+            "notes",
+            "read_path",
+            "resource",
+            "schema_version",
+            "scpi_commands",
+            "simulate",
+            "timestamp_utc",
+            "trigger_mode",
+        ]:
+            self.assertIn(key, payload)
         self.assertEqual("current_dc", payload["measurement_type"])
         self.assertEqual("FETC?", payload["read_path"])
         self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
@@ -3199,6 +3259,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertIn("  live_only: false", lines)
         self.assertIn("  effective_verify: false", lines)
         self.assertIn("  dry_run_performs_visa_io: false", lines)
+        self.assertIn("  VISA I/O: no", lines)
         self.assertIn("    list VISA resources: yes", lines)
         mock_visa.list_resources.assert_not_called()
         mock_visa.verify_resource.assert_not_called()
@@ -3217,6 +3278,15 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("json", payload["output_format"])
         self.assertFalse(payload["dry_run_performs_visa_io"])
         self.assertFalse(payload["effective_verify"])
+        for key in [
+            "close_each_resource",
+            "filter_live_only",
+            "list_visa_resources",
+            "open_each_resource",
+            "query_idn",
+            "release_to_local_after_successful_verify",
+        ]:
+            self.assertIn(key, payload["planned_real_run"])
         self.assertFalse(payload["planned_real_run"]["query_idn"])
         mock_visa.list_resources.assert_not_called()
         mock_visa.verify_resource.assert_not_called()
