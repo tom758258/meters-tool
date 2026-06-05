@@ -1,0 +1,448 @@
+from __future__ import annotations
+
+import argparse
+import unittest
+from datetime import datetime, timezone
+from pathlib import Path
+
+from keysight_logger.core.models import InstrumentProfile, MeasurementOptions
+from keysight_logger.core.validation import (
+    print_buffer_overflow_warnings,
+    resolve_csv_path,
+    resolve_trigger_mode,
+    start_help_epilog,
+    validate_start_args,
+)
+
+
+FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
+    vendor="Fake",
+    model="FAKE100",
+    aliases=("FAKE100",),
+    reading_memory_limit=5,
+    supports_buffered_reading_memory=True,
+    supports_bus_trigger=True,
+    supports_external_trigger=True,
+    supports_sample_timer=False,
+    measurement_options=(
+        MeasurementOptions(
+            measurement_type="current_dc",
+            range_options=(("500 mA", 0.5),),
+            nplc_options=(1.0, 2.0),
+        ),
+    ),
+)
+
+
+def make_start_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
+    values = {
+        "resource": "USB::FAKE",
+        "csv": "out.csv",
+        "status_format": "text",
+        "json": False,
+        "dry_run": False,
+        "simulate": False,
+        "timeout_ms": 5000,
+        "trigger_timeout_ms": 10000,
+        "sw_trigger_port": 8765,
+        "sw_min_interval_ms": 0,
+        "sw_queue_max": 0,
+        "trigger_mode": None,
+        "max_samples": None,
+        "trigger_count": None,
+        "sample_count": None,
+        "timer_interval_s": None,
+        "buffer_drain_size": None,
+        "allow_buffer_overflow_risk": False,
+        "enable_hw_trigger": False,
+        "hw_trigger_slope": "neg",
+        "hw_trigger_delay_s": 0.0,
+        "measurement": "current-dc",
+        "nplc": 1.0,
+        "auto_zero": True,
+        "auto_range": True,
+        "measurement_range": None,
+        "current_range": None,
+        "dcv_input_impedance": "default",
+        "vm_comp_slope": None,
+    }
+    values.update(overrides)
+    return argparse.Namespace(**values)
+
+
+class CoreValidationTests(unittest.TestCase):
+    def assert_valid(self, args: argparse.Namespace, profile: InstrumentProfile | None = None) -> None:
+        validate_start_args(args, resolve_trigger_mode(args), instrument_profile=profile)
+
+    def assert_invalid(
+        self,
+        args: argparse.Namespace,
+        expected: str,
+        profile: InstrumentProfile | None = None,
+    ) -> None:
+        with self.assertRaises(ValueError) as exc:
+            validate_start_args(args, resolve_trigger_mode(args), instrument_profile=profile)
+        self.assertIn(expected, str(exc.exception))
+
+    def test_csv_path_defaults_to_timestamped_utc_plus_8_data_file(self):
+        now = datetime(2026, 5, 11, 6, 30, 5, tzinfo=timezone.utc)
+
+        self.assertEqual(
+            Path("data") / "2026-05-11-14-30-05.csv",
+            resolve_csv_path(None, now=now),
+        )
+
+    def test_csv_path_uses_explicit_path(self):
+        self.assertEqual(Path("out.csv"), resolve_csv_path("out.csv"))
+
+    def test_trigger_mode_default_legacy_mapping_and_conflict(self):
+        self.assertEqual("software", resolve_trigger_mode(make_start_args()))
+        self.assertEqual("external", resolve_trigger_mode(make_start_args(enable_hw_trigger=True)))
+        self.assertEqual(
+            "external",
+            resolve_trigger_mode(make_start_args(trigger_mode="external", enable_hw_trigger=True)),
+        )
+
+        with self.assertRaises(ValueError) as exc:
+            resolve_trigger_mode(make_start_args(trigger_mode="software", enable_hw_trigger=True))
+        self.assertIn("--enable-hw-trigger conflicts with --trigger-mode", str(exc.exception))
+
+    def test_numeric_limits_accept_boundaries(self):
+        cases = [
+            ({"timeout_ms": 100}, "software"),
+            ({"timeout_ms": 600000}, "software"),
+            ({"trigger_timeout_ms": 500}, "software"),
+            ({"trigger_timeout_ms": 600000}, "software"),
+            ({"sw_trigger_port": 0}, "software"),
+            ({"sw_trigger_port": 1024}, "software"),
+            ({"sw_trigger_port": 65535}, "software"),
+            ({"sw_min_interval_ms": 0}, "software"),
+            ({"sw_min_interval_ms": 50}, "software"),
+            ({"sw_min_interval_ms": 600000}, "software"),
+            ({"sw_queue_max": 0}, "software"),
+            ({"sw_queue_max": 10000}, "software"),
+            ({"max_samples": 1}, "software"),
+            ({"max_samples": 1000000}, "software"),
+            ({"timer_interval_s": 0.5}, "software"),
+            ({"timer_interval_s": 86400}, "software"),
+            ({"hw_trigger_delay_s": 0}, "software"),
+            ({"hw_trigger_delay_s": 3600}, "software"),
+            (
+                {
+                    "trigger_mode": "immediate-custom",
+                    "trigger_count": 1,
+                    "sample_count": 10000,
+                    "buffer_drain_size": 1,
+                },
+                "immediate-custom",
+            ),
+            (
+                {
+                    "trigger_mode": "immediate-custom",
+                    "trigger_count": 1000000,
+                    "sample_count": 1000000,
+                    "buffer_drain_size": 10000,
+                    "allow_buffer_overflow_risk": True,
+                },
+                "immediate-custom",
+            ),
+        ]
+        for overrides, expected_mode in cases:
+            with self.subTest(overrides=overrides):
+                args = make_start_args(**overrides)
+                trigger_mode = resolve_trigger_mode(args)
+                validate_start_args(args, trigger_mode)
+                self.assertEqual(expected_mode, trigger_mode)
+
+    def test_numeric_limits_reject_out_of_range_values(self):
+        cases = [
+            ({"timeout_ms": 99}, "--timeout-ms 99 is outside the supported range 100-600000"),
+            (
+                {"trigger_timeout_ms": 100},
+                "--trigger-timeout-ms 100 is outside the supported range 500-600000",
+            ),
+            ({"sw_trigger_port": 1023}, "--sw-trigger-port 1023 is outside the supported values"),
+            ({"sw_min_interval_ms": 49}, "--sw-min-interval-ms 49 is outside"),
+            ({"sw_queue_max": 10001}, "--sw-queue-max 10001 is outside"),
+            ({"max_samples": 1000001}, "--max-samples 1000001 is outside"),
+            (
+                {"timer_interval_s": 0.01},
+                "--timer-interval-s 0.01 is below the supported minimum 0.5 s",
+            ),
+            (
+                {"timer_interval_s": 86400.1},
+                "--timer-interval-s 86400.1 is outside the supported range 0.5-86400 s",
+            ),
+            (
+                {"hw_trigger_delay_s": 3600.1},
+                "--hw-trigger-delay-s 3600.1 is outside the supported range 0-3600 s",
+            ),
+            (
+                {
+                    "trigger_mode": "immediate-custom",
+                    "trigger_count": 1000001,
+                    "sample_count": 1,
+                },
+                "--trigger-count 1000001 is outside the 34461A supported range 1-1000000",
+            ),
+            (
+                {
+                    "trigger_mode": "immediate-custom",
+                    "trigger_count": 1,
+                    "sample_count": 1000001,
+                },
+                "--sample-count 1000001 is outside the 34461A supported range 1-1000000",
+            ),
+            (
+                {
+                    "trigger_mode": "immediate-custom",
+                    "trigger_count": 1,
+                    "sample_count": 1,
+                    "buffer_drain_size": 10001,
+                },
+                "--buffer-drain-size 10001 is outside the 34461A reading-memory range 1-10000",
+            ),
+        ]
+        for overrides, expected in cases:
+            with self.subTest(overrides=overrides):
+                self.assert_invalid(make_start_args(**overrides), expected)
+
+    def test_supported_measurement_types_and_profile_constraints(self):
+        self.assert_invalid(
+            make_start_args(measurement="capacitance"),
+            "--measurement must be one of: current-dc, voltage-dc, current-ac, voltage-ac, "
+            "resistance-2w, resistance-4w",
+        )
+        self.assert_invalid(
+            make_start_args(measurement="voltage-dc"),
+            "--measurement must be one of: current-dc",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+    def test_range_whitelist_accepts_supported_measurement_options(self):
+        cases = [
+            ("current-dc", 0.1),
+            ("voltage-dc", 10.0),
+            ("current-ac", 0.1),
+            ("voltage-ac", 10.0),
+            ("resistance-2w", 1000.0),
+            ("resistance-4w", 1000.0),
+        ]
+        for measurement, measurement_range in cases:
+            with self.subTest(measurement=measurement):
+                self.assert_valid(
+                    make_start_args(
+                        measurement=measurement,
+                        auto_range=False,
+                        measurement_range=measurement_range,
+                    )
+                )
+
+    def test_range_whitelist_rejects_invalid_range(self):
+        self.assert_invalid(
+            make_start_args(measurement="voltage-dc", measurement_range=0.2),
+            "--range 0.2 is not valid for --measurement voltage-dc",
+        )
+        self.assert_invalid(
+            make_start_args(measurement="current-dc", current_range=0.2),
+            "--current-range 0.2 is not valid for --measurement current-dc",
+        )
+
+    def test_profile_controls_range_and_nplc_options(self):
+        self.assert_valid(
+            make_start_args(measurement="current-dc", measurement_range=0.5, nplc=2.0),
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_args(measurement="current-dc", measurement_range=0.1),
+            "Allowed ranges in A: 0.5",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_args(measurement="current-dc", nplc=0.2),
+            "Allowed NPLC values: 1, 2",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+    def test_current_range_alias_and_dcv_input_impedance_restrictions(self):
+        self.assert_valid(
+            make_start_args(auto_range=False, current_range=0.1),
+        )
+        self.assert_invalid(
+            make_start_args(measurement_range=0.1, current_range=0.1),
+            "--range and --current-range cannot be used together",
+        )
+        self.assert_invalid(
+            make_start_args(measurement="voltage-dc", current_range=0.1),
+            "--current-range can only be used with --measurement current-dc",
+        )
+        self.assert_valid(
+            make_start_args(measurement="voltage-dc", dcv_input_impedance="10m"),
+        )
+        self.assert_invalid(
+            make_start_args(measurement="current-dc", dcv_input_impedance="auto"),
+            "--dcv-input-impedance can only be used with --measurement voltage-dc",
+        )
+
+    def test_nplc_whitelist_and_ac_neutral_nplc(self):
+        for measurement in ["current-dc", "voltage-dc", "resistance-2w", "resistance-4w"]:
+            with self.subTest(measurement=measurement):
+                self.assert_valid(make_start_args(measurement=measurement, nplc=10.0))
+                self.assert_invalid(
+                    make_start_args(measurement=measurement, nplc=7.5),
+                    "Allowed NPLC values: 0.02, 0.2, 1, 10, 100",
+                )
+        for measurement in ["current-ac", "voltage-ac"]:
+            with self.subTest(measurement=measurement):
+                self.assert_valid(make_start_args(measurement=measurement, nplc=1.0))
+                self.assert_invalid(
+                    make_start_args(measurement=measurement, nplc=0.2),
+                    "AC measurements do not support NPLC SCPI. Omit --nplc",
+                )
+
+    def test_manual_range_is_required_when_auto_range_is_off(self):
+        self.assert_invalid(
+            make_start_args(auto_range=False),
+            "--range or --current-range is required when --auto-range off",
+        )
+        self.assert_invalid(
+            make_start_args(measurement="voltage-dc", auto_range=False),
+            "--range is required when --auto-range off",
+        )
+
+    def test_simple_and_custom_mode_exclusivity(self):
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate-custom", sample_count=10),
+            "--trigger-count is required with custom trigger modes",
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate-custom", trigger_count=10),
+            "--sample-count is required with custom trigger modes",
+        )
+        self.assert_invalid(
+            make_start_args(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=10,
+                max_samples=10,
+            ),
+            "--max-samples cannot be used with custom trigger modes",
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate", trigger_count=1),
+            "--trigger-count requires a custom trigger mode",
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate", sample_count=1),
+            "--sample-count requires a custom trigger mode",
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate", allow_buffer_overflow_risk=True),
+            "--allow-buffer-overflow-risk requires a custom trigger mode",
+        )
+
+    def test_timer_interval_and_simulate_are_limited_to_supported_simple_modes(self):
+        args = make_start_args(timer_interval_s=1.0)
+        self.assertEqual("software", resolve_trigger_mode(args))
+        self.assert_valid(args)
+        self.assert_invalid(
+            make_start_args(trigger_mode="external", timer_interval_s=1.0),
+            "--timer-interval-s requires --trigger-mode software",
+        )
+        self.assert_invalid(
+            make_start_args(enable_hw_trigger=True, timer_interval_s=1.0),
+            "--timer-interval-s requires --trigger-mode software",
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate", simulate=True),
+            "--simulate requires --max-samples with simple trigger modes",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+    def test_buffer_drain_size_and_overflow_risk(self):
+        self.assert_valid(
+            make_start_args(
+                trigger_mode="immediate-custom",
+                trigger_count=2,
+                sample_count=100,
+                buffer_drain_size=4,
+            )
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate", max_samples=10, buffer_drain_size=2),
+            "--buffer-drain-size requires a custom trigger mode",
+        )
+        self.assert_invalid(
+            make_start_args(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=10,
+                buffer_drain_size=0,
+            ),
+            "--buffer-drain-size 0 is outside",
+        )
+        self.assert_invalid(
+            make_start_args(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=5,
+                buffer_drain_size=6,
+            ),
+            "--buffer-drain-size 6 is outside the FAKE100 reading-memory range 1-5",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate-custom", trigger_count=101, sample_count=100),
+            "custom mode expected readings 10100 exceed 34461A reading memory 10000",
+        )
+        self.assert_valid(
+            make_start_args(
+                trigger_mode="immediate-custom",
+                trigger_count=101,
+                sample_count=100,
+                allow_buffer_overflow_risk=True,
+            )
+        )
+        self.assert_invalid(
+            make_start_args(trigger_mode="immediate-custom", trigger_count=3, sample_count=2),
+            "custom mode expected readings 6 exceed FAKE100 reading memory 5",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+    def test_print_buffer_overflow_warnings_returns_and_emits_messages(self):
+        emitted: list[str] = []
+        args = make_start_args(
+            trigger_mode="immediate-custom",
+            trigger_count=101,
+            sample_count=100,
+            allow_buffer_overflow_risk=True,
+        )
+
+        warnings = print_buffer_overflow_warnings(
+            args,
+            "immediate-custom",
+            emit_fn=emitted.append,
+        )
+
+        self.assertEqual(emitted, warnings)
+        self.assertEqual(5, len(warnings))
+        self.assertIn("requested readings exceed 34461A reading memory", warnings[0])
+        self.assertIn("requested=10100, memory_limit=10000", warnings[1])
+        self.assertEqual([], print_buffer_overflow_warnings(make_start_args(), "software"))
+
+    def test_start_help_epilog_lists_validation_limits(self):
+        help_text = start_help_epilog()
+
+        self.assertIn("NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100", help_text)
+        self.assertIn("current-dc: 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A", help_text)
+        self.assertIn("--timer-interval-s: 0.5-86400 s", help_text)
+        self.assertIn("--trigger-timeout-ms: 500-600000 ms", help_text)
+        self.assertIn("--trigger-count/--sample-count: 1-1000000", help_text)
+
+        fake_help = start_help_epilog(FAKE_CURRENT_ONLY_PROFILE)
+        self.assertIn("measurement choices: current-dc", fake_help)
+        self.assertIn("current-dc: 0.5 A", fake_help)
+
+
+if __name__ == "__main__":
+    unittest.main()
