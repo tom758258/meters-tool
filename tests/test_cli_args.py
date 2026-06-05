@@ -98,6 +98,8 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual("current-dc", args.measurement)
         self.assertIsNone(args.measurement_range)
         self.assertIsNone(args.current_range)
+        self.assertIsNone(args.ac_bandwidth_hz)
+        self.assertIsNone(args.current_terminal)
         self.assertEqual("default", args.dcv_input_impedance)
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
@@ -122,6 +124,39 @@ class CliArgsTests(unittest.TestCase):
         self.assertIn("--timer-interval-s: 0.5-86400 s", help_text)
         self.assertIn("--trigger-timeout-ms: 500-600000 ms", help_text)
         self.assertIn("--trigger-count/--sample-count: 1-1000000", help_text)
+        self.assertIn("AC bandwidth choices for AC current/voltage: 3, 20, 200 Hz", help_text)
+        self.assertIn("current terminal choices for current measurements: 3, 10", help_text)
+
+    def test_start_parses_core_v1_1_measurement_options(self):
+        parser = build_parser()
+        auto_zero_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-dc",
+                "--auto-zero",
+                "once",
+            ]
+        )
+        ac_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "current-ac",
+                "--ac-bandwidth-hz",
+                "20",
+                "--current-terminal",
+                "10",
+            ]
+        )
+
+        self.assertEqual("once", auto_zero_args.auto_zero)
+        self.assertEqual(20.0, ac_args.ac_bandwidth_hz)
+        self.assertEqual(10, ac_args.current_terminal)
 
     def test_list_resources_verify_flag(self):
         parser = build_parser()
@@ -525,12 +560,24 @@ class CliCommandTests(unittest.TestCase):
         self.assertIn("sample", event_names)
         self.assertIn("summary", event_names)
         self.assertNotIn("error", event_names)
-        run_ids = {event.get("run_id") for event in events}
+        correlated_events = [
+            event for event in events if event["event"] in {"ready", "status", "sample", "summary"}
+        ]
+        run_ids = {event.get("run_id") for event in correlated_events}
         self.assertEqual(1, len(run_ids))
         self.assertIsInstance(next(iter(run_ids)), str)
+        ready = [event for event in events if event["event"] == "ready"]
+        self.assertEqual(1, len(ready))
+        for key in ["run_id", "service", "host", "port", "trigger_url", "stop_url", "status_url"]:
+            self.assertIn(key, ready[0])
         samples = [event for event in events if event["event"] == "sample"]
         self.assertEqual(expected_samples, len(samples))
+        for sample in samples:
+            self.assertIn("measurement_metadata", sample)
+            self.assertIsInstance(sample["measurement_metadata"], dict)
         summary = [event for event in events if event["event"] == "summary"][-1]
+        self.assertIn("captured", summary)
+        self.assertIn("errors", summary)
         self.assertEqual(expected_samples, summary["captured"])
         self.assertEqual(0, summary["errors"])
         self.assertNotIn("fatal_error", summary)
@@ -987,7 +1034,15 @@ class CliCommandTests(unittest.TestCase):
                 "--trigger-mode",
                 "immediate",
                 "--measurement",
-                "current-dc",
+                "current-ac",
+                "--auto-range",
+                "off",
+                "--range",
+                "10",
+                "--ac-bandwidth-hz",
+                "20",
+                "--current-terminal",
+                "10",
                 "--simulate",
                 "--max-samples",
                 "1",
@@ -1019,6 +1074,11 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("SIM::34461A", request_model.resource)
         self.assertEqual("data\\delegate.csv", request_model.csv)
         self.assertTrue(request_model.simulate)
+        self.assertEqual("current-ac", request_model.measurement)
+        self.assertFalse(request_model.auto_range)
+        self.assertEqual(10.0, request_model.measurement_range)
+        self.assertEqual(20.0, request_model.ac_bandwidth_hz)
+        self.assertEqual(10, request_model.current_terminal)
         self.assertFalse(hasattr(request_model, "status_format"))
         self.assertFalse(hasattr(request_model, "enable_hw_trigger"))
         self.assertEqual("immediate", trigger_mode)
@@ -1178,6 +1238,40 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("http://127.0.0.1:8765/stop", ready[0]["stop_url"])
         self.assertEqual("http://127.0.0.1:8765/status", ready[0]["status_url"])
         self.assertIn("run_id", ready[0])
+        sample = [event for event in events if event["event"] == "sample"][-1]
+        self.assertEqual({}, sample["measurement_metadata"])
+
+    def test_start_simulate_jsonl_voltage_dc_ratio_includes_measurement_metadata(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\simulate_ratio_jsonl.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "voltage-dc-ratio",
+                "--simulate",
+                "--max-samples",
+                "1",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+
+        rc, output, _stderr = self._run_cmd_start_with_simulate_harness(args)
+
+        self.assertEqual(0, rc)
+        events = self._parse_jsonl_events(output)
+        self._assert_success_jsonl_events(events, expected_samples=1)
+        sample = [event for event in events if event["event"] == "sample"][-1]
+        self.assertEqual("voltage_dc_ratio", sample["measurement_type"])
+        self.assertEqual("ratio", sample["unit"])
+        self.assertIn("signal_voltage_v", sample["measurement_metadata"])
+        self.assertIn("reference_voltage_v", sample["measurement_metadata"])
 
     def test_start_simulate_status_endpoint_reports_worker_status(self):
         parser = build_parser()
@@ -1658,6 +1752,7 @@ class CliCommandTests(unittest.TestCase):
                 "trigger_id",
                 "trigger_source",
                 "trigger_metadata",
+                "measurement_metadata",
                 "resource_id",
                 "status",
             ],
@@ -1672,6 +1767,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("ok", row["status"])
         metadata = json.loads(row["trigger_metadata"])
         self.assertEqual({"operator": "agent", "purpose": "csv-smoke"}, metadata)
+        self.assertEqual({}, json.loads(row["measurement_metadata"]))
 
     def test_start_dry_run_immediate_no_buffered_scpi(self):
         parser = build_parser()

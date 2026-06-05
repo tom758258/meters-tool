@@ -3,30 +3,24 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "keysight-logger-webui"
-version = "1.1.0"
-description = "Web UI adapter for Keysight 34461A acquisition using Keysight Logger Core"
+name = "keysight-logger"
+version = "1.1.8"
+description = "CLI-first trigger logger for Keysight 34461A"
 requires-python = ">=3.10"
 dependencies = [
     "pyvisa>=1.14.1",
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0.0",
-    "httpx>=0.27.0",
 ]
 
 [project.scripts]
-keysight-logger-webui = "keysight_logger.web_ui:main"
+keysight-logger = "keysight_logger.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-
-[tool.setuptools.package-data]
-keysight_logger = ["static/*"]

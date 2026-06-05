@@ -254,6 +254,17 @@ def parse_on_off(value: str) -> bool:
     raise argparse.ArgumentTypeError("value must be 'on' or 'off'")
 
 
+def parse_auto_zero(value: str) -> bool | str:
+    lower = str(value).strip().lower()
+    if lower == "on":
+        return True
+    if lower == "off":
+        return False
+    if lower == "once":
+        return "once"
+    raise argparse.ArgumentTypeError("value must be 'on', 'off', or 'once'")
+
+
 def parse_dcv_input_impedance(value: str) -> str:
     normalized = str(value).strip().lower()
     if normalized in {"default", "10m", "auto"}:
@@ -292,6 +303,7 @@ class CliEventEmitter:
                 "captured": captured,
                 "event": "sample",
                 "measurement_type": sample.measurement_type,
+                "measurement_metadata": sample.measurement_metadata,
                 "message": f"value={sample.value:g} {sample.unit}",
                 "resource_id": sample.resource_id,
                 "schema_version": CLI_EVENT_SCHEMA_VERSION,
@@ -519,6 +531,8 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
         auto_range=args.auto_range,
         measurement_range=args.measurement_range,
         current_range=args.current_range,
+        ac_bandwidth_hz=args.ac_bandwidth_hz,
+        current_terminal=args.current_terminal,
         dcv_input_impedance=args.dcv_input_impedance,
         vm_comp_slope=args.vm_comp_slope,
     )
@@ -713,7 +727,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=1.0,
         help="NPLC for DC/resistance: 0.02, 0.2, 1, 10, 100; AC supports only neutral 1.0",
     )
-    start.add_argument("--auto-zero", type=parse_on_off, default=True)
+    start.add_argument(
+        "--auto-zero",
+        type=parse_auto_zero,
+        default=True,
+        help="Auto Zero for supported measurements: on, off, or once",
+    )
     start.add_argument("--auto-range", type=parse_on_off, default=True)
     start.add_argument(
         "--range",
@@ -730,6 +749,19 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=None,
         help="compatibility alias for --range with --measurement current-dc",
+    )
+    start.add_argument(
+        "--ac-bandwidth-hz",
+        type=float,
+        default=None,
+        help="AC bandwidth for current-ac or voltage-ac: 3, 20, or 200 Hz",
+    )
+    start.add_argument(
+        "--current-terminal",
+        type=int,
+        choices=[3, 10],
+        default=None,
+        help="current input terminal for current measurements: 3 or 10",
     )
     start.add_argument(
         "--dcv-input-impedance",
