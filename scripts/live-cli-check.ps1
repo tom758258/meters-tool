@@ -602,26 +602,29 @@ $caseResults = [System.Collections.Generic.List[object]]::new()
 $dryRunResults = [System.Collections.Generic.List[object]]::new()
 $reportPath = Join-Path $runDir "report.json"
 $summaryPath = Join-Path $runDir "summary.md"
+$stdinRedirected = [Console]::IsInputRedirected
 
-$preflightOut = Join-Path $runDir "preflight.stdout.txt"
-$preflightErr = Join-Path $runDir "preflight.stderr.txt"
-$preflightResult = Invoke-CapturedCommand `
-    -Name "preflight" `
-    -FilePath "powershell.exe" `
-    -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PreflightScript, "-Target", $resolvedTarget) `
-    -StdOutPath $preflightOut `
-    -StdErrPath $preflightErr
-$commands.Add([pscustomobject]$preflightResult) | Out-Null
+if (-not ($stdinRedirected -and (-not $PlanOnly))) {
+    $preflightOut = Join-Path $runDir "preflight.stdout.txt"
+    $preflightErr = Join-Path $runDir "preflight.stderr.txt"
+    $preflightResult = Invoke-CapturedCommand `
+        -Name "preflight" `
+        -FilePath "powershell.exe" `
+        -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PreflightScript, "-Target", $resolvedTarget) `
+        -StdOutPath $preflightOut `
+        -StdErrPath $preflightErr
+    $commands.Add([pscustomobject]$preflightResult) | Out-Null
 
-if (-not $preflightResult.success) {
-    Write-LiveArtifacts `
-        -Status "preflight_failed" `
-        -PlanOnlyRun ([bool]$PlanOnly) `
-        -LiveExecuted $false `
-        -CaseItems @() `
-        -DryRunItems @() `
-        -CommandItems @($commands.ToArray())
-    throw "Preflight failed. See $preflightOut and $preflightErr"
+    if (-not $preflightResult.success) {
+        Write-LiveArtifacts `
+            -Status "preflight_failed" `
+            -PlanOnlyRun ([bool]$PlanOnly) `
+            -LiveExecuted $false `
+            -CaseItems @() `
+            -DryRunItems @() `
+            -CommandItems @($commands.ToArray())
+        throw "Preflight failed. See $preflightOut and $preflightErr"
+    }
 }
 
 Write-Host ""
@@ -634,6 +637,8 @@ Write-Host "Output directory: $runDir"
 Write-Host ""
 if ($PlanOnly) {
     Write-Host "PlanOnly: generating dry-run plans only; no VISA resource will be opened."
+} elseif ($stdinRedirected) {
+    Write-Host "Stdin is redirected; generating dry-run plans only before refusing live acquisition."
 } else {
     Write-Host "Possible state changes:"
     Write-Host "  Connects to the explicit VISA resource and validates 34461A identity."
@@ -672,7 +677,7 @@ if ($PlanOnly) {
     exit 0
 }
 
-if ([Console]::IsInputRedirected) {
+if ($stdinRedirected) {
     Write-LiveArtifacts `
         -Status "confirmation_required" `
         -PlanOnlyRun $false `
