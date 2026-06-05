@@ -15,10 +15,10 @@ from .core.instrument import VisaInstrument
 from .core.measurement import format_measurement_type
 from .core.models import StartRequest, get_default_instrument_profile
 from .core.runner import StopController, run_start_session
-from .core.run_plan import StartCommandPlan, build_start_plan
+from .core.run_plan import StartPlan, build_start_plan
 from .core.session import StartRunEvent, new_run_id
 from .core.validation import (
-    print_buffer_overflow_warnings,
+    generate_buffer_overflow_warnings,
     resolve_trigger_mode,
     start_help_epilog as _start_help_epilog,
     supported_measurement_types as _supported_measurement_types,
@@ -415,7 +415,7 @@ class CliStartRunEventSink:
         self._emitter.line(event.message or "", **fields)
 
 
-def _emit_start_plan(plan: StartCommandPlan, emitter: CliEventEmitter) -> None:
+def _emit_start_plan(plan: StartPlan, emitter: CliEventEmitter) -> None:
     if emitter.output_format == "jsonl":
         emitter._emit_json(
             {
@@ -424,7 +424,7 @@ def _emit_start_plan(plan: StartCommandPlan, emitter: CliEventEmitter) -> None:
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "trigger_mode": plan.trigger_mode,
                 "measurement_type": plan.measurement_type,
-                "measurement_cli_name": plan.measurement_cli_name,
+                "measurement_cli_name": plan.measurement_name,
                 "measurement_unit": plan.measurement_unit,
                 "csv_path": plan.csv_path,
                 "resource": plan.resource,
@@ -439,7 +439,7 @@ def _emit_start_plan(plan: StartCommandPlan, emitter: CliEventEmitter) -> None:
         return
     emitter.line("dry-run plan:")
     emitter.line(f"  resource: {plan.resource}")
-    emitter.line(f"  measurement: {plan.measurement_cli_name} ({plan.measurement_unit})")
+    emitter.line(f"  measurement: {plan.measurement_name} ({plan.measurement_unit})")
     emitter.line(f"  trigger_mode: {plan.trigger_mode}")
     emitter.line(f"  csv_path: {plan.csv_path}")
     emitter.line(f"  simulate: {plan.simulate}")
@@ -1027,20 +1027,11 @@ def cmd_start(args: argparse.Namespace) -> int:
         emitter.error(str(exc), rc=2)
         return 2
     runtime_run_id = None if request_model.dry_run else new_run_id()
-    if request_model.dry_run:
-        warnings = print_buffer_overflow_warnings(
-            request_model,
-            trigger_mode,
-            instrument_profile=instrument_profile,
-            emit_fn=lambda _message: None,
-        )
-    else:
-        warnings = print_buffer_overflow_warnings(
-            request_model,
-            trigger_mode,
-            instrument_profile=instrument_profile,
-            emit_fn=lambda _message: None,
-        )
+    warnings = generate_buffer_overflow_warnings(
+        request_model,
+        trigger_mode,
+        instrument_profile=instrument_profile,
+    )
 
     plan = build_start_plan(
         request_model,

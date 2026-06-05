@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 from keysight_logger.core.models import StartRequest, get_default_instrument_profile
-from keysight_logger.core.run_plan import StartCommandPlan, build_start_plan
+from keysight_logger.core.run_plan import StartPlan, build_start_plan
 
 
 def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
@@ -46,7 +46,7 @@ class CoreRunPlanTests(unittest.TestCase):
         trigger_mode: str,
         request: StartRequest | None = None,
         buffer_warnings: list[str] | None = None,
-    ) -> StartCommandPlan:
+    ) -> StartPlan:
         return build_start_plan(
             request or make_start_request(),
             trigger_mode,
@@ -178,13 +178,14 @@ class CoreRunPlanTests(unittest.TestCase):
 
         self.assertEqual("software", plan.trigger_mode)
         self.assertEqual("voltage_dc", plan.measurement_type)
-        self.assertEqual("voltage-dc", plan.measurement_cli_name)
+        self.assertEqual("voltage-dc", plan.measurement_name)
         self.assertEqual("V", plan.measurement_unit)
         self.assertEqual(csv_path, plan.csv_path)
         self.assertEqual("USB::34461A", plan.resource)
         self.assertFalse(plan.simulate)
         self.assertTrue(plan.dry_run)
         self.assertFalse(hasattr(plan, "status_format"))
+        self.assertFalse(hasattr(plan, "measurement_cli_name"))
         self.assertEqual(
             [
                 "wait for worker",

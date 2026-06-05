@@ -893,6 +893,8 @@ class CliCommandTests(unittest.TestCase):
         ]:
             self.assertIn(key, payload)
         self.assertEqual("current_dc", payload["measurement_type"])
+        self.assertEqual("current-dc", payload["measurement_cli_name"])
+        self.assertNotIn("measurement_name", payload)
         self.assertEqual("FETC?", payload["read_path"])
         self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
         self.assertNotIn("run_id", payload)

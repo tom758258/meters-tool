@@ -57,10 +57,10 @@ class _PlanRecorder:
 
 
 @dataclass
-class StartCommandPlan:
+class StartPlan:
     trigger_mode: str
     measurement_type: str
-    measurement_cli_name: str
+    measurement_name: str
     measurement_unit: str
     csv_path: str
     resource: str
@@ -77,7 +77,7 @@ def build_start_plan(
     trigger_mode: str,
     profile: InstrumentProfile,
     buffer_warnings: list[str] | None = None,
-) -> StartCommandPlan:
+) -> StartPlan:
     args = request
     measurement_type = normalize_measurement_type(args.measurement)
     measurement_def = get_measurement_definition(measurement_type)
@@ -161,10 +161,10 @@ def build_start_plan(
         notes.append("immediate-custom uses IMM trigger source")
     if args.simulate:
         notes.append("simulate uses deterministic fake instrument values")
-    return StartCommandPlan(
+    return StartPlan(
         trigger_mode=trigger_mode,
         measurement_type=measurement_type,
-        measurement_cli_name=measurement_def.cli_name,
+        measurement_name=measurement_def.cli_name,
         measurement_unit=measurement_def.unit,
         csv_path=csv_path,
         resource=args.resource,

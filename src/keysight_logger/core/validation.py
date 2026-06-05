@@ -301,16 +301,12 @@ def validate_start_request(
             raise ValueError("--simulate requires --max-samples with simple trigger modes")
 
 
-def print_buffer_overflow_warnings(
+def generate_buffer_overflow_warnings(
     request: StartRequest,
     trigger_mode: str,
     instrument_profile: InstrumentProfile | None = None,
-    emit_fn=None,  # noqa: ANN001
 ) -> list[str]:
     args = request
-    warnings: list[str] = []
-    if emit_fn is None:
-        emit_fn = print
     profile = instrument_profile or get_default_instrument_profile()
     if not trigger_mode.endswith("-custom") or not args.allow_buffer_overflow_risk:
         return []
@@ -326,10 +322,7 @@ def print_buffer_overflow_warnings(
     msg3 = "WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory."
     msg4 = "WARNING: data loss, incomplete rows, or SCPI errors are possible."
     msg5 = "WARNING: validate with low counts first and inspect row count/errors."
-    for msg in [msg1, msg2, msg3, msg4, msg5]:
-        emit_fn(msg)
-        warnings.append(msg)
-    return warnings
+    return [msg1, msg2, msg3, msg4, msg5]
 
 
 validate_start_args = validate_start_request

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import unittest
+from contextlib import redirect_stdout
 from datetime import datetime, timezone
+from io import StringIO
 from pathlib import Path
 
 from keysight_logger.core.models import InstrumentProfile, MeasurementOptions, StartRequest
 from keysight_logger.core.validation import (
-    print_buffer_overflow_warnings,
+    generate_buffer_overflow_warnings,
     resolve_csv_path,
     resolve_trigger_mode,
     start_help_epilog,
@@ -394,8 +396,7 @@ class CoreValidationTests(unittest.TestCase):
             profile=FAKE_CURRENT_ONLY_PROFILE,
         )
 
-    def test_print_buffer_overflow_warnings_returns_and_emits_messages(self):
-        emitted: list[str] = []
+    def test_generate_buffer_overflow_warnings_returns_messages(self):
         args = make_start_request(
             trigger_mode="immediate-custom",
             trigger_count=101,
@@ -403,17 +404,15 @@ class CoreValidationTests(unittest.TestCase):
             allow_buffer_overflow_risk=True,
         )
 
-        warnings = print_buffer_overflow_warnings(
-            args,
-            "immediate-custom",
-            emit_fn=emitted.append,
-        )
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            warnings = generate_buffer_overflow_warnings(args, "immediate-custom")
 
-        self.assertEqual(emitted, warnings)
+        self.assertEqual("", stdout.getvalue())
         self.assertEqual(5, len(warnings))
         self.assertIn("requested readings exceed 34461A reading memory", warnings[0])
         self.assertIn("requested=10100, memory_limit=10000", warnings[1])
-        self.assertEqual([], print_buffer_overflow_warnings(make_start_request(), "software"))
+        self.assertEqual([], generate_buffer_overflow_warnings(make_start_request(), "software"))
 
     def test_start_help_epilog_lists_validation_limits(self):
         help_text = start_help_epilog()
