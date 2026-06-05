@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 
 from .measurement import (
@@ -8,7 +7,7 @@ from .measurement import (
     get_measurement_definition,
     normalize_measurement_type,
 )
-from .models import AcquisitionConfig, InstrumentProfile
+from .models import AcquisitionConfig, InstrumentProfile, StartRequest
 from .trigger import HardwareTriggerAdapter
 from .validation import resolve_csv_path, resolve_measurement_range
 
@@ -67,7 +66,6 @@ class StartCommandPlan:
     resource: str
     simulate: bool
     dry_run: bool
-    status_format: str
     scpi_commands: list[str]
     read_path: str
     cleanup_steps: list[str]
@@ -75,11 +73,12 @@ class StartCommandPlan:
 
 
 def build_start_plan(
-    args: argparse.Namespace,
+    request: StartRequest,
     trigger_mode: str,
     profile: InstrumentProfile,
     buffer_warnings: list[str] | None = None,
 ) -> StartCommandPlan:
+    args = request
     measurement_type = normalize_measurement_type(args.measurement)
     measurement_def = get_measurement_definition(measurement_type)
     csv_path = str(resolve_csv_path(args.csv))
@@ -171,7 +170,6 @@ def build_start_plan(
         resource=args.resource,
         simulate=args.simulate,
         dry_run=args.dry_run,
-        status_format=args.status_format,
         scpi_commands=scpi_commands,
         read_path=read_path,
         cleanup_steps=cleanup_steps,

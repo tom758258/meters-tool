@@ -67,6 +67,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertIsNone(payload["captured"])
             self.assertIsNone(payload["errors"])
             self.assertIsNone(payload["fatal_error"])
+            self.assertIsNone(payload["run_id"])
             self.assertIn("timestamp_utc", payload)
         finally:
             server.stop()
@@ -80,6 +81,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             queue_max=3,
             status_provider=lambda: {
                 "status": "stopping",
+                "run_id": "run-123",
                 "captured": 2,
                 "errors": 1,
                 "fatal_error": "capture failed",
@@ -98,6 +100,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertEqual(2, payload["captured"])
             self.assertEqual(1, payload["errors"])
             self.assertEqual("capture failed", payload["fatal_error"])
+            self.assertEqual("run-123", payload["run_id"])
         finally:
             server.stop()
 

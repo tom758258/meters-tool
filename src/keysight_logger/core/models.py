@@ -222,6 +222,36 @@ class AcquisitionConfig:
 
 
 @dataclass(frozen=True)
+class StartRequest:
+    resource: str
+    csv: Optional[str] = None
+    dry_run: bool = False
+    simulate: bool = False
+    timeout_ms: int = 5000
+    trigger_timeout_ms: int = 10000
+    sw_trigger_port: int = 8765
+    sw_min_interval_ms: int = 0
+    sw_queue_max: int = 0
+    trigger_mode: Optional[str] = None
+    max_samples: Optional[int] = None
+    trigger_count: Optional[int] = None
+    sample_count: Optional[int] = None
+    timer_interval_s: Optional[float] = None
+    buffer_drain_size: Optional[int] = None
+    allow_buffer_overflow_risk: bool = False
+    hw_trigger_slope: str = "neg"
+    hw_trigger_delay_s: float = 0.0
+    measurement: str = "current-dc"
+    nplc: float = 1.0
+    auto_zero: bool = True
+    auto_range: bool = True
+    measurement_range: Optional[float] = None
+    current_range: Optional[float] = None
+    dcv_input_impedance: str = "default"
+    vm_comp_slope: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class TriggerEvent:
     id: str
     source: TriggerSource

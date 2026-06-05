@@ -6,33 +6,24 @@ import importlib.metadata
 import json
 import signal
 import sys
-import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib import request
 from urllib.error import URLError
 
-from .core.acquisition import TriggerAcquisitionEngine
-from .core.instrument import InstrumentConfig, InstrumentError, VisaInstrument
-from .core.instrument_backend import create_instrument_backend
-from .core.measurement import (
-    create_measurement_plugin,
-    format_measurement_type,
-)
-from .core.models import AcquisitionConfig, get_default_instrument_profile
+from .core.instrument import VisaInstrument
+from .core.measurement import format_measurement_type
+from .core.models import StartRequest, get_default_instrument_profile
+from .core.runner import StopController, run_start_session
 from .core.run_plan import StartCommandPlan, build_start_plan
-from .core.storage import CsvWriter
-from .core.trigger import SoftwareTriggerAdapter, TriggerRouter
+from .core.session import StartRunEvent, new_run_id
 from .core.validation import (
     print_buffer_overflow_warnings,
-    resolve_csv_path,
-    resolve_measurement_range,
     resolve_trigger_mode,
     start_help_epilog as _start_help_epilog,
     supported_measurement_types as _supported_measurement_types,
     validate_client_port,
-    validate_start_args,
+    validate_start_request,
 )
 
 
@@ -84,38 +75,6 @@ def get_cli_version() -> str:
         return importlib.metadata.version(PACKAGE_NAME)
     except importlib.metadata.PackageNotFoundError:
         return _read_project_version()
-
-
-class StopController:
-    def __init__(self, stop_engine, print_fn=print):  # noqa: ANN001
-        self.stop = False
-        self.interrupt_count = 0
-        self.force = False
-        self._stop_engine = stop_engine
-        self._print = print_fn
-        self._lock = threading.Lock()
-
-    def request_stop(self, force: bool = False) -> None:
-        with self._lock:
-            self.stop = True
-            if force:
-                self.force = True
-                message = "second interrupt received, forcing shutdown..."
-            else:
-                message = "interrupt received, stopping gracefully (press Ctrl+C again to force)..."
-        self._stop_engine()
-        self._print(message)
-
-    def request_http_stop(self) -> None:
-        with self._lock:
-            self.stop = True
-        self._stop_engine()
-
-    def request_signal_stop(self) -> None:
-        with self._lock:
-            self.interrupt_count += 1
-            force = self.interrupt_count >= 2
-        self.request_stop(force=force)
 
 
 class WindowsConsoleStopHandler:
@@ -224,6 +183,68 @@ class WindowsKeyboardStopPoller:
         return requested
 
 
+class CliStartRunControls:
+    def __init__(
+        self,
+        console_handler_factory=WindowsConsoleStopHandler,  # noqa: ANN001
+        keyboard_poller_factory=WindowsKeyboardStopPoller,  # noqa: ANN001
+    ) -> None:
+        self._console_handler_factory = console_handler_factory
+        self._keyboard_poller_factory = keyboard_poller_factory
+        self._stop_controller: StopController | None = None
+        self._previous_signal_handlers = []
+        self._windows_console_stop_handler = None
+        self._keyboard_stop_poller = None
+
+    def install(self, stop_controller: StopController) -> None:
+        self._stop_controller = stop_controller
+
+        def handle_stop_signal(signum, frame):  # noqa: ARG001
+            stop_controller.request_signal_stop()
+
+        self._previous_signal_handlers.append(
+            (signal.SIGINT, signal.signal(signal.SIGINT, handle_stop_signal))
+        )
+        if hasattr(signal, "SIGTERM"):
+            self._previous_signal_handlers.append(
+                (signal.SIGTERM, signal.signal(signal.SIGTERM, handle_stop_signal))
+            )
+        if hasattr(signal, "SIGBREAK"):
+            self._previous_signal_handlers.append(
+                (signal.SIGBREAK, signal.signal(signal.SIGBREAK, handle_stop_signal))
+            )
+        self._windows_console_stop_handler = self._console_handler_factory(stop_controller)
+        self._keyboard_stop_poller = self._keyboard_poller_factory()
+
+    def after_connect(self, event_sink, run_id: str) -> None:  # noqa: ANN001
+        if self._windows_console_stop_handler is None:
+            return
+        if self._windows_console_stop_handler.install():
+            event_sink.emit(
+                StartRunEvent.message_event(
+                    run_id,
+                    "windows console stop handler: installed "
+                    f"processed_input={self._windows_console_stop_handler.input_mode_configured}",
+                )
+            )
+        elif sys.platform == "win32":
+            event_sink.emit(
+                StartRunEvent.error_event(run_id, "windows console stop handler: unavailable")
+            )
+
+    def poll_stop_requested(self) -> bool:
+        if self._keyboard_stop_poller is None:
+            return False
+        return bool(self._keyboard_stop_poller.poll_stop_requested())
+
+    def uninstall(self) -> None:
+        if self._windows_console_stop_handler is not None:
+            self._windows_console_stop_handler.uninstall()
+        for sig, previous_handler in self._previous_signal_handlers:
+            signal.signal(sig, previous_handler)
+        self._previous_signal_handlers = []
+
+
 def parse_on_off(value: str) -> bool:
     lower = str(value).strip().lower()
     if lower == "on":
@@ -245,6 +266,10 @@ class CliEventEmitter:
         self._print = print_fn
         self._output_format = output_format
 
+    @property
+    def output_format(self) -> str:
+        return self._output_format
+
     def _emit_json(self, payload: dict) -> None:
         self._print(json.dumps(payload, sort_keys=True))
 
@@ -261,7 +286,7 @@ class CliEventEmitter:
             return
         self._print(f"[status] {message}")
 
-    def sample(self, sample, captured: int) -> None:  # noqa: ANN001
+    def sample(self, sample, captured: int, **fields) -> None:  # noqa: ANN001, ANN003
         if self._output_format == "jsonl":
             payload = {
                 "captured": captured,
@@ -278,9 +303,16 @@ class CliEventEmitter:
                 "unit": sample.unit,
                 "value": sample.value,
             }
+            payload.update(fields)
             self._emit_json(payload)
 
-    def summary(self, captured: int, errors: int, fatal_error: str | None = None) -> None:
+    def summary(
+        self,
+        captured: int,
+        errors: int,
+        fatal_error: str | None = None,
+        **fields,  # noqa: ANN003
+    ) -> None:
         if self._output_format == "jsonl":
             payload = {
                 "captured": captured,
@@ -291,58 +323,100 @@ class CliEventEmitter:
             }
             if fatal_error is not None:
                 payload["fatal_error"] = fatal_error
+            payload.update(fields)
             self._emit_json(payload)
             return
         self._print(f"captured={captured} errors={errors}")
 
-    def ready(self, host: str, port: int) -> None:
+    def ready(self, host: str, port: int, **fields) -> None:  # noqa: ANN003
         if self._output_format != "jsonl":
             return
         base_url = f"http://{host}:{port}"
-        self._emit_json(
-            {
-                "event": "ready",
-                "host": host,
-                "port": port,
-                "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                "service": "keysight-meter",
-                "status_url": f"{base_url}/status",
-                "stop_url": f"{base_url}/stop",
-                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                "trigger_url": f"{base_url}/trigger",
-            }
-        )
+        payload = {
+            "event": "ready",
+            "host": host,
+            "port": port,
+            "schema_version": CLI_EVENT_SCHEMA_VERSION,
+            "service": "keysight-meter",
+            "status_url": f"{base_url}/status",
+            "stop_url": f"{base_url}/stop",
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "trigger_url": f"{base_url}/trigger",
+        }
+        payload.update(fields)
+        self._emit_json(payload)
 
-    def line(self, message: str) -> None:
+    def line(self, message: str, **fields) -> None:  # noqa: ANN003
         if self._output_format == "jsonl":
-            self._emit_json(
-                {
-                    "event": "message",
-                    "message": message,
-                    "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                }
-            )
+            payload = {
+                "event": "message",
+                "message": message,
+                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            }
+            payload.update(fields)
+            self._emit_json(payload)
             return
         self._print(message)
 
-    def error(self, message: str, rc: int = 3) -> None:
+    def error(self, message: str, rc: int = 3, **fields) -> None:  # noqa: ANN003
         if self._output_format == "jsonl":
-            self._emit_json(
-                {
-                    "event": "error",
-                    "message": message,
-                    "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                    "exit_code": rc,
-                }
-            )
+            payload = {
+                "event": "error",
+                "message": message,
+                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "exit_code": rc,
+            }
+            payload.update(fields)
+            self._emit_json(payload)
             return
         self._print(message, file=sys.stderr)
 
 
+class CliStartRunEventSink:
+    def __init__(self, emitter: CliEventEmitter) -> None:
+        self._emitter = emitter
+
+    def _runtime_fields(self, event: StartRunEvent) -> dict[str, object]:
+        return {"run_id": event.run_id} if event.run_id is not None else {}
+
+    def emit(self, event: StartRunEvent) -> None:
+        fields = self._runtime_fields(event)
+        if event.event == "status":
+            fields.update(event.fields)
+            self._emitter.status(event.message or "", **fields)
+            return
+        if event.event == "sample":
+            self._emitter.sample(event.sample, int(event.captured or 0), **fields)
+            return
+        if event.event == "summary":
+            self._emitter.summary(
+                int(event.captured or 0),
+                int(event.errors or 0),
+                event.fatal_error,
+                **fields,
+            )
+            return
+        if event.event == "ready":
+            if event.host is not None and event.port is not None:
+                ready_fields = dict(fields)
+                if event.trigger_url is not None:
+                    ready_fields["trigger_url"] = event.trigger_url
+                if event.stop_url is not None:
+                    ready_fields["stop_url"] = event.stop_url
+                if event.status_url is not None:
+                    ready_fields["status_url"] = event.status_url
+                self._emitter.ready(event.host, event.port, **ready_fields)
+            return
+        if event.event == "error":
+            self._emitter.error(event.message or "", rc=3, **fields)
+            return
+        self._emitter.line(event.message or "", **fields)
+
+
 def _emit_start_plan(plan: StartCommandPlan, emitter: CliEventEmitter) -> None:
-    if plan.status_format == "jsonl":
+    if emitter.output_format == "jsonl":
         emitter._emit_json(
             {
                 "event": "dry_run",
@@ -417,6 +491,42 @@ def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argpa
         if output_format is not None and output_format != "json":
             parser.error(f"--json conflicts with --format {output_format}")
         args.output_format = "json"
+
+
+def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
+    trigger_mode = args.trigger_mode
+    if args.enable_hw_trigger:
+        if trigger_mode is not None and trigger_mode != "external":
+            raise ValueError("--enable-hw-trigger conflicts with --trigger-mode; use external")
+        trigger_mode = "external"
+    return StartRequest(
+        resource=args.resource,
+        csv=args.csv,
+        dry_run=args.dry_run,
+        simulate=args.simulate,
+        timeout_ms=args.timeout_ms,
+        trigger_timeout_ms=args.trigger_timeout_ms,
+        sw_trigger_port=args.sw_trigger_port,
+        sw_min_interval_ms=args.sw_min_interval_ms,
+        sw_queue_max=args.sw_queue_max,
+        trigger_mode=trigger_mode,
+        max_samples=args.max_samples,
+        trigger_count=args.trigger_count,
+        sample_count=args.sample_count,
+        timer_interval_s=args.timer_interval_s,
+        buffer_drain_size=args.buffer_drain_size,
+        allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
+        hw_trigger_slope=args.hw_trigger_slope,
+        hw_trigger_delay_s=args.hw_trigger_delay_s,
+        measurement=args.measurement,
+        nplc=args.nplc,
+        auto_zero=args.auto_zero,
+        auto_range=args.auto_range,
+        measurement_range=args.measurement_range,
+        current_range=args.current_range,
+        dcv_input_impedance=args.dcv_input_impedance,
+        vm_comp_slope=args.vm_comp_slope,
+    )
 
 
 def _emit_client_dry_run(command_name: str, port: int, body, output_format: str) -> None:  # noqa: ANN001
@@ -908,208 +1018,57 @@ def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False)
 def cmd_start(args: argparse.Namespace) -> int:
     instrument_profile = get_default_instrument_profile()
     emitter = CliEventEmitter(print_fn=print, output_format=args.status_format)
+    request_model: StartRequest
     try:
-        trigger_mode = resolve_trigger_mode(args)
-        if args.dry_run and args.simulate:
-            raise ValueError("--dry-run and --simulate cannot be used together")
-        validate_start_args(args, trigger_mode, instrument_profile=instrument_profile)
+        request_model = _start_request_from_args(args)
+        trigger_mode = resolve_trigger_mode(request_model)
+        validate_start_request(request_model, trigger_mode, instrument_profile=instrument_profile)
     except ValueError as exc:
         emitter.error(str(exc), rc=2)
         return 2
-    if args.dry_run:
+    runtime_run_id = None if request_model.dry_run else new_run_id()
+    if request_model.dry_run:
         warnings = print_buffer_overflow_warnings(
-            args,
+            request_model,
             trigger_mode,
             instrument_profile=instrument_profile,
             emit_fn=lambda _message: None,
         )
     else:
         warnings = print_buffer_overflow_warnings(
-            args,
+            request_model,
             trigger_mode,
             instrument_profile=instrument_profile,
-            emit_fn=emitter.status if args.status_format == "jsonl" else emitter.line,
+            emit_fn=lambda _message: None,
         )
 
     plan = build_start_plan(
-        args,
+        request_model,
         trigger_mode,
         instrument_profile,
-        buffer_warnings=warnings if args.dry_run else None,
+        buffer_warnings=warnings if request_model.dry_run else None,
     )
-    if args.dry_run:
+    if request_model.dry_run:
         _emit_start_plan(plan, emitter)
         return 0
 
-    measurement_type = plan.measurement_type
-    measurement_range = resolve_measurement_range(args)
-    csv_path = Path(plan.csv_path)
-    if args.csv is None:
-        emitter.line(f"csv output path: {csv_path}")
-    iconfig = InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
-    aconfig = AcquisitionConfig(
-        measurement_type=measurement_type,
-        trigger_timeout_ms=args.trigger_timeout_ms,
-        max_samples=args.max_samples,
-        trigger_count=args.trigger_count,
-        sample_count=args.sample_count,
-        timer_interval_s=args.timer_interval_s,
-        buffer_drain_size=args.buffer_drain_size,
-        allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
-        nplc=args.nplc,
-        auto_zero=args.auto_zero,
-        auto_range=args.auto_range,
-        measurement_range=measurement_range,
-        current_range=args.current_range,
-        dcv_input_impedance=args.dcv_input_impedance,
-        hw_trigger_delay_s=args.hw_trigger_delay_s,
-        vm_comp_slope=args.vm_comp_slope,
+    event_sink = CliStartRunEventSink(emitter)
+    assert runtime_run_id is not None
+    for warning in warnings:
+        if args.status_format == "jsonl":
+            event_sink.emit(StartRunEvent.status_event(runtime_run_id, warning))
+        else:
+            emitter.line(warning)
+
+    result = run_start_session(
+        request_model,
+        trigger_mode,
+        instrument_profile,
+        event_sink,
+        CliStartRunControls(),
+        run_id=runtime_run_id,
     )
-    instrument = create_instrument_backend(
-        iconfig,
-        simulate=args.simulate,
-        measurement_type=measurement_type,
-    )
-    router = TriggerRouter(max_pending_events=args.sw_queue_max)
-    storage = CsvWriter(csv_path)
-    measurement = create_measurement_plugin(measurement_type)
-    engine = TriggerAcquisitionEngine(
-        instrument=instrument,
-        measurement=measurement,
-        storage=storage,
-        config=aconfig,
-        router=router,
-        status_cb=lambda m: emitter.status(m),
-        sample_cb=lambda sample, captured: emitter.sample(sample, captured),
-        instrument_profile=instrument_profile,
-    )
-
-    stop_controller = StopController(engine.stop)
-
-    def worker_status() -> dict[str, object]:
-        return {
-            "status": "stopping" if stop_controller.stop else "running",
-            "captured": engine.stats.captured,
-            "errors": engine.stats.errors,
-            "fatal_error": engine.fatal_error,
-        }
-
-    server = SoftwareTriggerAdapter(
-        router,
-        port=args.sw_trigger_port,
-        min_interval_ms=args.sw_min_interval_ms,
-        queue_max=args.sw_queue_max,
-        stop_cb=stop_controller.request_http_stop,
-        status_provider=worker_status,
-    )
-
-    def handle_stop_signal(signum, frame):  # noqa: ARG001
-        stop_controller.request_signal_stop()
-
-    previous_signal_handlers = []
-    previous_signal_handlers.append((signal.SIGINT, signal.signal(signal.SIGINT, handle_stop_signal)))
-    if hasattr(signal, "SIGTERM"):
-        previous_signal_handlers.append(
-            (signal.SIGTERM, signal.signal(signal.SIGTERM, handle_stop_signal))
-        )
-    if hasattr(signal, "SIGBREAK"):
-        previous_signal_handlers.append(
-            (signal.SIGBREAK, signal.signal(signal.SIGBREAK, handle_stop_signal))
-        )
-    windows_console_stop_handler = WindowsConsoleStopHandler(stop_controller)
-    keyboard_stop_poller = WindowsKeyboardStopPoller()
-
-    worker: threading.Thread | None = None
-    connected = False
-    try:
-        try:
-            instrument.connect()
-            connected = True
-        except InstrumentError as exc:
-            emitter.error(f"error: {exc}", rc=3)
-            return 3
-        if windows_console_stop_handler.install():
-            emitter.line(
-                "windows console stop handler: installed "
-                f"processed_input={windows_console_stop_handler.input_mode_configured}"
-            )
-        elif sys.platform == "win32":
-            emitter.error("windows console stop handler: unavailable", rc=3)
-        host, port = server.start()
-        emitter.line(f"software trigger endpoint: http://{host}:{port}/trigger")
-        emitter.line(f"software stop endpoint: http://{host}:{port}/stop")
-        emitter.line(f"software status endpoint: http://{host}:{port}/status")
-        emitter.line("local stop keys: Ctrl+C, Ctrl+Break, q")
-        emitter.ready(host, port)
-        worker = threading.Thread(
-            target=engine.run,
-            kwargs={
-                "trigger_mode": trigger_mode,
-                "hardware_trigger_slope": args.hw_trigger_slope,
-            },
-            daemon=True,
-        )
-        worker.start()
-        try:
-            while worker.is_alive() and not stop_controller.stop:
-                if keyboard_stop_poller.poll_stop_requested():
-                    stop_controller.request_signal_stop()
-                    break
-                time.sleep(0.2)
-            if not worker.is_alive() and not stop_controller.stop:
-                if engine.fatal_error:
-                    emitter.error(f"error: {engine.fatal_error}", rc=3)
-                else:
-                    emitter.line("measurement worker exited before stop was requested")
-        except KeyboardInterrupt:
-            stop_controller.request_signal_stop()
-            while worker.is_alive():
-                try:
-                    worker.join(timeout=0.2)
-                    if not worker.is_alive():
-                        break
-                except KeyboardInterrupt:
-                    stop_controller.request_signal_stop()
-                    break
-        finally:
-            emitter.line("main cleanup starting")
-            engine.stop()
-            if worker.is_alive():
-                join_timeout_s = max(args.trigger_timeout_ms / 1000.0 + 1.0, 2.0)
-                emitter.line(f"waiting for measurement worker to stop, timeout_s={join_timeout_s:.1f}")
-                worker.join(timeout=join_timeout_s)
-            if worker.is_alive() or stop_controller.force:
-                emitter.line(f"release_to_local before close: {instrument.release_to_local()}")
-                instrument.close()
-                worker.join(timeout=2)
-        emitter.summary(engine.stats.captured, engine.stats.errors, engine.fatal_error)
-        if engine.fatal_error:
-            return 3
-        return 0
-    finally:
-        emitter.line("final cleanup starting")
-        # Ensure worker exits before final release/close.
-        if worker is not None and worker.is_alive():
-            emitter.line("waiting worker to fully stop...")
-            worker.join(timeout=5)
-
-        # Release instrument control before closing the session.
-        if connected:
-            rel = instrument.release_to_local()
-            emitter.line(f"release_to_local: {rel}")
-            # Retry once on transient session instability.
-            if "SYST:LOC:failed" in rel:
-                time.sleep(1.0)
-                rel2 = instrument.release_to_local()
-                emitter.line(f"release_to_local retry: {rel2}")
-            instrument.close()
-            emitter.line(f"cleanup_release_to_local: {instrument.cleanup_release_to_local()}")
-        emitter.line("stopping software trigger server")
-        server.stop()
-        emitter.line("software trigger server stopped")
-        windows_console_stop_handler.uninstall()
-        for sig, previous_handler in previous_signal_handlers:
-            signal.signal(sig, previous_handler)
+    return 0 if result.ok else 3
 
 
 def main(argv: list[str] | None = None) -> int:

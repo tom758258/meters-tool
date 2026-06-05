@@ -15,7 +15,6 @@ from urllib import request
 from urllib.error import URLError
 
 from keysight_logger.cli import (
-    StopController,
     WindowsConsoleStopHandler,
     WindowsKeyboardStopPoller,
     build_parser,
@@ -28,9 +27,12 @@ from keysight_logger.cli import (
 )
 from keysight_logger.core.instrument import InstrumentError
 from keysight_logger.core.models import (
+    StartRequest,
     TriggerEvent,
     TriggerSource,
 )
+from keysight_logger.core.runner import StopController
+from keysight_logger.core.session import StartRunResult
 from keysight_logger.core.simulator import SimulatedVisaInstrument
 
 
@@ -169,8 +171,7 @@ class CliArgsTests(unittest.TestCase):
 class StopControllerTests(unittest.TestCase):
     def test_signal_stop_first_interrupt_is_graceful(self):
         calls = []
-        messages = []
-        controller = StopController(lambda: calls.append("stop"), print_fn=messages.append)
+        controller = StopController(lambda: calls.append("stop"))
 
         controller.request_signal_stop()
 
@@ -180,13 +181,12 @@ class StopControllerTests(unittest.TestCase):
         self.assertEqual(["stop"], calls)
         self.assertEqual(
             ["interrupt received, stopping gracefully (press Ctrl+C again to force)..."],
-            messages,
+            controller.pop_messages(),
         )
 
     def test_signal_stop_second_interrupt_forces_shutdown(self):
         calls = []
-        messages = []
-        controller = StopController(lambda: calls.append("stop"), print_fn=messages.append)
+        controller = StopController(lambda: calls.append("stop"))
 
         controller.request_signal_stop()
         controller.request_signal_stop()
@@ -197,13 +197,12 @@ class StopControllerTests(unittest.TestCase):
         self.assertEqual(["stop", "stop"], calls)
         self.assertEqual(
             "second interrupt received, forcing shutdown...",
-            messages[-1],
+            controller.pop_messages()[-1],
         )
 
     def test_http_stop_does_not_count_as_keyboard_interrupt(self):
         calls = []
-        messages = []
-        controller = StopController(lambda: calls.append("stop"), print_fn=messages.append)
+        controller = StopController(lambda: calls.append("stop"))
 
         controller.request_http_stop()
 
@@ -211,13 +210,13 @@ class StopControllerTests(unittest.TestCase):
         self.assertFalse(controller.force)
         self.assertEqual(0, controller.interrupt_count)
         self.assertEqual(["stop"], calls)
-        self.assertEqual([], messages)
+        self.assertEqual([], controller.pop_messages())
 
 
 class WindowsConsoleStopHandlerTests(unittest.TestCase):
     def test_ctrl_c_event_requests_stop(self):
         calls = []
-        controller = StopController(lambda: calls.append("stop"), print_fn=lambda message: None)
+        controller = StopController(lambda: calls.append("stop"))
         handler = WindowsConsoleStopHandler(controller)
 
         handled = handler._handle(0)
@@ -229,7 +228,7 @@ class WindowsConsoleStopHandlerTests(unittest.TestCase):
 
     def test_ctrl_break_event_requests_stop(self):
         calls = []
-        controller = StopController(lambda: calls.append("stop"), print_fn=lambda message: None)
+        controller = StopController(lambda: calls.append("stop"))
         handler = WindowsConsoleStopHandler(controller)
 
         handled = handler._handle(1)
@@ -241,7 +240,7 @@ class WindowsConsoleStopHandlerTests(unittest.TestCase):
 
     def test_non_interrupt_event_is_not_handled(self):
         calls = []
-        controller = StopController(lambda: calls.append("stop"), print_fn=lambda message: None)
+        controller = StopController(lambda: calls.append("stop"))
         handler = WindowsConsoleStopHandler(controller)
 
         handled = handler._handle(2)
@@ -484,17 +483,17 @@ class CliCommandTests(unittest.TestCase):
                 metadata=trigger_metadata,
             )
         patches = [
-            patch("keysight_logger.cli.SoftwareTriggerAdapter", server_cls),
+            patch("keysight_logger.core.runner.SoftwareTriggerAdapter", server_cls),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
             patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
             patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
         ]
         if csv_writer is not None:
-            patches.append(patch("keysight_logger.cli.CsvWriter", csv_writer))
+            patches.append(patch("keysight_logger.core.runner.CsvWriter", csv_writer))
         if instrument_cls is not None:
             patches.append(
                 patch(
-                    "keysight_logger.cli.create_instrument_backend",
+                    "keysight_logger.core.runner.create_instrument_backend",
                     side_effect=lambda config, *, simulate, measurement_type: instrument_cls(
                         config,
                         measurement_type=measurement_type,
@@ -526,6 +525,9 @@ class CliCommandTests(unittest.TestCase):
         self.assertIn("sample", event_names)
         self.assertIn("summary", event_names)
         self.assertNotIn("error", event_names)
+        run_ids = {event.get("run_id") for event in events}
+        self.assertEqual(1, len(run_ids))
+        self.assertIsInstance(next(iter(run_ids)), str)
         samples = [event for event in events if event["event"] == "sample"]
         self.assertEqual(expected_samples, len(samples))
         summary = [event for event in events if event["event"] == "summary"][-1]
@@ -750,11 +752,11 @@ class CliCommandTests(unittest.TestCase):
         fake_backend = FakeStartInstrument(None)
 
         with (
-            patch("keysight_logger.cli.create_instrument_backend", return_value=fake_backend),
-            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
-            patch("keysight_logger.cli.CsvWriter", PermissionDeniedCsvWriter),
+            patch("keysight_logger.core.runner.create_instrument_backend", return_value=fake_backend),
+            patch("keysight_logger.core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.core.runner.CsvWriter", PermissionDeniedCsvWriter),
             patch(
-                "keysight_logger.cli.create_measurement_plugin",
+                "keysight_logger.core.runner.create_measurement_plugin",
                 return_value=FakeStartMeasurement(),
             ),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
@@ -794,8 +796,8 @@ class CliCommandTests(unittest.TestCase):
         fake_backend = ConnectFailingStartInstrument(None)
 
         with (
-            patch("keysight_logger.cli.create_instrument_backend", return_value=fake_backend),
-            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.core.runner.create_instrument_backend", return_value=fake_backend),
+            patch("keysight_logger.core.runner.SoftwareTriggerAdapter", FakeStartServer),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
             patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
             patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
@@ -831,8 +833,8 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with (
-            patch("keysight_logger.cli.create_instrument_backend") as mock_factory,
-            patch("keysight_logger.cli.SoftwareTriggerAdapter") as mock_server,
+            patch("keysight_logger.core.runner.create_instrument_backend") as mock_factory,
+            patch("keysight_logger.core.runner.SoftwareTriggerAdapter") as mock_server,
             redirect_stdout(stdout),
         ):
             rc = cmd_start(args)
@@ -893,6 +895,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("current_dc", payload["measurement_type"])
         self.assertEqual("FETC?", payload["read_path"])
         self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
+        self.assertNotIn("run_id", payload)
 
     def test_start_json_alias_sets_jsonl_status_format(self):
         parser = build_parser()
@@ -945,6 +948,107 @@ class CliCommandTests(unittest.TestCase):
         payload = json.loads(lines[0])
         self.assertEqual("dry_run", payload["event"])
         self.assertEqual("jsonl", args.status_format)
+
+    def test_start_legacy_enable_hw_trigger_maps_to_external_in_cli_adapter(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--measurement",
+                "current-dc",
+                "--dry-run",
+                "--enable-hw-trigger",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual("external", payload["trigger_mode"])
+        self.assertEqual("FETC?", payload["read_path"])
+
+    def test_start_legacy_enable_hw_trigger_conflicts_with_non_external_mode(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--trigger-mode",
+                "software",
+                "--enable-hw-trigger",
+            ]
+        )
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            rc = cmd_start(args)
+
+        self.assertEqual(2, rc)
+        self.assertIn(
+            "--enable-hw-trigger conflicts with --trigger-mode; use external",
+            stderr.getvalue(),
+        )
+
+    def test_start_non_dry_run_delegates_to_core_runner_with_start_request(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--csv",
+                "data\\delegate.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "current-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+                "--status-format",
+                "jsonl",
+            ]
+        )
+        stdout = io.StringIO()
+
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\delegate.csv",
+        )
+        with (
+            redirect_stdout(stdout),
+            patch("keysight_logger.cli.run_start_session", return_value=fake_result) as mock_runner,
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        mock_runner.assert_called_once()
+        request_model, trigger_mode, _profile, event_sink, controls = mock_runner.call_args.args
+        self.assertIsInstance(request_model, StartRequest)
+        self.assertEqual("SIM::34461A", request_model.resource)
+        self.assertEqual("data\\delegate.csv", request_model.csv)
+        self.assertTrue(request_model.simulate)
+        self.assertFalse(hasattr(request_model, "status_format"))
+        self.assertFalse(hasattr(request_model, "enable_hw_trigger"))
+        self.assertEqual("immediate", trigger_mode)
+        self.assertEqual("CliStartRunEventSink", type(event_sink).__name__)
+        self.assertEqual("CliStartRunControls", type(controls).__name__)
+        self.assertIn("run_id", mock_runner.call_args.kwargs)
 
     def test_start_dry_run_jsonl_overflow_warnings_are_plan_notes_only(self):
         parser = build_parser()
@@ -1011,7 +1115,7 @@ class CliCommandTests(unittest.TestCase):
         fake_backend = ConnectFailingStartInstrument(None)
 
         with (
-            patch("keysight_logger.cli.create_instrument_backend", return_value=fake_backend),
+            patch("keysight_logger.core.runner.create_instrument_backend", return_value=fake_backend),
             redirect_stdout(stdout),
         ):
             rc = cmd_start(args)
@@ -1021,6 +1125,8 @@ class CliCommandTests(unittest.TestCase):
         self.assertGreaterEqual(len(events), 6)
         self.assertTrue(all(event["event"] == "status" for event in events[:5]))
         self.assertTrue(all("WARNING:" in event["message"] for event in events[:5]))
+        warning_run_ids = {event["run_id"] for event in events[:5]}
+        self.assertEqual(1, len(warning_run_ids))
         self.assertTrue(any(event["event"] == "error" for event in events))
 
     def test_start_simulate_immediate_captures_sample(self):
@@ -1045,8 +1151,8 @@ class CliCommandTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with (
-            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
-            patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+            patch("keysight_logger.core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.core.runner.CsvWriter", FakeCapturingCsvWriter),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
             patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
             patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
@@ -1095,6 +1201,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("http://127.0.0.1:8765/trigger", ready[0]["trigger_url"])
         self.assertEqual("http://127.0.0.1:8765/stop", ready[0]["stop_url"])
         self.assertEqual("http://127.0.0.1:8765/status", ready[0]["status_url"])
+        self.assertIn("run_id", ready[0])
 
     def test_start_simulate_status_endpoint_reports_worker_status(self):
         parser = build_parser()
@@ -1128,7 +1235,7 @@ class CliCommandTests(unittest.TestCase):
         def run_command() -> None:
             try:
                 with (
-                    patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+                    patch("keysight_logger.core.runner.CsvWriter", FakeCapturingCsvWriter),
                     patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
                     patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
                     patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),
@@ -1169,6 +1276,7 @@ class CliCommandTests(unittest.TestCase):
             self.assertEqual(0, payload["captured"])
             self.assertEqual(0, payload["errors"])
             self.assertIsNone(payload["fatal_error"])
+            self.assertIsInstance(payload["run_id"], str)
 
             trigger_req = request.Request(
                 f"http://127.0.0.1:{port}/trigger",
@@ -1699,8 +1807,8 @@ class CliCommandTests(unittest.TestCase):
         stdout = io.StringIO()
 
         with (
-            patch("keysight_logger.cli.SoftwareTriggerAdapter", FakeStartServer),
-            patch("keysight_logger.cli.CsvWriter", FakeCapturingCsvWriter),
+            patch("keysight_logger.core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("keysight_logger.core.runner.CsvWriter", FakeCapturingCsvWriter),
             patch("keysight_logger.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
             patch("keysight_logger.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
             patch("keysight_logger.cli.signal.signal", side_effect=lambda _sig, _handler: None),

@@ -1,18 +1,16 @@
 from __future__ import annotations
 
-import argparse
 import unittest
 from pathlib import Path
 
-from keysight_logger.core.models import get_default_instrument_profile
+from keysight_logger.core.models import StartRequest, get_default_instrument_profile
 from keysight_logger.core.run_plan import StartCommandPlan, build_start_plan
 
 
-def make_start_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
+def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
     values = {
         "resource": "USB::FAKE",
         "csv": str(Path("data") / "plan.csv"),
-        "status_format": "text",
         "dry_run": True,
         "simulate": False,
         "timeout_ms": 5000,
@@ -27,7 +25,6 @@ def make_start_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
         "timer_interval_s": None,
         "buffer_drain_size": None,
         "allow_buffer_overflow_risk": False,
-        "enable_hw_trigger": False,
         "hw_trigger_slope": "neg",
         "hw_trigger_delay_s": 0.0,
         "measurement": "current-dc",
@@ -40,25 +37,25 @@ def make_start_args(**overrides) -> argparse.Namespace:  # noqa: ANN003
         "vm_comp_slope": None,
     }
     values.update(overrides)
-    return argparse.Namespace(**values)
+    return StartRequest(**values)
 
 
 class CoreRunPlanTests(unittest.TestCase):
     def build_plan(
         self,
         trigger_mode: str,
-        args: argparse.Namespace | None = None,
+        request: StartRequest | None = None,
         buffer_warnings: list[str] | None = None,
     ) -> StartCommandPlan:
         return build_start_plan(
-            args or make_start_args(),
+            request or make_start_request(),
             trigger_mode,
             get_default_instrument_profile(),
             buffer_warnings=buffer_warnings,
         )
 
     def test_immediate_simple_mode_uses_read_without_buffered_path(self):
-        plan = self.build_plan("immediate", make_start_args(trigger_mode="immediate", max_samples=1))
+        plan = self.build_plan("immediate", make_start_request(trigger_mode="immediate", max_samples=1))
 
         self.assertEqual("READ?", plan.read_path)
         self.assertIn("CONF:CURR:DC AUTO", plan.scpi_commands)
@@ -70,7 +67,7 @@ class CoreRunPlanTests(unittest.TestCase):
     def test_external_simple_mode_uses_fetch_and_external_trigger_scpi(self):
         plan = self.build_plan(
             "external",
-            make_start_args(
+            make_start_request(
                 trigger_mode="external",
                 max_samples=1,
                 hw_trigger_slope="pos",
@@ -89,7 +86,7 @@ class CoreRunPlanTests(unittest.TestCase):
     def test_immediate_custom_plan_uses_buffered_read_path(self):
         plan = self.build_plan(
             "immediate-custom",
-            make_start_args(
+            make_start_request(
                 trigger_mode="immediate-custom",
                 trigger_count=2,
                 sample_count=3,
@@ -108,7 +105,7 @@ class CoreRunPlanTests(unittest.TestCase):
     def test_software_custom_plan_uses_bus_trigger_and_buffered_read_path(self):
         plan = self.build_plan(
             "software-custom",
-            make_start_args(
+            make_start_request(
                 trigger_mode="software-custom",
                 trigger_count=4,
                 sample_count=5,
@@ -126,7 +123,7 @@ class CoreRunPlanTests(unittest.TestCase):
     def test_external_custom_plan_includes_external_trigger_details(self):
         plan = self.build_plan(
             "external-custom",
-            make_start_args(
+            make_start_request(
                 trigger_mode="external-custom",
                 trigger_count=6,
                 sample_count=7,
@@ -148,7 +145,7 @@ class CoreRunPlanTests(unittest.TestCase):
         warnings = ["WARNING: requested readings exceed 34461A reading memory."]
         plan = self.build_plan(
             "software-custom",
-            make_start_args(
+            make_start_request(
                 trigger_mode="software-custom",
                 trigger_count=101,
                 sample_count=100,
@@ -163,7 +160,7 @@ class CoreRunPlanTests(unittest.TestCase):
     def test_simulate_adds_simulator_note(self):
         plan = self.build_plan(
             "immediate",
-            make_start_args(trigger_mode="immediate", max_samples=1, simulate=True),
+            make_start_request(trigger_mode="immediate", max_samples=1, simulate=True),
         )
 
         self.assertIn("simulate uses deterministic fake instrument values", plan.notes)
@@ -172,11 +169,10 @@ class CoreRunPlanTests(unittest.TestCase):
         csv_path = str(Path("data") / "voltage.csv")
         plan = self.build_plan(
             "software",
-            make_start_args(
+            make_start_request(
                 measurement="voltage-dc",
                 csv=csv_path,
                 resource="USB::34461A",
-                status_format="jsonl",
             ),
         )
 
@@ -188,7 +184,7 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertEqual("USB::34461A", plan.resource)
         self.assertFalse(plan.simulate)
         self.assertTrue(plan.dry_run)
-        self.assertEqual("jsonl", plan.status_format)
+        self.assertFalse(hasattr(plan, "status_format"))
         self.assertEqual(
             [
                 "wait for worker",

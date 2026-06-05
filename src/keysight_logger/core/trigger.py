@@ -245,6 +245,7 @@ class SoftwareTriggerAdapter:
         return {
             "schema_version": 1,
             "service": "keysight-meter",
+            "run_id": dynamic.get("run_id"),
             "status": status,
             "trigger_url": f"{base_url}/trigger",
             "stop_url": f"{base_url}/stop",

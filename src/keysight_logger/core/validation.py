@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -10,7 +9,7 @@ from .measurement import (
     normalize_measurement_type,
     registered_measurement_types,
 )
-from .models import InstrumentProfile, get_default_instrument_profile
+from .models import InstrumentProfile, StartRequest, get_default_instrument_profile
 from .storage import UTC_PLUS_8
 
 
@@ -39,12 +38,12 @@ def resolve_csv_path(csv_path: str | None, now: datetime | None = None) -> Path:
     return Path("data") / f"{timestamp}.csv"
 
 
-def resolve_measurement_range(args: argparse.Namespace) -> float | None:
-    if args.measurement_range is not None and args.current_range is not None:
+def resolve_measurement_range(request: StartRequest) -> float | None:
+    if request.measurement_range is not None and request.current_range is not None:
         raise ValueError("--range and --current-range cannot be used together")
-    if args.measurement_range is not None:
-        return args.measurement_range
-    return args.current_range
+    if request.measurement_range is not None:
+        return request.measurement_range
+    return request.current_range
 
 
 def format_number(value: float | int) -> str:
@@ -144,20 +143,18 @@ def validate_client_port(port: int, command_name: str) -> None:
         )
 
 
-def resolve_trigger_mode(args: argparse.Namespace) -> str:
-    trigger_mode = args.trigger_mode or "software"
-    if args.enable_hw_trigger:
-        if args.trigger_mode is not None and args.trigger_mode != "external":
-            raise ValueError("--enable-hw-trigger conflicts with --trigger-mode; use external")
-        trigger_mode = "external"
-    return trigger_mode
+def resolve_trigger_mode(request: StartRequest) -> str:
+    return request.trigger_mode or "software"
 
 
-def validate_start_args(
-    args: argparse.Namespace,
+def validate_start_request(
+    request: StartRequest,
     trigger_mode: str,
     instrument_profile: InstrumentProfile | None = None,
 ) -> None:
+    args = request
+    if args.dry_run and args.simulate:
+        raise ValueError("--dry-run and --simulate cannot be used together")
     custom_mode = trigger_mode.endswith("-custom")
     profile = instrument_profile or get_default_instrument_profile()
     measurement_type = normalize_measurement_type(args.measurement)
@@ -305,11 +302,12 @@ def validate_start_args(
 
 
 def print_buffer_overflow_warnings(
-    args: argparse.Namespace,
+    request: StartRequest,
     trigger_mode: str,
     instrument_profile: InstrumentProfile | None = None,
     emit_fn=None,  # noqa: ANN001
 ) -> list[str]:
+    args = request
     warnings: list[str] = []
     if emit_fn is None:
         emit_fn = print
@@ -332,3 +330,6 @@ def print_buffer_overflow_warnings(
         emit_fn(msg)
         warnings.append(msg)
     return warnings
+
+
+validate_start_args = validate_start_request
