@@ -19,6 +19,7 @@ def test_webui_docs_index_core_contract_and_adapter_docs():
 
     for doc in (
         "docs/core-integration.md",
+        "docs/Webui-README.md",
         "docs/web-ui-ai-change-rules.md",
         "docs/web-ui-session-handoff.md",
         "docs/hardware-test-plan.md",

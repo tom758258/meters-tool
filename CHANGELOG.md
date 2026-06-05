@@ -4,14 +4,29 @@
 
 No unreleased changes.
 
+## webui-v1.1.0 - 2026-05-29
+
+- Added the WebUI Live data panel with latest sample, trend chart, statistics,
+  recent-samples table, and selected-sample metadata while keeping acquisition,
+  trigger, SCPI, VISA, CSV, and cleanup behavior routed through Core.
+- Added Open CSV behavior for the latest completed run through the WebUI
+  manager state, without accepting frontend-supplied file paths.
+- Updated WebUI branch documentation so `docs/web-ui-session-handoff.md` is the
+  detailed WebUI status source and `docs/session-handoff.md` is only a thin
+  branch-neutral handoff index.
+- Added `docs/Webui-README.md` as the detailed WebUI operator and maintainer
+  guide.
+- Recorded current no-hardware release validation: JavaScript syntax check
+  passed, focused WebUI/Core pytest passed with 74 tests and 123 subtests, and
+  full pytest passed with 243 tests and 128 subtests.
+- Bumped package metadata to `keysight-logger-webui 1.1.0` for the
+  `webui-v1.1.0` tag.
+
 ## webui-v1.0.0 - 2026-05-26
 
 - Migrated the Web UI adapter from the old CLI-backed runtime path to the
   independent Core `StartRequest` / `run_start_session()` architecture while
   preserving the existing browser endpoints and static UI.
-- Implemented the WebUI Live data panel from Core sample events, including the
-  latest reading, a browser-side trend chart, the latest 100 samples, and
-  selected-sample metadata details.
 - Updated WebUI package metadata to `keysight-logger-webui` and restored WebUI
   runtime/test dependencies in project metadata.
 - Added the `keysight-logger-webui` console script and `--version` support for

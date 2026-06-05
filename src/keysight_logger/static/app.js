@@ -10,16 +10,28 @@ const rawStatus = document.querySelector("#raw-status");
 const statusDetails = document.querySelector("#status-details");
 const toggleStatusDetailsButton = document.querySelector("#toggle-status-details");
 const liveDataSummary = document.querySelector("#live-data-summary");
-const liveDataRun = document.querySelector("#live-data-run");
 const liveLatestValue = document.querySelector("#live-latest-value");
-const liveLatestMeta = document.querySelector("#live-latest-meta");
 const liveLatestTime = document.querySelector("#live-latest-time");
 const liveLatestTrigger = document.querySelector("#live-latest-trigger");
+const liveStatMin = document.querySelector("#live-stat-min");
+const liveStatAverage = document.querySelector("#live-stat-average");
+const liveStatMax = document.querySelector("#live-stat-max");
+const liveStatSpan = document.querySelector("#live-stat-span");
+const liveStatStdDev = document.querySelector("#live-stat-std-dev");
+const liveStatSample = document.querySelector("#live-stat-sample");
+const liveStatsGrid = document.querySelector("#live-stats-grid");
+const toggleLiveStatsButton = document.querySelector("#toggle-live-stats");
+const liveChartShell = document.querySelector("#live-chart-shell");
+const toggleLiveChartButton = document.querySelector("#toggle-live-chart");
 const liveTrendChart = document.querySelector("#live-trend-chart");
 const liveChartEmpty = document.querySelector("#live-chart-empty");
+const liveTableWrap = document.querySelector("#live-table-wrap");
+const toggleLiveSamplesButton = document.querySelector("#toggle-live-samples");
 const liveSamplesBody = document.querySelector("#live-samples-body");
+const liveSampleMetadata = document.querySelector("#live-sample-metadata");
 const liveSelectedSample = document.querySelector("#live-selected-sample");
 const liveSampleDetails = document.querySelector("#live-sample-details");
+const closeLiveSampleDetailsButton = document.querySelector("#close-live-sample-details");
 const resourceInput = document.querySelector("#resource");
 const resourceSelect = document.querySelector("#resource-select");
 const triggerRunButton = document.querySelector("#trigger-run");
@@ -60,11 +72,19 @@ const measurementScopedControls = [
 const SVG_NS = "http://www.w3.org/2000/svg";
 const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;
 const STATUS_LOG_LINE_COUNT = 5;
+const SOFTWARE_TRIGGER_QUEUED_BURST_COUNT = 5;
+const SOFTWARE_TRIGGER_QUEUED_BURST_MS = 2000;
 let measurementsByName = new Map();
 let inputLimits = {};
 let statusLogMessages = [];
 let lastApiLatestStatus = "";
 let selectedLiveSampleSequence = null;
+let liveSampleDetailsVisible = false;
+let liveChartBaselineRunId = null;
+let liveChartBaselineValue = null;
+let softwareTriggerQueuedTimes = [];
+let showNextSoftwareTriggerQueued = false;
+let loggedWaitingTriggerKeys = new Set();
 
 function numberOrNull(value) {
   if (value === null || value === undefined || value === "") {
@@ -115,9 +135,15 @@ function appendStatusLog(message) {
   renderStatusLog();
 }
 
-function appendApiStatusLog(message) {
+function appendApiStatusLog(statusOrMessage) {
+  const status =
+    typeof statusOrMessage === "object" && statusOrMessage !== null ? statusOrMessage : null;
+  const message = status ? status.latest_status : statusOrMessage;
   const formatted = formatStatusLogMessage(message);
   if (!formatted) {
+    return;
+  }
+  if (shouldSuppressApiStatusLog(formatted, status)) {
     return;
   }
   if (formatted.toLowerCase() === "idle") {
@@ -131,10 +157,51 @@ function appendApiStatusLog(message) {
   appendStatusLog(formatted);
 }
 
+function shouldSuppressApiStatusLog(formatted, status) {
+  const normalized = formatted.toLowerCase();
+  const mode = String(status?.trigger_mode || triggerModeSelect.value || "");
+  const runId = String(status?.run_id || "no-run");
+  if (
+    ["software", "software-custom"].includes(mode) &&
+    ["waiting trigger", "waiting software custom trigger"].includes(normalized)
+  ) {
+    const key = `${runId}:${normalized}`;
+    if (loggedWaitingTriggerKeys.has(key)) {
+      return true;
+    }
+    loggedWaitingTriggerKeys.add(key);
+    return false;
+  }
+  if (normalized === "software trigger queued") {
+    if (!showNextSoftwareTriggerQueued) {
+      return true;
+    }
+    showNextSoftwareTriggerQueued = false;
+  }
+  return false;
+}
+
+function markSoftwareTriggerQueuedForLog() {
+  const now = Date.now();
+  softwareTriggerQueuedTimes = [...softwareTriggerQueuedTimes, now].filter(
+    (time) => now - time <= SOFTWARE_TRIGGER_QUEUED_BURST_MS
+  );
+  if (softwareTriggerQueuedTimes.length >= SOFTWARE_TRIGGER_QUEUED_BURST_COUNT) {
+    showNextSoftwareTriggerQueued = true;
+    softwareTriggerQueuedTimes = [];
+  }
+}
+
 function setStatusDetailsVisible(visible) {
   statusDetails.classList.toggle("is-hidden", !visible);
   toggleStatusDetailsButton.setAttribute("aria-expanded", String(visible));
   toggleStatusDetailsButton.textContent = visible ? "Hide Details" : "Show Details";
+}
+
+function setLiveSectionVisible(button, section, visible) {
+  section.classList.toggle("is-hidden", !visible);
+  button.setAttribute("aria-expanded", String(visible));
+  button.textContent = visible ? "-" : "+";
 }
 
 function setPanelExpanded(button, expanded) {
@@ -144,7 +211,7 @@ function setPanelExpanded(button, expanded) {
   }
   panel.classList.toggle("is-collapsed", !expanded);
   button.setAttribute("aria-expanded", String(expanded));
-  button.textContent = expanded ? "Hide" : "Show";
+  button.textContent = expanded ? "-" : "+";
 }
 
 function supportsAutoZero(measurementName) {
@@ -183,8 +250,7 @@ function formPayload() {
   const selectedMeasurement = String(data.get("measurement") || "current-dc");
   const measurement = measurementsByName.get(selectedMeasurement);
 
-  const autoZeroVisible =
-    supportsAutoZero(selectedMeasurement) || selectedMeasurement === "voltage-dc-ratio";
+  const autoZeroVisible = supportsAutoZero(selectedMeasurement);
   const dcvInputZVisible = supportsDcvInputZ(selectedMeasurement);
 
   const payload = {
@@ -347,29 +413,24 @@ function triggerMetadataPayload() {
 function updateMeasurementUi() {
   const selected = measurementSelect.value || "current-dc";
   const measurement = measurementsByName.get(selected);
-  const autoZeroVisible = supportsAutoZero(selected) || selected === "voltage-dc-ratio";
+  const autoZeroVisible = supportsAutoZero(selected);
   autoZeroContainer.classList.toggle("is-hidden", !autoZeroVisible);
   autoZeroSelect.disabled = !autoZeroVisible;
 
   if (autoZeroVisible) {
     const existingAutoZero = autoZeroSelect.value || "on";
-    if (selected === "voltage-dc-ratio") {
-      autoZeroSelect.replaceChildren(
-        optionElement("on", "On")
-      );
-      autoZeroSelect.value = "on";
+    autoZeroSelect.replaceChildren(
+      optionElement("on", "On"),
+      optionElement("off", "Off"),
+      optionElement("once", "Once")
+    );
+    if (["on", "off", "once"].includes(existingAutoZero)) {
+      autoZeroSelect.value = existingAutoZero;
     } else {
-      autoZeroSelect.replaceChildren(
-        optionElement("on", "On"),
-        optionElement("off", "Off"),
-        optionElement("once", "Once")
-      );
-      if (["on", "off", "once"].includes(existingAutoZero)) {
-        autoZeroSelect.value = existingAutoZero;
-      } else {
-        autoZeroSelect.value = "on";
-      }
+      autoZeroSelect.value = "on";
     }
+  } else {
+    autoZeroSelect.value = "on";
   }
 
   const acBandwidthVisible = supportsAcBandwidth(measurement);
@@ -571,7 +632,7 @@ function renderStatus(status) {
     statusCsv.textContent = status.csv_path || "Default";
   }
   updateOpenCsvButton(status);
-  appendApiStatusLog(status.latest_status || "idle");
+  appendApiStatusLog(status);
   fatalError.textContent = status.fatal_error || "";
   cleanupStatus.textContent = status.cleanup_status || "";
   rawStatus.textContent = JSON.stringify(status, null, 2);
@@ -582,6 +643,7 @@ function renderLiveData(status) {
   const samples = Array.isArray(status.recent_samples) ? status.recent_samples : [];
   const latest = status.latest_sample || samples[samples.length - 1] || null;
   const capacity = Number(status.sample_capacity || 100);
+  updateLiveChartBaseline(status, samples);
 
   if (samples.length === 0) {
     selectedLiveSampleSequence = null;
@@ -595,15 +657,12 @@ function renderLiveData(status) {
   liveDataSummary.textContent = samples.length
     ? `${samples.length}/${capacity} recent samples`
     : "No samples captured";
-  liveDataRun.textContent = capitalizeFirst(status.state || "idle");
   liveLatestValue.textContent = latest
     ? formatLiveValueWithUnit(latest.value, latest.unit)
     : "--";
-  liveLatestMeta.textContent = latest
-    ? `${latest.measurement_type || status.measurement || "measurement"} #${latest.sequence}`
-    : "No sample";
   liveLatestTime.textContent = latest ? formatLiveTime(latest.timestamp_utc_plus_8) : "--";
   liveLatestTrigger.textContent = latest ? formatLiveTrigger(latest) : "--";
+  renderLiveStats(samples, latest);
 
   renderLiveChart(samples);
   renderLiveSamplesTable(samples);
@@ -612,17 +671,67 @@ function renderLiveData(status) {
   );
 }
 
+function updateLiveChartBaseline(status, samples) {
+  const runId = status.run_id || null;
+  if (runId !== liveChartBaselineRunId) {
+    liveChartBaselineRunId = runId;
+    liveChartBaselineValue = null;
+  }
+  if (runId === null || liveChartBaselineValue !== null) {
+    return;
+  }
+  const firstNumericSample = samples.find((sample) => Number.isFinite(Number(sample.value)));
+  if (firstNumericSample) {
+    liveChartBaselineValue = Number(firstNumericSample.value);
+  }
+}
+
+function renderLiveStats(samples, latest) {
+  const unit = latest?.unit || samples.find((sample) => sample.unit)?.unit || "";
+  const values = samples
+    .map((sample) => Number(sample.value))
+    .filter((value) => Number.isFinite(value));
+  if (values.length === 0) {
+    liveStatMin.textContent = "--";
+    liveStatAverage.textContent = "--";
+    liveStatMax.textContent = "--";
+    liveStatSpan.textContent = "--";
+    liveStatStdDev.textContent = "--";
+    liveStatSample.textContent = latest ? `#${latest.sequence}` : "--";
+    return;
+  }
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const average = values.reduce((total, value) => total + value, 0) / values.length;
+  const variance =
+    values.reduce((total, value) => total + ((value - average) ** 2), 0) / values.length;
+
+  liveStatMin.textContent = formatLiveValueWithUnit(min, unit);
+  liveStatAverage.textContent = formatLiveValueWithUnit(average, unit);
+  liveStatMax.textContent = formatLiveValueWithUnit(max, unit);
+  liveStatSpan.textContent = formatLiveValueWithUnit(max - min, unit);
+  liveStatStdDev.textContent = formatLiveValueWithUnit(Math.sqrt(variance), unit);
+  liveStatSample.textContent = latest ? `#${latest.sequence}` : "--";
+}
+
 function renderLiveChart(samples) {
   const numericSamples = samples.filter((sample) => Number.isFinite(Number(sample.value)));
   liveTrendChart.replaceChildren();
+  const width = 640;
+  const height = 180;
+  const padding = 18;
+  const centerY = height / 2;
+  const gridLineCountPerSide = 5;
+  const gridStepPx = (centerY - padding) / gridLineCountPerSide;
 
-  for (const y of [30, 75, 120, 165]) {
+  for (let offset = -gridLineCountPerSide; offset <= gridLineCountPerSide; offset += 1) {
+    const y = centerY + offset * gridStepPx;
     liveTrendChart.appendChild(svgElement("line", {
-      x1: 16,
+      x1: 18,
       y1: y,
       x2: 624,
       y2: y,
-      class: "live-chart-grid",
+      class: offset === 0 ? "live-chart-grid live-chart-grid-center" : "live-chart-grid",
     }));
   }
 
@@ -632,22 +741,29 @@ function renderLiveChart(samples) {
     return;
   }
 
-  const width = 640;
-  const height = 180;
-  const padding = 18;
   const values = numericSamples.map((sample) => Number(sample.value));
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const valueRange = max - min;
+  const baseline = Number.isFinite(liveChartBaselineValue)
+    ? liveChartBaselineValue
+    : values[0];
+  const deviations = values.map((value) => value - baseline);
+  const absDeviations = deviations.map((value) => Math.abs(value));
+  const averageAbsDeviation =
+    absDeviations.reduce((total, value) => total + value, 0) / absDeviations.length;
+  const maxAbsDeviation = Math.max(...absDeviations);
+  const baselineMagnitude = Math.max(Math.abs(baseline), 1);
+  const minimumGridValue = baselineMagnitude * 1e-9;
+  const gridStepValue = Math.max(
+    averageAbsDeviation / 3,
+    maxAbsDeviation / gridLineCountPerSide,
+    minimumGridValue
+  );
   const plotWidth = width - padding * 2;
-  const plotHeight = height - padding * 2;
   const points = numericSamples.map((sample, index) => {
     const x = numericSamples.length === 1
       ? width / 2
       : padding + (index * plotWidth) / (numericSamples.length - 1);
-    const y = valueRange === 0
-      ? height / 2
-      : padding + (1 - (Number(sample.value) - min) / valueRange) * plotHeight;
+    const deviation = Number(sample.value) - baseline;
+    const y = centerY - (deviation / gridStepValue) * gridStepPx;
     return { x, y };
   });
 
@@ -662,7 +778,7 @@ function renderLiveChart(samples) {
   liveTrendChart.appendChild(svgElement("circle", {
     cx: lastPoint.x,
     cy: lastPoint.y,
-    r: 4,
+    r: 2.75,
     class: "live-chart-point",
   }));
   liveChartEmpty.classList.add("is-hidden");
@@ -699,9 +815,15 @@ function renderLiveSamplesTable(samples) {
       detailsButton.type = "button";
       detailsButton.className = "live-detail-button";
       detailsButton.textContent = "Details";
-      detailsButton.setAttribute("aria-label", `Show details for sample ${sample.sequence}`);
+      detailsButton.setAttribute("aria-expanded", String(
+        liveSampleDetailsVisible && sameSequence(sample.sequence, selectedLiveSampleSequence)
+      ));
+      detailsButton.setAttribute("aria-label", `Toggle details for sample ${sample.sequence}`);
       detailsButton.addEventListener("click", () => {
-        selectedLiveSampleSequence = sample.sequence;
+        const closing =
+          liveSampleDetailsVisible && sameSequence(sample.sequence, selectedLiveSampleSequence);
+        liveSampleDetailsVisible = !closing;
+        selectedLiveSampleSequence = closing ? null : sample.sequence;
         renderLiveSampleDetails(sample);
         updateLiveSelectedRows();
       });
@@ -713,7 +835,8 @@ function renderLiveSamplesTable(samples) {
 }
 
 function renderLiveSampleDetails(sample) {
-  if (!sample) {
+  liveSampleMetadata.classList.toggle("is-hidden", !liveSampleDetailsVisible || !sample);
+  if (!liveSampleDetailsVisible || !sample) {
     liveSelectedSample.textContent = "No sample selected";
     liveSampleDetails.textContent = "";
     return;
@@ -734,7 +857,12 @@ function updateLiveSelectedRows() {
   for (const row of liveSamplesBody.querySelectorAll("tr[data-sequence]")) {
     row.classList.toggle(
       "is-selected",
-      sameSequence(row.dataset.sequence, selectedLiveSampleSequence)
+      liveSampleDetailsVisible && sameSequence(row.dataset.sequence, selectedLiveSampleSequence)
+    );
+    const detailsButton = row.querySelector(".live-detail-button");
+    detailsButton?.setAttribute(
+      "aria-expanded",
+      String(liveSampleDetailsVisible && sameSequence(row.dataset.sequence, selectedLiveSampleSequence))
     );
   }
 }
@@ -750,13 +878,48 @@ function tableCell(value) {
 }
 
 function formatLiveValueWithUnit(value, unit) {
-  return [formatLiveValue(value), unit || ""].filter(Boolean).join(" ");
+  const scaled = scaleLiveValue(value, unit);
+  return [formatLiveValue(scaled.value), scaled.unit || ""].filter(Boolean).join(" ");
+}
+
+function scaleLiveValue(value, unit) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return { value, unit };
+  }
+
+  const absValue = Math.abs(numeric);
+  if (unit === "A") {
+    if (absValue > 0 && absValue < 1e-3) {
+      return { value: numeric * 1000000, unit: "uA" };
+    }
+    if (absValue > 0 && absValue < 1) {
+      return { value: numeric * 1000, unit: "mA" };
+    }
+  }
+  if (unit === "V") {
+    if (absValue > 0 && absValue < 1e-3) {
+      return { value: numeric * 1000000, unit: "uV" };
+    }
+    if (absValue > 0 && absValue < 1) {
+      return { value: numeric * 1000, unit: "mV" };
+    }
+  }
+  if (unit === "Ohm") {
+    if (absValue >= 1000000) {
+      return { value: numeric / 1000000, unit: "MOhm" };
+    }
+    if (absValue >= 1000) {
+      return { value: numeric / 1000, unit: "kOhm" };
+    }
+  }
+  return { value: numeric, unit };
 }
 
 function formatLiveValue(value) {
   const numeric = Number(value);
   if (Number.isFinite(numeric)) {
-    return numeric.toLocaleString("en-US", { maximumSignificantDigits: 10 });
+    return numeric.toLocaleString("en-US", { maximumSignificantDigits: 6 });
   }
   if (value === null || value === undefined || value === "") {
     return "--";
@@ -806,8 +969,7 @@ function updatePanelSummaries() {
   if (measurementSummary) {
     const selectedMeasurement = measurementSelect.value || "current-dc";
     const measurement = measurementsByName.get(selectedMeasurement);
-    const autoZeroVisible =
-      supportsAutoZero(selectedMeasurement) || selectedMeasurement === "voltage-dc-ratio";
+    const autoZeroVisible = supportsAutoZero(selectedMeasurement);
     const acBandwidthVisible = supportsAcBandwidth(measurement);
     const currentTerminalVisible = supportsCurrentTerminal(measurement);
 
@@ -931,6 +1093,33 @@ swMinIntervalInput.addEventListener("input", validateSwMinInterval);
 toggleStatusDetailsButton.addEventListener("click", () => {
   setStatusDetailsVisible(statusDetails.classList.contains("is-hidden"));
 });
+closeLiveSampleDetailsButton.addEventListener("click", () => {
+  liveSampleDetailsVisible = false;
+  selectedLiveSampleSequence = null;
+  renderLiveSampleDetails(null);
+  updateLiveSelectedRows();
+});
+toggleLiveStatsButton.addEventListener("click", () => {
+  setLiveSectionVisible(
+    toggleLiveStatsButton,
+    liveStatsGrid,
+    toggleLiveStatsButton.getAttribute("aria-expanded") !== "true"
+  );
+});
+toggleLiveChartButton.addEventListener("click", () => {
+  setLiveSectionVisible(
+    toggleLiveChartButton,
+    liveChartShell,
+    toggleLiveChartButton.getAttribute("aria-expanded") !== "true"
+  );
+});
+toggleLiveSamplesButton.addEventListener("click", () => {
+  setLiveSectionVisible(
+    toggleLiveSamplesButton,
+    liveTableWrap,
+    toggleLiveSamplesButton.getAttribute("aria-expanded") !== "true"
+  );
+});
 for (const button of panelToggles) {
   button.addEventListener("click", () => {
     setPanelExpanded(button, button.getAttribute("aria-expanded") !== "true");
@@ -963,10 +1152,14 @@ document.querySelector("#start-run").addEventListener("click", async () => {
 document.querySelector("#trigger-run").addEventListener("click", async () => {
   try {
     const metadata = triggerMetadataPayload();
-    renderStatus(await api("/api/runs/current/trigger", {
+    const status = await api("/api/runs/current/trigger", {
       method: "POST",
       body: JSON.stringify(metadata),
-    }));
+    });
+    if (status.latest_status === "software trigger queued") {
+      markSoftwareTriggerQueuedForLog();
+    }
+    renderStatus(status);
   } catch (error) {
     appendStatusLog(error.message);
   }
@@ -991,6 +1184,9 @@ openCsvButton.addEventListener("click", async () => {
 
 renderStatusLog();
 setStatusDetailsVisible(false);
+setLiveSectionVisible(toggleLiveChartButton, liveChartShell, true);
+setLiveSectionVisible(toggleLiveStatsButton, liveStatsGrid, true);
+setLiveSectionVisible(toggleLiveSamplesButton, liveTableWrap, true);
 for (const button of panelToggles) {
   setPanelExpanded(button, true);
 }

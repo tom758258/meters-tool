@@ -385,6 +385,7 @@ class WebUiApiTests(unittest.TestCase):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         self.assertNotIn("Current range alias", index)
         self.assertNotIn("Legacy external trigger", index)
@@ -421,21 +422,29 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertIn("<h1>Keysight Meters</h1>", index)
         self.assertIn('<p class="subtitle">Local acquisition console</p>', index)
-        self.assertLess(index.index('class="resource-row"'), index.index('class="status-strip"'))
+        self.assertLess(index.index('class="resource-row"'), index.index('class="grid"'))
+        self.assertNotIn('class="status-strip"', index)
         self.assertIn('id="resource"', index)
         self.assertIn('id="resource-select"', index)
+        self.assertIn('name="csv" placeholder="Default"', index)
         self.assertNotIn("Live data view is not implemented yet.", index)
         self.assertIn('id="live-trend-chart"', index)
         self.assertIn('id="live-samples-body"', index)
         self.assertIn('id="live-sample-details"', index)
         self.assertIn('id="open-csv"', index)
+        self.assertGreater(index.index('class="run-controls"'), index.index('id="live-data-heading"'))
+        self.assertLess(index.index('class="live-data-metrics"'), index.index('class="run-controls"'))
         self.assertLess(index.index('id="stop-run"'), index.index('id="open-csv"'))
-        self.assertIn('class="panel-toggle"', index)
+        self.assertIn('<button class="panel-toggle" type="button" aria-expanded="true">-</button>', index)
         self.assertIn("function setPanelExpanded", app_js)
+        self.assertIn('button.textContent = expanded ? "-" : "+";', app_js)
         self.assertIn("function renderLiveData", app_js)
         self.assertIn('"/api/runs/current/open-csv"', app_js)
         self.assertIn("updateOpenCsvButton", app_js)
+        self.assertIn("grid-template-columns: minmax(192px, 0.2fr) minmax(0, 0.8fr)", styles)
         self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
+        self.assertIn("grid-auto-rows: 68px", styles)
+        self.assertIn("height: 760px", styles)
         self.assertIn("background: #e6ede8", styles)
         self.assertIn("color: #18302b", styles)
         self.assertIn("background: #f4f7f2", styles)
@@ -449,15 +458,31 @@ class WebUiApiTests(unittest.TestCase):
 
         for expected in [
             'id="live-data-summary"',
-            'id="live-data-run"',
+            'id="status-state"',
+            'id="status-captured"',
+            'id="status-errors"',
             'id="live-latest-value"',
             'id="live-latest-time"',
             'id="live-latest-trigger"',
+            'id="live-stat-min"',
+            'id="live-stat-average"',
+            'id="live-stat-max"',
+            'id="live-stat-span"',
+            'id="live-stat-std-dev"',
+            'id="live-stat-sample"',
+            'id="toggle-live-stats"',
+            'id="live-stats-grid"',
+            'id="toggle-live-chart"',
+            'id="live-chart-shell"',
             'id="live-trend-chart"',
             'id="live-chart-empty"',
+            'id="toggle-live-samples"',
+            'id="live-table-wrap"',
             'id="live-samples-body"',
+            'id="live-sample-metadata"',
             'id="live-selected-sample"',
             'id="live-sample-details"',
+            'id="close-live-sample-details"',
         ]:
             with self.subTest(expected=expected):
                 self.assertIn(expected, index)
@@ -465,8 +490,20 @@ class WebUiApiTests(unittest.TestCase):
         for expected in [
             "function renderLiveData",
             "function renderLiveChart",
+            "function updateLiveChartBaseline",
+            "liveChartBaselineRunId",
+            "liveChartBaselineValue",
+            "status.run_id || null",
+            "gridLineCountPerSide = 5",
+            "averageAbsDeviation / 3",
+            "maxAbsDeviation / gridLineCountPerSide",
             "function renderLiveSamplesTable",
             "function renderLiveSampleDetails",
+            "function renderLiveStats",
+            "function scaleLiveValue",
+            "function setLiveSectionVisible",
+            "function shouldSuppressApiStatusLog",
+            "function markSoftwareTriggerQueuedForLog",
             "recent_samples",
             "latest_sample",
             "sample_capacity",
@@ -475,8 +512,13 @@ class WebUiApiTests(unittest.TestCase):
                 self.assertIn(expected, app_js)
 
         self.assertIn(".live-trend-chart", styles)
+        self.assertIn(".live-stats-grid", styles)
+        self.assertIn(".live-collapse-toggle", styles)
+        self.assertNotIn(".live-chart-axis", styles)
+        self.assertNotIn(".live-chart-axis-line", styles)
         self.assertIn(".live-samples-table", styles)
         self.assertIn(".live-chart-line", styles)
+        self.assertIn(".live-chart-grid-center", styles)
 
     def test_static_ui_exposes_cli_limit_constraints(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
@@ -611,11 +653,15 @@ class WebUiApiTests(unittest.TestCase):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         self.assertIn('id="sw-queue-max-container"', index)
         self.assertIn('name="sw_queue_max"', index)
         self.assertIn('id="trigger-metadata-container"', index)
         self.assertIn('id="trigger-metadata"', index)
+        self.assertIn("#trigger-metadata", styles)
+        self.assertIn("resize: none", styles)
+        self.assertIn("overflow: auto", styles)
         self.assertIn("swQueueMaxContainer", app_js)
         self.assertIn("payload.sw_queue_max", app_js)
         self.assertIn("function triggerMetadataPayload", app_js)
@@ -642,6 +688,9 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("function supportsAcBandwidth", app_js)
         self.assertIn("function supportsCurrentTerminal", app_js)
         self.assertIn('auto_zero: autoZeroVisible ? (data.get("auto_zero") || "on") : "on",', app_js)
+        self.assertIn("const autoZeroVisible = supportsAutoZero(selectedMeasurement);", app_js)
+        self.assertIn("const autoZeroVisible = supportsAutoZero(selected);", app_js)
+        self.assertNotIn('selected === "voltage-dc-ratio"', app_js)
         self.assertIn("const acBandwidthVisible = supportsAcBandwidth(measurement);", app_js)
         self.assertIn("const currentTerminalVisible = supportsCurrentTerminal(measurement);", app_js)
         self.assertIn('payload.ac_bandwidth_hz = numberOrNull(data.get("ac_bandwidth_hz"));', app_js)

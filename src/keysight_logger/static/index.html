@@ -13,12 +13,6 @@
           <h1>Keysight Meters</h1>
           <p class="subtitle">Local acquisition console</p>
         </div>
-        <div class="run-controls">
-          <button id="start-run" type="button" class="primary">Start</button>
-          <button id="trigger-run" type="button">Trigger</button>
-          <button id="stop-run" type="button" class="danger">Stop</button>
-          <button id="open-csv" type="button" class="open-csv" disabled>Open CSV</button>
-        </div>
       </section>
 
       <section class="resource-row">
@@ -37,25 +31,6 @@
         </div>
       </section>
 
-      <section class="status-strip" aria-live="polite">
-        <div>
-          <span>State</span>
-          <strong id="status-state">Idle</strong>
-        </div>
-        <div>
-          <span>Captured</span>
-          <strong id="status-captured">0</strong>
-        </div>
-        <div>
-          <span>Errors</span>
-          <strong id="status-errors">0</strong>
-        </div>
-        <div class="is-hidden" aria-hidden="true">
-          <span>CSV</span>
-          <strong id="status-csv">Default</strong>
-        </div>
-      </section>
-
       <section class="grid">
         <div class="settings-column">
           <form id="run-form" class="panel collapsible-panel" data-panel="run-setup">
@@ -64,12 +39,12 @@
                 <h2>Run Setup</h2>
                 <p class="panel-summary" data-summary-for="run-setup">Software current-dc</p>
               </div>
-              <button class="panel-toggle" type="button" aria-expanded="true">Hide</button>
+              <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
               <label>
                 <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
-                <input name="csv" placeholder="Default: data/YYYY-MM-DD-HH-MM-SS.csv" />
+                <input name="csv" placeholder="Default" />
               </label>
             <label>
               Measurement
@@ -100,7 +75,7 @@
                 <h2>Measurement options</h2>
                 <p class="panel-summary" data-summary-for="measurement-options">Auto range, auto zero</p>
               </div>
-              <button class="panel-toggle" type="button" aria-expanded="true">Hide</button>
+              <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
               <div class="switch-row">
@@ -163,7 +138,7 @@
                 <h2>Trigger options</h2>
                 <p class="panel-summary" data-summary-for="trigger-options">Software trigger ready</p>
               </div>
-              <button class="panel-toggle" type="button" aria-expanded="true">Hide</button>
+              <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
               <div class="switch-row" data-mode-scope="software">
@@ -224,14 +199,38 @@
               <h2 id="live-data-heading">Live data</h2>
               <p id="live-data-summary" class="panel-summary">No samples captured</p>
             </div>
-            <span id="live-data-run" class="live-data-run">Idle</span>
+            <div class="live-header-actions">
+              <div class="live-data-metrics" aria-live="polite">
+                <div>
+                  <span>State</span>
+                  <strong id="status-state">Idle</strong>
+                </div>
+                <div>
+                  <span>Sample</span>
+                  <strong id="status-captured">0</strong>
+                </div>
+                <div>
+                  <span>Errors</span>
+                  <strong id="status-errors">0</strong>
+                </div>
+                <div class="is-hidden" aria-hidden="true">
+                  <span>CSV</span>
+                  <strong id="status-csv">Default</strong>
+                </div>
+              </div>
+              <div class="run-controls">
+                <button id="start-run" type="button" class="primary">Start</button>
+                <button id="trigger-run" type="button">Trigger</button>
+                <button id="stop-run" type="button" class="danger">Stop</button>
+                <button id="open-csv" type="button" class="open-csv" disabled>Open CSV</button>
+              </div>
+            </div>
           </div>
 
           <div class="live-latest-grid">
             <div class="live-latest-value">
               <span>Latest</span>
               <strong id="live-latest-value">--</strong>
-              <small id="live-latest-meta">No sample</small>
             </div>
             <div>
               <span>Time UTC+8</span>
@@ -243,43 +242,122 @@
             </div>
           </div>
 
-          <div class="live-chart-shell">
-            <svg
-              id="live-trend-chart"
-              class="live-trend-chart"
-              viewBox="0 0 640 180"
-              preserveAspectRatio="none"
-              role="img"
-              aria-label="Live sample value trend"
-            ></svg>
-            <div id="live-chart-empty" class="live-chart-empty">Waiting for samples</div>
+          <div class="live-collapse-section">
+            <div class="live-section-header">
+              <span>Trend</span>
+              <button
+                id="toggle-live-chart"
+                class="live-collapse-toggle"
+                type="button"
+                aria-controls="live-chart-shell"
+                aria-expanded="true"
+              >
+                -
+              </button>
+            </div>
+            <div id="live-chart-shell" class="live-chart-shell">
+              <svg
+                id="live-trend-chart"
+                class="live-trend-chart"
+                viewBox="0 0 640 180"
+                preserveAspectRatio="none"
+                role="img"
+                aria-label="Live sample value trend"
+              ></svg>
+              <div id="live-chart-empty" class="live-chart-empty">Waiting for samples</div>
+            </div>
           </div>
 
-          <div class="live-table-wrap">
-            <table class="live-samples-table" aria-label="Recent live samples">
-              <thead>
-                <tr>
-                  <th>Seq</th>
-                  <th>Time UTC+8</th>
-                  <th>Value</th>
-                  <th>Unit</th>
-                  <th>Trigger</th>
-                  <th>Status</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody id="live-samples-body">
-                <tr>
-                  <td colspan="7">No samples captured</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="live-collapse-section">
+            <div class="live-section-header">
+              <span>Statistics</span>
+              <button
+                id="toggle-live-stats"
+                class="live-collapse-toggle"
+                type="button"
+                aria-controls="live-stats-grid"
+                aria-expanded="true"
+              >
+                -
+              </button>
+            </div>
+            <div id="live-stats-grid" class="live-stats-grid" aria-label="Live sample statistics">
+              <div>
+                <span>Min</span>
+                <strong id="live-stat-min">--</strong>
+              </div>
+              <div>
+                <span>Average</span>
+                <strong id="live-stat-average">--</strong>
+              </div>
+              <div>
+                <span>Max</span>
+                <strong id="live-stat-max">--</strong>
+              </div>
+              <div>
+                <span>Span</span>
+                <strong id="live-stat-span">--</strong>
+              </div>
+              <div>
+                <span>Std dev</span>
+                <strong id="live-stat-std-dev">--</strong>
+              </div>
+              <div>
+                <span>Sample</span>
+                <strong id="live-stat-sample">--</strong>
+              </div>
+            </div>
           </div>
 
-          <div class="live-sample-metadata">
+          <div class="live-collapse-section">
+            <div class="live-section-header">
+              <span>Recent samples</span>
+              <button
+                id="toggle-live-samples"
+                class="live-collapse-toggle"
+                type="button"
+                aria-controls="live-table-wrap"
+                aria-expanded="true"
+              >
+                -
+              </button>
+            </div>
+            <div id="live-table-wrap" class="live-table-wrap">
+              <table class="live-samples-table" aria-label="Recent live samples">
+                <thead>
+                  <tr>
+                    <th>Seq</th>
+                    <th>Time UTC+8</th>
+                    <th>Value</th>
+                    <th>Unit</th>
+                    <th>Trigger</th>
+                    <th>Status</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody id="live-samples-body">
+                  <tr>
+                    <td colspan="7">No samples captured</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="live-sample-metadata" class="live-sample-metadata is-hidden">
             <div class="live-metadata-header">
-              <span>Sample details</span>
-              <strong id="live-selected-sample">No sample selected</strong>
+              <div>
+                <span>Sample details</span>
+                <strong id="live-selected-sample">No sample selected</strong>
+              </div>
+              <button
+                id="close-live-sample-details"
+                class="live-sample-close"
+                type="button"
+                aria-label="Close sample details"
+              >
+                X
+              </button>
             </div>
             <pre id="live-sample-details"></pre>
           </div>
