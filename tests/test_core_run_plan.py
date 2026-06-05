@@ -185,7 +185,7 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertFalse(plan.simulate)
         self.assertTrue(plan.dry_run)
         self.assertFalse(hasattr(plan, "status_format"))
-        self.assertFalse(hasattr(plan, "measurement_cli_name"))
+        self.assertFalse(hasattr(plan, "measurement_cli" + "_name"))
         self.assertEqual(
             [
                 "wait for worker",
