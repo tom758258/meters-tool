@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from keysight_logger_cli.cli import main
+from keysight_logger_cli.cli import FALLBACK_CLI_VERSION, get_cli_version, main
 
 
 def _read_pyproject(pyproject_path: Path) -> dict:
@@ -62,6 +62,22 @@ def test_keysight_logger_console_script_points_to_cli_main():
 
     assert project["name"] == "keysight-logger-cli"
     assert project["version"] == "1.3.1"
+    assert project["version"] == FALLBACK_CLI_VERSION
     assert scripts["keysight-logger"] == "keysight_logger_cli.cli:main"
     assert "keysight-logger-core>=1.2.0,<1.3" in dependencies
     assert callable(main)
+
+
+def test_cli_version_uses_fallback_when_metadata_and_pyproject_are_unavailable(monkeypatch):
+    import importlib.metadata
+
+    def missing_metadata(_name: str) -> str:
+        raise importlib.metadata.PackageNotFoundError
+
+    def missing_project() -> str:
+        raise FileNotFoundError("pyproject.toml")
+
+    monkeypatch.setattr(importlib.metadata, "version", missing_metadata)
+    monkeypatch.setattr("keysight_logger_cli.cli._read_project_version", missing_project)
+
+    assert get_cli_version() == FALLBACK_CLI_VERSION

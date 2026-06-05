@@ -30,6 +30,7 @@ from keysight_logger_core.validation import (
 
 CLI_EVENT_SCHEMA_VERSION = 1
 PACKAGE_NAME = "keysight-logger-cli"
+FALLBACK_CLI_VERSION = "1.3.1"
 
 
 class StatusPayloadError(ValueError):
@@ -81,7 +82,10 @@ def get_cli_version() -> str:
     try:
         return importlib.metadata.version(PACKAGE_NAME)
     except importlib.metadata.PackageNotFoundError:
-        return _read_project_version()
+        try:
+            return _read_project_version()
+        except (OSError, KeyError, RuntimeError, ValueError):
+            return FALLBACK_CLI_VERSION
 
 
 class WindowsConsoleStopHandler:

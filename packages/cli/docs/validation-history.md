@@ -1,10 +1,33 @@
 ﻿# Keysight 34461A Validation History
 
-Updated: 2026-05-31
+Updated: 2026-06-02
 
 This file archives historical validation notes and older handoff details that
 were previously kept in `docs/session-handoff.md`. Current CLI status, active
 risks, and next work stay in `docs/session-handoff.md`.
+
+## 2026-06-02 CLI Standalone EXE Validation
+
+- Added a packaged fallback version so PyInstaller onefile CLI builds can
+  answer `--version` when installed distribution metadata and local
+  `pyproject.toml` are unavailable.
+- Added CLI standalone exe build and smoke-check instructions to `README.md`
+  and `docs/README_CLI_EN.md`.
+- Focused validation:
+  `.\.venv\Scripts\python.exe -m pytest packages\cli\tests\test_cli_package_metadata.py packages\cli\tests\test_cli_args.py -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_cli_version`
+  passed with `118 passed, 12 subtests passed`.
+- Full validation:
+  `.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_full`
+  passed with `410 passed, 1 warning, 149 subtests passed`.
+- PyInstaller validation:
+  `.\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py`
+  built `dist\keysight-logger.exe`.
+- EXE smoke validation passed:
+  `.\dist\keysight-logger.exe --version` printed `keysight-logger 1.3.1`;
+  `--help`, `list-resources --dry-run --json`, and a simulated one-sample
+  `start-trigger-record` run all exited successfully.
+- No Core runtime, SCPI, VISA timeout, trigger wait strategy, cleanup order,
+  measurement logic, CSV schema, or existing JSON field meanings changed.
 
 ## 2026-06-01 cli-v1.3.1 Release Validation
 

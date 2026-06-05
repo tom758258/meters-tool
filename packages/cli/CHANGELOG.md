@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added a packaged fallback version so PyInstaller-built CLI executables can
+  answer `--version` when distribution metadata and local `pyproject.toml` are
+  unavailable.
+- Documented the optional standalone `dist\keysight-logger.exe` PyInstaller
+  build and no-hardware smoke checks.
+
 ## cli-v1.3.1 - 2026-06-01
 
 - Released the CLI package from the unified monorepo layout after merging the

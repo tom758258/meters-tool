@@ -1,6 +1,6 @@
 ﻿# CLI Branch Handoff
 
-Updated: 2026-06-01
+Updated: 2026-06-02
 
 This file tracks current CLI package status, latest validation, active risks,
 and next work. Keep branch-neutral handoff routing in `docs/session-handoff.md`.
@@ -47,8 +47,37 @@ contracts stay in `docs/integration.md`; CLI adapter maintenance stays in
   and `keysight_logger.instrument` are no longer supported. Use
   `keysight_logger_core`, `keysight_logger_core.*`, `keysight_logger_cli.cli`, or
   the `keysight-logger` console script.
+- CLI `--version` uses installed distribution metadata first, then local
+  `pyproject.toml`, then an internal fallback version for PyInstaller onefile
+  executables where neither metadata source is available.
+- Optional standalone console exe build instructions are documented in
+  `README.md` and `docs/README_CLI_EN.md`.
 
 ## Latest Validation
+
+Latest standalone CLI exe validation on 2026-06-02:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\cli\tests\test_cli_package_metadata.py packages\cli\tests\test_cli_args.py -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_cli_version
+# 118 passed, 12 subtests passed
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_full
+# 410 passed, 1 warning, 149 subtests passed
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py
+.\dist\keysight-logger.exe --version
+.\dist\keysight-logger.exe --help
+.\dist\keysight-logger.exe list-resources --dry-run --json
+.\dist\keysight-logger.exe start-trigger-record --resource SIM::34461A --simulate --measurement voltage-dc --trigger-mode immediate --max-samples 1 --csv .tmp_tests\cli_exe_smoke.csv --status-format jsonl
+```
+
+Result: PyInstaller 6.20.0 built `dist\keysight-logger.exe`; `--version`
+printed `keysight-logger 1.3.1`; help, dry-run list-resources, and simulated
+one-sample acquisition smoke checks passed.
 
 Latest local release validation for `cli-v1.3.1` covers the monorepo package
 layout, CLI package metadata update to `1.3.1`, Core dependency alignment to

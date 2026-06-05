@@ -44,6 +44,31 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\p
 `list-resources --dry-run` does not create a VISA resource manager, list/open
 VISA resources, query instruments, or run release/local cleanup.
 
+Build the optional standalone console exe with PyInstaller from an environment
+that already has CLI and Core installed:
+
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py
+```
+
+Result:
+
+```text
+dist\keysight-logger.exe
+```
+
+Smoke checks:
+
+```powershell
+.\dist\keysight-logger.exe --version
+.\dist\keysight-logger.exe --help
+.\dist\keysight-logger.exe list-resources --dry-run --json
+```
+
+PyInstaller writes `keysight-logger.spec` as a local build artifact. Do not
+commit it unless the project intentionally switches to a checked-in build
+recipe.
+
 See the CLI guide for full command usage.
 
 ## Documentation

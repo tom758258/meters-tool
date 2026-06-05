@@ -147,6 +147,38 @@ Optional activation:
 If PowerShell blocks activation because of execution policy, use the explicit
 `.\.venv\Scripts\python.exe` commands shown above.
 
+## Standalone EXE Build
+
+The installed `.venv\Scripts\keysight-logger.exe` is a virtualenv console
+wrapper. It is not a standalone executable for machines without the project
+environment.
+
+To build the optional standalone console exe, use PyInstaller from an
+environment that already has the CLI and Core packages installed:
+
+```powershell
+.\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py
+```
+
+The output is:
+
+```text
+dist\keysight-logger.exe
+```
+
+Run no-hardware smoke checks after rebuilding:
+
+```powershell
+.\dist\keysight-logger.exe --version
+.\dist\keysight-logger.exe --help
+.\dist\keysight-logger.exe list-resources --dry-run --json
+.\dist\keysight-logger.exe start-trigger-record --resource SIM::34461A --simulate --measurement voltage-dc --trigger-mode immediate --max-samples 1 --csv .tmp_tests\cli_exe_smoke.csv --status-format jsonl
+```
+
+PyInstaller writes `keysight-logger.spec` in the current directory. That file
+is a local build recipe generated from the command above. Do not commit it
+unless the project intentionally switches to a checked-in PyInstaller spec.
+
 ## No-Hardware Validation
 
 Run this recipe before live instrument work:
