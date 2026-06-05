@@ -1,0 +1,586 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from datetime import datetime, timezone
+import math
+from typing import List
+
+from .instrument_backend import InstrumentBackend
+from .models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
+
+
+def _vm_comp_slope_command(slope: str) -> str:
+    slope_cmd = str(slope).strip().upper()
+    if slope_cmd in ("POS", "POSITIVE"):
+        return "POS"
+    if slope_cmd in ("NEG", "NEGATIVE"):
+        return "NEG"
+    raise ValueError("vm_comp_slope must be 'pos' or 'neg'")
+
+
+def _auto_zero_command_value(value: bool | str) -> str:
+    if value is True:
+        return "ON"
+    if value is False:
+        return "OFF"
+    normalized = str(value).strip().upper()
+    if normalized in ("ON", "OFF", "ONCE"):
+        return normalized
+    raise ValueError("auto_zero must be one of: True, False, 'on', 'off', 'once'")
+
+
+def _normalize_dcv_input_impedance(value: str) -> str:
+    return str(value).strip().lower()
+
+
+def _is_invalid_secondary_voltage(value: float) -> bool:
+    return not math.isfinite(value) or abs(value) >= 9e37
+
+
+def _measurement_metadata_from_data2(instrument: InstrumentBackend) -> dict[str, object]:
+    raw = instrument.query("DATA2?")
+    try:
+        values = _parse_ascii_floats(raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Failed to parse DATA2? secondary voltage response from '{raw}'"
+        ) from exc
+    if len(values) != 2:
+        raise RuntimeError(f"Expected 2 DATA2? secondary voltage readings, got {len(values)}")
+    signal_voltage_v, reference_voltage_v = values
+    if _is_invalid_secondary_voltage(signal_voltage_v) or _is_invalid_secondary_voltage(
+        reference_voltage_v
+    ):
+        raise RuntimeError(f"DATA2? secondary voltage response contains invalid value: {raw}")
+    return {
+        "signal_voltage_v": signal_voltage_v,
+        "reference_voltage_v": reference_voltage_v,
+        "secondary_source": "SENS:DATA",
+    }
+
+
+class MeasurementPlugin(ABC):
+    @abstractmethod
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        raise NotImplementedError
+
+    @abstractmethod
+    def read_sample(self, instrument: InstrumentBackend, trigger: TriggerEvent) -> MeasurementSample:
+        raise NotImplementedError
+
+    @abstractmethod
+    def measurement_type(self) -> str:
+        raise NotImplementedError
+
+    def configure_immediate_custom(
+        self,
+        instrument: InstrumentBackend,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+    ) -> None:
+        raise NotImplementedError
+
+    def configure_software_custom(
+        self,
+        instrument: InstrumentBackend,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+    ) -> None:
+        raise NotImplementedError
+
+    def configure_external_custom(
+        self,
+        instrument: InstrumentBackend,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+        slope: str,
+        delay_s: float,
+    ) -> None:
+        raise NotImplementedError
+
+    def send_bus_trigger(self, instrument: InstrumentBackend) -> None:
+        raise NotImplementedError
+
+    def start_buffered_capture(self, instrument: InstrumentBackend) -> None:
+        raise NotImplementedError
+
+    def buffered_points_available(self, instrument: InstrumentBackend) -> int:
+        raise NotImplementedError
+
+    def read_buffered_samples(
+        self,
+        instrument: InstrumentBackend,
+        trigger: TriggerEvent,
+        count: int,
+        first_sample_index: int,
+    ) -> List[MeasurementSample]:
+        raise NotImplementedError
+
+
+@dataclass(frozen=True)
+class MeasurementDefinition:
+    canonical_name: str
+    internal_type: str
+    unit: str
+    range_label: str
+    accepts_current_range_alias: bool = False
+
+
+CURRENT_DC_DEFINITION = MeasurementDefinition(
+    canonical_name="current-dc",
+    internal_type="current_dc",
+    unit="A",
+    range_label="amps",
+    accepts_current_range_alias=True,
+)
+VOLTAGE_DC_DEFINITION = MeasurementDefinition(
+    canonical_name="voltage-dc",
+    internal_type="voltage_dc",
+    unit="V",
+    range_label="volts",
+)
+VOLTAGE_DC_RATIO_DEFINITION = MeasurementDefinition(
+    canonical_name="voltage-dc-ratio",
+    internal_type="voltage_dc_ratio",
+    unit="ratio",
+    range_label="volts",
+)
+CURRENT_AC_DEFINITION = MeasurementDefinition(
+    canonical_name="current-ac",
+    internal_type="current_ac",
+    unit="A",
+    range_label="amps",
+)
+VOLTAGE_AC_DEFINITION = MeasurementDefinition(
+    canonical_name="voltage-ac",
+    internal_type="voltage_ac",
+    unit="V",
+    range_label="volts",
+)
+RESISTANCE_2W_DEFINITION = MeasurementDefinition(
+    canonical_name="resistance-2w",
+    internal_type="resistance_2w",
+    unit="Ohm",
+    range_label="ohms",
+)
+RESISTANCE_4W_DEFINITION = MeasurementDefinition(
+    canonical_name="resistance-4w",
+    internal_type="resistance_4w",
+    unit="Ohm",
+    range_label="ohms",
+)
+
+
+class ScalarDmmMeasurement(MeasurementPlugin):
+    def __init__(self, definition: MeasurementDefinition) -> None:
+        self.definition = definition
+        self._configured = False
+
+    def measurement_type(self) -> str:
+        return self.definition.internal_type
+
+    def unit(self) -> str:
+        return self.definition.unit
+
+    def _require_configured(self) -> None:
+        if not self._configured:
+            raise RuntimeError("Measurement plugin not configured")
+
+    def read_sample(self, instrument: InstrumentBackend, trigger: TriggerEvent) -> MeasurementSample:
+        self._require_configured()
+        # Hardware path is pre-armed by trigger adapter (INIT + external trigger),
+        # so fetch completed data instead of re-arming another triggered READ?.
+        command = "FETC?" if trigger.source == TriggerSource.HARDWARE else "READ?"
+        value = instrument.query_ascii_float(command)
+        return MeasurementSample(
+            timestamp_utc=datetime.now(timezone.utc),
+            measurement_type=self.measurement_type(),
+            value=value,
+            unit=self.unit(),
+            status="ok",
+            resource_id=instrument.resource_id,
+            trigger_id=trigger.id,
+            trigger_source=trigger.source.value,
+            trigger_metadata=dict(trigger.metadata),
+        )
+
+    def configure_immediate_custom(
+        self,
+        instrument: InstrumentBackend,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+    ) -> None:
+        self._require_configured()
+        if trigger_count <= 0:
+            raise ValueError("trigger_count must be > 0")
+        if sample_count <= 0:
+            raise ValueError("sample_count must be > 0")
+        instrument.write("TRIG:SOUR IMM")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def configure_software_custom(
+        self,
+        instrument: InstrumentBackend,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+    ) -> None:
+        self._require_configured()
+        if trigger_count <= 0:
+            raise ValueError("trigger_count must be > 0")
+        if sample_count <= 0:
+            raise ValueError("sample_count must be > 0")
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+
+    def configure_external_custom(
+        self,
+        instrument: InstrumentBackend,
+        config: AcquisitionConfig,
+        trigger_count: int,
+        sample_count: int,
+        slope: str,
+        delay_s: float,
+    ) -> None:
+        self._require_configured()
+        if trigger_count <= 0:
+            raise ValueError("trigger_count must be > 0")
+        if sample_count <= 0:
+            raise ValueError("sample_count must be > 0")
+        slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
+        instrument.write("TRIG:SOUR EXT")
+        instrument.write(f"TRIG:SLOP {slope_cmd}")
+        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"SAMP:COUNT {sample_count}")
+        instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
+
+    def send_bus_trigger(self, instrument: InstrumentBackend) -> None:
+        self._require_configured()
+        instrument.write("*TRG")
+
+    def start_buffered_capture(self, instrument: InstrumentBackend) -> None:
+        self._require_configured()
+        instrument.write("INIT")
+
+    def buffered_points_available(self, instrument: InstrumentBackend) -> int:
+        raw = instrument.query("DATA:POINts?")
+        try:
+            return max(0, int(float(raw)))
+        except ValueError as exc:
+            raise RuntimeError(f"Failed to parse DATA:POINts? response from '{raw}'") from exc
+
+    def read_buffered_samples(
+        self,
+        instrument: InstrumentBackend,
+        trigger: TriggerEvent,
+        count: int,
+        first_sample_index: int,
+    ) -> List[MeasurementSample]:
+        self._require_configured()
+        if count <= 0:
+            return []
+        values = _parse_ascii_floats(instrument.query(f"DATA:REMove? {count}"))
+        if len(values) != count:
+            raise RuntimeError(f"Expected {count} buffered readings, got {len(values)}")
+        fetch_time_utc = datetime.now(timezone.utc)
+        samples = []
+        for offset, value in enumerate(values):
+            metadata = dict(trigger.metadata)
+            metadata.update(
+                {
+                    "buffered": "true",
+                    "buffer_index": str(first_sample_index + offset),
+                    "buffer_batch_size": str(count),
+                    "fetch_time_utc": fetch_time_utc.isoformat(),
+                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+                }
+            )
+            samples.append(
+                MeasurementSample(
+                    timestamp_utc=fetch_time_utc,
+                    measurement_type=self.measurement_type(),
+                    value=value,
+                    unit=self.unit(),
+                    status="ok",
+                    resource_id=instrument.resource_id,
+                    trigger_id=trigger.id,
+                    trigger_source=trigger.source.value,
+                    trigger_metadata=metadata,
+                )
+            )
+        return samples
+
+
+class CurrentDcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(CURRENT_DC_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        manual_range = config.measurement_range
+        if manual_range is None:
+            manual_range = config.current_range
+        instrument.write("CONF:CURR:DC AUTO")
+        if config.current_terminal is not None:
+            instrument.write(f"CURR:DC:TERM {config.current_terminal}")
+        if config.current_terminal != 10 and config.auto_range:
+            instrument.write("CURR:DC:RANG:AUTO ON")
+        elif config.current_terminal != 10 and manual_range is not None:
+            instrument.write(f"CURR:DC:RANG {manual_range}")
+        instrument.write(f"CURR:DC:NPLC {config.nplc}")
+        instrument.write(f"ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class VoltageDcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(VOLTAGE_DC_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:VOLT:DC AUTO")
+        if config.auto_range:
+            instrument.write("VOLT:DC:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"VOLT:DC:RANG {config.measurement_range}")
+        dcv_input_impedance = _normalize_dcv_input_impedance(config.dcv_input_impedance)
+        if dcv_input_impedance == "10m":
+            instrument.write("VOLT:DC:IMP:AUTO OFF")
+        elif dcv_input_impedance == "auto":
+            instrument.write("VOLT:DC:IMP:AUTO ON")
+        instrument.write(f"VOLT:DC:NPLC {config.nplc}")
+        instrument.write(f"VOLT:DC:ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class VoltageDcRatioMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(VOLTAGE_DC_RATIO_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        if config.auto_range:
+            instrument.write("CONF:VOLT:DC:RAT AUTO")
+        elif config.measurement_range is not None:
+            instrument.write(f"CONF:VOLT:DC:RAT {config.measurement_range}")
+        dcv_input_impedance = _normalize_dcv_input_impedance(config.dcv_input_impedance)
+        if dcv_input_impedance == "10m":
+            instrument.write("VOLT:DC:IMP:AUTO OFF")
+        elif dcv_input_impedance == "auto":
+            instrument.write("VOLT:DC:IMP:AUTO ON")
+        instrument.write(f"VOLT:DC:NPLC {config.nplc}")
+        instrument.write('VOLT:RAT:SEC "SENS:DATA"')
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+    def read_sample(self, instrument: InstrumentBackend, trigger: TriggerEvent) -> MeasurementSample:
+        self._require_configured()
+        command = "FETC?" if trigger.source == TriggerSource.HARDWARE else "READ?"
+        value = instrument.query_ascii_float(command)
+        return MeasurementSample(
+            timestamp_utc=datetime.now(timezone.utc),
+            measurement_type=self.measurement_type(),
+            value=value,
+            unit=self.unit(),
+            status="ok",
+            resource_id=instrument.resource_id,
+            trigger_id=trigger.id,
+            trigger_source=trigger.source.value,
+            trigger_metadata=dict(trigger.metadata),
+            measurement_metadata=_measurement_metadata_from_data2(instrument),
+        )
+
+    def read_buffered_samples(
+        self,
+        instrument: InstrumentBackend,
+        trigger: TriggerEvent,
+        count: int,
+        first_sample_index: int,
+    ) -> List[MeasurementSample]:
+        self._require_configured()
+        if count <= 0:
+            return []
+        samples = []
+        for offset in range(count):
+            raw = instrument.query("DATA:REMove? 1")
+            try:
+                values = _parse_ascii_floats(raw)
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"Failed to parse DATA:REMove? 1 response from '{raw}'"
+                ) from exc
+            if len(values) != 1:
+                raise RuntimeError(f"Expected 1 buffered ratio reading, got {len(values)}")
+            fetch_time_utc = datetime.now(timezone.utc)
+            metadata = dict(trigger.metadata)
+            metadata.update(
+                {
+                    "buffered": "true",
+                    "buffer_index": str(first_sample_index + offset),
+                    "buffer_batch_size": "1",
+                    "fetch_time_utc": fetch_time_utc.isoformat(),
+                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+                }
+            )
+            samples.append(
+                MeasurementSample(
+                    timestamp_utc=fetch_time_utc,
+                    measurement_type=self.measurement_type(),
+                    value=values[0],
+                    unit=self.unit(),
+                    status="ok",
+                    resource_id=instrument.resource_id,
+                    trigger_id=trigger.id,
+                    trigger_source=trigger.source.value,
+                    trigger_metadata=metadata,
+                    measurement_metadata=_measurement_metadata_from_data2(instrument),
+                )
+            )
+        return samples
+
+
+class CurrentAcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(CURRENT_AC_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:CURR:AC AUTO")
+        if config.current_terminal is not None:
+            instrument.write(f"CURR:AC:TERM {config.current_terminal}")
+        if config.current_terminal != 10 and config.auto_range:
+            instrument.write("CURR:AC:RANG:AUTO ON")
+        elif config.current_terminal != 10 and config.measurement_range is not None:
+            instrument.write(f"CURR:AC:RANG {config.measurement_range}")
+        if config.ac_bandwidth_hz is not None:
+            instrument.write(f"CURR:AC:BAND {config.ac_bandwidth_hz:g}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class VoltageAcMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(VOLTAGE_AC_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:VOLT:AC AUTO")
+        if config.auto_range:
+            instrument.write("VOLT:AC:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"VOLT:AC:RANG {config.measurement_range}")
+        if config.ac_bandwidth_hz is not None:
+            instrument.write(f"VOLT:AC:BAND {config.ac_bandwidth_hz:g}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class Resistance2wMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(RESISTANCE_2W_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:RES AUTO")
+        if config.auto_range:
+            instrument.write("RES:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"RES:RANG {config.measurement_range}")
+        instrument.write(f"RES:NPLC {config.nplc}")
+        instrument.write(f"RES:ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+class Resistance4wMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(RESISTANCE_4W_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        instrument.write("CONF:FRES AUTO")
+        if config.auto_range:
+            instrument.write("FRES:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"FRES:RANG {config.measurement_range}")
+        instrument.write(f"FRES:NPLC {config.nplc}")
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+
+CurrentMeasurement = CurrentDcMeasurement
+
+_MEASUREMENT_DEFINITIONS = {
+    CURRENT_DC_DEFINITION.internal_type: CURRENT_DC_DEFINITION,
+    VOLTAGE_DC_DEFINITION.internal_type: VOLTAGE_DC_DEFINITION,
+    VOLTAGE_DC_RATIO_DEFINITION.internal_type: VOLTAGE_DC_RATIO_DEFINITION,
+    CURRENT_AC_DEFINITION.internal_type: CURRENT_AC_DEFINITION,
+    VOLTAGE_AC_DEFINITION.internal_type: VOLTAGE_AC_DEFINITION,
+    RESISTANCE_2W_DEFINITION.internal_type: RESISTANCE_2W_DEFINITION,
+    RESISTANCE_4W_DEFINITION.internal_type: RESISTANCE_4W_DEFINITION,
+}
+_MEASUREMENT_PLUGIN_TYPES: dict[str, type[MeasurementPlugin]] = {
+    CURRENT_DC_DEFINITION.internal_type: CurrentDcMeasurement,
+    VOLTAGE_DC_DEFINITION.internal_type: VoltageDcMeasurement,
+    VOLTAGE_DC_RATIO_DEFINITION.internal_type: VoltageDcRatioMeasurement,
+    CURRENT_AC_DEFINITION.internal_type: CurrentAcMeasurement,
+    VOLTAGE_AC_DEFINITION.internal_type: VoltageAcMeasurement,
+    RESISTANCE_2W_DEFINITION.internal_type: Resistance2wMeasurement,
+    RESISTANCE_4W_DEFINITION.internal_type: Resistance4wMeasurement,
+}
+
+
+def normalize_measurement_type(value: str) -> str:
+    return str(value).strip().lower().replace("-", "_")
+
+
+def format_measurement_type(value: str) -> str:
+    normalized = normalize_measurement_type(value)
+    definition = _MEASUREMENT_DEFINITIONS.get(normalized)
+    if definition is not None:
+        return definition.canonical_name
+    return normalized.replace("_", "-")
+
+
+def get_measurement_definition(measurement_type: str) -> MeasurementDefinition:
+    normalized = normalize_measurement_type(measurement_type)
+    try:
+        return _MEASUREMENT_DEFINITIONS[normalized]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported measurement type: {measurement_type}") from exc
+
+
+def registered_measurement_types() -> tuple[str, ...]:
+    return tuple(_MEASUREMENT_DEFINITIONS)
+
+
+def create_measurement_plugin(measurement_type: str) -> MeasurementPlugin:
+    normalized = normalize_measurement_type(measurement_type)
+    try:
+        plugin_type = _MEASUREMENT_PLUGIN_TYPES[normalized]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported measurement type: {measurement_type}") from exc
+    return plugin_type()
+
+
+def _parse_ascii_floats(raw: str) -> list[float]:
+    text = str(raw).strip()
+    if not text:
+        return []
+    return [float(part.strip()) for part in text.replace("\n", ",").split(",") if part.strip()]

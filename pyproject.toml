@@ -1,26 +1,12 @@
-[build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "keysight-logger"
-version = "1.2.1"
-description = "CLI-first trigger logger for Keysight 34461A"
-requires-python = ">=3.10"
-dependencies = [
-    "pyvisa>=1.14.1",
+[tool.pytest.ini_options]
+pythonpath = [
+    "packages/core/src",
+    "packages/cli/src",
+    "packages/webui/src",
 ]
-
-[project.optional-dependencies]
-dev = [
-    "pytest>=8.0.0",
+testpaths = [
+    "packages/core/tests",
+    "packages/cli/tests",
+    "packages/webui/tests",
+    "tests",
 ]
-
-[project.scripts]
-keysight-logger = "keysight_logger.cli:main"
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
