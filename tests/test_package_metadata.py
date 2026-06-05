@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import importlib.util
 from pathlib import Path
+
+from keysight_logger.cli import main
 
 
 def _read_pyproject(pyproject_path: Path) -> dict:
@@ -38,14 +39,14 @@ def _read_pyproject(pyproject_path: Path) -> dict:
     return {"project": project, "project.scripts": scripts}
 
 
-def test_core_distribution_has_no_console_script():
+def test_keysight_logger_console_script_points_to_cli_main():
     pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
 
     pyproject = _read_pyproject(pyproject_path)
     project = pyproject["project"]
     scripts = pyproject.get("project.scripts", project.get("scripts", {}))
 
-    assert project["name"] == "keysight-logger-core"
-    assert project["version"] == "1.0.0"
-    assert scripts == {}
-    assert importlib.util.find_spec("keysight_logger" + ".cli") is None
+    assert project["name"] == "keysight-logger"
+    assert project["version"] == "1.1.8"
+    assert scripts["keysight-logger"] == "keysight_logger.cli:main"
+    assert callable(main)

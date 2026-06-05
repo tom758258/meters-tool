@@ -494,11 +494,6 @@ def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argpa
 
 
 def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
-    trigger_mode = args.trigger_mode
-    if args.enable_hw_trigger:
-        if trigger_mode is not None and trigger_mode != "external":
-            raise ValueError("--enable-hw-trigger conflicts with --trigger-mode; use external")
-        trigger_mode = "external"
     return StartRequest(
         resource=args.resource,
         csv=args.csv,
@@ -509,7 +504,7 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
         sw_trigger_port=args.sw_trigger_port,
         sw_min_interval_ms=args.sw_min_interval_ms,
         sw_queue_max=args.sw_queue_max,
-        trigger_mode=trigger_mode,
+        trigger_mode=args.trigger_mode,
         max_samples=args.max_samples,
         trigger_count=args.trigger_count,
         sample_count=args.sample_count,
@@ -695,7 +690,6 @@ def build_parser() -> argparse.ArgumentParser:
             f"{default_profile.model} reading memory"
         ),
     )
-    start.add_argument("--enable-hw-trigger", action="store_true")
     start.add_argument(
         "--hw-trigger-slope",
         choices=["pos", "neg"],

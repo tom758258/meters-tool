@@ -951,55 +951,29 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("dry_run", payload["event"])
         self.assertEqual("jsonl", args.status_format)
 
-    def test_start_legacy_enable_hw_trigger_maps_to_external_in_cli_adapter(self):
+    def test_start_removed_enable_hw_trigger_flag_is_rejected_by_parser(self):
         parser = build_parser()
-        args = parser.parse_args(
-            [
-                "start-trigger-record",
-                "--resource",
-                "USB::FAKE",
-                "--csv",
-                "data\\dry_run.csv",
-                "--measurement",
-                "current-dc",
-                "--dry-run",
-                "--enable-hw-trigger",
-                "--status-format",
-                "jsonl",
-            ]
-        )
-        stdout = io.StringIO()
-
-        with redirect_stdout(stdout):
-            rc = cmd_start(args)
-
-        self.assertEqual(0, rc)
-        payload = json.loads(stdout.getvalue())
-        self.assertEqual("external", payload["trigger_mode"])
-        self.assertEqual("FETC?", payload["read_path"])
-
-    def test_start_legacy_enable_hw_trigger_conflicts_with_non_external_mode(self):
-        parser = build_parser()
-        args = parser.parse_args(
-            [
-                "start-trigger-record",
-                "--resource",
-                "USB::FAKE",
-                "--trigger-mode",
-                "software",
-                "--enable-hw-trigger",
-            ]
-        )
         stderr = io.StringIO()
 
-        with redirect_stderr(stderr):
-            rc = cmd_start(args)
+        with redirect_stderr(stderr), self.assertRaises(SystemExit) as exc:
+            parser.parse_args(
+                [
+                    "start-trigger-record",
+                    "--resource",
+                    "USB::FAKE",
+                    "--csv",
+                    "data\\dry_run.csv",
+                    "--measurement",
+                    "current-dc",
+                    "--dry-run",
+                    "--enable-hw-trigger",
+                    "--status-format",
+                    "jsonl",
+                ]
+            )
 
-        self.assertEqual(2, rc)
-        self.assertIn(
-            "--enable-hw-trigger conflicts with --trigger-mode; use external",
-            stderr.getvalue(),
-        )
+        self.assertEqual(2, exc.exception.code)
+        self.assertIn("unrecognized arguments: --enable-hw-trigger", stderr.getvalue())
 
     def test_start_non_dry_run_delegates_to_core_runner_with_start_request(self):
         parser = build_parser()

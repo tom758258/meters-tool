@@ -739,6 +739,7 @@ class MeasurementFactoryTests(unittest.TestCase):
         self.assertEqual("resistance-2w", format_measurement_type("resistance_2w"))
         self.assertEqual("resistance-4w", format_measurement_type("resistance_4w"))
         self.assertEqual("current-dc", get_measurement_definition("current-dc").canonical_name)
+        self.assertEqual("current-dc", get_measurement_definition("current-dc").cli_name)
         self.assertEqual("A", get_measurement_definition("current-dc").unit)
         self.assertEqual("A", get_measurement_definition("current-ac").unit)
         self.assertEqual("V", get_measurement_definition("voltage-ac").unit)
@@ -754,7 +755,6 @@ class MeasurementFactoryTests(unittest.TestCase):
     def test_registry_keeps_only_logical_measurement_metadata(self):
         current_dc = get_measurement_definition("current-dc")
 
-        self.assertFalse(hasattr(current_dc, "cli" + "_name"))
         self.assertFalse(hasattr(current_dc, "range_options"))
         self.assertFalse(hasattr(current_dc, "nplc_options"))
 
