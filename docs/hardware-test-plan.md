@@ -74,6 +74,12 @@ Additional no-hardware dry-run checks for Core measurement options:
 - `StartRequest(measurement="current-ac", auto_range=False,
   measurement_range=10, current_terminal=10)` includes `CURR:AC:TERM 10` and
   does not include `CURR:AC:RANG 10`.
+- `StartRequest(measurement="voltage-dc-ratio", dcv_input_impedance="10m")`
+  includes `CONF:VOLT:DC:RAT AUTO`, `VOLT:DC:IMP:AUTO OFF`,
+  `VOLT:DC:NPLC 1.0`, and `VOLT:RAT:SEC "SENS:DATA"`; it does not include
+  Auto Zero SCPI.
+- `StartRequest(measurement="voltage-dc-ratio", auto_zero="off")` and
+  `auto_zero="once"` produce validation errors.
 
 ## Core Simulator Validation
 
@@ -81,12 +87,23 @@ Use `run_start_session()` with `SIM::34461A` and bounded sample counts:
 
 ```python
 from keysight_logger.core import (
+    NoOpControlPlane,
     StartRequest,
+    StartRunEvent,
     get_default_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
     validate_start_request,
 )
+
+
+class PrintEventSink:
+    def emit(self, event: StartRunEvent) -> None:
+        if event.event == "summary":
+            print(
+                f"summary: captured={event.captured}, "
+                f"errors={event.errors}, fatal_error={event.fatal_error}"
+            )
 
 request = StartRequest(
     resource="SIM::34461A",
@@ -102,7 +119,10 @@ validate_start_request(request, trigger_mode, instrument_profile=profile)
 result = run_start_session(
     request,
     trigger_mode,
-    instrument_profile=profile,
+    profile,
+    PrintEventSink(),
+    None,
+    control_plane=NoOpControlPlane(),
 )
 print(result)
 ```
@@ -117,12 +137,23 @@ Live validation requires an operator-provided VISA resource. Replace
 
 ```python
 from keysight_logger.core import (
+    NoOpControlPlane,
     StartRequest,
+    StartRunEvent,
     get_default_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
     validate_start_request,
 )
+
+
+class PrintEventSink:
+    def emit(self, event: StartRunEvent) -> None:
+        if event.event == "summary":
+            print(
+                f"summary: captured={event.captured}, "
+                f"errors={event.errors}, fatal_error={event.fatal_error}"
+            )
 
 request = StartRequest(
     resource="<RESOURCE>",
@@ -137,7 +168,10 @@ validate_start_request(request, trigger_mode, instrument_profile=profile)
 result = run_start_session(
     request,
     trigger_mode,
-    instrument_profile=profile,
+    profile,
+    PrintEventSink(),
+    None,
+    control_plane=NoOpControlPlane(),
 )
 print(result)
 ```
@@ -154,6 +188,23 @@ immediate captures and an operator-provided safe setup:
   `20`, or `200`.
 - Current 10 A terminal validation only with the instrument physically wired to
   the 10 A input and the operator confirming the expected current path.
+- DCV Ratio with `measurement="voltage-dc-ratio"`, `trigger_mode="immediate"`,
+  and `max_samples=1`. Connect the signal to Input HI/LO and the reference
+  through the Sense terminals. Sense terminal measurements must stay within
+  +/-12 VDC, and Input LO and Sense LO must share a common reference with less
+  than +/-2 V difference. Expected result: `ok=True`, `captured=1`, `errors=0`,
+  and the CSV row contains the ratio plus `signal_voltage_v` and
+  `reference_voltage_v` measurement metadata.
+
+Latest live result, 2026-05-27:
+
+- Resource: `USB0::0x2A8D::0x1301::MY60045220::0::INSTR`.
+- Baseline immediate `current-dc` smoke passed with `ok=True`, `captured=1`,
+  and `errors=0`.
+- Auto Zero Once passed.
+- AC bandwidth `3`, `20`, and `200` passed.
+- Invalid AC bandwidth input produced the expected validation error.
+- 10 A current terminal selection passed with an operator-confirmed safe setup.
 
 ## Safety Rules
 

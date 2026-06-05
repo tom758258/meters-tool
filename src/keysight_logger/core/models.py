@@ -154,6 +154,11 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
             nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
         ),
         MeasurementOptions(
+            measurement_type="voltage_dc_ratio",
+            range_options=KEYSIGHT_34461A_DCV_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
             measurement_type="current_ac",
             range_options=KEYSIGHT_34461A_CURRENT_RANGES,
             ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
@@ -289,3 +294,4 @@ class MeasurementSample:
     trigger_id: str
     trigger_source: str
     trigger_metadata: Dict[str, str] = field(default_factory=dict)
+    measurement_metadata: Dict[str, object] = field(default_factory=dict)

@@ -18,6 +18,7 @@ class CsvWriter:
         "trigger_id",
         "trigger_source",
         "trigger_metadata",
+        "measurement_metadata",
         "resource_id",
         "status",
     ]
@@ -48,6 +49,11 @@ class CsvWriter:
                 "trigger_source": sample.trigger_source,
                 "trigger_metadata": json.dumps(
                     sample.trigger_metadata,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                ),
+                "measurement_metadata": json.dumps(
+                    sample.measurement_metadata,
                     sort_keys=True,
                     separators=(",", ":"),
                 ),

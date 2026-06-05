@@ -19,6 +19,8 @@ class SimulatedMeasurementState:
     trigger_count: int = 1
     sample_count: int = 1
     source: str = "READ"
+    last_signal_voltage_v: float = 2.46
+    last_reference_voltage_v: float = 2.0
 
 
 class SimulatedVisaInstrument:
@@ -33,10 +35,21 @@ class SimulatedVisaInstrument:
     def connect(self) -> None:
         return None
 
+    def _is_ratio_measurement(self) -> bool:
+        return self._state.measurement_type == "voltage_dc_ratio"
+
+    def _record_ratio_secondary(self, ratio: float) -> None:
+        reference_voltage_v = 2.0
+        self._state.last_signal_voltage_v = ratio * reference_voltage_v
+        self._state.last_reference_voltage_v = reference_voltage_v
+
     def write(self, command: str) -> None:
         self._writes.append(command)
         normalized = command.strip().upper()
         if normalized == "*CLS":
+            return
+        if normalized.startswith("CONF:VOLT:DC:RAT"):
+            self._state.measurement_type = "voltage_dc_ratio"
             return
         if normalized == "ABOR":
             self._state.armed = False
@@ -84,6 +97,13 @@ class SimulatedVisaInstrument:
             return "0,No error"
         if normalized == "DATA:POINTS?":
             return str(max(0, self._state.points_available))
+        if normalized == "DATA2?":
+            return ",".join(
+                (
+                    _format_ascii_float(self._state.last_signal_voltage_v),
+                    _format_ascii_float(self._state.last_reference_voltage_v),
+                )
+            )
         if normalized.startswith("DATA:REMOVE?"):
             try:
                 count = int(float(command.split()[-1]))
@@ -91,12 +111,17 @@ class SimulatedVisaInstrument:
                 count = 0
             values = []
             for index in range(max(0, count)):
-                values.append(_format_ascii_float(self._state.value_seed + index))
+                value = self._state.value_seed + index
+                if self._is_ratio_measurement():
+                    self._record_ratio_secondary(value)
+                values.append(_format_ascii_float(value))
             self._state.points_available = max(0, self._state.points_available - count)
             self._state.value_seed += max(0, count)
             return ",".join(values)
         if normalized in {"READ?", "FETC?"}:
             value = self._state.value_seed
+            if self._is_ratio_measurement():
+                self._record_ratio_secondary(value)
             self._state.value_seed += 1.0
             return _format_ascii_float(value)
         return "1.23"

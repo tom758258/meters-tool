@@ -29,6 +29,7 @@ The current runtime supports these measurement types:
 
 - `current-dc`
 - `voltage-dc`
+- `voltage-dc-ratio`
 - `current-ac`
 - `voltage-ac`
 - `resistance-2w`

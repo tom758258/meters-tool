@@ -32,6 +32,7 @@ class CapabilitiesTests(unittest.TestCase):
             (
                 "current_dc",
                 "voltage_dc",
+                "voltage_dc_ratio",
                 "current_ac",
                 "voltage_ac",
                 "resistance_2w",
@@ -60,6 +61,10 @@ class CapabilitiesTests(unittest.TestCase):
             profile.get_measurement_options("voltage-dc").range_options,
         )
         self.assertEqual(
+            KEYSIGHT_34461A_DCV_RANGES,
+            profile.get_measurement_options("voltage-dc-ratio").range_options,
+        )
+        self.assertEqual(
             KEYSIGHT_34461A_RESISTANCE_RANGES,
             profile.get_measurement_options("resistance-2w").range_options,
         )
@@ -74,6 +79,10 @@ class CapabilitiesTests(unittest.TestCase):
         self.assertEqual(
             KEYSIGHT_34461A_NPLC_OPTIONS,
             profile.get_measurement_options("voltage-dc").nplc_options,
+        )
+        self.assertEqual(
+            KEYSIGHT_34461A_NPLC_OPTIONS,
+            profile.get_measurement_options("voltage-dc-ratio").nplc_options,
         )
         self.assertEqual((), profile.get_measurement_options("current-ac").nplc_options)
         self.assertEqual((), profile.get_measurement_options("voltage-ac").nplc_options)

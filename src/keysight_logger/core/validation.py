@@ -27,6 +27,8 @@ SW_QUEUE_MAX_RANGE = (0, 10000)
 HW_TRIGGER_DELAY_S_RANGE = (0.0, 3600.0)
 NEUTRAL_AC_NPLC = 1.0
 AUTO_ZERO_MEASUREMENTS = ("current_dc", "voltage_dc", "resistance_2w")
+DCV_INPUT_IMPEDANCE_MEASUREMENTS = ("voltage_dc", "voltage_dc_ratio")
+DCV_INPUT_IMPEDANCE_OPTIONS = ("default", "10m", "auto")
 CURRENT_MEASUREMENTS = ("current_dc", "current_ac")
 
 
@@ -64,11 +66,13 @@ def format_range_options(options) -> str:  # noqa: ANN001
 
 
 def range_unit(definition) -> str:  # noqa: ANN001
-    if definition.unit == "A":
+    if definition.range_label == "amps":
         return "A"
-    if definition.unit == "V":
+    if definition.range_label == "volts":
         return "V"
-    return "Ohm"
+    if definition.range_label == "ohms":
+        return "Ohm"
+    return definition.unit
 
 
 def value_in_options(value: float, options: tuple[float, ...]) -> bool:
@@ -125,7 +129,7 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         definition = get_measurement_definition(measurement_name)
         options = effective_profile.get_measurement_options(measurement_name)
         range_lines.append(
-            f"  {definition.canonical_name}: {format_range_options(options)} {definition.unit}"
+            f"  {definition.canonical_name}: {format_range_options(options)} {range_unit(definition)}"
         )
     return (
         "Limits:\n"
@@ -182,9 +186,23 @@ def validate_start_request(
     options = profile.get_measurement_options(measurement_type)
     if not definition.accepts_current_range_alias and args.current_range is not None:
         raise ValueError("--current-range can only be used with --measurement current-dc")
-    if args.dcv_input_impedance != "default" and measurement_type != "voltage_dc":
-        raise ValueError("--dcv-input-impedance can only be used with --measurement voltage-dc")
+    dcv_input_impedance = str(args.dcv_input_impedance).strip().lower()
+    if dcv_input_impedance not in DCV_INPUT_IMPEDANCE_OPTIONS:
+        raise ValueError("--dcv-input-impedance must be one of: default, 10m, auto")
+    if (
+        dcv_input_impedance != "default"
+        and measurement_type not in DCV_INPUT_IMPEDANCE_MEASUREMENTS
+    ):
+        raise ValueError(
+            "--dcv-input-impedance can only be used with --measurement "
+            "voltage-dc or voltage-dc-ratio"
+        )
     auto_zero = normalize_auto_zero(args.auto_zero)
+    if measurement_type == "voltage_dc_ratio" and auto_zero != "on":
+        raise ValueError(
+            "--auto-zero for --measurement voltage-dc-ratio must be on/default; "
+            "off and once are not supported"
+        )
     if auto_zero == "once" and measurement_type not in AUTO_ZERO_MEASUREMENTS:
         raise ValueError(
             "--auto-zero once can only be used with --measurement current-dc, voltage-dc, "

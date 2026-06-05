@@ -11,6 +11,7 @@ from keysight_logger.core.measurement import (
     ScalarDmmMeasurement,
     VoltageAcMeasurement,
     VoltageDcMeasurement,
+    VoltageDcRatioMeasurement,
     create_measurement_plugin,
     format_measurement_type,
     get_measurement_definition,
@@ -24,7 +25,7 @@ class FakeInstrument:
     def __init__(self) -> None:
         self.resource_id = "USB::FAKE"
         self.commands: list[str] = []
-        self.responses: dict[str, str] = {}
+        self.responses: dict[str, object] = {}
 
     def write(self, command: str) -> None:
         self.commands.append(command)
@@ -35,7 +36,10 @@ class FakeInstrument:
 
     def query(self, command: str) -> str:
         self.commands.append(command)
-        return self.responses[command]
+        response = self.responses[command]
+        if isinstance(response, list):
+            return response.pop(0)
+        return str(response)
 
 
 class CurrentMeasurementTests(unittest.TestCase):
@@ -414,6 +418,127 @@ class VoltageDcMeasurementTests(unittest.TestCase):
         self.assertIn("OUTP:TRIG:SLOP NEG", inst.commands)
 
 
+class VoltageDcRatioMeasurementTests(unittest.TestCase):
+    def test_auto_range_writes_ratio_scpi_without_auto_zero(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcRatioMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig())
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC:RAT AUTO",
+                "VOLT:DC:NPLC 1.0",
+                'VOLT:RAT:SEC "SENS:DATA"',
+            ],
+            inst.commands,
+        )
+        self.assertFalse(any("ZERO" in command for command in inst.commands))
+
+    def test_manual_range_and_input_impedance_write_ratio_scpi(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcRatioMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(
+                auto_range=False,
+                measurement_range=10.0,
+                dcv_input_impedance="auto",
+                nplc=10.0,
+            ),
+        )
+
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC:RAT 10.0",
+                "VOLT:DC:IMP:AUTO ON",
+                "VOLT:DC:NPLC 10.0",
+                'VOLT:RAT:SEC "SENS:DATA"',
+            ],
+            inst.commands,
+        )
+
+    def test_read_sample_stores_ratio_and_secondary_metadata(self):
+        inst = FakeInstrument()
+        inst.responses["DATA2?"] = "2.46,2.0"
+        measurement = VoltageDcRatioMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(
+            inst,
+            TriggerEvent.new(TriggerSource.SOFTWARE, {"batch": "A1"}),
+        )
+
+        self.assertEqual("voltage_dc_ratio", sample.measurement_type)
+        self.assertEqual("ratio", sample.unit)
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual({"batch": "A1"}, sample.trigger_metadata)
+        self.assertEqual(
+            {
+                "signal_voltage_v": 2.46,
+                "reference_voltage_v": 2.0,
+                "secondary_source": "SENS:DATA",
+            },
+            sample.measurement_metadata,
+        )
+        self.assertEqual(["READ?", "DATA2?"], inst.commands[-2:])
+
+    def test_hardware_ratio_read_uses_fetch_then_data2(self):
+        inst = FakeInstrument()
+        inst.responses["DATA2?"] = "2.46,2.0"
+        measurement = VoltageDcRatioMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        sample = measurement.read_sample(inst, TriggerEvent.new(TriggerSource.HARDWARE))
+
+        self.assertEqual(1.23, sample.value)
+        self.assertEqual(["FETC?", "DATA2?"], inst.commands[-2:])
+
+    def test_buffered_ratio_reads_one_value_and_data2_per_sample(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = ["1.1", "2.2"]
+        inst.responses["DATA2?"] = ["2.2,2.0", "6.6,3.0"]
+        measurement = VoltageDcRatioMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+            count=2,
+            first_sample_index=5,
+        )
+
+        self.assertEqual([1.1, 2.2], [sample.value for sample in samples])
+        self.assertEqual("5", samples[0].trigger_metadata["buffer_index"])
+        self.assertEqual("6", samples[1].trigger_metadata["buffer_index"])
+        self.assertEqual("1", samples[0].trigger_metadata["buffer_batch_size"])
+        self.assertEqual(2.2, samples[0].measurement_metadata["signal_voltage_v"])
+        self.assertEqual(6.6, samples[1].measurement_metadata["signal_voltage_v"])
+        self.assertEqual(
+            ["DATA:REMove? 1", "DATA2?", "DATA:REMove? 1", "DATA2?"],
+            inst.commands[-4:],
+        )
+
+    def test_ratio_data2_requires_two_secondary_values(self):
+        inst = FakeInstrument()
+        inst.responses["DATA2?"] = "2.46"
+        measurement = VoltageDcRatioMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        with self.assertRaisesRegex(RuntimeError, "Expected 2 DATA2"):
+            measurement.read_sample(inst, TriggerEvent.new(TriggerSource.SOFTWARE))
+
+    def test_ratio_data2_rejects_nan_sentinel_values(self):
+        inst = FakeInstrument()
+        inst.responses["DATA2?"] = "nan,2.0"
+        measurement = VoltageDcRatioMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        with self.assertRaisesRegex(RuntimeError, "invalid value"):
+            measurement.read_sample(inst, TriggerEvent.new(TriggerSource.SOFTWARE))
+
+
 class CurrentAcMeasurementTests(unittest.TestCase):
     def test_current_ac_uses_scalar_base_without_inheriting_dc_current(self):
         measurement = CurrentAcMeasurement()
@@ -774,6 +899,9 @@ class MeasurementFactoryTests(unittest.TestCase):
     def test_create_voltage_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("voltage-dc"), VoltageDcMeasurement)
 
+    def test_create_voltage_dc_ratio_measurement_plugin(self):
+        self.assertIsInstance(create_measurement_plugin("voltage-dc-ratio"), VoltageDcRatioMeasurement)
+
     def test_create_current_ac_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("current-ac"), CurrentAcMeasurement)
 
@@ -797,6 +925,7 @@ class MeasurementFactoryTests(unittest.TestCase):
             (
                 "current_dc",
                 "voltage_dc",
+                "voltage_dc_ratio",
                 "current_ac",
                 "voltage_ac",
                 "resistance_2w",
@@ -806,6 +935,7 @@ class MeasurementFactoryTests(unittest.TestCase):
         )
         self.assertEqual("current_dc", normalize_measurement_type("current-dc"))
         self.assertEqual("voltage-dc", format_measurement_type("voltage_dc"))
+        self.assertEqual("voltage-dc-ratio", format_measurement_type("voltage_dc_ratio"))
         self.assertEqual("current-ac", format_measurement_type("current_ac"))
         self.assertEqual("voltage-ac", format_measurement_type("voltage_ac"))
         self.assertEqual("resistance-2w", format_measurement_type("resistance_2w"))
@@ -814,11 +944,13 @@ class MeasurementFactoryTests(unittest.TestCase):
         self.assertEqual("A", get_measurement_definition("current-dc").unit)
         self.assertEqual("A", get_measurement_definition("current-ac").unit)
         self.assertEqual("V", get_measurement_definition("voltage-ac").unit)
+        self.assertEqual("ratio", get_measurement_definition("voltage-dc-ratio").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-2w").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-4w").unit)
         self.assertTrue(get_measurement_definition("current-dc").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("current-ac").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("voltage-dc").accepts_current_range_alias)
+        self.assertFalse(get_measurement_definition("voltage-dc-ratio").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("voltage-ac").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("resistance-2w").accepts_current_range_alias)
         self.assertFalse(get_measurement_definition("resistance-4w").accepts_current_range_alias)

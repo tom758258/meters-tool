@@ -72,9 +72,15 @@ dry-run planning, or runtime orchestration.
 
 Core request fields use stable numeric or semantic values: `auto_zero` accepts
 `True`, `False`, `"on"`, `"off"`, or `"once"`; `ac_bandwidth_hz` accepts
-`3`, `20`, or `200` for AC measurements; and `current_terminal` accepts `3`
-or `10` for current measurements. Adapter labels, menu text, and UI grouping
-remain adapter-owned.
+`3`, `20`, or `200` for AC measurements; `current_terminal` accepts `3` or
+`10` for current measurements; and `dcv_input_impedance` accepts `default`,
+`10m`, or `auto` for DCV measurements. Adapter labels, menu text, and UI
+grouping remain adapter-owned.
+
+Adapters that expose DCV Ratio as a `voltage-dc` option should translate that
+adapter-owned selection into Core `measurement="voltage-dc-ratio"` before
+constructing `StartRequest`. Core does not add a separate CLI/UI flag for this
+mapping on this branch.
 
 ## Validation Flow
 

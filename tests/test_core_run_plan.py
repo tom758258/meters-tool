@@ -233,6 +233,53 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertNotIn("CURR:AC:RANG 10.0", current_ac_plan.scpi_commands)
         self.assertIn("VOLT:AC:BAND 200", voltage_ac_plan.scpi_commands)
 
+    def test_voltage_dc_ratio_plan_includes_secondary_data_path(self):
+        plan = self.build_plan(
+            "software",
+            make_start_request(
+                measurement="voltage-dc-ratio",
+                dcv_input_impedance="10m",
+            ),
+        )
+
+        self.assertEqual("READ? / DATA2?", plan.read_path)
+        self.assertEqual("voltage_dc_ratio", plan.measurement_type)
+        self.assertEqual("voltage-dc-ratio", plan.measurement_name)
+        self.assertEqual("ratio", plan.measurement_unit)
+        self.assertEqual(
+            [
+                "CONF:VOLT:DC:RAT AUTO",
+                "VOLT:DC:IMP:AUTO OFF",
+                "VOLT:DC:NPLC 1.0",
+                'VOLT:RAT:SEC "SENS:DATA"',
+            ],
+            plan.scpi_commands,
+        )
+        self.assertFalse(any("ZERO" in command for command in plan.scpi_commands))
+        self.assertIn(
+            "voltage-dc-ratio stores DATA2? signal/reference voltage in measurement_metadata",
+            plan.notes,
+        )
+
+    def test_voltage_dc_ratio_custom_plan_drains_one_reading_for_metadata(self):
+        plan = self.build_plan(
+            "immediate-custom",
+            make_start_request(
+                measurement="voltage-dc-ratio",
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=2,
+            ),
+        )
+
+        self.assertEqual("DATA:POINts? / DATA:REMove? 1 / DATA2?", plan.read_path)
+        self.assertIn("TRIG:SOUR IMM", plan.scpi_commands)
+        self.assertIn("INIT", plan.scpi_commands)
+        self.assertIn(
+            "voltage-dc-ratio buffered drain uses DATA:REMove? 1 plus DATA2? per sample",
+            plan.notes,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

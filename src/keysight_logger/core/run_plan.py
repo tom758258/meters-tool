@@ -137,12 +137,17 @@ def build_start_plan(
         )
         measurement.start_buffered_capture(recorder)
     scpi_commands = recorder.commands
+    ratio_metadata = measurement_type == "voltage_dc_ratio"
     if trigger_mode.endswith("-custom"):
-        read_path = "DATA:POINts? / DATA:REMove?"
+        read_path = (
+            "DATA:POINts? / DATA:REMove? 1 / DATA2?"
+            if ratio_metadata
+            else "DATA:POINts? / DATA:REMove?"
+        )
     elif trigger_mode == "external":
-        read_path = "FETC?"
+        read_path = "FETC? / DATA2?" if ratio_metadata else "FETC?"
     else:
-        read_path = "READ?"
+        read_path = "READ? / DATA2?" if ratio_metadata else "READ?"
     cleanup_steps = [
         "wait for worker",
         "release_to_local",
@@ -155,6 +160,14 @@ def build_start_plan(
         notes.extend(buffer_warnings)
     if trigger_mode.endswith("-custom"):
         notes.append("buffered drain uses DATA:POINts? and DATA:REMove?")
+    if ratio_metadata:
+        notes.append(
+            "voltage-dc-ratio stores DATA2? signal/reference voltage in measurement_metadata"
+        )
+        if trigger_mode.endswith("-custom"):
+            notes.append(
+                "voltage-dc-ratio buffered drain uses DATA:REMove? 1 plus DATA2? per sample"
+            )
     if trigger_mode == "external":
         notes.append("hardware trigger uses INIT + status-byte polling before FETC?")
     if trigger_mode == "software-custom":

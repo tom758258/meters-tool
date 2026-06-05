@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import math
 from typing import List
 
 from .instrument_backend import InstrumentBackend
@@ -27,6 +28,36 @@ def _auto_zero_command_value(value: bool | str) -> str:
     if normalized in ("ON", "OFF", "ONCE"):
         return normalized
     raise ValueError("auto_zero must be one of: True, False, 'on', 'off', 'once'")
+
+
+def _normalize_dcv_input_impedance(value: str) -> str:
+    return str(value).strip().lower()
+
+
+def _is_invalid_secondary_voltage(value: float) -> bool:
+    return not math.isfinite(value) or abs(value) >= 9e37
+
+
+def _measurement_metadata_from_data2(instrument: InstrumentBackend) -> dict[str, object]:
+    raw = instrument.query("DATA2?")
+    try:
+        values = _parse_ascii_floats(raw)
+    except ValueError as exc:
+        raise RuntimeError(
+            f"Failed to parse DATA2? secondary voltage response from '{raw}'"
+        ) from exc
+    if len(values) != 2:
+        raise RuntimeError(f"Expected 2 DATA2? secondary voltage readings, got {len(values)}")
+    signal_voltage_v, reference_voltage_v = values
+    if _is_invalid_secondary_voltage(signal_voltage_v) or _is_invalid_secondary_voltage(
+        reference_voltage_v
+    ):
+        raise RuntimeError(f"DATA2? secondary voltage response contains invalid value: {raw}")
+    return {
+        "signal_voltage_v": signal_voltage_v,
+        "reference_voltage_v": reference_voltage_v,
+        "secondary_source": "SENS:DATA",
+    }
 
 
 class MeasurementPlugin(ABC):
@@ -110,6 +141,12 @@ VOLTAGE_DC_DEFINITION = MeasurementDefinition(
     canonical_name="voltage-dc",
     internal_type="voltage_dc",
     unit="V",
+    range_label="volts",
+)
+VOLTAGE_DC_RATIO_DEFINITION = MeasurementDefinition(
+    canonical_name="voltage-dc-ratio",
+    internal_type="voltage_dc_ratio",
+    unit="ratio",
     range_label="volts",
 )
 CURRENT_AC_DEFINITION = MeasurementDefinition(
@@ -314,9 +351,10 @@ class VoltageDcMeasurement(ScalarDmmMeasurement):
             instrument.write("VOLT:DC:RANG:AUTO ON")
         elif config.measurement_range is not None:
             instrument.write(f"VOLT:DC:RANG {config.measurement_range}")
-        if config.dcv_input_impedance == "10m":
+        dcv_input_impedance = _normalize_dcv_input_impedance(config.dcv_input_impedance)
+        if dcv_input_impedance == "10m":
             instrument.write("VOLT:DC:IMP:AUTO OFF")
-        elif config.dcv_input_impedance == "auto":
+        elif dcv_input_impedance == "auto":
             instrument.write("VOLT:DC:IMP:AUTO ON")
         instrument.write(f"VOLT:DC:NPLC {config.nplc}")
         instrument.write(f"VOLT:DC:ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
@@ -324,6 +362,93 @@ class VoltageDcMeasurement(ScalarDmmMeasurement):
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
         self._configured = True
+
+
+class VoltageDcRatioMeasurement(ScalarDmmMeasurement):
+    def __init__(self) -> None:
+        super().__init__(VOLTAGE_DC_RATIO_DEFINITION)
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        if config.auto_range:
+            instrument.write("CONF:VOLT:DC:RAT AUTO")
+        elif config.measurement_range is not None:
+            instrument.write(f"CONF:VOLT:DC:RAT {config.measurement_range}")
+        dcv_input_impedance = _normalize_dcv_input_impedance(config.dcv_input_impedance)
+        if dcv_input_impedance == "10m":
+            instrument.write("VOLT:DC:IMP:AUTO OFF")
+        elif dcv_input_impedance == "auto":
+            instrument.write("VOLT:DC:IMP:AUTO ON")
+        instrument.write(f"VOLT:DC:NPLC {config.nplc}")
+        instrument.write('VOLT:RAT:SEC "SENS:DATA"')
+        if config.vm_comp_slope is not None:
+            slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
+            instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
+        self._configured = True
+
+    def read_sample(self, instrument: InstrumentBackend, trigger: TriggerEvent) -> MeasurementSample:
+        self._require_configured()
+        command = "FETC?" if trigger.source == TriggerSource.HARDWARE else "READ?"
+        value = instrument.query_ascii_float(command)
+        return MeasurementSample(
+            timestamp_utc=datetime.now(timezone.utc),
+            measurement_type=self.measurement_type(),
+            value=value,
+            unit=self.unit(),
+            status="ok",
+            resource_id=instrument.resource_id,
+            trigger_id=trigger.id,
+            trigger_source=trigger.source.value,
+            trigger_metadata=dict(trigger.metadata),
+            measurement_metadata=_measurement_metadata_from_data2(instrument),
+        )
+
+    def read_buffered_samples(
+        self,
+        instrument: InstrumentBackend,
+        trigger: TriggerEvent,
+        count: int,
+        first_sample_index: int,
+    ) -> List[MeasurementSample]:
+        self._require_configured()
+        if count <= 0:
+            return []
+        samples = []
+        for offset in range(count):
+            raw = instrument.query("DATA:REMove? 1")
+            try:
+                values = _parse_ascii_floats(raw)
+            except ValueError as exc:
+                raise RuntimeError(
+                    f"Failed to parse DATA:REMove? 1 response from '{raw}'"
+                ) from exc
+            if len(values) != 1:
+                raise RuntimeError(f"Expected 1 buffered ratio reading, got {len(values)}")
+            fetch_time_utc = datetime.now(timezone.utc)
+            metadata = dict(trigger.metadata)
+            metadata.update(
+                {
+                    "buffered": "true",
+                    "buffer_index": str(first_sample_index + offset),
+                    "buffer_batch_size": "1",
+                    "fetch_time_utc": fetch_time_utc.isoformat(),
+                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+                }
+            )
+            samples.append(
+                MeasurementSample(
+                    timestamp_utc=fetch_time_utc,
+                    measurement_type=self.measurement_type(),
+                    value=values[0],
+                    unit=self.unit(),
+                    status="ok",
+                    resource_id=instrument.resource_id,
+                    trigger_id=trigger.id,
+                    trigger_source=trigger.source.value,
+                    trigger_metadata=metadata,
+                    measurement_metadata=_measurement_metadata_from_data2(instrument),
+                )
+            )
+        return samples
 
 
 class CurrentAcMeasurement(ScalarDmmMeasurement):
@@ -404,6 +529,7 @@ CurrentMeasurement = CurrentDcMeasurement
 _MEASUREMENT_DEFINITIONS = {
     CURRENT_DC_DEFINITION.internal_type: CURRENT_DC_DEFINITION,
     VOLTAGE_DC_DEFINITION.internal_type: VOLTAGE_DC_DEFINITION,
+    VOLTAGE_DC_RATIO_DEFINITION.internal_type: VOLTAGE_DC_RATIO_DEFINITION,
     CURRENT_AC_DEFINITION.internal_type: CURRENT_AC_DEFINITION,
     VOLTAGE_AC_DEFINITION.internal_type: VOLTAGE_AC_DEFINITION,
     RESISTANCE_2W_DEFINITION.internal_type: RESISTANCE_2W_DEFINITION,
@@ -412,6 +538,7 @@ _MEASUREMENT_DEFINITIONS = {
 _MEASUREMENT_PLUGIN_TYPES: dict[str, type[MeasurementPlugin]] = {
     CURRENT_DC_DEFINITION.internal_type: CurrentDcMeasurement,
     VOLTAGE_DC_DEFINITION.internal_type: VoltageDcMeasurement,
+    VOLTAGE_DC_RATIO_DEFINITION.internal_type: VoltageDcRatioMeasurement,
     CURRENT_AC_DEFINITION.internal_type: CurrentAcMeasurement,
     VOLTAGE_AC_DEFINITION.internal_type: VoltageAcMeasurement,
     RESISTANCE_2W_DEFINITION.internal_type: Resistance2wMeasurement,

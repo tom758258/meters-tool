@@ -245,8 +245,8 @@ class CoreValidationTests(unittest.TestCase):
     def test_supported_measurement_types_and_profile_constraints(self):
         self.assert_invalid(
             make_start_request(measurement="capacitance"),
-            "--measurement must be one of: current-dc, voltage-dc, current-ac, voltage-ac, "
-            "resistance-2w, resistance-4w",
+            "--measurement must be one of: current-dc, voltage-dc, voltage-dc-ratio, "
+            "current-ac, voltage-ac, resistance-2w, resistance-4w",
         )
         self.assert_invalid(
             make_start_request(measurement="voltage-dc"),
@@ -258,6 +258,7 @@ class CoreValidationTests(unittest.TestCase):
         cases = [
             ("current-dc", 0.1),
             ("voltage-dc", 10.0),
+            ("voltage-dc-ratio", 10.0),
             ("current-ac", 0.1),
             ("voltage-ac", 10.0),
             ("resistance-2w", 1000.0),
@@ -314,13 +315,27 @@ class CoreValidationTests(unittest.TestCase):
         self.assert_valid(
             make_start_request(measurement="voltage-dc", dcv_input_impedance="10m"),
         )
+        self.assert_valid(
+            make_start_request(measurement="voltage-dc-ratio", dcv_input_impedance="auto"),
+        )
+        self.assert_invalid(
+            make_start_request(measurement="voltage-dc", dcv_input_impedance="highz"),
+            "--dcv-input-impedance must be one of: default, 10m, auto",
+        )
         self.assert_invalid(
             make_start_request(measurement="current-dc", dcv_input_impedance="auto"),
-            "--dcv-input-impedance can only be used with --measurement voltage-dc",
+            "--dcv-input-impedance can only be used with --measurement "
+            "voltage-dc or voltage-dc-ratio",
         )
 
     def test_nplc_whitelist_and_ac_neutral_nplc(self):
-        for measurement in ["current-dc", "voltage-dc", "resistance-2w", "resistance-4w"]:
+        for measurement in [
+            "current-dc",
+            "voltage-dc",
+            "voltage-dc-ratio",
+            "resistance-2w",
+            "resistance-4w",
+        ]:
             with self.subTest(measurement=measurement):
                 self.assert_valid(make_start_request(measurement=measurement, nplc=10.0))
                 self.assert_invalid(
@@ -346,6 +361,14 @@ class CoreValidationTests(unittest.TestCase):
                     make_start_request(measurement=measurement, auto_zero="once"),
                     "--auto-zero once can only be used",
                 )
+        for auto_zero in [False, "off", "once"]:
+            with self.subTest(auto_zero=auto_zero):
+                self.assert_invalid(
+                    make_start_request(measurement="voltage-dc-ratio", auto_zero=auto_zero),
+                    "--auto-zero for --measurement voltage-dc-ratio must be on/default",
+                )
+        self.assert_valid(make_start_request(measurement="voltage-dc-ratio", auto_zero=True))
+        self.assert_valid(make_start_request(measurement="voltage-dc-ratio", auto_zero="ON"))
         self.assert_invalid(
             make_start_request(auto_zero="enabled"),
             "--auto-zero must be one of: on, off, once",
@@ -545,6 +568,7 @@ class CoreValidationTests(unittest.TestCase):
         self.assertIn("AC bandwidth choices for AC current/voltage: 3, 20, 200 Hz", help_text)
         self.assertIn("current terminal choices for current measurements: 3, 10", help_text)
         self.assertIn("current-dc: 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A", help_text)
+        self.assertIn("voltage-dc-ratio: 0.1, 1, 10, 100, 1000 V", help_text)
         self.assertIn("--timer-interval-s: 0.5-86400 s", help_text)
         self.assertIn("--trigger-timeout-ms: 500-600000 ms", help_text)
         self.assertIn("--trigger-count/--sample-count: 1-1000000", help_text)
