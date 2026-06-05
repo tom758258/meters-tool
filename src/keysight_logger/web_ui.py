@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import importlib.metadata
 import os
 import threading
-import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Optional
 from uuid import uuid4
@@ -19,8 +19,26 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
         "Web UI dependencies are not installed. Run: pip install -r requirements.txt"
     ) from exc
 
-from .acquisition import TriggerAcquisitionEngine
-from .cli import (
+from .core import (
+    StartControlPlaneHandle,
+    StartRequest,
+    StartRunEvent,
+    StartRunResult,
+    build_start_plan,
+    generate_buffer_overflow_warnings,
+    get_default_instrument_profile,
+    resolve_trigger_mode,
+    run_start_session,
+    validate_start_request,
+)
+from .core.instrument import VisaInstrument
+from .core.measurement import (
+    get_measurement_definition,
+    registered_measurement_types,
+)
+from .core.models import TriggerEvent, TriggerSource
+from .core.runner import StartRunnerDependencies
+from .core.validation import (
     BUFFER_DRAIN_SIZE_RANGE,
     HW_TRIGGER_DELAY_S_RANGE,
     MAX_SAMPLES_RANGE,
@@ -31,23 +49,7 @@ from .cli import (
     TIMER_INTERVAL_S_RANGE,
     TRIGGER_COUNT_RANGE,
     TRIGGER_TIMEOUT_MS_RANGE,
-    parse_dcv_input_impedance,
-    resolve_csv_path,
-    resolve_measurement_range,
-    resolve_trigger_mode,
-    validate_start_args,
 )
-from .instrument import InstrumentConfig, VisaInstrument
-from .measurement import (
-    create_measurement_plugin,
-    format_measurement_type,
-    get_measurement_definition,
-    normalize_measurement_type,
-    registered_measurement_types,
-)
-from .models import AcquisitionConfig, TriggerEvent, TriggerSource, get_default_instrument_profile
-from .storage import CsvWriter
-from .trigger import TriggerRouter
 
 
 TRIGGER_MODES = (
@@ -58,11 +60,13 @@ TRIGGER_MODES = (
     "software-custom",
     "external-custom",
 )
+PACKAGE_NAME = "keysight-logger-webui"
 
 
 class RunStartRequest(BaseModel):
     resource: str
     csv: Optional[str] = None
+    simulate: bool = False
     timeout_ms: int = 5000
     trigger_timeout_ms: int = 10000
     sw_trigger_port: int = 8765
@@ -75,7 +79,6 @@ class RunStartRequest(BaseModel):
     timer_interval_s: Optional[float] = None
     buffer_drain_size: Optional[int] = None
     allow_buffer_overflow_risk: bool = False
-    enable_hw_trigger: bool = False
     hw_trigger_slope: str = "neg"
     hw_trigger_delay_s: float = 0.0
     measurement: str = "current-dc"
@@ -95,18 +98,18 @@ class _RunHandle:
     csv_path: Path
     measurement: str
     trigger_mode: str
-    hardware_trigger_slope: str
-    router: TriggerRouter
-    engine: TriggerAcquisitionEngine
-    instrument: VisaInstrument
-    min_interval_ms: int
-    queue_max: int
+    control_plane: "_WebControlPlane"
+    ready_event: threading.Event = field(default_factory=threading.Event)
     worker: threading.Thread | None = None
     state: str = "starting"
     latest_status: str = "starting"
+    captured: int = 0
+    errors: int = 0
     fatal_error: str | None = None
     cleanup_status: str | None = None
-    last_accepted_monotonic: float = 0.0
+    result: StartRunResult | None = None
+    warnings: list[str] = field(default_factory=list)
+    cleanup_messages: list[str] = field(default_factory=list)
 
 
 class WebRunError(RuntimeError):
@@ -125,22 +128,106 @@ class NoActiveRun(WebRunError):
     status_code = 409
 
 
-InstrumentFactory = Callable[[InstrumentConfig], VisaInstrument]
-StorageFactory = Callable[[Path], CsvWriter]
 CsvOpener = Callable[[Path], Any]
+
+
+class _WebControlPlane:
+    def __init__(self, ready_cb: Callable[[], None]) -> None:
+        self._ready_cb = ready_cb
+        self._router: Any | None = None
+        self._stop_cb: Callable[[], None] | None = None
+        self._queue_max = 0
+        self._min_interval_ms = 0
+        self._last_accepted_monotonic = 0.0
+        self._lock = threading.Lock()
+        self._closed = False
+
+    def start(
+        self,
+        *,
+        router: Any,
+        port: int,  # noqa: ARG002
+        min_interval_ms: int,
+        queue_max: int,
+        stop_cb: Callable[[], None],
+        status_provider: Callable[[], dict[str, object]],  # noqa: ARG002
+    ) -> StartControlPlaneHandle:
+        with self._lock:
+            self._router = router
+            self._stop_cb = stop_cb
+            self._queue_max = max(0, int(queue_max))
+            self._min_interval_ms = max(0, int(min_interval_ms))
+            self._closed = False
+        self._ready_cb()
+        return StartControlPlaneHandle(_stop_fn=self.close)
+
+    def trigger(self, metadata: dict[str, Any] | None = None) -> tuple[bool, str]:
+        with self._lock:
+            if self._closed or self._router is None:
+                return False, "run_not_ready"
+            accepted, reason = self._try_accept_trigger_locked()
+            if not accepted:
+                return False, reason
+            event_metadata = {
+                str(key): str(value)
+                for key, value in (metadata or {}).items()
+                if value is not None
+            }
+            published = self._router.publish(
+                TriggerEvent.new(TriggerSource.SOFTWARE, event_metadata)
+            )
+            if not published:
+                return False, "queue_full"
+            return True, ""
+
+    def stop_run(self) -> None:
+        with self._lock:
+            router = self._router
+            stop_cb = self._stop_cb
+        if router is not None:
+            router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+        if stop_cb is not None:
+            stop_cb()
+
+    def close(self) -> None:
+        with self._lock:
+            self._closed = True
+            self._router = None
+            self._stop_cb = None
+
+    def _try_accept_trigger_locked(self) -> tuple[bool, str]:
+        assert self._router is not None
+        if self._queue_max > 0 and self._router.size() >= self._queue_max:
+            return False, "queue_full"
+        if self._min_interval_ms <= 0:
+            return True, ""
+
+        import time
+
+        now = time.monotonic()
+        elapsed_ms = (now - self._last_accepted_monotonic) * 1000.0
+        if self._last_accepted_monotonic > 0 and elapsed_ms < self._min_interval_ms:
+            return False, "rate_limited"
+        self._last_accepted_monotonic = now
+        return True, ""
+
+
+class _WebRunEventSink:
+    def __init__(self, manager: "WebRunManager") -> None:
+        self._manager = manager
+
+    def emit(self, event: StartRunEvent) -> None:
+        self._manager._record_event(event)
 
 
 class WebRunManager:
     def __init__(
         self,
-        instrument_factory: InstrumentFactory = VisaInstrument,
-        measurement_factory: Callable[[str], Any] = create_measurement_plugin,
-        storage_factory: StorageFactory = CsvWriter,
+        *,
+        runner_dependencies: StartRunnerDependencies | None = None,
         csv_opener: CsvOpener | None = None,
     ) -> None:
-        self._instrument_factory = instrument_factory
-        self._measurement_factory = measurement_factory
-        self._storage_factory = storage_factory
+        self._runner_dependencies = runner_dependencies
         self._csv_opener = csv_opener or _open_with_default_app
         self._lock = threading.Lock()
         self._active: _RunHandle | None = None
@@ -150,14 +237,15 @@ class WebRunManager:
     def capabilities(self) -> dict[str, Any]:
         profile = get_default_instrument_profile()
         measurements = []
+        registered = set(registered_measurement_types())
         for measurement_type in profile.supported_measurement_types:
-            if measurement_type not in registered_measurement_types():
+            if measurement_type not in registered:
                 continue
             definition = get_measurement_definition(measurement_type)
             options = profile.get_measurement_options(measurement_type)
             measurements.append(
                 {
-                    "name": definition.cli_name,
+                    "name": definition.canonical_name,
                     "internal_type": definition.internal_type,
                     "unit": definition.unit,
                     "range_label": definition.range_label,
@@ -236,7 +324,6 @@ class WebRunManager:
         }
 
     def start(self, request: RunStartRequest) -> dict[str, Any]:
-        args = self._validate_request(request)
         with self._lock:
             if self._starting or (
                 self._active is not None and self._is_handle_active(self._active)
@@ -244,109 +331,63 @@ class WebRunManager:
                 raise RunAlreadyActive("a run is already active")
             self._starting = True
 
-        trigger_mode = resolve_trigger_mode(args)
-        measurement_type = normalize_measurement_type(args.measurement)
-        measurement_range = resolve_measurement_range(args)
-        csv_path = resolve_csv_path(args.csv)
-
+        handle: _RunHandle | None = None
         try:
-            instrument = self._instrument_factory(
-                InstrumentConfig(resource_string=args.resource, timeout_ms=args.timeout_ms)
+            start_request = self._validate_request(request)
+            profile = get_default_instrument_profile()
+            trigger_mode = resolve_trigger_mode(start_request)
+            warnings = generate_buffer_overflow_warnings(start_request, trigger_mode, profile)
+            plan = build_start_plan(
+                start_request,
+                trigger_mode,
+                profile,
+                buffer_warnings=warnings,
             )
-        except Exception:
-            with self._lock:
-                self._starting = False
-            raise
-        try:
-            instrument.connect()
-        except Exception:
-            try:
-                instrument.close()
-            except Exception:
-                pass
-            with self._lock:
-                self._starting = False
-            raise
-
-        try:
+            runtime_request = replace(start_request, csv=plan.csv_path)
             run_id = str(uuid4())
-            router = TriggerRouter()
-            storage = self._storage_factory(csv_path)
-            measurement = self._measurement_factory(measurement_type)
-
-            config = AcquisitionConfig(
-                measurement_type=measurement_type,
-                trigger_timeout_ms=args.trigger_timeout_ms,
-                max_samples=args.max_samples,
-                trigger_count=args.trigger_count,
-                sample_count=args.sample_count,
-                timer_interval_s=args.timer_interval_s,
-                buffer_drain_size=args.buffer_drain_size,
-                allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
-                nplc=args.nplc,
-                auto_zero=args.auto_zero,
-                auto_range=args.auto_range,
-                measurement_range=measurement_range,
-                current_range=args.current_range,
-                dcv_input_impedance=args.dcv_input_impedance,
-                hw_trigger_delay_s=args.hw_trigger_delay_s,
-                vm_comp_slope=args.vm_comp_slope,
-            )
-            engine = TriggerAcquisitionEngine(
-                instrument=instrument,
-                measurement=measurement,
-                storage=storage,
-                config=config,
-                router=router,
-                status_cb=lambda message: self._record_status(run_id, message),
-                instrument_profile=get_default_instrument_profile(),
-            )
+            control_plane = _WebControlPlane(lambda: self._mark_handle_ready(run_id))
             handle = _RunHandle(
                 run_id=run_id,
-                resource=args.resource,
-                csv_path=csv_path,
-                measurement=format_measurement_type(measurement_type),
+                resource=runtime_request.resource,
+                csv_path=Path(plan.csv_path),
+                measurement=plan.measurement_name,
                 trigger_mode=trigger_mode,
-                hardware_trigger_slope=args.hw_trigger_slope,
-                router=router,
-                engine=engine,
-                instrument=instrument,
-                min_interval_ms=args.sw_min_interval_ms,
-                queue_max=args.sw_queue_max,
+                control_plane=control_plane,
+                warnings=warnings,
             )
             worker = threading.Thread(
                 target=self._run_worker,
-                args=(handle,),
+                args=(handle, runtime_request, profile),
                 name=f"keysight-web-run-{run_id}",
                 daemon=True,
             )
             handle.worker = worker
-        except Exception:
             with self._lock:
-                self._starting = False
-            try:
-                instrument.close()
-            except Exception:
-                pass
-            raise
-        with self._lock:
-            self._active = handle
-            self._starting = False
-            self._last_status = self._status_from_handle(handle)
-        try:
+                self._active = handle
+                self._last_status = self._status_from_handle(handle)
             worker.start()
+            handle.ready_event.wait(timeout=max(runtime_request.timeout_ms / 1000.0 + 1.0, 2.0))
+            status = self.status()
+            with self._lock:
+                self._starting = False
+                result = handle.result
+                if result is not None and not result.ok and result.reason == "connect_error":
+                    self._active = None
+                    self._last_status = status
+                    raise RuntimeError(result.fatal_error or "connect_error")
+            return status
+        except ValueError as exc:
+            with self._lock:
+                self._starting = False
+                if handle is not None and self._active is handle:
+                    self._active = None
+            raise RunValidationError(str(exc)) from exc
         except Exception:
             with self._lock:
-                if self._active is handle:
-                    self._active = None
                 self._starting = False
-                self._last_status = self._idle_status()
-            try:
-                instrument.close()
-            except Exception:
-                pass
+                if handle is not None and self._active is handle and not self._is_handle_active(handle):
+                    self._active = None
             raise
-        return self.status()
 
     def status(self) -> dict[str, Any]:
         with self._lock:
@@ -361,15 +402,10 @@ class WebRunManager:
             handle = self._active
             if handle is None or not self._is_handle_active(handle):
                 raise NoActiveRun("no active run")
-            accepted, reason = self._try_accept_trigger(handle)
-            if not accepted:
-                raise RunValidationError(reason)
-            event_metadata = {
-                str(key): str(value)
-                for key, value in (metadata or {}).items()
-                if value is not None
-            }
-            handle.router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, event_metadata))
+        accepted, reason = handle.control_plane.trigger(metadata)
+        if not accepted:
+            raise RunValidationError(reason)
+        with self._lock:
             handle.latest_status = "software trigger queued"
             self._last_status = self._status_from_handle(handle)
             return dict(self._last_status)
@@ -382,10 +418,12 @@ class WebRunManager:
             if self._is_handle_active(handle):
                 handle.state = "stopping"
                 handle.latest_status = "stop requested"
-                handle.engine.stop()
-                handle.router.publish(
-                    TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"})
-                )
+                control_plane = handle.control_plane
+            else:
+                self._last_status = self._status_from_handle(handle)
+                return dict(self._last_status)
+        control_plane.stop_run()
+        with self._lock:
             self._last_status = self._status_from_handle(handle)
             return dict(self._last_status)
 
@@ -402,114 +440,143 @@ class WebRunManager:
         self._csv_opener(csv_path)
         return {"opened": True, "csv_path": str(csv_path)}
 
-    def _validate_request(self, request: RunStartRequest) -> argparse.Namespace:
-        args = argparse.Namespace(**_model_dict(request))
-        args.resource = str(args.resource).strip()
-        if not args.resource:
+    def _validate_request(self, request: RunStartRequest) -> StartRequest:
+        raw = _model_dict(request)
+        raw["resource"] = str(raw["resource"]).strip()
+        if not raw["resource"]:
             raise RunValidationError("resource is required")
-        if args.trigger_mode is not None:
-            args.trigger_mode = str(args.trigger_mode).strip().lower()
-            if args.trigger_mode not in TRIGGER_MODES:
+        if raw.get("csv") is not None:
+            raw["csv"] = str(raw["csv"]).strip() or None
+        if raw.get("trigger_mode") is not None:
+            raw["trigger_mode"] = str(raw["trigger_mode"]).strip().lower()
+            if raw["trigger_mode"] not in TRIGGER_MODES:
                 raise RunValidationError(
                     "trigger_mode must be software, external, immediate, "
                     "immediate-custom, software-custom, or external-custom"
                 )
-        args.hw_trigger_slope = str(args.hw_trigger_slope).strip().lower()
-        if args.hw_trigger_slope not in {"pos", "neg"}:
+        raw["hw_trigger_slope"] = str(raw["hw_trigger_slope"]).strip().lower()
+        if raw["hw_trigger_slope"] not in {"pos", "neg"}:
             raise RunValidationError("hw_trigger_slope must be 'pos' or 'neg'")
-        if args.vm_comp_slope is not None:
-            args.vm_comp_slope = str(args.vm_comp_slope).strip().lower()
-            if args.vm_comp_slope not in {"pos", "neg"}:
+        if raw.get("vm_comp_slope") is not None:
+            raw["vm_comp_slope"] = str(raw["vm_comp_slope"]).strip().lower() or None
+            if raw["vm_comp_slope"] is not None and raw["vm_comp_slope"] not in {"pos", "neg"}:
                 raise RunValidationError("vm_comp_slope must be 'pos' or 'neg'")
-        try:
-            args.dcv_input_impedance = parse_dcv_input_impedance(args.dcv_input_impedance)
-            trigger_mode = resolve_trigger_mode(args)
-            validate_start_args(args, trigger_mode, instrument_profile=get_default_instrument_profile())
-        except (ValueError, argparse.ArgumentTypeError) as exc:
-            raise RunValidationError(str(exc)) from exc
-        return args
+        raw["dcv_input_impedance"] = _parse_dcv_input_impedance(raw["dcv_input_impedance"])
 
-    def _run_worker(self, handle: _RunHandle) -> None:
-        fatal_error = None
+        start_request = StartRequest(**raw)
+        trigger_mode = resolve_trigger_mode(start_request)
+        validate_start_request(
+            start_request,
+            trigger_mode,
+            instrument_profile=get_default_instrument_profile(),
+        )
+        return start_request
+
+    def _run_worker(
+        self,
+        handle: _RunHandle,
+        request: StartRequest,
+        profile: Any,
+    ) -> None:
+        result: StartRunResult | None = None
         try:
-            with self._lock:
-                handle.state = "running"
-                self._last_status = self._status_from_handle(handle)
-            handle.engine.run(
-                trigger_mode=handle.trigger_mode,
-                hardware_trigger_slope=handle.hardware_trigger_slope,
+            result = run_start_session(
+                request,
+                handle.trigger_mode,
+                profile,
+                _WebRunEventSink(self),
+                controls=None,
+                control_plane=handle.control_plane,
+                run_id=handle.run_id,
+                dependencies=self._runner_dependencies,
             )
-            fatal_error = handle.engine.fatal_error
-        except Exception as exc:  # pragma: no cover - covered through API status behavior
-            fatal_error = f"{type(exc).__name__}: {exc}"
-        finally:
-            cleanup_parts: list[str] = []
-            try:
-                cleanup_parts.append(f"release_to_local: {handle.instrument.release_to_local()}")
-            except Exception as exc:
-                cleanup_parts.append(f"release_to_local failed: {type(exc).__name__}: {exc}")
-            try:
-                handle.instrument.close()
-                cleanup_parts.append("close: ok")
-            except Exception as exc:
-                cleanup_parts.append(f"close failed: {type(exc).__name__}: {exc}")
-            try:
-                cleanup_parts.append(
-                    f"cleanup_release_to_local: {handle.instrument.cleanup_release_to_local()}"
-                )
-            except Exception as exc:
-                cleanup_parts.append(
-                    f"cleanup_release_to_local failed: {type(exc).__name__}: {exc}"
-                )
             with self._lock:
-                handle.cleanup_status = "; ".join(cleanup_parts)
-                handle.fatal_error = fatal_error
-                if fatal_error:
-                    handle.state = "error"
-                    handle.latest_status = fatal_error
+                handle.result = result
+                handle.captured = result.captured
+                handle.errors = result.errors
+                handle.fatal_error = result.fatal_error
+                handle.state = "stopped" if result.ok else "error"
+                if result.ok:
+                    handle.latest_status = "recording stopped"
+                elif result.fatal_error:
+                    handle.latest_status = result.fatal_error
                 else:
-                    handle.state = "stopped"
-                    if handle.latest_status not in {"stop requested", "software trigger queued"}:
-                        handle.latest_status = "recording stopped"
+                    handle.latest_status = result.reason
                 self._last_status = self._status_from_handle(handle)
+        except Exception as exc:  # pragma: no cover - defensive runtime boundary
+            with self._lock:
+                handle.fatal_error = f"{type(exc).__name__}: {exc}"
+                handle.latest_status = handle.fatal_error
+                handle.state = "error"
+                self._last_status = self._status_from_handle(handle)
+        finally:
+            handle.ready_event.set()
 
-    def _record_status(self, run_id: str, message: str) -> None:
+    def _record_event(self, event: StartRunEvent) -> None:
+        with self._lock:
+            handle = self._active
+            if handle is None or event.run_id != handle.run_id:
+                return
+            if event.event in {"message", "status", "error"} and event.message:
+                handle.latest_status = event.message
+            if event.event == "sample":
+                handle.captured = int(event.captured or handle.captured)
+            if event.event == "summary":
+                handle.captured = int(event.captured or 0)
+                handle.errors = int(event.errors or 0)
+                handle.fatal_error = event.fatal_error
+            if event.event == "error":
+                handle.fatal_error = event.message
+                handle.state = "error"
+            if event.event == "message" and event.message:
+                self._record_cleanup_message(handle, event.message)
+            self._last_status = self._status_from_handle(handle)
+
+    def _record_cleanup_message(self, handle: _RunHandle, message: str) -> None:
+        cleanup_prefixes = (
+            "main cleanup",
+            "final cleanup",
+            "waiting for measurement worker",
+            "waiting worker",
+            "release_to_local",
+            "cleanup_release_to_local",
+            "stopping software trigger server",
+            "software trigger server stopped",
+        )
+        if not message.startswith(cleanup_prefixes):
+            return
+        handle.cleanup_messages.append(message)
+        handle.cleanup_status = "; ".join(handle.cleanup_messages)
+
+    def _mark_handle_ready(self, run_id: str) -> None:
         with self._lock:
             if self._active is None or self._active.run_id != run_id:
                 return
-            self._active.latest_status = message
+            if self._active.state == "starting":
+                self._active.state = "running"
+            self._active.latest_status = "ready"
+            self._active.ready_event.set()
             self._last_status = self._status_from_handle(self._active)
 
-    def _try_accept_trigger(self, handle: _RunHandle) -> tuple[bool, str]:
-        if handle.queue_max > 0 and handle.router.size() >= handle.queue_max:
-            return False, "queue_full"
-        if handle.min_interval_ms <= 0:
-            return True, ""
-        now = time.monotonic()
-        elapsed_ms = (now - handle.last_accepted_monotonic) * 1000.0
-        if handle.last_accepted_monotonic > 0 and elapsed_ms < handle.min_interval_ms:
-            return False, "rate_limited"
-        handle.last_accepted_monotonic = now
-        return True, ""
-
     def _status_from_handle(self, handle: _RunHandle) -> dict[str, Any]:
-        worker_alive = handle.worker.is_alive() if handle.worker is not None else False
+        active = self._is_handle_active(handle)
         state = handle.state
-        if state in {"starting", "running"} and not worker_alive:
-            state = "error" if handle.fatal_error or handle.engine.fatal_error else "stopped"
+        if state in {"starting", "running", "stopping"} and not active:
+            state = "error" if handle.fatal_error else "stopped"
         return {
             "run_id": handle.run_id,
             "state": state,
-            "active": self._is_handle_active(handle),
+            "active": active,
             "resource": handle.resource,
             "measurement": handle.measurement,
             "trigger_mode": handle.trigger_mode,
             "csv_path": str(handle.csv_path),
-            "captured": handle.engine.stats.captured,
-            "errors": handle.engine.stats.errors,
+            "captured": handle.captured,
+            "errors": handle.errors,
             "latest_status": handle.latest_status,
-            "fatal_error": handle.fatal_error or handle.engine.fatal_error,
+            "fatal_error": handle.fatal_error,
             "cleanup_status": handle.cleanup_status,
+            "warnings": list(handle.warnings),
         }
 
     def _is_handle_active(self, handle: _RunHandle) -> bool:
@@ -532,6 +599,7 @@ class WebRunManager:
             "latest_status": "idle",
             "fatal_error": None,
             "cleanup_status": None,
+            "warnings": [],
         }
 
 
@@ -592,8 +660,16 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
     return app
 
 
+def get_webui_version() -> str:
+    try:
+        return importlib.metadata.version(PACKAGE_NAME)
+    except importlib.metadata.PackageNotFoundError:
+        return _read_project_version()
+
+
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="python -m keysight_logger.web_ui")
+    parser = argparse.ArgumentParser(prog="keysight-logger-webui")
+    parser.add_argument("--version", action="version", version=f"%(prog)s {get_webui_version()}")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8767)
     args = parser.parse_args(argv)
@@ -610,8 +686,39 @@ def _model_dict(model: BaseModel) -> dict[str, Any]:
     return model.dict()
 
 
+def _read_project_version() -> str:
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    try:
+        import tomllib
+    except ModuleNotFoundError:
+        tomllib = None
+    if tomllib is not None:
+        with pyproject_path.open("rb") as fh:
+            data = tomllib.load(fh)
+        return str(data["project"]["version"])
+
+    in_project = False
+    for raw_line in pyproject_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            in_project = line == "[project]"
+            continue
+        if in_project and line.startswith("version") and "=" in line:
+            return line.split("=", 1)[1].strip().strip('"')
+    raise RuntimeError(f"Could not read project version from {pyproject_path}")
+
+
 def _range_limit(value_range: tuple[float, float] | tuple[int, int]) -> dict[str, float | int]:
     return {"min": value_range[0], "max": value_range[1]}
+
+
+def _parse_dcv_input_impedance(value: str) -> str:
+    normalized = str(value).strip().lower()
+    if normalized in {"default", "10m", "auto"}:
+        return normalized
+    raise RunValidationError("dcv_input_impedance must be 'default', '10m', or 'auto'")
 
 
 def _open_with_default_app(path: Path) -> None:

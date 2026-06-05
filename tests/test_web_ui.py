@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import contextlib
+import io
 import re
 import tempfile
-import threading
 import time
 import unittest
 from pathlib import Path
@@ -13,65 +14,14 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
     TestClient = None
 
 if TestClient is not None:
-    from keysight_logger.models import MeasurementSample
-    from keysight_logger.web_ui import RunAlreadyActive, RunStartRequest, WebRunManager, create_app
-
-
-class FakeInstrument:
-    resource_id = "USB::FAKE"
-
-    def __init__(self, config):
-        self.config = config
-        self.connected = False
-        self.closed = False
-        self.abort_count = 0
-
-    def connect(self):
-        self.connected = True
-
-    def write(self, _command):
-        return
-
-    def query_ascii_float(self, _command):
-        return 1.23
-
-    def set_timeout_ms(self, _timeout_ms):
-        return
-
-    def abort_measurement(self):
-        self.abort_count += 1
-        return True
-
-    def release_to_local(self):
-        return "release:ok"
-
-    def cleanup_release_to_local(self):
-        return "cleanup:ok"
-
-    def close(self):
-        self.closed = True
-
-
-class FakeMeasurement:
-    def __init__(self, measurement_type="current_dc"):
-        self._measurement_type = measurement_type
-
-    def configure(self, _instrument, _config):
-        return
-
-    def read_sample(self, instrument, trigger):
-        from datetime import datetime, timezone
-
-        return MeasurementSample(
-            timestamp_utc=datetime.now(timezone.utc),
-            measurement_type=self._measurement_type,
-            value=1.23,
-            unit="A",
-            status="ok",
-            resource_id=instrument.resource_id,
-            trigger_id=trigger.id,
-            trigger_source=trigger.source.value,
-        )
+    from keysight_logger.web_ui import (
+        RunAlreadyActive,
+        RunStartRequest,
+        WebRunManager,
+        create_app,
+        get_webui_version,
+        main,
+    )
 
 
 @unittest.skipIf(TestClient is None, "FastAPI test dependencies are not installed")
@@ -79,10 +29,7 @@ class WebUiApiTests(unittest.TestCase):
     def make_client(self):
         self.tempdir = tempfile.TemporaryDirectory()
         csv_path = Path(self.tempdir.name) / "out.csv"
-        manager = WebRunManager(
-            instrument_factory=FakeInstrument,
-            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
-        )
+        manager = WebRunManager()
         app = create_app(manager)
         return TestClient(app), csv_path
 
@@ -148,8 +95,11 @@ class WebUiApiTests(unittest.TestCase):
         request = {
             "resource": "USB::FAKE",
             "csv": str(csv_path),
-            "trigger_mode": "software",
+            "simulate": True,
+            "trigger_mode": "software-custom",
             "trigger_timeout_ms": 500,
+            "trigger_count": 1,
+            "sample_count": 1,
         }
 
         first = client.post("/api/runs", json=request)
@@ -177,8 +127,11 @@ class WebUiApiTests(unittest.TestCase):
             json={
                 "resource": "USB::FAKE",
                 "csv": str(csv_path),
-                "trigger_mode": "software",
+                "simulate": True,
+                "trigger_mode": "software-custom",
                 "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
             },
         )
         self.assertEqual(200, started.status_code)
@@ -193,10 +146,7 @@ class WebUiApiTests(unittest.TestCase):
     def test_open_current_csv_rejects_missing_completed_file(self):
         self.tempdir = tempfile.TemporaryDirectory()
         missing_csv = Path(self.tempdir.name) / "missing.csv"
-        manager = WebRunManager(
-            instrument_factory=FakeInstrument,
-            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
-        )
+        manager = WebRunManager()
         manager._last_status = {
             **manager.status(),
             "state": "stopped",
@@ -215,11 +165,7 @@ class WebUiApiTests(unittest.TestCase):
         csv_path = Path(self.tempdir.name) / "out.csv"
         csv_path.write_text("timestamp,value\n", encoding="utf-8")
         opened_paths: list[Path] = []
-        manager = WebRunManager(
-            instrument_factory=FakeInstrument,
-            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
-            csv_opener=opened_paths.append,
-        )
+        manager = WebRunManager(csv_opener=opened_paths.append)
         manager._last_status = {
             **manager.status(),
             "state": "stopped",
@@ -234,55 +180,26 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual({"opened": True, "csv_path": str(csv_path)}, response.json())
         self.assertEqual([csv_path], opened_paths)
 
-    def test_run_start_rejects_second_run_while_first_is_connecting(self):
+    def test_run_start_rejects_second_run_while_active(self):
         tempdir = tempfile.TemporaryDirectory()
         self.tempdir = tempdir
         csv_path = Path(tempdir.name) / "out.csv"
-        connect_entered = threading.Event()
-        release_connect = threading.Event()
-        created_instruments: list[FakeInstrument] = []
-
-        class SlowConnectInstrument(FakeInstrument):
-            def connect(self):
-                connect_entered.set()
-                self.connected = True
-                release_connect.wait(timeout=1)
-
-        def instrument_factory(config):
-            instrument = SlowConnectInstrument(config)
-            created_instruments.append(instrument)
-            return instrument
-
-        manager = WebRunManager(
-            instrument_factory=instrument_factory,
-            measurement_factory=lambda measurement_type: FakeMeasurement(measurement_type),
-        )
+        manager = WebRunManager()
         request = RunStartRequest(
             resource="USB::FAKE",
             csv=str(csv_path),
-            trigger_mode="software",
+            simulate=True,
+            trigger_mode="software-custom",
             trigger_timeout_ms=500,
+            trigger_count=1,
+            sample_count=1,
         )
-        first_error: list[BaseException] = []
-
-        def start_first():
-            try:
-                manager.start(request)
-            except BaseException as exc:  # pragma: no cover - failure path for the worker thread
-                first_error.append(exc)
-
-        worker = threading.Thread(target=start_first)
-        worker.start()
-        self.assertTrue(connect_entered.wait(timeout=1))
+        started = manager.start(request)
+        self.assertTrue(started["active"])
 
         with self.assertRaises(RunAlreadyActive):
             manager.start(request)
 
-        release_connect.set()
-        worker.join(timeout=1)
-        self.assertFalse(worker.is_alive())
-        self.assertEqual([], first_error)
-        self.assertEqual(1, len(created_instruments))
         manager.stop()
         deadline = time.monotonic() + 1.0
         while manager.status()["active"] and time.monotonic() < deadline:
@@ -295,6 +212,7 @@ class WebUiApiTests(unittest.TestCase):
             json={
                 "resource": "USB::FAKE",
                 "csv": str(csv_path),
+                "simulate": True,
                 "trigger_mode": "software",
                 "trigger_timeout_ms": 500,
                 "max_samples": 1,
@@ -324,6 +242,7 @@ class WebUiApiTests(unittest.TestCase):
             json={
                 "resource": "USB::FAKE",
                 "csv": str(csv_path),
+                "simulate": True,
                 "auto_range": False,
                 "measurement": "voltage-dc",
             },
@@ -347,6 +266,7 @@ class WebUiApiTests(unittest.TestCase):
                     json={
                         "resource": "USB::FAKE",
                         "csv": str(csv_path),
+                        "simulate": True,
                         **extra_payload,
                     },
                 )
@@ -359,6 +279,17 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual("current-dc", request.measurement)
         self.assertTrue(request.auto_zero)
+
+    def test_webui_version_flag_uses_project_version(self):
+        output = io.StringIO()
+
+        with self.assertRaises(SystemExit) as raised:
+            with contextlib.redirect_stdout(output):
+                main(["--version"])
+
+        self.assertEqual(0, raised.exception.code)
+        self.assertIn("keysight-logger-webui", output.getvalue())
+        self.assertIn(get_webui_version(), output.getvalue())
 
     def test_static_ui_omits_cli_compat_only_controls(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger" / "static"
@@ -522,6 +453,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;", app_js)
         self.assertIn("function triggerTimeoutMs", app_js)
         self.assertIn("function usesTriggerTimeout", app_js)
+        self.assertIn('return mode === "external" || mode === "external-custom";', app_js)
         self.assertIn(
             'usesTriggerTimeout(mode) ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS',
             app_js,

@@ -135,7 +135,7 @@ function supportsAutoZero(measurementName) {
 }
 
 function usesTriggerTimeout(mode) {
-  return mode === "external" || mode === "software-custom";
+  return mode === "external" || mode === "external-custom";
 }
 
 function triggerTimeoutMs(data, mode) {
