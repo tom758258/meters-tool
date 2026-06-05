@@ -18,6 +18,17 @@ def _vm_comp_slope_command(slope: str) -> str:
     raise ValueError("vm_comp_slope must be 'pos' or 'neg'")
 
 
+def _auto_zero_command_value(value: bool | str) -> str:
+    if value is True:
+        return "ON"
+    if value is False:
+        return "OFF"
+    normalized = str(value).strip().upper()
+    if normalized in ("ON", "OFF", "ONCE"):
+        return normalized
+    raise ValueError("auto_zero must be one of: True, False, 'on', 'off', 'once'")
+
+
 class MeasurementPlugin(ABC):
     @abstractmethod
     def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
@@ -279,12 +290,14 @@ class CurrentDcMeasurement(ScalarDmmMeasurement):
         if manual_range is None:
             manual_range = config.current_range
         instrument.write("CONF:CURR:DC AUTO")
-        if config.auto_range:
+        if config.current_terminal is not None:
+            instrument.write(f"CURR:DC:TERM {config.current_terminal}")
+        if config.current_terminal != 10 and config.auto_range:
             instrument.write("CURR:DC:RANG:AUTO ON")
-        elif manual_range is not None:
+        elif config.current_terminal != 10 and manual_range is not None:
             instrument.write(f"CURR:DC:RANG {manual_range}")
         instrument.write(f"CURR:DC:NPLC {config.nplc}")
-        instrument.write(f"ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        instrument.write(f"ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
         if config.vm_comp_slope is not None:
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
@@ -306,7 +319,7 @@ class VoltageDcMeasurement(ScalarDmmMeasurement):
         elif config.dcv_input_impedance == "auto":
             instrument.write("VOLT:DC:IMP:AUTO ON")
         instrument.write(f"VOLT:DC:NPLC {config.nplc}")
-        instrument.write(f"VOLT:DC:ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        instrument.write(f"VOLT:DC:ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
         if config.vm_comp_slope is not None:
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
@@ -319,10 +332,14 @@ class CurrentAcMeasurement(ScalarDmmMeasurement):
 
     def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
         instrument.write("CONF:CURR:AC AUTO")
-        if config.auto_range:
+        if config.current_terminal is not None:
+            instrument.write(f"CURR:AC:TERM {config.current_terminal}")
+        if config.current_terminal != 10 and config.auto_range:
             instrument.write("CURR:AC:RANG:AUTO ON")
-        elif config.measurement_range is not None:
+        elif config.current_terminal != 10 and config.measurement_range is not None:
             instrument.write(f"CURR:AC:RANG {config.measurement_range}")
+        if config.ac_bandwidth_hz is not None:
+            instrument.write(f"CURR:AC:BAND {config.ac_bandwidth_hz:g}")
         if config.vm_comp_slope is not None:
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
@@ -339,6 +356,8 @@ class VoltageAcMeasurement(ScalarDmmMeasurement):
             instrument.write("VOLT:AC:RANG:AUTO ON")
         elif config.measurement_range is not None:
             instrument.write(f"VOLT:AC:RANG {config.measurement_range}")
+        if config.ac_bandwidth_hz is not None:
+            instrument.write(f"VOLT:AC:BAND {config.ac_bandwidth_hz:g}")
         if config.vm_comp_slope is not None:
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")
@@ -356,7 +375,7 @@ class Resistance2wMeasurement(ScalarDmmMeasurement):
         elif config.measurement_range is not None:
             instrument.write(f"RES:RANG {config.measurement_range}")
         instrument.write(f"RES:NPLC {config.nplc}")
-        instrument.write(f"RES:ZERO:AUTO {'ON' if config.auto_zero else 'OFF'}")
+        instrument.write(f"RES:ZERO:AUTO {_auto_zero_command_value(config.auto_zero)}")
         if config.vm_comp_slope is not None:
             slope_cmd = _vm_comp_slope_command(config.vm_comp_slope)
             instrument.write(f"OUTP:TRIG:SLOP {slope_cmd}")

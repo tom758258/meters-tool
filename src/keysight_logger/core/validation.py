@@ -26,6 +26,8 @@ SW_MIN_INTERVAL_MS_RANGE = (0, 600000)
 SW_QUEUE_MAX_RANGE = (0, 10000)
 HW_TRIGGER_DELAY_S_RANGE = (0.0, 3600.0)
 NEUTRAL_AC_NPLC = 1.0
+AUTO_ZERO_MEASUREMENTS = ("current_dc", "voltage_dc", "resistance_2w")
+CURRENT_MEASUREMENTS = ("current_dc", "current_ac")
 
 
 def resolve_csv_path(csv_path: str | None, now: datetime | None = None) -> Path:
@@ -73,6 +75,18 @@ def value_in_options(value: float, options: tuple[float, ...]) -> bool:
     return any(abs(float(value) - float(option)) <= 1e-12 for option in options)
 
 
+def normalize_auto_zero(value: bool | str) -> str:
+    if value is True:
+        return "on"
+    if value is False:
+        return "off"
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in ("on", "off", "once"):
+            return normalized
+    raise ValueError("--auto-zero must be one of: on, off, once")
+
+
 def supported_measurement_types(profile: InstrumentProfile) -> tuple[str, ...]:
     registered_measurements = set(registered_measurement_types())
     return tuple(value for value in profile.supported_measurement_types if value in registered_measurements)
@@ -118,6 +132,8 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         f"  measurement choices: {', '.join(measurement_names)}\n"
         "  NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100\n"
         "  AC current/voltage do not support NPLC SCPI; omit --nplc or use 1.0\n"
+        "  AC bandwidth choices for AC current/voltage: 3, 20, 200 Hz\n"
+        "  current terminal choices for current measurements: 3, 10\n"
         "  range choices by measurement:\n"
         + "\n".join(range_lines)
         + "\n"
@@ -168,6 +184,12 @@ def validate_start_request(
         raise ValueError("--current-range can only be used with --measurement current-dc")
     if args.dcv_input_impedance != "default" and measurement_type != "voltage_dc":
         raise ValueError("--dcv-input-impedance can only be used with --measurement voltage-dc")
+    auto_zero = normalize_auto_zero(args.auto_zero)
+    if auto_zero == "once" and measurement_type not in AUTO_ZERO_MEASUREMENTS:
+        raise ValueError(
+            "--auto-zero once can only be used with --measurement current-dc, voltage-dc, "
+            "or resistance-2w"
+        )
     if args.measurement_range is not None and args.current_range is not None:
         raise ValueError("--range and --current-range cannot be used together")
     validate_int_range("--timeout-ms", args.timeout_ms, *TIMEOUT_MS_RANGE, "supported")
@@ -211,6 +233,36 @@ def validate_start_request(
                 "Use one of the listed current range values."
             )
     measurement_range = resolve_measurement_range(args)
+    if args.ac_bandwidth_hz is not None:
+        if not options.ac_bandwidth_hz_options:
+            raise ValueError(
+                "--ac-bandwidth-hz can only be used with --measurement current-ac or voltage-ac"
+            )
+        if not value_in_options(args.ac_bandwidth_hz, options.ac_bandwidth_hz_options):
+            raise ValueError(
+                f"--ac-bandwidth-hz {format_number(args.ac_bandwidth_hz)} is not valid for "
+                f"--measurement {definition.canonical_name}. Allowed AC bandwidth values in Hz: "
+                f"{format_values(options.ac_bandwidth_hz_options)}."
+            )
+    if args.current_terminal is not None:
+        if not options.current_terminal_options:
+            raise ValueError(
+                "--current-terminal can only be used with --measurement current-dc or current-ac"
+            )
+        if args.current_terminal not in options.current_terminal_options:
+            raise ValueError(
+                f"--current-terminal {args.current_terminal} is not valid for "
+                f"--measurement {definition.canonical_name}. Allowed current terminals: "
+                f"{', '.join(str(value) for value in options.current_terminal_options)}."
+            )
+    if measurement_type in CURRENT_MEASUREMENTS and measurement_range is not None:
+        is_10a_range = value_in_options(measurement_range, (10.0,))
+        if args.current_terminal == 3 and is_10a_range:
+            raise ValueError("--current-terminal 3 cannot be used with the 10 A current range")
+        if is_10a_range and args.current_terminal != 10:
+            raise ValueError("10 A current range requires --current-terminal 10")
+        if args.current_terminal == 10 and not is_10a_range:
+            raise ValueError("--current-terminal 10 requires the 10 A current range")
     if options.nplc_options:
         if not value_in_options(args.nplc, options.nplc_options):
             raise ValueError(

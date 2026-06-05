@@ -63,6 +63,8 @@ def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
         "auto_range": True,
         "measurement_range": None,
         "current_range": None,
+        "ac_bandwidth_hz": None,
+        "current_terminal": None,
         "dcv_input_impedance": "default",
         "vm_comp_slope": None,
     }
@@ -333,6 +335,86 @@ class CoreValidationTests(unittest.TestCase):
                     "AC measurements do not support NPLC SCPI. Omit --nplc",
                 )
 
+    def test_auto_zero_once_scope_and_invalid_strings(self):
+        for measurement in ["current-dc", "voltage-dc", "resistance-2w"]:
+            with self.subTest(measurement=measurement):
+                self.assert_valid(make_start_request(measurement=measurement, auto_zero="once"))
+                self.assert_valid(make_start_request(measurement=measurement, auto_zero="ONCE"))
+        for measurement in ["current-ac", "voltage-ac", "resistance-4w"]:
+            with self.subTest(measurement=measurement):
+                self.assert_invalid(
+                    make_start_request(measurement=measurement, auto_zero="once"),
+                    "--auto-zero once can only be used",
+                )
+        self.assert_invalid(
+            make_start_request(auto_zero="enabled"),
+            "--auto-zero must be one of: on, off, once",
+        )
+
+    def test_ac_bandwidth_hz_is_ac_only_and_profile_owned(self):
+        for measurement, bandwidth in [("current-ac", 3.0), ("voltage-ac", 200.0)]:
+            with self.subTest(measurement=measurement):
+                self.assert_valid(make_start_request(measurement=measurement, ac_bandwidth_hz=bandwidth))
+        self.assert_invalid(
+            make_start_request(measurement="current-ac", ac_bandwidth_hz=10.0),
+            "Allowed AC bandwidth values in Hz: 3, 20, 200",
+        )
+        self.assert_invalid(
+            make_start_request(measurement="current-dc", ac_bandwidth_hz=3.0),
+            "--ac-bandwidth-hz can only be used with --measurement current-ac or voltage-ac",
+        )
+        self.assert_invalid(
+            make_start_request(measurement="current-dc", ac_bandwidth_hz=3.0),
+            "--ac-bandwidth-hz can only be used",
+            profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+    def test_current_terminal_scope_and_10a_range_rules(self):
+        self.assert_valid(make_start_request(measurement="current-dc", current_terminal=3))
+        self.assert_valid(make_start_request(measurement="current-ac", current_terminal=10))
+        self.assert_invalid(
+            make_start_request(measurement="current-dc", current_terminal=5),
+            "Allowed current terminals: 3, 10",
+        )
+        self.assert_invalid(
+            make_start_request(measurement="voltage-dc", current_terminal=3),
+            "--current-terminal can only be used with --measurement current-dc or current-ac",
+        )
+        self.assert_invalid(
+            make_start_request(
+                measurement="current-dc",
+                auto_range=False,
+                measurement_range=10.0,
+            ),
+            "10 A current range requires --current-terminal 10",
+        )
+        self.assert_invalid(
+            make_start_request(
+                measurement="current-dc",
+                auto_range=False,
+                measurement_range=10.0,
+                current_terminal=3,
+            ),
+            "--current-terminal 3 cannot be used with the 10 A current range",
+        )
+        self.assert_invalid(
+            make_start_request(
+                measurement="current-dc",
+                auto_range=False,
+                measurement_range=0.1,
+                current_terminal=10,
+            ),
+            "--current-terminal 10 requires the 10 A current range",
+        )
+        self.assert_valid(
+            make_start_request(
+                measurement="current-dc",
+                auto_range=False,
+                measurement_range=10.0,
+                current_terminal=10,
+            )
+        )
+
     def test_manual_range_is_required_when_auto_range_is_off(self):
         self.assert_invalid(
             make_start_request(auto_range=False),
@@ -460,6 +542,8 @@ class CoreValidationTests(unittest.TestCase):
         help_text = start_help_epilog()
 
         self.assertIn("NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100", help_text)
+        self.assertIn("AC bandwidth choices for AC current/voltage: 3, 20, 200 Hz", help_text)
+        self.assertIn("current terminal choices for current measurements: 3, 10", help_text)
         self.assertIn("current-dc: 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A", help_text)
         self.assertIn("--timer-interval-s: 0.5-86400 s", help_text)
         self.assertIn("--trigger-timeout-ms: 500-600000 ms", help_text)

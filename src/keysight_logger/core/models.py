@@ -34,6 +34,8 @@ class MeasurementOptions:
     measurement_type: str
     range_options: tuple[tuple[str, float], ...] = ()
     nplc_options: tuple[float, ...] = ()
+    ac_bandwidth_hz_options: tuple[float, ...] = ()
+    current_terminal_options: tuple[int, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -144,6 +146,7 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
             measurement_type="current_dc",
             range_options=KEYSIGHT_34461A_CURRENT_RANGES,
             nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+            current_terminal_options=(3, 10),
         ),
         MeasurementOptions(
             measurement_type="voltage_dc",
@@ -153,10 +156,13 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
         MeasurementOptions(
             measurement_type="current_ac",
             range_options=KEYSIGHT_34461A_CURRENT_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+            current_terminal_options=(3, 10),
         ),
         MeasurementOptions(
             measurement_type="voltage_ac",
             range_options=KEYSIGHT_34461A_ACV_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
         ),
         MeasurementOptions(
             measurement_type="resistance_2w",
@@ -212,10 +218,12 @@ class AcquisitionConfig:
     buffer_drain_size: Optional[int] = None
     allow_buffer_overflow_risk: bool = False
     nplc: float = 1.0
-    auto_zero: bool = True
+    auto_zero: bool | str = True
     auto_range: bool = True
     measurement_range: Optional[float] = None
     current_range: Optional[float] = None
+    ac_bandwidth_hz: Optional[float] = None
+    current_terminal: Optional[int] = None
     dcv_input_impedance: str = "default"
     hw_trigger_delay_s: float = 0.0
     vm_comp_slope: Optional[str] = None
@@ -243,10 +251,12 @@ class StartRequest:
     hw_trigger_delay_s: float = 0.0
     measurement: str = "current-dc"
     nplc: float = 1.0
-    auto_zero: bool = True
+    auto_zero: bool | str = True
     auto_range: bool = True
     measurement_range: Optional[float] = None
     current_range: Optional[float] = None
+    ac_bandwidth_hz: Optional[float] = None
+    current_terminal: Optional[int] = None
     dcv_input_impedance: str = "default"
     vm_comp_slope: Optional[str] = None
 

@@ -96,6 +96,8 @@ def build_start_plan(
         auto_range=args.auto_range,
         measurement_range=resolve_measurement_range(args),
         current_range=args.current_range,
+        ac_bandwidth_hz=args.ac_bandwidth_hz,
+        current_terminal=args.current_terminal,
         dcv_input_impedance=args.dcv_input_impedance,
         hw_trigger_delay_s=args.hw_trigger_delay_s,
         vm_comp_slope=args.vm_comp_slope,

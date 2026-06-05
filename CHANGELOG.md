@@ -2,22 +2,7 @@
 
 ## Unreleased
 
-No unreleased changes.
-
-## webui-v1.0.0 - 2026-05-26
-
-- Migrated the Web UI adapter from the old CLI-backed runtime path to the
-  independent Core `StartRequest` / `run_start_session()` architecture while
-  preserving the existing browser endpoints and static UI.
-- Updated WebUI package metadata to `keysight-logger-webui` and restored WebUI
-  runtime/test dependencies in project metadata.
-- Added the `keysight-logger-webui` console script and `--version` support for
-  parity with uv-installed adapter workflows.
-- Recorded WebUI/Core validation for release: JavaScript syntax check passed,
-  focused pytest passed with 63 tests and 63 subtests, full pytest passed with
-  213 tests and 68 subtests, and the uv-installed console wrapper reported
-  `keysight-logger-webui 1.0.0`.
-- User-reported WebUI real/manual smoke validation passed before tagging.
+- No unreleased changes yet.
 
 ## v1.0.0-core - 2026-05-26
 

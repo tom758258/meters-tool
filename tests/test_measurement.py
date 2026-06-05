@@ -106,6 +106,30 @@ class CurrentMeasurementTests(unittest.TestCase):
 
         self.assertIn("CURR:DC:RANG 0.1", inst.commands)
 
+    def test_auto_zero_once_writes_current_once_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(auto_zero="once"))
+
+        self.assertIn("ZERO:AUTO ONCE", inst.commands)
+
+    def test_current_terminal_10_writes_terminal_without_10a_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(
+                auto_range=False,
+                measurement_range=10.0,
+                current_terminal=10,
+            ),
+        )
+
+        self.assertIn("CURR:DC:TERM 10", inst.commands)
+        self.assertNotIn("CURR:DC:RANG 10.0", inst.commands)
+
     def test_immediate_trigger_reads_with_read_query(self):
         inst = FakeInstrument()
         measurement = CurrentMeasurement()
@@ -310,6 +334,14 @@ class VoltageDcMeasurementTests(unittest.TestCase):
             inst.commands,
         )
 
+    def test_auto_zero_once_writes_voltage_once_scpi(self):
+        inst = FakeInstrument()
+        measurement = VoltageDcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(auto_zero="once"))
+
+        self.assertIn("VOLT:DC:ZERO:AUTO ONCE", inst.commands)
+
     def test_voltage_dc_input_impedance_10m_writes_auto_off(self):
         inst = FakeInstrument()
         measurement = VoltageDcMeasurement()
@@ -420,6 +452,30 @@ class CurrentAcMeasurementTests(unittest.TestCase):
             inst.commands,
         )
 
+    def test_ac_bandwidth_writes_current_ac_bandwidth_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentAcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(ac_bandwidth_hz=3.0))
+
+        self.assertIn("CURR:AC:BAND 3", inst.commands)
+
+    def test_current_ac_terminal_10_writes_terminal_without_10a_range_scpi(self):
+        inst = FakeInstrument()
+        measurement = CurrentAcMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(
+                auto_range=False,
+                measurement_range=10.0,
+                current_terminal=10,
+            ),
+        )
+
+        self.assertIn("CURR:AC:TERM 10", inst.commands)
+        self.assertNotIn("CURR:AC:RANG 10.0", inst.commands)
+
     def test_read_sample_uses_current_ac_metadata_and_fetch_for_hardware(self):
         inst = FakeInstrument()
         measurement = CurrentAcMeasurement()
@@ -495,6 +551,14 @@ class VoltageAcMeasurementTests(unittest.TestCase):
             ],
             inst.commands,
         )
+
+    def test_ac_bandwidth_writes_voltage_ac_bandwidth_scpi(self):
+        inst = FakeInstrument()
+        measurement = VoltageAcMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(ac_bandwidth_hz=200.0))
+
+        self.assertIn("VOLT:AC:BAND 200", inst.commands)
 
     def test_read_sample_uses_voltage_ac_metadata_and_fetch_for_hardware(self):
         inst = FakeInstrument()
@@ -575,6 +639,14 @@ class Resistance2wMeasurementTests(unittest.TestCase):
             ],
             inst.commands,
         )
+
+    def test_auto_zero_once_writes_resistance_once_scpi(self):
+        inst = FakeInstrument()
+        measurement = Resistance2wMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig(auto_zero="once"))
+
+        self.assertIn("RES:ZERO:AUTO ONCE", inst.commands)
 
     def test_read_sample_uses_resistance_metadata_and_fetch_for_hardware(self):
         inst = FakeInstrument()

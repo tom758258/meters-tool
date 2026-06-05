@@ -1,53 +1,71 @@
 # Supported Models
 
-This file is the manually maintained source of truth for CLI validation
-targets, connection aliases, and live validation suites. When
-`scripts/preflight-cli.ps1` or `scripts/live-cli-check.ps1` changes supported
-targets, connection names, or suite coverage, update this file in the same
-change.
+This file is the Core profile and model capability reference. Update it when
+Core profile data, supported measurements, validation bounds, or live
+validation expectations change.
 
-## CLI Validation Matrix
+## Current Profile
 
-Current CLI validation supports one instrument profile:
+Core currently provides one default instrument profile:
 
-| Target | Instrument | Connection | Live |
-| --- | --- | --- | --- |
-| `keysight-34461a` | Keysight 34461A | USB/local | yes |
-| `keysight-34461a` | Keysight 34461A | LAN/network | yes |
-
-Connection aliases accepted by `scripts/live-cli-check.ps1`:
-
-| User input | Canonical connection |
-| --- | --- |
-| `usb` | `usb` |
-| `local` | `usb` |
-| `lan` | `lan` |
-| `network` | `lan` |
-
-Rules:
-
-- `scripts/preflight-cli.ps1` defaults to all targets and currently runs
-  `keysight-34461a`.
-- `scripts/live-cli-check.ps1` requires explicit `-Target`, `-Connection`, and
-  `-Resource`.
-- `scripts/live-cli-check.ps1 -PlanOnly` validates selected live-suite case
-  plans and writes wrapper artifacts without opening VISA or touching the
-  instrument.
-- LAN live validation must use the explicit `-Resource` provided by the user.
-  The live wrapper must not scan, guess, or auto-select a LAN resource.
-- Adding another model or connection requires updating this matrix, then the
-  validation scripts.
-
-## Live Suite Coverage
-
-`scripts/live-cli-check.ps1` accepts these suites:
-
-| Suite | Coverage | External edge needed |
+| Profile | Instrument | Live validation |
 | --- | --- | --- |
-| `minimal` | One current DC immediate smoke. | no |
-| `basic` | Immediate one-sample captures for all six measurements, plus software trigger, software timer, immediate-custom, and software-custom current DC checks. | no |
-| `external` | Simple external current DC and external-custom current DC checks. | yes |
-| `full` | `basic` followed by `external`. | yes |
+| `keysight-34461a` | Keysight 34461A digital multimeter | USB or LAN through explicit VISA resource |
 
-The default suite is `minimal`. The `external` and `full` suites require the
-operator to provide the requested external trigger edges.
+Live validation must use the explicit VISA resource supplied by the operator.
+Core branch validation must not scan, guess, or auto-select a resource.
+
+## Measurement Capability
+
+The 34461A profile supports these measurement names:
+
+- `current-dc`
+- `voltage-dc`
+- `current-ac`
+- `voltage-ac`
+- `resistance-2w`
+- `resistance-4w`
+
+Profile data owns per-measurement range, NPLC, AC bandwidth, and current
+terminal validation where applicable.
+
+Auto Zero supports `on`, `off`, and `once` for `current-dc`, `voltage-dc`, and
+`resistance-2w`. AC measurements do not use NPLC or Auto Zero. Resistance
+4-wire uses the `FRES` SCPI family and does not write Auto Zero SCPI, so
+`auto_zero="once"` is rejected for `resistance-4w`.
+
+AC bandwidth is available for `current-ac` and `voltage-ac` through
+`ac_bandwidth_hz`. Allowed values are `3`, `20`, and `200` Hz. Leaving the
+field unset preserves the existing `CONF:*:AC AUTO` behavior and writes no
+bandwidth SCPI.
+
+Current terminal selection is available for `current-dc` and `current-ac`
+through `current_terminal`. Allowed values are `3` and `10`. Selecting the
+10 A current range requires `current_terminal=10`; selecting `current_terminal=10`
+requires the 10 A range when a manual range is supplied. When the 10 A terminal
+is explicit, Core writes `CURR:{DC|AC}:TERM 10` and does not write
+`CURR:{DC|AC}:RANG 10`.
+
+## Trigger Capability
+
+Core validation and planning cover:
+
+- `software`
+- software timer through `timer_interval_s`
+- `external`
+- `immediate`
+- `immediate-custom`
+- `software-custom`
+- `external-custom`
+
+Simple software and immediate reads use `READ?`. Simple external-triggered
+reads use `FETC?` after the hardware trigger adapter arms and completes the
+measurement. Custom and buffered modes use the existing buffered acquisition
+path.
+
+## Future Models
+
+Add new models by adding or extending Core profiles first. Add SCPI dialect
+behavior only when a second real model proves the shared command set is wrong
+for that model. Keep model validation changes paired with focused Core tests
+and an operator-approved hardware validation plan.

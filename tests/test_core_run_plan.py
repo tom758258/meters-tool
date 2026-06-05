@@ -33,6 +33,8 @@ def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
         "auto_range": True,
         "measurement_range": None,
         "current_range": None,
+        "ac_bandwidth_hz": None,
+        "current_terminal": None,
         "dcv_input_impedance": "default",
         "vm_comp_slope": None,
     }
@@ -196,6 +198,40 @@ class CoreRunPlanTests(unittest.TestCase):
             ],
             plan.cleanup_steps,
         )
+
+    def test_new_measurement_options_are_included_in_dry_run_scpi(self):
+        current_plan = self.build_plan(
+            "software",
+            make_start_request(
+                measurement="current-dc",
+                auto_zero="once",
+                auto_range=False,
+                measurement_range=10.0,
+                current_terminal=10,
+            ),
+        )
+        current_ac_plan = self.build_plan(
+            "software",
+            make_start_request(
+                measurement="current-ac",
+                ac_bandwidth_hz=3.0,
+                auto_range=False,
+                measurement_range=10.0,
+                current_terminal=10,
+            ),
+        )
+        voltage_ac_plan = self.build_plan(
+            "software",
+            make_start_request(measurement="voltage-ac", ac_bandwidth_hz=200.0),
+        )
+
+        self.assertIn("ZERO:AUTO ONCE", current_plan.scpi_commands)
+        self.assertIn("CURR:DC:TERM 10", current_plan.scpi_commands)
+        self.assertNotIn("CURR:DC:RANG 10.0", current_plan.scpi_commands)
+        self.assertIn("CURR:AC:TERM 10", current_ac_plan.scpi_commands)
+        self.assertIn("CURR:AC:BAND 3", current_ac_plan.scpi_commands)
+        self.assertNotIn("CURR:AC:RANG 10.0", current_ac_plan.scpi_commands)
+        self.assertIn("VOLT:AC:BAND 200", voltage_ac_plan.scpi_commands)
 
 
 if __name__ == "__main__":
