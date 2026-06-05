@@ -9,8 +9,8 @@ from .measurement import (
     normalize_measurement_type,
     registered_measurement_types,
 )
+from .constants import UTC_PLUS_8
 from .models import InstrumentProfile, StartRequest, get_default_instrument_profile
-from .storage import UTC_PLUS_8
 
 
 TIMER_INTERVAL_S_RANGE = (0.5, 86400.0)

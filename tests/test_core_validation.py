@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import unittest
 from contextlib import redirect_stdout
 from datetime import datetime, timezone
@@ -92,6 +93,27 @@ class CoreValidationTests(unittest.TestCase):
 
     def test_csv_path_uses_explicit_path(self):
         self.assertEqual(Path("out.csv"), resolve_csv_path("out.csv"))
+
+    def test_validation_does_not_import_storage(self):
+        source = Path("src/keysight_logger/core/validation.py").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+
+        forbidden_imports = []
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                forbidden_imports.extend(alias.name for alias in node.names if alias.name.endswith("storage"))
+            elif isinstance(node, ast.ImportFrom):
+                module = node.module or ""
+                imported_names = {alias.name for alias in node.names}
+                if (
+                    module in {"storage", ".storage"}
+                    or module.endswith(".storage")
+                    or (node.level > 0 and "storage" in imported_names)
+                    or (module == "keysight_logger.core" and "storage" in imported_names)
+                ):
+                    forbidden_imports.append(module)
+
+        self.assertEqual([], forbidden_imports)
 
     def test_trigger_mode_defaults_to_software_without_legacy_cli_alias(self):
         self.assertEqual("software", resolve_trigger_mode(make_start_request()))

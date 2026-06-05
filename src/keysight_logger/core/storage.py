@@ -2,13 +2,11 @@ from __future__ import annotations
 
 import csv
 import json
-from datetime import timedelta, timezone
 from pathlib import Path
 from typing import Optional
 
+from .constants import UTC_PLUS_8
 from .models import MeasurementSample
-
-UTC_PLUS_8 = timezone(timedelta(hours=8))
 
 
 class CsvWriter:
