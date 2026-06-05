@@ -51,6 +51,14 @@ class KeysightHelpFormatter(
     pass
 
 
+class KeysightArgumentParser(argparse.ArgumentParser):
+    def parse_args(self, args=None, namespace=None):  # noqa: ANN001
+        raw_args = list(sys.argv[1:] if args is None else args)
+        parsed = super().parse_args(args, namespace)
+        _apply_json_aliases(parsed, raw_args, self)
+        return parsed
+
+
 class StopController:
     def __init__(self, stop_engine, print_fn=print):  # noqa: ANN001
         self.stop = False
@@ -572,12 +580,74 @@ def _emit_start_plan(plan: StartCommandPlan, emitter: CliEventEmitter) -> None:
         emitter.line(f"  note: {note}")
 
 
+def _option_values(argv: list[str], option: str) -> list[str]:
+    values: list[str] = []
+    prefix = f"{option}="
+    index = 0
+    while index < len(argv):
+        token = argv[index]
+        if token == option and index + 1 < len(argv):
+            values.append(argv[index + 1])
+            index += 2
+            continue
+        if token.startswith(prefix):
+            values.append(token[len(prefix) :])
+            index += 1
+            continue
+        index += 1
+    return values
+
+
+def _last_option_value(argv: list[str], option: str) -> str | None:
+    values = _option_values(argv, option)
+    return values[-1] if values else None
+
+
+def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argparse.ArgumentParser) -> None:
+    if getattr(args, "command", None) == "start-trigger-record":
+        if not getattr(args, "json", False):
+            return
+        status_format = _last_option_value(argv, "--status-format")
+        if status_format is not None and status_format != "jsonl":
+            parser.error(f"--json conflicts with --status-format {status_format}")
+        args.status_format = "jsonl"
+        return
+    if getattr(args, "command", None) in {"list-resources", "soft-trigger", "soft-stop"}:
+        if not getattr(args, "json", False):
+            return
+        output_format = _last_option_value(argv, "--format")
+        if output_format is not None and output_format != "json":
+            parser.error(f"--json conflicts with --format {output_format}")
+        args.output_format = "json"
+
+
+def _emit_client_dry_run(command_name: str, port: int, body, output_format: str) -> None:  # noqa: ANN001
+    payload = {
+        "body": body,
+        "event": "dry_run",
+        "method": "POST",
+        "schema_version": CLI_EVENT_SCHEMA_VERSION,
+        "send_request": False,
+        "status": "dry_run",
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "url": f"http://127.0.0.1:{port}/{command_name.split('-')[-1]}",
+    }
+    if output_format == "json":
+        print(json.dumps(payload, sort_keys=True))
+        return
+    print(f"dry-run {command_name}:")
+    print(f"  method: POST")
+    print(f"  url: {payload['url']}")
+    print(f"  body: {json.dumps(body, sort_keys=True)}")
+    print("  send_request: false")
+
+
 def build_parser() -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
     measurement_choices = ", ".join(
         format_measurement_type(value) for value in _supported_measurement_types(default_profile)
     )
-    parser = argparse.ArgumentParser(
+    parser = KeysightArgumentParser(
         prog="keysight-logger",
         formatter_class=KeysightHelpFormatter,
     )
@@ -604,6 +674,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="output format for discovered resources; default: text",
     )
+    list_resources.add_argument("--json", action="store_true", help="alias for --format json")
 
     start = sub.add_parser(
         "start-trigger-record",
@@ -622,6 +693,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="status output format for start-trigger-record; default: text",
     )
+    start.add_argument("--json", action="store_true", help="alias for --status-format jsonl")
     start.add_argument("--dry-run", action="store_true", help="validate and print the execution plan")
     start.add_argument("--simulate", action="store_true", help="run against a deterministic simulator")
     start.add_argument(
@@ -773,6 +845,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="output format for the response; default: text",
     )
+    trig.add_argument("--json", action="store_true", help="alias for --format json")
+    trig.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
     stop = sub.add_parser("soft-stop", formatter_class=KeysightHelpFormatter)
     stop.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     stop.add_argument(
@@ -782,6 +856,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="text",
         help="output format for the response; default: text",
     )
+    stop.add_argument("--json", action="store_true", help="alias for --format json")
+    stop.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
 
     return parser
 
@@ -837,7 +913,7 @@ def cmd_list_resources(
     return 0
 
 
-def cmd_soft_trigger(port: int, meta: str, output_format: str = "text") -> int:
+def cmd_soft_trigger(port: int, meta: str, output_format: str = "text", dry_run: bool = False) -> int:
     try:
         payload = json.dumps(json.loads(meta)).encode("utf-8")
     except json.JSONDecodeError:
@@ -857,6 +933,9 @@ def cmd_soft_trigger(port: int, meta: str, output_format: str = "text") -> int:
         else:
             print("meta must be valid JSON", file=sys.stderr)
         return 2
+    if dry_run:
+        _emit_client_dry_run("soft-trigger", port, json.loads(meta), output_format)
+        return 0
     req = request.Request(
         f"http://127.0.0.1:{port}/trigger",
         method="POST",
@@ -901,7 +980,10 @@ def cmd_soft_trigger(port: int, meta: str, output_format: str = "text") -> int:
     return 0
 
 
-def cmd_soft_stop(port: int, output_format: str = "text") -> int:
+def cmd_soft_stop(port: int, output_format: str = "text", dry_run: bool = False) -> int:
+    if dry_run:
+        _emit_client_dry_run("soft-stop", port, {}, output_format)
+        return 0
     req = request.Request(
         f"http://127.0.0.1:{port}/stop",
         method="POST",
@@ -1389,7 +1471,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(str(exc), file=sys.stderr)
             return 2
-        return cmd_soft_trigger(args.port, args.meta, args.output_format)
+        return cmd_soft_trigger(args.port, args.meta, args.output_format, args.dry_run)
     if args.command == "soft-stop":
         try:
             validate_client_port(args.port, "soft-stop")
@@ -1410,7 +1492,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(str(exc), file=sys.stderr)
             return 2
-        return cmd_soft_stop(args.port, args.output_format)
+        return cmd_soft_stop(args.port, args.output_format, args.dry_run)
     if args.command == "start-trigger-record":
         return cmd_start(args)
     return 2
