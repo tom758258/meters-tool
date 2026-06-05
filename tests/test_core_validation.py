@@ -13,6 +13,7 @@ from keysight_logger.core.validation import (
     resolve_csv_path,
     resolve_trigger_mode,
     start_help_epilog,
+    validate_client_port,
     validate_start_request,
 )
 
@@ -219,6 +220,25 @@ class CoreValidationTests(unittest.TestCase):
         for overrides, expected in cases:
             with self.subTest(overrides=overrides):
                 self.assert_invalid(make_start_request(**overrides), expected)
+
+    def test_client_port_accepts_supported_boundaries(self):
+        validate_client_port(1)
+        validate_client_port(65535)
+
+    def test_client_port_rejects_out_of_range_values_with_neutral_message(self):
+        for port in (0, 65536):
+            with self.subTest(port=port):
+                with self.assertRaises(ValueError) as exc:
+                    validate_client_port(port)
+
+                message = str(exc.exception)
+                self.assertIn(
+                    f"--port {port} is outside the supported range 1-65535. "
+                    "Use a TCP port from 1 to 65535.",
+                    message,
+                )
+                self.assertNotIn("soft-trigger", message)
+                self.assertNotIn("soft-stop", message)
 
     def test_supported_measurement_types_and_profile_constraints(self):
         self.assert_invalid(

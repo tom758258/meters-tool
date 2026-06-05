@@ -1074,7 +1074,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if args.command == "soft-trigger":
         try:
-            validate_client_port(args.port, "soft-trigger")
+            validate_client_port(args.port)
         except ValueError as exc:
             if args.output_format == "json":
                 print(
@@ -1095,7 +1095,7 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_soft_trigger(args.port, args.meta, args.output_format, args.dry_run)
     if args.command == "soft-stop":
         try:
-            validate_client_port(args.port, "soft-stop")
+            validate_client_port(args.port)
         except ValueError as exc:
             if args.output_format == "json":
                 print(

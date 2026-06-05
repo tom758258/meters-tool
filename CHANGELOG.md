@@ -2,12 +2,22 @@
 
 ## Unreleased
 
+- No unreleased changes yet.
+
+## v1.1.7-cli
+
 - Added an internal `InstrumentBackend` Protocol and start/acquisition-path
   factory for live VISA, simulator, and test backends.
+- Completed the Core/CLI boundary cleanup baseline: Core start validation,
+  dry-run planning, runtime orchestration, public integration exports, and
+  measurement naming now avoid adapter-only CLI concepts while preserving
+  compatibility output fields.
 - Added root `keysight-logger --version`, parser/help coverage, and dry-run
   contract assertions for no-hardware CLI workflows.
 - Added preflight `-ListTargets`, constrained `-OutputRoot`, and summary count
   reporting.
+- Recorded completed USB hardware validation, AC real-signal sanity checks,
+  live discovery checks, and LAN basic wrapper validation.
 - Updated active docs to prefer the installed console script and document
   no-hardware validation plus local install troubleshooting.
 

@@ -81,46 +81,50 @@ class MeasurementPlugin(ABC):
 
 @dataclass(frozen=True)
 class MeasurementDefinition:
-    cli_name: str
+    canonical_name: str
     internal_type: str
     unit: str
     range_label: str
     accepts_current_range_alias: bool = False
 
+    @property
+    def cli_name(self) -> str:
+        return self.canonical_name
+
 
 CURRENT_DC_DEFINITION = MeasurementDefinition(
-    cli_name="current-dc",
+    canonical_name="current-dc",
     internal_type="current_dc",
     unit="A",
     range_label="amps",
     accepts_current_range_alias=True,
 )
 VOLTAGE_DC_DEFINITION = MeasurementDefinition(
-    cli_name="voltage-dc",
+    canonical_name="voltage-dc",
     internal_type="voltage_dc",
     unit="V",
     range_label="volts",
 )
 CURRENT_AC_DEFINITION = MeasurementDefinition(
-    cli_name="current-ac",
+    canonical_name="current-ac",
     internal_type="current_ac",
     unit="A",
     range_label="amps",
 )
 VOLTAGE_AC_DEFINITION = MeasurementDefinition(
-    cli_name="voltage-ac",
+    canonical_name="voltage-ac",
     internal_type="voltage_ac",
     unit="V",
     range_label="volts",
 )
 RESISTANCE_2W_DEFINITION = MeasurementDefinition(
-    cli_name="resistance-2w",
+    canonical_name="resistance-2w",
     internal_type="resistance_2w",
     unit="Ohm",
     range_label="ohms",
 )
 RESISTANCE_4W_DEFINITION = MeasurementDefinition(
-    cli_name="resistance-4w",
+    canonical_name="resistance-4w",
     internal_type="resistance_4w",
     unit="Ohm",
     range_label="ohms",
@@ -408,7 +412,7 @@ def format_measurement_type(value: str) -> str:
     normalized = normalize_measurement_type(value)
     definition = _MEASUREMENT_DEFINITIONS.get(normalized)
     if definition is not None:
-        return definition.cli_name
+        return definition.canonical_name
     return normalized.replace("_", "-")
 
 

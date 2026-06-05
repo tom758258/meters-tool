@@ -738,6 +738,8 @@ class MeasurementFactoryTests(unittest.TestCase):
         self.assertEqual("voltage-ac", format_measurement_type("voltage_ac"))
         self.assertEqual("resistance-2w", format_measurement_type("resistance_2w"))
         self.assertEqual("resistance-4w", format_measurement_type("resistance_4w"))
+        self.assertEqual("current-dc", get_measurement_definition("current-dc").canonical_name)
+        self.assertEqual("current-dc", get_measurement_definition("current-dc").cli_name)
         self.assertEqual("A", get_measurement_definition("current-dc").unit)
         self.assertEqual("A", get_measurement_definition("current-ac").unit)
         self.assertEqual("V", get_measurement_definition("voltage-ac").unit)

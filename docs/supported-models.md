@@ -30,6 +30,9 @@ Rules:
   `keysight-34461a`.
 - `scripts/live-cli-check.ps1` requires explicit `-Target`, `-Connection`, and
   `-Resource`.
+- `scripts/live-cli-check.ps1 -PlanOnly` validates selected live-suite case
+  plans and writes wrapper artifacts without opening VISA or touching the
+  instrument.
 - LAN live validation must use the explicit `-Resource` provided by the user.
   The live wrapper must not scan, guess, or auto-select a LAN resource.
 - Adding another model or connection requires updating this matrix, then the

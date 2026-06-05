@@ -31,6 +31,19 @@ function Assert-UnderTmpRoot {
     }
 }
 
+function Get-AvailableTcpPort {
+    $listener = [System.Net.Sockets.TcpListener]::new(
+        [System.Net.IPAddress]::Parse("127.0.0.1"),
+        0
+    )
+    $listener.Start()
+    try {
+        return [int]$listener.LocalEndpoint.Port
+    } finally {
+        $listener.Stop()
+    }
+}
+
 function Resolve-OutputRoot {
     param([Parameter(Mandatory = $true)][string]$Path)
     if ([System.IO.Path]::IsPathRooted($Path)) {
@@ -342,7 +355,7 @@ function Invoke-DryRunCase {
     $jsonl = Join-Path $OutDir "$safeName.jsonl"
     $stderr = Join-Path $OutDir "$safeName.stderr.txt"
     $csv = Join-Path $OutDir "$safeName.csv"
-    $port = [string](Get-Random -Minimum 20000 -Maximum 60000)
+    $port = [string](Get-AvailableTcpPort)
     $args = @((New-StartBaseArgs -Resource "SIM::34461A" -CsvPath $csv -Port $port) + $ModeArgs + @("--dry-run"))
 
     $result = Invoke-CapturedCommand `
@@ -383,7 +396,7 @@ function Invoke-SimulateCase {
     $jsonl = Join-Path $OutDir "$safeName.jsonl"
     $stderr = Join-Path $OutDir "$safeName.stderr.txt"
     $csv = Join-Path $OutDir "$safeName.csv"
-    $port = Get-Random -Minimum 20000 -Maximum 60000
+    $port = Get-AvailableTcpPort
     $args = @(
         (New-StartBaseArgs -Resource "SIM::34461A" -CsvPath $csv -Port ([string]$port)) +
         $ModeArgs +

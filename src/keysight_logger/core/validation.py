@@ -111,7 +111,7 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         definition = get_measurement_definition(measurement_name)
         options = effective_profile.get_measurement_options(measurement_name)
         range_lines.append(
-            f"  {definition.cli_name}: {format_range_options(options)} {definition.unit}"
+            f"  {definition.canonical_name}: {format_range_options(options)} {definition.unit}"
         )
     return (
         "Limits:\n"
@@ -135,10 +135,10 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
     )
 
 
-def validate_client_port(port: int, command_name: str) -> None:
+def validate_client_port(port: int) -> None:
     if port < CLIENT_PORT_RANGE[0] or port > CLIENT_PORT_RANGE[1]:
         raise ValueError(
-            f"--port {port} is outside the supported range 1-65535 for {command_name}. "
+            f"--port {port} is outside the supported range 1-65535. "
             "Use a TCP port from 1 to 65535."
         )
 
@@ -197,7 +197,7 @@ def validate_start_request(
         if not value_in_options(args.measurement_range, allowed_ranges):
             raise ValueError(
                 f"--range {format_number(args.measurement_range)} is not valid for "
-                f"--measurement {definition.cli_name}. Allowed ranges in "
+                f"--measurement {definition.canonical_name}. Allowed ranges in "
                 f"{range_unit(definition)}: {format_range_options(options)}. "
                 "Use one of the listed range values or omit --range with --auto-range on."
             )
@@ -206,7 +206,7 @@ def validate_start_request(
         if not value_in_options(args.current_range, allowed_ranges):
             raise ValueError(
                 f"--current-range {format_number(args.current_range)} is not valid for "
-                f"--measurement {definition.cli_name}. Allowed ranges in "
+                f"--measurement {definition.canonical_name}. Allowed ranges in "
                 f"{range_unit(definition)}: {format_range_options(options)}. "
                 "Use one of the listed current range values."
             )
@@ -215,13 +215,13 @@ def validate_start_request(
         if not value_in_options(args.nplc, options.nplc_options):
             raise ValueError(
                 f"--nplc {format_number(args.nplc)} is not valid for "
-                f"--measurement {definition.cli_name}. Allowed NPLC values: "
+                f"--measurement {definition.canonical_name}. Allowed NPLC values: "
                 f"{format_values(options.nplc_options)}. Use one of the listed values."
             )
     elif args.nplc != NEUTRAL_AC_NPLC:
         raise ValueError(
             f"--nplc {format_number(args.nplc)} is not valid for "
-            f"--measurement {definition.cli_name}. AC measurements do not support NPLC SCPI. "
+            f"--measurement {definition.canonical_name}. AC measurements do not support NPLC SCPI. "
             "Omit --nplc or use the neutral default value 1.0."
         )
     validate_float_range(

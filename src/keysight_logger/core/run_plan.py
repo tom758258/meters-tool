@@ -164,7 +164,7 @@ def build_start_plan(
     return StartPlan(
         trigger_mode=trigger_mode,
         measurement_type=measurement_type,
-        measurement_name=measurement_def.cli_name,
+        measurement_name=measurement_def.canonical_name,
         measurement_unit=measurement_def.unit,
         csv_path=csv_path,
         resource=args.resource,

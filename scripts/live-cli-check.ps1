@@ -47,6 +47,19 @@ function Assert-UnderTmpRoot {
     }
 }
 
+function Get-AvailableTcpPort {
+    $listener = [System.Net.Sockets.TcpListener]::new(
+        [System.Net.IPAddress]::Parse("127.0.0.1"),
+        0
+    )
+    $listener.Start()
+    try {
+        return [int]$listener.LocalEndpoint.Port
+    } finally {
+        $listener.Stop()
+    }
+}
+
 function ConvertTo-ProcessArgument {
     param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Argument)
     if ($Argument -notmatch '[\s"]' -and $Argument.Length -gt 0) {
@@ -651,7 +664,7 @@ foreach ($case in $cases) {
     $caseDir = Join-Path $runDir $caseName
     Assert-UnderTmpRoot -Path $caseDir
     New-Item -ItemType Directory -Force -Path $caseDir | Out-Null
-    $port = Get-Random -Minimum 20000 -Maximum 60000
+    $port = Get-AvailableTcpPort
     $dryRun = Invoke-LiveDryRun -Case $case -CaseDir $caseDir -Port $port
     $dryRunResults.Add([pscustomobject]@{
         name = $case.name
