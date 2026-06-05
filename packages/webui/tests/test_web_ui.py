@@ -866,6 +866,79 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(422, response.status_code)
         self.assertIn("cannot be used with the 10 A current range", response.json()["detail"])
 
+    def test_immediate_run_publishes_final_inactive_status_without_polling(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+        version_before = manager._status_version
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+
+        with manager._lock:
+            handle = manager._active
+        self.assertIsNotNone(handle)
+        self.assertIsNotNone(handle.worker)
+        handle.worker.join(timeout=1.0)
+
+        with manager._lock:
+            status = dict(manager._last_status)
+            version_after = manager._status_version
+
+        self.assertFalse(handle.worker.is_alive())
+        self.assertTrue(handle.worker_done)
+        self.assertGreater(version_after, version_before)
+        self.assertEqual("stopped", status["state"])
+        self.assertFalse(status["active"])
+        self.assertEqual(1, status["captured"])
+        self.assertIsNone(status["fatal_error"])
+        self.assertEqual(1, len(status["recent_samples"]))
+        self.assertEqual(status["recent_samples"][-1], status["latest_sample"])
+
+    def test_current_run_events_returns_initial_status_snapshot(self):
+        manager = WebRunManager()
+        app = create_app(manager)
+        route_fn = next(route.endpoint for route in app.routes if route.path == "/api/runs/current/events")
+        response = route_fn()
+
+        self.assertEqual("text/event-stream", response.media_type)
+
+        import asyncio
+
+        async def get_next(async_gen):
+            async for item in async_gen:
+                return item
+
+        first_event = asyncio.run(get_next(response.body_iterator))
+        self.assertTrue(first_event.startswith("event: run-status"))
+        self.assertIn("id: 0", first_event)
+        self.assertIn('"state":"idle"', first_event)
+        self.assertIn('"active":false', first_event)
+
+    def test_static_js_contains_sse_init_and_handlers(self):
+        static_dir = Path(__file__).parent.parent / "src" / "keysight_logger_webui" / "static"
+        app_js = (static_dir / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('EventSource("/api/runs/current/events")', app_js)
+        self.assertIn('sseSource.addEventListener("run-status"', app_js)
+        self.assertIn('typeof EventSource === "undefined"', app_js)
+        self.assertIn('api("/api/runs/current")', app_js)
+        self.assertIn("renderStatus(status)", app_js)
+        self.assertIn("startPolling()", app_js)
+        self.assertIn("stopPolling()", app_js)
+        self.assertIn("initSSE()", app_js)
+        self.assertNotIn("\nwindow.setInterval(pollStatus, 1000)", app_js)
+
 
 if __name__ == "__main__":
     unittest.main()

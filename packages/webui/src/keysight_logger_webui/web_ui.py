@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import importlib.metadata
+import json
 import os
 import subprocess
 import threading
@@ -13,7 +14,7 @@ from uuid import uuid4
 
 try:
     from fastapi import Body, FastAPI, HTTPException
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, StreamingResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel
 except ImportError as exc:  # pragma: no cover - exercised only without web deps
@@ -117,6 +118,7 @@ class _RunHandle:
     warnings: list[str] = field(default_factory=list)
     cleanup_messages: list[str] = field(default_factory=list)
     recent_samples: list[dict[str, Any]] = field(default_factory=list)
+    worker_done: bool = False
 
 
 class WebRunError(RuntimeError):
@@ -247,6 +249,16 @@ class WebRunManager:
         self._active: _RunHandle | None = None
         self._starting = False
         self._last_status = self._idle_status()
+        self._status_version = 0
+        self._status_cv = threading.Condition(self._lock)
+
+    def _publish_status_locked(self, handle_or_status: _RunHandle | dict[str, Any]) -> None:
+        if isinstance(handle_or_status, _RunHandle):
+            self._last_status = self._status_from_handle(handle_or_status)
+        else:
+            self._last_status = dict(handle_or_status)
+        self._status_version += 1
+        self._status_cv.notify_all()
 
     def capabilities(self) -> dict[str, Any]:
         profile = get_default_instrument_profile()
@@ -386,7 +398,7 @@ class WebRunManager:
             handle.worker = worker
             with self._lock:
                 self._active = handle
-                self._last_status = self._status_from_handle(handle)
+                self._publish_status_locked(handle)
             worker.start()
             handle.ready_event.wait(timeout=max(runtime_request.timeout_ms / 1000.0 + 1.0, 2.0))
             status = self.status()
@@ -395,7 +407,7 @@ class WebRunManager:
                 result = handle.result
                 if result is not None and not result.ok and result.reason == "connect_error":
                     self._active = None
-                    self._last_status = status
+                    self._publish_status_locked(status)
                     raise RuntimeError(result.fatal_error or "connect_error")
             return status
         except ValueError as exc:
@@ -429,7 +441,7 @@ class WebRunManager:
             raise RunValidationError(reason)
         with self._lock:
             handle.latest_status = "software trigger queued"
-            self._last_status = self._status_from_handle(handle)
+            self._publish_status_locked(handle)
             return dict(self._last_status)
 
     def stop(self) -> dict[str, Any]:
@@ -442,11 +454,11 @@ class WebRunManager:
                 handle.latest_status = "stop requested"
                 control_plane = handle.control_plane
             else:
-                self._last_status = self._status_from_handle(handle)
+                self._publish_status_locked(handle)
                 return dict(self._last_status)
         control_plane.stop_run()
         with self._lock:
-            self._last_status = self._status_from_handle(handle)
+            self._publish_status_locked(handle)
             return dict(self._last_status)
 
     def open_current_csv(self) -> dict[str, Any]:
@@ -562,15 +574,18 @@ class WebRunManager:
                     handle.latest_status = result.fatal_error
                 else:
                     handle.latest_status = result.reason
-                self._last_status = self._status_from_handle(handle)
+                self._publish_status_locked(handle)
         except Exception as exc:  # pragma: no cover - defensive runtime boundary
             with self._lock:
                 handle.fatal_error = f"{type(exc).__name__}: {exc}"
                 handle.latest_status = handle.fatal_error
                 handle.state = "error"
-                self._last_status = self._status_from_handle(handle)
+                self._publish_status_locked(handle)
         finally:
-            handle.ready_event.set()
+            with self._lock:
+                handle.worker_done = True
+                handle.ready_event.set()
+                self._publish_status_locked(handle)
 
     def _record_event(self, event: StartRunEvent) -> None:
         with self._lock:
@@ -594,7 +609,7 @@ class WebRunManager:
                 handle.state = "error"
             if event.event == "message" and event.message:
                 self._record_cleanup_message(handle, event.message)
-            self._last_status = self._status_from_handle(handle)
+            self._publish_status_locked(handle)
 
     def _record_cleanup_message(self, handle: _RunHandle, message: str) -> None:
         cleanup_prefixes = (
@@ -620,7 +635,7 @@ class WebRunManager:
                 self._active.state = "running"
             self._active.latest_status = "ready"
             self._active.ready_event.set()
-            self._last_status = self._status_from_handle(self._active)
+            self._publish_status_locked(self._active)
 
     def _status_from_handle(self, handle: _RunHandle) -> dict[str, Any]:
         active = self._is_handle_active(handle)
@@ -648,6 +663,8 @@ class WebRunManager:
         }
 
     def _is_handle_active(self, handle: _RunHandle) -> bool:
+        if handle.worker_done:
+            return False
         if handle.worker is None:
             return handle.state in {"starting", "running", "stopping"}
         return handle.worker.is_alive()
@@ -707,6 +724,46 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
     @app.get("/api/runs/current")
     def api_current_run() -> dict[str, Any]:
         return app.state.manager.status()
+
+    @app.get("/api/runs/current/events")
+    def api_current_run_events() -> StreamingResponse:
+        manager = app.state.manager
+
+        def event_generator():
+            with manager._lock:
+                last_version = manager._status_version
+                current_status = dict(manager._last_status)
+
+            yield (
+                "event: run-status\n"
+                f"id: {last_version}\n"
+                f"data: {json.dumps(current_status, separators=(',', ':'))}\n\n"
+            )
+
+            while True:
+                with manager._lock:
+                    while manager._status_version == last_version:
+                        signaled = manager._status_cv.wait(timeout=5.0)
+                        if not signaled:
+                            break
+
+                    if manager._status_version > last_version:
+                        last_version = manager._status_version
+                        current_status = dict(manager._last_status)
+                        should_send_status = True
+                    else:
+                        should_send_status = False
+
+                if should_send_status:
+                    yield (
+                        "event: run-status\n"
+                        f"id: {last_version}\n"
+                        f"data: {json.dumps(current_status, separators=(',', ':'))}\n\n"
+                    )
+                else:
+                    yield ": keepalive\n\n"
+
+        return StreamingResponse(event_generator(), media_type="text/event-stream")
 
     @app.post("/api/runs/current/trigger", status_code=202)
     def api_trigger(payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:

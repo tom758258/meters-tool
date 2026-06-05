@@ -242,14 +242,14 @@ The UI may look different, but these behaviors must remain true:
 - The Trigger button appears only for manual software-triggered modes:
   `software` without Timer trigger, and `software-custom`.
 - Stop calls `POST /api/runs/current/stop`.
-- Status polling continues to call `GET /api/runs/current`.
+- Live data and status updates are driven by Server-Sent Events (SSE) via `GET /api/runs/current/events` as the primary mechanism, falling back to polling `GET /api/runs/current` every 1s if the SSE connection is lost or unavailable.
 - The Status panel keeps a five-line terminal-style log. It starts blank, adds
   frontend operation messages and changed backend `latest_status` values, and
-  does not spam identical poll results.
+  does not spam identical poll results or multiple SSE fallback messages.
 - Fatal error, cleanup status, and raw status remain available in the
   `Show Details` / `Hide Details` collapsible area.
-- Live data renders from `GET /api/runs/current` fields only. It shows the
-  latest sample, a browser-side trend chart, the latest 100 samples, and
+- Live data renders from the SSE stream snapshots (which share the same JSON shape as `GET /api/runs/current`). It shows the
+  latest sample, a browser-side trend chart, the latest 5000 samples, and
   selected-sample trigger/measurement metadata. It must not query the
   instrument or read the CSV to update the live view.
 - A stopped run keeps its Live data sample window until the next Start creates

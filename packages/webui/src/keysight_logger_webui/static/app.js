@@ -1062,6 +1062,62 @@ async function pollStatus() {
   }
 }
 
+let sseSource = null;
+let pollingIntervalId = null;
+let loggedSseFallback = false;
+
+function startPolling() {
+  if (pollingIntervalId === null) {
+    pollingIntervalId = window.setInterval(pollStatus, 1000);
+  }
+}
+
+function stopPolling() {
+  if (pollingIntervalId !== null) {
+    window.clearInterval(pollingIntervalId);
+    pollingIntervalId = null;
+  }
+}
+
+function initSSE() {
+  if (typeof EventSource === "undefined") {
+    if (!loggedSseFallback) {
+      appendStatusLog("SSE unavailable, falling back to polling");
+      loggedSseFallback = true;
+    }
+    startPolling();
+    return;
+  }
+
+  if (sseSource) {
+    sseSource.close();
+  }
+
+  sseSource = new EventSource("/api/runs/current/events");
+
+  sseSource.addEventListener("run-status", (event) => {
+    try {
+      const status = JSON.parse(event.data);
+      renderStatus(status);
+    } catch (err) {
+      console.error("Failed to parse SSE data:", err);
+    }
+  });
+
+  sseSource.onopen = () => {
+    stopPolling();
+    loggedSseFallback = false;
+  };
+
+  sseSource.onerror = () => {
+    if (!loggedSseFallback) {
+      appendStatusLog("SSE connection lost, falling back to polling");
+      loggedSseFallback = true;
+    }
+    startPolling();
+  };
+}
+
 document.querySelector("#refresh-resources").addEventListener("click", async () => {
   try {
     await refreshResources();
@@ -1211,8 +1267,12 @@ loadCapabilities()
     updateRangeVisibility();
     return pollStatus();
   })
+  .then(() => {
+    startPolling();
+    initSSE();
+  })
   .catch((error) => {
     appendStatusLog(error.message);
+    startPolling();
+    initSSE();
   });
-
-window.setInterval(pollStatus, 1000);

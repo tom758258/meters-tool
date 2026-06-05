@@ -258,7 +258,14 @@ Preserved cleanup order:
 
 ## Live Data
 
-Status polling calls:
+Live data and status updates are driven primarily by Server-Sent Events (SSE):
+
+```text
+GET /api/runs/current/events
+```
+
+This returns a `text/event-stream` with `run-status` events containing a snapshot of the current status.
+If the SSE connection fails, the frontend falls back automatically to standard polling:
 
 ```text
 GET /api/runs/current
@@ -374,6 +381,7 @@ The browser-facing API surface is:
 - `GET /api/resources?verify=true&live_only=true`: scans VISA resources.
 - `POST /api/runs`: validates and starts a run.
 - `GET /api/runs/current`: returns current or latest run status.
+- `GET /api/runs/current/events`: returns Server-Sent Events (SSE) stream of run status changes.
 - `POST /api/runs/current/trigger`: queues a software trigger for supported
   modes.
 - `POST /api/runs/current/stop`: requests stop through the Core control plane.

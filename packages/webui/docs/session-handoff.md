@@ -204,6 +204,22 @@ Frontend behavior:
 
 ## Latest Validation
 
+Latest WebUI SSE Live Data implementation validation:
+
+```powershell
+node --check packages\webui\src\keysight_logger_webui\static\app.js
+```
+
+Result: passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_webui_sse_fix
+```
+
+Result: 37 passed, 1 warning, 64 subtests passed on 2026-06-01.
+Warning: existing FastAPI/Starlette TestClient deprecation warning about
+`httpx`/`httpx2`.
+
 Focused WebUI validation after CSV Select and Live data capacity changes:
 
 ```powershell
