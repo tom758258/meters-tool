@@ -62,13 +62,13 @@ class VisaInstrument:
         if self._resource_manager_factory is not None:
             return self._resource_manager_factory()
         if pyvisa is None:
-            raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
+            raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
         return pyvisa.ResourceManager()
 
     @staticmethod
     def list_resources(resource_manager_factory: Callable[[], object] | None = None) -> List[str]:
         if resource_manager_factory is None and pyvisa is None:
-            raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
+            raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
         rm = resource_manager_factory() if resource_manager_factory is not None else pyvisa.ResourceManager()
         try:
             return list(rm.list_resources())
@@ -85,7 +85,7 @@ class VisaInstrument:
         resource_manager_factory: Callable[[], object] | None = None,
     ) -> tuple[bool, str]:
         if resource_manager_factory is None and pyvisa is None:
-            raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
+            raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
 
         rm = None
         inst = None
