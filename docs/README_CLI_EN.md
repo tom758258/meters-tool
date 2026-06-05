@@ -1,10 +1,16 @@
 # Keysight 34461A CLI Logger
 
-Current CLI baseline: `v1.1.5-cli`.
+Current CLI baseline: `v1.1.6-cli`.
 
 ## Documentation Set
 
 - [CLI Guide - English](README_CLI_EN.md) - current document.
+- [Changelog](../CHANGELOG.md) - release notes and pending baseline.
+- [Project Plan](project-plan.md) - durable project direction and roadmap.
+- [Worker Contract](worker-contract.md) - Meters worker control plane, JSONL,
+  and artifact contract for agents and orchestrators.
+- [Supported Models](supported-models.md) - CLI validation target matrix.
+- [Hardware Test Plan](hardware-test-plan.md) - preflight and live validation workflow.
 - [CLI Guide - Traditional Chinese](README_CLI_ZH-TW.md) - planned.
 - [UI Guide - English](README_UI_EN.md) - planned.
 - [UI Guide - Traditional Chinese](README_UI_ZH-TW.md) - planned.
@@ -14,10 +20,11 @@ CLI-first Python logger for Keysight 34461A DC/AC current, DC/AC voltage, and
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
-`v1.1.5-cli` keeps the `v1.0.0-cli` acquisition behavior, includes the
-`v1.1.0-cli` preflight validation and profile metadata updates, and releases
-verified live resources back to local after successful resource-scan IDN
-checks.
+`v1.1.6-cli` keeps the `v1.0.0-cli` acquisition behavior, includes the
+`v1.1.0-cli` preflight validation and profile metadata updates, and prepares
+the current control-plane/discovery baseline: JSONL `ready` events for
+non-dry-run workers, `list-resources --dry-run`, live-resource verification
+cleanup, and preflight coverage for the list-resources dry-run JSON contract.
 
 ## Current Scope
 
@@ -27,6 +34,7 @@ Implemented:
 - DC current, DC voltage, AC current, AC voltage, and 2-wire or 4-wire
   resistance measurement logging.
 - Software trigger mode through a local HTTP endpoint.
+- Local worker status endpoint through `GET /status`.
 - Software timer capture as part of software trigger mode.
 - External hardware trigger mode.
 - Immediate capture mode.
@@ -68,24 +76,27 @@ Important limitations:
 - A VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
 - A Keysight 34461A visible to VISA over USB or LAN.
 
-## Install
+## Development
 
-Windows PowerShell, without relying on activation:
+From PowerShell, change into the project directory, create or reuse the local
+virtual environment, install the package with development dependencies, then
+run the default tests:
 
 ```powershell
-py -3.10 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-.\.venv\Scripts\python.exe -m pip install -e .
+cd path\to\Keysight
+uv venv .venv
+uv pip install -e ".[dev]"
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 ```
 
-The `py -3.10` command selects Python 3.10 through the Windows Python launcher.
-If your installed supported version is newer, use that version instead, for
-example `py -3.11 -m venv .venv` or `py -3.12 -m venv .venv`.
+On Windows, the full pytest run may need an elevated PowerShell session because
+VISA-related discovery or local environment access can require administrator
+permissions.
 
-For tests:
+Use the Python executable inside `.venv` for other project commands:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\.venv\Scripts\python.exe -m keysight_logger.cli <command> [options]
 ```
 
 Optional activation:
@@ -116,7 +127,7 @@ Use the module form unless this project later adds a console script:
 
 | Command | Purpose | Typical use |
 | --- | --- | --- |
-| `list-resources` | Print VISA resources discovered by PyVISA. | Find the USB or LAN resource string. Add `--verify` to query `*IDN?`; add `--live-only` to hide stale cached resources. |
+| `list-resources` | Print VISA resources discovered by PyVISA. | Find the USB or LAN resource string. Add `--verify` to query `*IDN?`; add `--live-only` to hide stale cached resources; add `--dry-run` to preview discovery actions without touching VISA. |
 | `start-trigger-record` | Connect to the instrument and record samples to CSV. | Main logging command. |
 | `soft-trigger` | POST one software trigger to the local trigger endpoint. | Used with `--trigger-mode software`. |
 | `soft-stop` | POST a graceful stop request to the local stop endpoint. | Stop a running logger from another terminal. |
@@ -128,7 +139,9 @@ Use the module form unless this project later adds a console script:
 | none | Print raw VISA resources returned by PyVISA. This can include stale cached resources and does not open resources or run release-to-local cleanup. |
 | `--verify` | Open each discovered resource and query `*IDN?`. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. Successful live checks run best-effort release-to-local before closing. |
 | `--live-only` | Verify resources and print only rows that answered. Successful live checks run best-effort release-to-local before closing. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
+| `--dry-run` | Print the resource-discovery contract and exit 0 without creating a VISA resource manager, listing resources, opening resources, querying `*IDN?`, or running release/local cleanup. Can be combined with `--verify`, `--live-only`, and `--json`. |
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |
+| `--json` | Alias for `--format json`. |
 
 `soft-trigger` options:
 
@@ -136,12 +149,18 @@ Use the module form unless this project later adds a console script:
 | --- | --- | --- |
 | `--port N` | `8765` | Local software trigger server port. Supported range: `1` to `65535`. |
 | `--meta JSON` | `{}` | JSON metadata object sent with the trigger and written to CSV as `trigger_metadata`. Invalid JSON is rejected before sending the request. |
+| `--format text\|json` | `text` | Response output format. `json` emits one structured object for agent callers. |
+| `--json` | No | Off | Alias for `--format json`. |
+| `--dry-run` | No | Off | Preview the request locally without sending HTTP. |
 
 `soft-stop` options:
 
 | Option | Default | Description |
 | --- | --- | --- |
 | `--port N` | `8765` | Local stop endpoint port. Supported range: `1` to `65535`. |
+| `--format text\|json` | `text` | Response output format. `json` emits one structured object for agent callers. |
+| `--json` | No | Off | Alias for `--format json`. |
+| `--dry-run` | No | Off | Preview the request locally without sending HTTP. |
 
 ## Trigger Modes
 
@@ -171,9 +190,12 @@ after that many successful timer CSV rows.
 | --- | --- | --- | --- |
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
+| `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |
+| `--dry-run` | No | Off | Validate arguments and print the planned measurement, SCPI, read path, and cleanup contract without opening VISA, writing CSV, or starting the HTTP server. |
+| `--simulate` | No | Off | Run against a deterministic simulated instrument backend instead of opening a real VISA session. Simple modes require bounded runs such as `--max-samples`. |
 | `--timeout-ms N` | No | `5000` | VISA session timeout in milliseconds. Supported range: `100` to `600000`. |
 | `--trigger-timeout-ms N` | No | `10000` | External/custom trigger wait timeout. Supported range: `500` to `600000`. Timeout re-arms hardware mode and is not itself a capture error. Values that are too short for the expected external edge timing will repeatedly re-arm instead of capturing. |
-| `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/trigger` and `/stop`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
+| `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/trigger`, `/stop`, and `/status`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
 | `--sw-min-interval-ms N` | No | `0` | Minimum interval between accepted software triggers. Use `0` to disable rate limiting, or use `50` to `600000`. |
 | `--sw-queue-max N` | No | `0` | Maximum queued software triggers. Supported range: `0` to `10000`; `0` uses the default safety cap. |
 | `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | No | `software` | Select exactly one acquisition mode. |
@@ -205,6 +227,84 @@ continues to work for existing DC current scripts. Use `--range` for
 force 10 MOhm, or `auto` to enable the 34461A Auto Input Z behavior. The
 instrument may display HighZ while Auto is active on lower DC voltage ranges.
 
+## Agent-Friendly CLI Workflows
+
+Use `--dry-run` to validate a command and inspect the planned SCPI/read path
+without touching the instrument:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_logger.cli start-trigger-record `
+  --resource "USB0::<VENDOR_ID>::<PRODUCT_ID>::<SERIAL_NUMBER>::0::INSTR" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1 `
+  --dry-run `
+  --status-format jsonl
+```
+
+Use `--simulate` for workflow checks without a real VISA session:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_logger.cli start-trigger-record `
+  --resource "SIM::34461A" `
+  --csv ".\data\simulate.csv" `
+  --trigger-mode immediate `
+  --measurement current-dc `
+  --max-samples 2 `
+  --simulate `
+  --status-format jsonl
+```
+
+JSONL output is one JSON object per line. It is intended for agents and scripts;
+the default text output remains the human-facing interface. Simulator values are
+deterministic workflow data, not real 34461A measurement validation.
+
+See [CLI JSON / JSONL Contract](cli-jsonl-contract.md) for the current schema
+and alias rules.
+
+See [Worker Contract](worker-contract.md) for the Meters worker modes, local
+control endpoints, status payload, and wrapper artifact/report schema.
+
+When the worker is running, `GET /status` returns a non-mutating JSON status
+object for orchestration health checks:
+
+```powershell
+Invoke-RestMethod -Method Get -Uri http://127.0.0.1:8765/status
+```
+
+### soft-trigger --format json
+
+```powershell
+.venv\Scripts\python.exe -m keysight_logger.cli soft-trigger --port 8765 --format json
+```
+
+Output:
+
+```json
+{"event": "soft-trigger", "http_status": 202, "message": "trigger accepted",
+ "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}
+```
+
+Invalid `--meta` JSON exits with code 2. Connection or request failures exit
+with code 3. Both emit structured error JSON objects.
+
+### soft-stop --format json
+
+```powershell
+.venv\Scripts\python.exe -m keysight_logger.cli soft-stop --port 8765 --format json
+```
+
+Output:
+
+```json
+{"event": "soft-stop", "http_status": 202, "message": "stop accepted",
+ "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}
+```
+
+If the endpoint is not listening (process already stopped), exits with code 0
+and emits `{"status": "already_stopped", ...}`.
+
+
 ## Validated Argument Limits
 
 The CLI validates user input before opening the instrument. Values outside these
@@ -214,6 +314,7 @@ ranges fail fast with a clear error.
 | --- | --- |
 | `--measurement` | `current-dc`, `voltage-dc`, `current-ac`, `voltage-ac`, `resistance-2w`, `resistance-4w` |
 | `--auto-zero`, `--auto-range` | `on` or `off` |
+| `--status-format` | `text` or `jsonl` |
 | `--timeout-ms` | `100` to `600000` |
 | `--trigger-timeout-ms` | `500` to `600000` |
 | `--sw-trigger-port` | `0`, or `1024` to `65535`; `0` lets the server choose |
@@ -225,6 +326,13 @@ ranges fail fast with a clear error.
 | `--buffer-drain-size` | `1` to `10000`, custom modes only and capped by reading memory |
 | `--hw-trigger-delay-s` | `0` to `3600` seconds |
 | `soft-trigger --port`, `soft-stop --port` | `1` to `65535` |
+| `soft-trigger --format`, `soft-stop --format` | `text` or `json` |
+
+For Agent or automation use, `start-trigger-record --status-format jsonl` and
+the `--json` alias emit one `ready` event after the local HTTP control plane
+starts. The event includes `trigger_url`, `stop_url`, and `status_url`. Treat it
+as the signal that `/trigger`, `/stop`, and non-mutating `/status` requests can
+be sent; it is not a first-sample or measurement-complete signal.
 
 `--trigger-timeout-ms` is most important for external trigger modes. If it is
 shorter than the expected time between external edges, the console will keep
@@ -315,6 +423,12 @@ Use JSON output for scripts:
 
 ```powershell
 .\.venv\Scripts\python.exe -m keysight_logger.cli list-resources --verify --format json
+```
+
+Preview the discovery contract without touching VISA:
+
+```powershell
+.\.venv\Scripts\python.exe -m keysight_logger.cli list-resources --dry-run --live-only --json
 ```
 
 Verified output is tab-separated:
@@ -868,11 +982,12 @@ pulse slope.
 
 ## Stopping A Run
 
-The logger prints both endpoints when it starts:
+The logger prints the local control endpoints when it starts:
 
 ```text
 software trigger endpoint: http://127.0.0.1:8765/trigger
 software stop endpoint: http://127.0.0.1:8765/stop
+software status endpoint: http://127.0.0.1:8765/status
 local stop keys: Ctrl+C, Ctrl+Break, q
 ```
 
@@ -971,13 +1086,16 @@ CSV fields:
 
 ## Tests
 
-Focused CLI and measurement tests:
+Install development dependencies with `uv pip install -e ".[dev]"` as shown in
+the Development section before running tests.
+
+Default pytest run:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_cli_args.py tests/test_measurement.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 ```
 
-Broader test run:
+Unittest discovery, matching GitHub Actions:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v

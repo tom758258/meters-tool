@@ -1628,6 +1628,12 @@ class CliArgsTests(unittest.TestCase):
         self.assertTrue(args.live_only)
         self.assertEqual("text", args.output_format)
 
+    def test_list_resources_dry_run_flag(self):
+        parser = build_parser()
+        args = parser.parse_args(["list-resources", "--dry-run"])
+
+        self.assertTrue(args.dry_run)
+
     def test_list_resources_json_format(self):
         parser = build_parser()
         args = parser.parse_args(["list-resources", "--verify", "--format", "json"])
@@ -1998,6 +2004,7 @@ class CliCommandTests(unittest.TestCase):
     def _assert_success_jsonl_events(self, events, expected_samples):
         event_names = {event["event"] for event in events}
         self.assertIn("message", event_names)
+        self.assertIn("ready", event_names)
         self.assertIn("status", event_names)
         self.assertIn("sample", event_names)
         self.assertIn("summary", event_names)
@@ -2346,6 +2353,7 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(1, len(lines))
         payload = json.loads(lines[0])
         self.assertEqual("dry_run", payload["event"])
+        self.assertNotEqual("ready", payload["event"])
         self.assertEqual("current_dc", payload["measurement_type"])
         self.assertEqual("FETC?", payload["read_path"])
         self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
@@ -2513,6 +2521,8 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertEqual(1, len(FakeCapturingCsvWriter.samples))
         self.assertIn("captured=1 errors=0", stdout.getvalue())
+        self.assertIn("software trigger endpoint: http://127.0.0.1:8765/trigger", stdout.getvalue())
+        self.assertNotIn("ready", stdout.getvalue())
 
     def test_start_simulate_jsonl_emits_parseable_sample_and_summary(self):
         parser = build_parser()
@@ -2540,6 +2550,14 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual(0, rc)
         events = self._parse_jsonl_events(output)
         self._assert_success_jsonl_events(events, expected_samples=1)
+        ready = [event for event in events if event["event"] == "ready"]
+        self.assertEqual(1, len(ready))
+        self.assertEqual("keysight-meter", ready[0]["service"])
+        self.assertEqual("127.0.0.1", ready[0]["host"])
+        self.assertEqual(8765, ready[0]["port"])
+        self.assertEqual("http://127.0.0.1:8765/trigger", ready[0]["trigger_url"])
+        self.assertEqual("http://127.0.0.1:8765/stop", ready[0]["stop_url"])
+        self.assertEqual("http://127.0.0.1:8765/status", ready[0]["status_url"])
 
     def test_start_simulate_status_endpoint_reports_worker_status(self):
         parser = build_parser()
@@ -3169,6 +3187,75 @@ class CliCommandTests(unittest.TestCase):
         mock_visa.verify_resource.assert_not_called()
 
     @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_dry_run_text_outputs_contract_without_discovery(self, mock_visa):
+        lines = []
+
+        rc = cmd_list_resources(dry_run=True, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertIn("dry-run list-resources:", lines)
+        self.assertIn("  output_format: text", lines)
+        self.assertIn("  verify: false", lines)
+        self.assertIn("  live_only: false", lines)
+        self.assertIn("  effective_verify: false", lines)
+        self.assertIn("  dry_run_performs_visa_io: false", lines)
+        self.assertIn("    list VISA resources: yes", lines)
+        mock_visa.list_resources.assert_not_called()
+        mock_visa.verify_resource.assert_not_called()
+
+    @patch("keysight_logger.cli.VisaInstrument")
+    def test_list_resources_dry_run_json_outputs_one_contract_without_discovery(self, mock_visa):
+        lines = []
+
+        rc = cmd_list_resources(dry_run=True, output_format="json", print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(1, len(lines))
+        payload = json.loads(lines[0])
+        self.assertEqual("dry_run", payload["event"])
+        self.assertEqual("list-resources", payload["command"])
+        self.assertEqual("json", payload["output_format"])
+        self.assertFalse(payload["dry_run_performs_visa_io"])
+        self.assertFalse(payload["effective_verify"])
+        self.assertFalse(payload["planned_real_run"]["query_idn"])
+        mock_visa.list_resources.assert_not_called()
+        mock_visa.verify_resource.assert_not_called()
+
+    def test_list_resources_dry_run_verify_json_sets_effective_verify(self):
+        lines = []
+
+        rc = cmd_list_resources(
+            verify=True,
+            dry_run=True,
+            output_format="json",
+            print_fn=lines.append,
+        )
+
+        self.assertEqual(0, rc)
+        payload = json.loads(lines[0])
+        self.assertTrue(payload["verify"])
+        self.assertTrue(payload["effective_verify"])
+        self.assertTrue(payload["planned_real_run"]["open_each_resource"])
+        self.assertTrue(payload["planned_real_run"]["query_idn"])
+
+    def test_list_resources_dry_run_live_only_json_sets_effective_verify_and_filter(self):
+        lines = []
+
+        rc = cmd_list_resources(
+            live_only=True,
+            dry_run=True,
+            output_format="json",
+            print_fn=lines.append,
+        )
+
+        self.assertEqual(0, rc)
+        payload = json.loads(lines[0])
+        self.assertTrue(payload["live_only"])
+        self.assertTrue(payload["effective_verify"])
+        self.assertTrue(payload["planned_real_run"]["filter_live_only"])
+        self.assertTrue(payload["planned_real_run"]["query_idn"])
+
+    @patch("keysight_logger.cli.VisaInstrument")
     def test_list_resources_verify_marks_live_and_stale(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -3284,7 +3371,24 @@ class CliCommandTests(unittest.TestCase):
             rc = main(["list-resources", "--live-only", "--format", "json"])
 
         self.assertEqual(17, rc)
-        mock_cmd.assert_called_once_with(verify=False, live_only=True, output_format="json")
+        mock_cmd.assert_called_once_with(
+            verify=False,
+            live_only=True,
+            output_format="json",
+            dry_run=False,
+        )
+
+    def test_main_dispatches_list_resources_dry_run_json(self):
+        with patch("keysight_logger.cli.cmd_list_resources", return_value=17) as mock_cmd:
+            rc = main(["list-resources", "--dry-run", "--json"])
+
+        self.assertEqual(17, rc)
+        mock_cmd.assert_called_once_with(
+            verify=False,
+            live_only=False,
+            output_format="json",
+            dry_run=True,
+        )
 
     def test_main_dispatches_start_trigger_record(self):
         with patch("keysight_logger.cli.cmd_start", return_value=23) as mock_cmd:

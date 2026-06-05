@@ -262,6 +262,14 @@ function Read-JsonLines {
     return @($events)
 }
 
+function Select-LastJsonEvent {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Events,
+        [Parameter(Mandatory = $true)][string]$EventName
+    )
+    return @($Events | Where-Object { $_.event -eq $EventName } | Select-Object -Last 1)
+}
+
 function Test-CsvRowCount {
     param([Parameter(Mandatory = $true)][string]$Path)
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -470,7 +478,8 @@ function Invoke-LiveCase {
     if (Test-Path -LiteralPath $jsonl) {
         $events = @(Read-JsonLines -Path $jsonl)
     }
-    $summary = @($events | Where-Object { $_.event -eq "summary" } | Select-Object -Last 1)
+    $ready = @(Select-LastJsonEvent -Events $events -EventName "ready")
+    $summary = @(Select-LastJsonEvent -Events $events -EventName "summary")
     if ($summary.Count -eq 1) {
         $captured = [int]$summary[0].captured
         $errors = [int]$summary[0].errors
@@ -497,6 +506,7 @@ function Invoke-LiveCase {
         expected_captured = $Case.expected_captured
         captured = $captured
         errors = $errors
+        ready_events = $ready.Count
         csv_rows = $rowCount
         csv = $CsvPath
         jsonl = $jsonl

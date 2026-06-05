@@ -71,6 +71,11 @@ class FakeResourceManager:
         self.closed = True
 
 
+class FailingListResourceManager(FakeResourceManager):
+    def list_resources(self):
+        raise RuntimeError("list failed")
+
+
 class FakeVisaIOError(Exception):
     def __init__(self, error_code: int) -> None:
         super().__init__(f"visa error {error_code}")
@@ -82,6 +87,24 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         with patch("keysight_logger.instrument.pyvisa", None):
             with self.assertRaisesRegex(InstrumentError, "pyvisa is not installed"):
                 VisaInstrument.list_resources()
+
+    def test_list_resources_injected_factory_works_without_pyvisa_and_closes(self):
+        rm = FakeResourceManager(resources=("USB::A", "TCPIP::B"))
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            resources = VisaInstrument.list_resources(resource_manager_factory=lambda: rm)
+
+        self.assertEqual(["USB::A", "TCPIP::B"], resources)
+        self.assertTrue(rm.closed)
+
+    def test_list_resources_injected_factory_closes_when_listing_fails(self):
+        rm = FailingListResourceManager()
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            with self.assertRaisesRegex(RuntimeError, "list failed"):
+                VisaInstrument.list_resources(resource_manager_factory=lambda: rm)
+
+        self.assertTrue(rm.closed)
 
     def test_list_resources_returns_list_and_closes_resource_manager(self):
         rm = FakeResourceManager(resources=("USB::A", "TCPIP::B"))
@@ -112,6 +135,29 @@ class VisaInstrumentStaticTests(unittest.TestCase):
             ["query:*IDN?", "*CLS", "*WAI", "ABOR", "SYST:LOC"],
             session.writes,
         )
+        self.assertEqual([0], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_resource_injected_factory_works_without_pyvisa_and_cleans_up(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+
+        with (
+            patch("keysight_logger.instrument.pyvisa", None),
+            patch("keysight_logger.instrument.time.sleep", return_value=None),
+        ):
+            ok, detail = VisaInstrument.verify_resource(
+                "USB::FAKE",
+                timeout_ms=1234,
+                resource_manager_factory=lambda: rm,
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
+        self.assertEqual(["USB::FAKE"], rm.opened_resources)
+        self.assertIn("query:*IDN?", session.writes)
+        self.assertIn("SYST:LOC", session.writes)
         self.assertEqual([0], session.control_ren_calls)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
@@ -153,6 +199,27 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual([], session.control_ren_calls)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
+
+    def test_verify_resource_injected_factory_failure_closes_handles(self):
+        session = FakeVisaSession()
+        session.fail_query = True
+        rm = FakeResourceManager(session=session)
+
+        with patch("keysight_logger.instrument.pyvisa", None):
+            ok, detail = VisaInstrument.verify_resource(
+                "USB::FAKE",
+                resource_manager_factory=lambda: rm,
+            )
+
+        self.assertFalse(ok)
+        self.assertIn("RuntimeError: query failed", detail)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_resource_no_factory_with_pyvisa_unavailable_raises_instrument_error(self):
+        with patch("keysight_logger.instrument.pyvisa", None):
+            with self.assertRaisesRegex(InstrumentError, "pyvisa is not installed"):
+                VisaInstrument.verify_resource("USB::FAKE")
 
     def test_infer_transport_detects_usb_lan_and_unknown(self):
         self.assertEqual(Transport.USB, VisaInstrument.infer_transport("USB0::FAKE"))

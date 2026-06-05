@@ -90,6 +90,14 @@ class WebUiApiTests(unittest.TestCase):
         app = create_app(manager)
         return TestClient(app)
 
+    def wait_until_inactive(self, client, timeout_s=1.0):
+        deadline = time.monotonic() + timeout_s
+        status = client.get("/api/runs/current").json()
+        while status.get("active") and time.monotonic() < deadline:
+            time.sleep(0.02)
+            status = client.get("/api/runs/current").json()
+        return status
+
     def tearDown(self):
         tempdir = getattr(self, "tempdir", None)
         if tempdir is not None:
@@ -152,6 +160,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(409, second.status_code)
         self.assertEqual(202, stopped.status_code)
         self.assertIn(stopped.json()["state"], {"running", "stopping", "stopped"})
+        self.assertFalse(self.wait_until_inactive(client)["active"])
 
     def test_open_current_csv_rejects_idle_status(self):
         client, _csv_path = self.make_client()
@@ -176,6 +185,7 @@ class WebUiApiTests(unittest.TestCase):
 
         response = client.post("/api/runs/current/open-csv")
         client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
 
         self.assertEqual(409, response.status_code)
         self.assertEqual("run is still active", response.json()["detail"])

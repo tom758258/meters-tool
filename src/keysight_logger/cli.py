@@ -415,6 +415,24 @@ class CliEventEmitter:
             return
         self._print(f"captured={captured} errors={errors}")
 
+    def ready(self, host: str, port: int) -> None:
+        if self._output_format != "jsonl":
+            return
+        base_url = f"http://{host}:{port}"
+        self._emit_json(
+            {
+                "event": "ready",
+                "host": host,
+                "port": port,
+                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "service": "keysight-meter",
+                "status_url": f"{base_url}/status",
+                "stop_url": f"{base_url}/stop",
+                "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                "trigger_url": f"{base_url}/trigger",
+            }
+        )
+
     def line(self, message: str) -> None:
         if self._output_format == "jsonl":
             self._emit_json(
@@ -668,6 +686,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="verify resources and print only live resources",
     )
     list_resources.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="print the discovery contract without touching VISA",
+    )
+    list_resources.add_argument(
         "--format",
         dest="output_format",
         choices=["text", "json"],
@@ -866,15 +889,60 @@ def cmd_list_resources(
     verify: bool = False,
     live_only: bool = False,
     output_format: str = "text",
+    dry_run: bool = False,
     print_fn=print,  # noqa: ANN001
+    resource_manager_factory=None,  # noqa: ANN001
 ) -> int:
     if output_format not in {"text", "json"}:
         raise ValueError("output_format must be 'text' or 'json'")
 
     effective_verify = verify or live_only
+    if dry_run:
+        payload = {
+            "command": "list-resources",
+            "dry_run_performs_visa_io": False,
+            "effective_verify": effective_verify,
+            "event": "dry_run",
+            "live_only": live_only,
+            "output_format": output_format,
+            "planned_real_run": {
+                "close_each_resource": effective_verify,
+                "filter_live_only": live_only,
+                "list_visa_resources": True,
+                "open_each_resource": effective_verify,
+                "query_idn": effective_verify,
+                "release_to_local_after_successful_verify": effective_verify,
+            },
+            "schema_version": CLI_EVENT_SCHEMA_VERSION,
+            "status": "dry_run",
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "verify": verify,
+        }
+        if output_format == "json":
+            print_fn(json.dumps(payload, sort_keys=True))
+        else:
+            actions = payload["planned_real_run"]
+            print_fn("dry-run list-resources:")
+            print_fn(f"  output_format: {output_format}")
+            print_fn(f"  verify: {str(verify).lower()}")
+            print_fn(f"  live_only: {str(live_only).lower()}")
+            print_fn(f"  effective_verify: {str(effective_verify).lower()}")
+            print_fn("  dry_run_performs_visa_io: false")
+            print_fn("  planned real-run actions:")
+            print_fn(f"    list VISA resources: {'yes' if actions['list_visa_resources'] else 'no'}")
+            print_fn(f"    open each resource: {'yes' if actions['open_each_resource'] else 'no'}")
+            print_fn(f"    query *IDN?: {'yes' if actions['query_idn'] else 'no'}")
+            print_fn(
+                "    release_to_local after successful verify: "
+                f"{'yes' if actions['release_to_local_after_successful_verify'] else 'no'}"
+            )
+            print_fn(f"    close each resource: {'yes' if actions['close_each_resource'] else 'no'}")
+            print_fn(f"    filter live-only: {'yes' if actions['filter_live_only'] else 'no'}")
+        return 0
+
     resources = []
     text_rows = 0
-    for resource in VisaInstrument.list_resources():
+    for resource in VisaInstrument.list_resources(resource_manager_factory=resource_manager_factory):
         if not effective_verify:
             if output_format == "text":
                 print_fn(resource)
@@ -882,7 +950,10 @@ def cmd_list_resources(
             else:
                 resources.append({"resource": resource})
             continue
-        ok, detail = VisaInstrument.verify_resource(resource)
+        ok, detail = VisaInstrument.verify_resource(
+            resource,
+            resource_manager_factory=resource_manager_factory,
+        )
         if live_only and not ok:
             continue
         status = "live" if ok else "stale"
@@ -1381,6 +1452,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         emitter.line(f"software stop endpoint: http://{host}:{port}/stop")
         emitter.line(f"software status endpoint: http://{host}:{port}/status")
         emitter.line("local stop keys: Ctrl+C, Ctrl+Break, q")
+        emitter.ready(host, port)
         worker = threading.Thread(
             target=engine.run,
             kwargs={
@@ -1460,6 +1532,7 @@ def main(argv: list[str] | None = None) -> int:
             verify=args.verify,
             live_only=args.live_only,
             output_format=args.output_format,
+            dry_run=args.dry_run,
         )
     if args.command == "soft-trigger":
         try:

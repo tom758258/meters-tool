@@ -257,6 +257,14 @@ function Read-JsonLines {
     return @($events)
 }
 
+function Select-LastJsonEvent {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Events,
+        [Parameter(Mandatory = $true)][string]$EventName
+    )
+    return @($Events | Where-Object { $_.event -eq $EventName } | Select-Object -Last 1)
+}
+
 function Assert-Condition {
     param(
         [Parameter(Mandatory = $true)][bool]$Condition,
@@ -375,7 +383,8 @@ function Invoke-SimulateCase {
     $Commands.Add([pscustomobject]$result) | Out-Null
     Assert-Condition ($result.success) "$Name failed"
     $events = @(Read-JsonLines -Path $jsonl)
-    $summary = @($events | Where-Object { $_.event -eq "summary" } | Select-Object -Last 1)
+    $ready = @(Select-LastJsonEvent -Events $events -EventName "ready")
+    $summary = @(Select-LastJsonEvent -Events $events -EventName "summary")
     Assert-Condition ($summary.Count -eq 1) "$Name summary event missing"
     Assert-Condition ([int]$summary[0].captured -eq $ExpectedCaptured) "$Name captured count mismatch"
     Assert-Condition ([int]$summary[0].errors -eq 0) "$Name errors should be 0"
@@ -386,6 +395,7 @@ function Invoke-SimulateCase {
         success = $true
         captured = [int]$summary[0].captured
         errors = [int]$summary[0].errors
+        ready_events = $ready.Count
         jsonl = $jsonl
         csv = $csv
         stderr = $stderr
@@ -527,6 +537,27 @@ function Invoke-TargetPreflight {
     Assert-Condition ($softStop.send_request -eq $false) "soft-stop dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_stop_dry_run_json"; success = $true; path = $softStopJson }) | Out-Null
 
+    $listResourcesJson = Join-Path $outDir "list_resources_dry_run.json"
+    $listResourcesErr = Join-Path $outDir "list_resources_dry_run.stderr.txt"
+    $listResourcesResult = Invoke-CapturedCommand `
+        -Name "list_resources_dry_run_json" `
+        -FilePath $Python `
+        -Arguments @("-m", "keysight_logger.cli", "list-resources", "--dry-run", "--live-only", "--json") `
+        -StdOutPath $listResourcesJson `
+        -StdErrPath $listResourcesErr
+    $commands.Add([pscustomobject]$listResourcesResult) | Out-Null
+    Assert-Condition ($listResourcesResult.success) "list-resources dry-run command failed"
+    $listResources = Get-Content -LiteralPath $listResourcesJson -Raw | ConvertFrom-Json -ErrorAction Stop
+    Assert-Condition ($listResources.event -eq "dry_run") "list-resources dry-run event mismatch"
+    Assert-Condition ($listResources.command -eq "list-resources") "list-resources dry-run command mismatch"
+    Assert-Condition ($listResources.status -eq "dry_run") "list-resources dry-run status mismatch"
+    Assert-Condition ($listResources.dry_run_performs_visa_io -eq $false) "list-resources dry-run should not perform VISA I/O"
+    Assert-Condition ($listResources.live_only -eq $true) "list-resources dry-run live_only mismatch"
+    Assert-Condition ($listResources.effective_verify -eq $true) "list-resources dry-run effective_verify mismatch"
+    Assert-Condition ($listResources.planned_real_run.filter_live_only -eq $true) "list-resources dry-run filter_live_only mismatch"
+    Assert-Condition ($listResources.planned_real_run.query_idn -eq $true) "list-resources dry-run query_idn mismatch"
+    $checks.Add([pscustomobject]@{ name = "list_resources_dry_run_json"; success = $true; path = $listResourcesJson; stderr = $listResourcesErr }) | Out-Null
+
     $pytestOut = Join-Path $outDir "pytest_list_resources.stdout.txt"
     $pytestErr = Join-Path $outDir "pytest_list_resources.stderr.txt"
     $pytestResult = Invoke-CapturedCommand `
@@ -562,6 +593,7 @@ function Invoke-TargetPreflight {
         "- Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?",
         "- Simulator trigger modes covered: immediate, software, software timer, immediate-custom, software-custom, external, external-custom",
         "- Soft client dry-runs: passed",
+        "- list-resources dry-run JSON contract: passed",
         "- Mocked list-resources coverage: passed",
         "- Report: $reportPath"
     )

@@ -66,23 +66,31 @@ class VisaInstrument:
         return pyvisa.ResourceManager()
 
     @staticmethod
-    def list_resources() -> List[str]:
-        if pyvisa is None:
+    def list_resources(resource_manager_factory: Callable[[], object] | None = None) -> List[str]:
+        if resource_manager_factory is None and pyvisa is None:
             raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
-        rm = pyvisa.ResourceManager()
-        resources = list(rm.list_resources())
-        rm.close()
-        return resources
+        rm = resource_manager_factory() if resource_manager_factory is not None else pyvisa.ResourceManager()
+        try:
+            return list(rm.list_resources())
+        finally:
+            try:
+                rm.close()
+            except Exception:
+                pass
 
     @staticmethod
-    def verify_resource(resource: str, timeout_ms: int = 1000) -> tuple[bool, str]:
-        if pyvisa is None:
+    def verify_resource(
+        resource: str,
+        timeout_ms: int = 1000,
+        resource_manager_factory: Callable[[], object] | None = None,
+    ) -> tuple[bool, str]:
+        if resource_manager_factory is None and pyvisa is None:
             raise InstrumentError("pyvisa is not installed. Run: pip install -r requirements.txt")
 
         rm = None
         inst = None
         try:
-            rm = pyvisa.ResourceManager()
+            rm = resource_manager_factory() if resource_manager_factory is not None else pyvisa.ResourceManager()
             inst = rm.open_resource(resource)
             inst.timeout = timeout_ms
             idn_detail = str(inst.query("*IDN?")).strip()
