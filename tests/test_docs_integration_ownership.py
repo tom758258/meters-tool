@@ -83,10 +83,10 @@ def test_worker_contract_documents_cross_instrument_boundary():
     assert "mutate queues" in text
 
 
-def test_cli_jsonl_contract_documents_v14_status_clients():
+def test_cli_jsonl_contract_documents_v15_status_clients():
     text = read_doc("docs", "cli-jsonl-contract.md")
 
-    assert "Runtime contract revision: `v1.4`" in text
+    assert "Runtime contract revision: `v1.5`" in text
     assert "`summary`:" in text
     assert "`ok`" in text
     assert "optional `fatal_error`" in text
@@ -97,3 +97,49 @@ def test_cli_jsonl_contract_documents_v14_status_clients():
     assert "Consumers must ignore unknown fields" in text
     assert "client_command" in text
     assert "request_sent" in text
+    assert "elapsed_ms" in text
+    assert "endpoint" in text
+
+
+def test_legacy_root_core_shim_modules_are_absent():
+    deleted_shims = {
+        "acquisition.py",
+        "capabilities.py",
+        "instrument.py",
+        "instrument_backend.py",
+        "measurement.py",
+        "models.py",
+        "run_plan.py",
+        "runner.py",
+        "session.py",
+        "simulator.py",
+        "storage.py",
+        "trigger.py",
+        "validation.py",
+    }
+
+    package_root = REPO_ROOT / "src" / "keysight_logger"
+    existing = {path.name for path in package_root.glob("*.py")}
+
+    assert deleted_shims.isdisjoint(existing)
+
+
+def test_core_files_do_not_depend_on_cli_concerns():
+    forbidden_terms = {
+        "argparse",
+        "measurement_cli_name",
+        "status_format",
+        "enable_hw_trigger",
+        "exit_code",
+        "keysight_logger.cli",
+    }
+    core_root = REPO_ROOT / "src" / "keysight_logger" / "core"
+
+    violations = []
+    for path in core_root.glob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        for term in forbidden_terms:
+            if term in text:
+                violations.append(f"{path.relative_to(REPO_ROOT)} contains {term}")
+
+    assert violations == []

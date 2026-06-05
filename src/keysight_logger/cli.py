@@ -439,6 +439,9 @@ def _emit_start_plan(plan: StartPlan, emitter: CliEventEmitter) -> None:
     if emitter.output_format == "jsonl":
         emitter._emit_json(
             {
+                "dry_run_performs_visa_io": False,
+                "dry_run_starts_http_server": False,
+                "dry_run_writes_csv": False,
                 "event": "dry_run",
                 "schema_version": CLI_EVENT_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
@@ -458,6 +461,9 @@ def _emit_start_plan(plan: StartPlan, emitter: CliEventEmitter) -> None:
         )
         return
     emitter.line("dry-run plan:")
+    emitter.line("  performs VISA I/O: false")
+    emitter.line("  writes CSV: false")
+    emitter.line("  starts HTTP server: false")
     emitter.line(f"  resource: {plan.resource}")
     emitter.line(f"  measurement: {plan.measurement_name} ({plan.measurement_unit})")
     emitter.line(f"  trigger_mode: {plan.trigger_mode}")
@@ -575,6 +581,7 @@ def _emit_client_dry_run(
     payload = {
         "body": body,
         "client_command": command_name,
+        "endpoint": path,
         "event": "dry_run",
         "method": method,
         "ok": True,
@@ -978,9 +985,25 @@ def cmd_list_resources(
     if live_only and output_format == "text" and text_rows == 0:
         print_fn("no live VISA resources found")
     if output_format == "json":
-        payload = {"resources": resources, "verify": effective_verify}
+        live_count = sum(1 for resource in resources if resource.get("live") is True)
+        stale_count = sum(1 for resource in resources if resource.get("live") is False)
+        payload = {
+            "count": len(resources),
+            "diagnostic_hints": [],
+            "event": "list-resources",
+            "live_count": live_count,
+            "resources": resources,
+            "schema_version": CLI_EVENT_SCHEMA_VERSION,
+            "stale_count": stale_count,
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "verify": effective_verify,
+        }
         if live_only:
             payload["live_only"] = True
+        if not effective_verify:
+            payload["diagnostic_hints"].append("Use --verify to query *IDN? and mark live/stale resources.")
+        if live_only and live_count == 0:
+            payload["diagnostic_hints"].append("No live VISA resources were found by verification.")
         print_fn(
             json.dumps(
                 payload,
@@ -1005,6 +1028,11 @@ def _client_error_payload(
     request_sent: bool = True,
     reachable: bool = False,
     http_status: int | None = None,
+    method: str | None = None,
+    url: str | None = None,
+    endpoint: str | None = None,
+    timeout_ms: int | None = None,
+    elapsed_ms: int | None = None,
 ) -> dict[str, object]:
     payload = {
         "client_command": client_command or _client_command_name(event),
@@ -1024,7 +1052,21 @@ def _client_error_payload(
     payload["reachable"] = reachable
     if http_status is not None:
         payload["http_status"] = http_status
+    if method is not None:
+        payload["method"] = method
+    if url is not None:
+        payload["url"] = url
+    if endpoint is not None:
+        payload["endpoint"] = endpoint
+    if timeout_ms is not None:
+        payload["timeout_ms"] = timeout_ms
+    if elapsed_ms is not None:
+        payload["elapsed_ms"] = elapsed_ms
     return payload
+
+
+def _client_url(port: int, endpoint: str) -> str:
+    return f"http://127.0.0.1:{port}{endpoint}"
 
 
 def _client_http_status(exc: BaseException) -> int | None:
@@ -1048,7 +1090,12 @@ def _print_client_error(
     request_sent: bool = True,
     reachable: bool = False,
     http_status: int | None = None,
+    method: str | None = None,
+    endpoint: str | None = None,
+    timeout_ms: int | None = None,
+    elapsed_ms: int | None = None,
 ) -> int:
+    url = _client_url(port, endpoint) if endpoint is not None else None
     if output_format == "json":
         print(
             json.dumps(
@@ -1061,6 +1108,11 @@ def _print_client_error(
                     request_sent=request_sent,
                     reachable=reachable,
                     http_status=http_status,
+                    method=method,
+                    url=url,
+                    endpoint=endpoint,
+                    timeout_ms=timeout_ms,
+                    elapsed_ms=elapsed_ms,
                 ),
                 sort_keys=True,
             )
@@ -1071,7 +1123,7 @@ def _print_client_error(
 
 
 def _fetch_worker_status(port: int, timeout_ms: int) -> tuple[int, dict[str, object]]:
-    req = request.Request(f"http://127.0.0.1:{port}/status", method="GET")
+    req = request.Request(_client_url(port, "/status"), method="GET")
     with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
         http_status = int(response.status)
         raw_payload = response.read()
@@ -1099,6 +1151,8 @@ def _normalized_status_payload(
     payload = {
         "event": event,
         "client_command": event,
+        "endpoint": "/status",
+        "method": "GET",
         "schema_version": CLI_EVENT_SCHEMA_VERSION,
         "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "ok": fatal_error is None,
@@ -1108,6 +1162,8 @@ def _normalized_status_payload(
         "stopping": status_value == "stopping",
         "port": port,
         "http_status": http_status,
+        "timeout_ms": extra.get("timeout_ms") if extra is not None else None,
+        "url": _client_url(port, "/status"),
         "worker_schema_version": worker_status.get("schema_version"),
         "worker_timestamp_utc": worker_status.get("timestamp_utc"),
         "service": worker_status.get("service"),
@@ -1125,6 +1181,8 @@ def _normalized_status_payload(
     }
     if extra is not None:
         payload.update(extra)
+    if payload.get("timeout_ms") is None:
+        del payload["timeout_ms"]
     return payload
 
 
@@ -1161,6 +1219,10 @@ def cmd_soft_trigger(
                         client_command="soft-trigger",
                         error_phase="validation",
                         request_sent=False,
+                        method="POST",
+                        url=_client_url(port, "/trigger"),
+                        endpoint="/trigger",
+                        timeout_ms=timeout_ms,
                     ),
                     sort_keys=True,
                 )
@@ -1171,29 +1233,37 @@ def cmd_soft_trigger(
     if dry_run:
         _emit_client_dry_run("soft-trigger", port, json.loads(meta), output_format)
         return 0
+    endpoint = "/trigger"
     req = request.Request(
-        f"http://127.0.0.1:{port}/trigger",
+        _client_url(port, endpoint),
         method="POST",
         data=payload,
         headers={"Content-Type": "application/json"},
     )
+    started_at = time.monotonic()
     try:
         with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if output_format == "json":
                 print(
                     json.dumps(
                         {
                             "client_command": "soft-trigger",
+                            "elapsed_ms": elapsed_ms,
+                            "endpoint": endpoint,
                             "event": "soft-trigger",
                             "http_status": response.status,
                             "message": "trigger accepted",
+                            "method": "POST",
                             "ok": True,
                             "port": port,
                             "reachable": True,
                             "request_sent": True,
                             "schema_version": CLI_EVENT_SCHEMA_VERSION,
                             "status": "accepted",
+                            "timeout_ms": timeout_ms,
                             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                            "url": _client_url(port, endpoint),
                         },
                         sort_keys=True,
                     )
@@ -1201,6 +1271,7 @@ def cmd_soft_trigger(
             else:
                 print(f"trigger accepted: {response.status}")
     except URLError as exc:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
         http_status = _client_http_status(exc)
         if output_format == "json":
             print(
@@ -1214,6 +1285,11 @@ def cmd_soft_trigger(
                         request_sent=True,
                         reachable=http_status is not None,
                         http_status=http_status,
+                        method="POST",
+                        url=_client_url(port, endpoint),
+                        endpoint=endpoint,
+                        timeout_ms=timeout_ms,
+                        elapsed_ms=elapsed_ms,
                     ),
                     sort_keys=True,
                 )
@@ -1233,29 +1309,37 @@ def cmd_soft_stop(
     if dry_run:
         _emit_client_dry_run("soft-stop", port, {}, output_format)
         return 0
+    endpoint = "/stop"
     req = request.Request(
-        f"http://127.0.0.1:{port}/stop",
+        _client_url(port, endpoint),
         method="POST",
         data=b"{}",
         headers={"Content-Type": "application/json"},
     )
+    started_at = time.monotonic()
     try:
         with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
+            elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if output_format == "json":
                 print(
                     json.dumps(
                         {
                             "client_command": "soft-stop",
+                            "elapsed_ms": elapsed_ms,
+                            "endpoint": endpoint,
                             "event": "soft-stop",
                             "http_status": response.status,
                             "message": "stop accepted",
+                            "method": "POST",
                             "ok": True,
                             "port": port,
                             "reachable": True,
                             "request_sent": True,
                             "schema_version": CLI_EVENT_SCHEMA_VERSION,
                             "status": "accepted",
+                            "timeout_ms": timeout_ms,
                             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                            "url": _client_url(port, endpoint),
                         },
                         sort_keys=True,
                     )
@@ -1263,6 +1347,7 @@ def cmd_soft_stop(
             else:
                 print(f"stop accepted: {response.status}")
     except URLError as exc:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
         reason = getattr(exc, "reason", None)
         winerror = getattr(reason, "winerror", None)
         errno = getattr(reason, "errno", None)
@@ -1272,7 +1357,10 @@ def cmd_soft_stop(
                     json.dumps(
                         {
                             "client_command": "soft-stop",
+                            "elapsed_ms": elapsed_ms,
+                            "endpoint": endpoint,
                             "event": "soft-stop",
+                            "method": "POST",
                             "message": "already stopped (endpoint not listening)",
                             "ok": True,
                             "port": port,
@@ -1280,7 +1368,9 @@ def cmd_soft_stop(
                             "request_sent": True,
                             "schema_version": CLI_EVENT_SCHEMA_VERSION,
                             "status": "already_stopped",
+                            "timeout_ms": timeout_ms,
                             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                            "url": _client_url(port, endpoint),
                         },
                         sort_keys=True,
                     )
@@ -1301,6 +1391,11 @@ def cmd_soft_stop(
                         request_sent=True,
                         reachable=http_status is not None,
                         http_status=http_status,
+                        method="POST",
+                        url=_client_url(port, endpoint),
+                        endpoint=endpoint,
+                        timeout_ms=timeout_ms,
+                        elapsed_ms=elapsed_ms,
                     ),
                     sort_keys=True,
                 )
@@ -1328,8 +1423,10 @@ def cmd_soft_status(
         )
         return 0
     try:
+        started_at = time.monotonic()
         http_status, worker_status = _fetch_worker_status(port, timeout_ms)
     except (URLError, ValueError) as exc:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
         http_status = _client_http_status(exc)
         return _print_client_error(
             "soft-status",
@@ -1340,9 +1437,20 @@ def cmd_soft_status(
             request_sent=True,
             reachable=http_status is not None,
             http_status=http_status,
+            method="GET",
+            endpoint="/status",
+            timeout_ms=timeout_ms,
+            elapsed_ms=elapsed_ms,
         )
 
-    payload = _normalized_status_payload("soft-status", port, http_status, worker_status)
+    elapsed_ms = int((time.monotonic() - started_at) * 1000)
+    payload = _normalized_status_payload(
+        "soft-status",
+        port,
+        http_status,
+        worker_status,
+        extra={"elapsed_ms": elapsed_ms, "timeout_ms": timeout_ms},
+    )
     if output_format == "json":
         print(json.dumps(payload, sort_keys=True))
     else:
@@ -1408,6 +1516,11 @@ def cmd_wait_ready(port: int, output_format: str = "text", timeout_ms: int = 100
             request_sent=attempts > 0,
             reachable=http_status is not None,
             http_status=http_status,
+            method="GET",
+            url=_client_url(port, "/status"),
+            endpoint="/status",
+            timeout_ms=timeout_ms,
+            elapsed_ms=elapsed_ms,
         )
         payload.update({"attempts": attempts, "elapsed_ms": elapsed_ms, "timeout_ms": timeout_ms})
         print(json.dumps(payload, sort_keys=True))
@@ -1421,6 +1534,13 @@ def _validate_client_port_and_timeout(args: argparse.Namespace) -> int | None:
         validate_client_port(args.port)
         validate_client_timeout_ms(args.timeout_ms)
     except ValueError as exc:
+        diagnostics = {
+            "soft-trigger": ("POST", "/trigger"),
+            "soft-stop": ("POST", "/stop"),
+            "soft-status": ("GET", "/status"),
+            "wait-ready": ("GET", "/status"),
+        }
+        method, endpoint = diagnostics.get(args.command, (None, None))
         if args.output_format == "json":
             print(
                 json.dumps(
@@ -1433,6 +1553,10 @@ def _validate_client_port_and_timeout(args: argparse.Namespace) -> int | None:
                             client_command=args.command,
                             error_phase="validation",
                             request_sent=False,
+                            method=method,
+                            url=_client_url(args.port, endpoint) if endpoint is not None else None,
+                            endpoint=endpoint,
+                            timeout_ms=args.timeout_ms,
                         )
                     },
                     sort_keys=True,

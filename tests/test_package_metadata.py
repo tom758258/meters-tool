@@ -47,6 +47,6 @@ def test_keysight_logger_console_script_points_to_cli_main():
     scripts = pyproject.get("project.scripts", project.get("scripts", {}))
 
     assert project["name"] == "keysight-logger"
-    assert project["version"] == "1.2.0"
+    assert project["version"] == "1.2.1"
     assert scripts["keysight-logger"] == "keysight_logger.cli:main"
     assert callable(main)

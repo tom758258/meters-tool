@@ -112,6 +112,10 @@ def test_preflight_report_contract():
     assert report["schema_version"] == 1
     assert report["target"] == "keysight-34461a"
     assert report["status"] == "passed"
+    assert report["package_version"] == "1.2.1"
+    assert report["validation_mode"] == "preflight"
+    assert "git_head" in report
+    assert set(report["artifact_paths"]) == {"output_dir", "report", "summary"}
     assert_under_tmp_tests(report["output_dir"])
     assert Path(report["output_dir"]).resolve() == output_dir.resolve()
 
@@ -209,6 +213,10 @@ def test_live_plan_only_minimal_report_contract():
     report = load_json(report_from_summary_output(result.stdout))
     assert report["schema_version"] == 1
     assert report["status"] == "planned"
+    assert report["package_version"] == "1.2.1"
+    assert report["validation_mode"] == "live_plan_only"
+    assert "git_head" in report
+    assert set(report["artifact_paths"]) == {"output_dir", "report", "summary"}
     assert report["plan_only"] is True
     assert report["live_executed"] is False
     assert report["suite"] == "minimal"

@@ -1149,6 +1149,9 @@ class CliCommandTests(unittest.TestCase):
 
         self.assertEqual(0, rc)
         self.assertIn("dry-run plan:", stdout.getvalue())
+        self.assertIn("performs VISA I/O: false", stdout.getvalue())
+        self.assertIn("writes CSV: false", stdout.getvalue())
+        self.assertIn("starts HTTP server: false", stdout.getvalue())
         self.assertIn("CONF:VOLT:DC AUTO", stdout.getvalue())
         self.assertNotIn("software status endpoint:", stdout.getvalue())
         mock_factory.assert_not_called()
@@ -1187,6 +1190,9 @@ class CliCommandTests(unittest.TestCase):
             "cleanup_steps",
             "csv_path",
             "dry_run",
+            "dry_run_performs_visa_io",
+            "dry_run_starts_http_server",
+            "dry_run_writes_csv",
             "measurement_cli_name",
             "measurement_type",
             "measurement_unit",
@@ -1201,6 +1207,9 @@ class CliCommandTests(unittest.TestCase):
         ]:
             self.assertIn(key, payload)
         self.assertEqual("current_dc", payload["measurement_type"])
+        self.assertFalse(payload["dry_run_performs_visa_io"])
+        self.assertFalse(payload["dry_run_writes_csv"])
+        self.assertFalse(payload["dry_run_starts_http_server"])
         self.assertEqual("current-dc", payload["measurement_cli_name"])
         self.assertNotIn("measurement_name", payload)
         self.assertEqual("FETC?", payload["read_path"])
@@ -2281,26 +2290,32 @@ class CliCommandTests(unittest.TestCase):
 
         self.assertEqual(0, rc)
         self.assertEqual(1, len(lines))
+        payload = json.loads(lines[0])
+        self.assertEqual("list-resources", payload["event"])
+        self.assertEqual(1, payload["schema_version"])
+        self.assertEqual(2, payload["count"])
+        self.assertEqual(1, payload["live_count"])
+        self.assertEqual(1, payload["stale_count"])
+        self.assertNotIn("live_only", payload)
+        self.assertEqual([], payload["diagnostic_hints"])
         self.assertEqual(
-            {
-                "resources": [
-                    {
-                        "detail": "Keysight Technologies,34461A,MY123,1.0",
-                        "live": True,
-                        "resource": "USB::LIVE",
-                        "status": "live",
-                    },
-                    {
-                        "detail": "VisaIOError: timeout",
-                        "live": False,
-                        "resource": "USB::STALE",
-                        "status": "stale",
-                    },
-                ],
-                "verify": True,
-            },
-            json.loads(lines[0]),
+            [
+                {
+                    "detail": "Keysight Technologies,34461A,MY123,1.0",
+                    "live": True,
+                    "resource": "USB::LIVE",
+                    "status": "live",
+                },
+                {
+                    "detail": "VisaIOError: timeout",
+                    "live": False,
+                    "resource": "USB::STALE",
+                    "status": "stale",
+                },
+            ],
+            payload["resources"],
         )
+        self.assertTrue(payload["verify"])
 
     @patch("keysight_logger.cli.VisaInstrument")
     def test_list_resources_live_only_prints_only_live_resources(self, mock_visa):
@@ -2343,21 +2358,24 @@ class CliCommandTests(unittest.TestCase):
 
         self.assertEqual(0, rc)
         self.assertEqual(1, len(lines))
+        payload = json.loads(lines[0])
+        self.assertEqual("list-resources", payload["event"])
+        self.assertEqual(1, payload["count"])
+        self.assertEqual(1, payload["live_count"])
+        self.assertEqual(0, payload["stale_count"])
+        self.assertTrue(payload["live_only"])
         self.assertEqual(
-            {
-                "live_only": True,
-                "resources": [
-                    {
-                        "detail": "Keysight Technologies,34461A,MY123,1.0",
-                        "live": True,
-                        "resource": "USB::LIVE",
-                        "status": "live",
-                    },
-                ],
-                "verify": True,
-            },
-            json.loads(lines[0]),
+            [
+                {
+                    "detail": "Keysight Technologies,34461A,MY123,1.0",
+                    "live": True,
+                    "resource": "USB::LIVE",
+                    "status": "live",
+                },
+            ],
+            payload["resources"],
         )
+        self.assertTrue(payload["verify"])
 
     def test_main_dispatches_list_resources(self):
         with patch("keysight_logger.cli.cmd_list_resources", return_value=17) as mock_cmd:
@@ -2468,6 +2486,11 @@ class CliCommandJsonTests(unittest.TestCase):
         self.assertEqual(port, payload["port"])
         self.assertEqual(request_sent, payload["request_sent"])
         self.assertEqual(1, payload["schema_version"])
+        for key in ("method", "url", "endpoint"):
+            self.assertIn(key, payload)
+        if request_sent:
+            self.assertIn("timeout_ms", payload)
+            self.assertIn("elapsed_ms", payload)
 
     def _assert_error_contract(self, payload, *, client_command, error_phase, exit_code, port=8765):
         self._assert_client_contract(
