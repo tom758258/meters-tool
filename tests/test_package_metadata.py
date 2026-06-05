@@ -46,6 +46,6 @@ def test_core_distribution_has_no_console_script():
     scripts = pyproject.get("project.scripts", project.get("scripts", {}))
 
     assert project["name"] == "keysight-logger-core"
-    assert project["version"] == "1.0.0"
+    assert project["version"] == "1.1.0"
     assert scripts == {}
     assert importlib.util.find_spec("keysight_logger" + ".cli") is None
