@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "keysight-logger-cli"
-version = "1.3.0"
+version = "1.3.1"
 description = "CLI adapter for Keysight 34461A acquisition using Keysight Logger Core"
 requires-python = ">=3.10"
 dependencies = [
-    "keysight-logger-core>=1.1.1,<1.2",
+    "keysight-logger-core>=1.2.0,<1.3",
 ]
 
 [project.optional-dependencies]

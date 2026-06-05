@@ -13,7 +13,7 @@ contracts stay in `docs/integration.md`; CLI adapter maintenance stays in
 ## Current Status
 
 - Branch: `main`.
-- Current CLI release target: `cli-v1.3.0`.
+- Current CLI release target: `cli-v1.3.1`.
 - The CLI package keeps `keysight-logger` package metadata, the
   `keysight-logger` console script, CLI runtime, wrapper scripts, CLI
   JSON/JSONL contracts, and tests.
@@ -50,10 +50,11 @@ contracts stay in `docs/integration.md`; CLI adapter maintenance stays in
 
 ## Latest Validation
 
-Latest local release validation for `cli-v1.3.0` covers the monorepo package
-layout, CLI package metadata update to `1.3.0`, CLI contract `v1.5`, and
+Latest local release validation for `cli-v1.3.1` covers the monorepo package
+layout, CLI package metadata update to `1.3.1`, Core dependency alignment to
+`keysight-logger-core>=1.2.0,<1.3`, CLI contract `v1.5`, and
 wrapper reports. Full live Keysight 34461A validation passed immediately before
-the metadata-only `1.3.0` bump; no SCPI, VISA timeout, trigger wait strategy,
+the metadata/dependency-only `1.3.1` bump; no SCPI, VISA timeout, trigger wait strategy,
 cleanup order, CSV schema, or existing JSON field meanings changed after that
 live pass.
 
@@ -64,7 +65,8 @@ live pass.
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\release-cli-check.ps1 -Target keysight-34461a
-# release check passed: cli-v1.3.0
+# release check passed: cli-v1.3.1
+# summary: .tmp_tests\cli_release\keysight-34461a\20260601-131316\summary.md
 ```
 
 ```powershell
@@ -82,7 +84,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\l
 # passed; 12 live cases; captured=1, errors=0, csv_rows=1 for every case
 ```
 
-The package is ready to commit and tag `cli-v1.3.0`.
+The package is ready to commit and tag `cli-v1.3.1`.
 
 Live hardware validation reported by the operator on 2026-05-29 with
 `USB0::0x2A8D::0x1301::MY60045220::0::INSTR`:
@@ -165,8 +167,8 @@ Full live validation on 2026-06-01 after monorepo migration with
 
 ## Next Work
 
-1. Review and commit the `cli-v1.3.0` release prep on `main`, then tag
-   `cli-v1.3.0`.
+1. Review and commit the `cli-v1.3.1` release prep on `main`, then tag
+   `cli-v1.3.1`.
 2. Run `scripts/live-cli-check.ps1` only when the user explicitly provides the
    target connection/resource and chooses a live suite. For a fresh hardware
    pass, start with `-Suite minimal`.

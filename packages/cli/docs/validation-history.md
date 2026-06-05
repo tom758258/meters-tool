@@ -6,23 +6,24 @@ This file archives historical validation notes and older handoff details that
 were previously kept in `docs/session-handoff.md`. Current CLI status, active
 risks, and next work stay in `docs/session-handoff.md`.
 
-## 2026-06-01 cli-v1.3.0 Release Validation
+## 2026-06-01 cli-v1.3.1 Release Validation
 
-- Target release: `cli-v1.3.0`.
-- Package metadata: `keysight-logger-cli` version `1.3.0`.
+- Target release: `cli-v1.3.1`.
+- Package metadata: `keysight-logger-cli` version `1.3.1`.
+- Core dependency range was updated to `keysight-logger-core>=1.2.0,<1.3`.
 - Workspace reinstall refreshed the editable CLI package from `1.2.1` to
-  `1.3.0`.
+  `1.3.1`.
 - Version checks:
   `.\.venv\Scripts\python.exe -m keysight_logger_cli --version` and
   `.\.venv\Scripts\keysight-logger.exe --version` both reported
-  `keysight-logger 1.3.0`.
+  `keysight-logger 1.3.1`.
 - Full workspace validation:
   `.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_cli130`
   passed with `389 passed, 1 warning, 145 subtests passed`.
 - Release wrapper gate:
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\release-cli-check.ps1 -Target keysight-34461a`
   passed and wrote
-  `.tmp_tests\cli_release\keysight-34461a\20260601-123707\summary.md`.
+  `.tmp_tests\cli_release\keysight-34461a\20260601-131316\summary.md`.
 - Live Keysight 34461A validation for the monorepo package layout passed
   earlier on 2026-06-01; see `packages/cli/docs/session-handoff.md`.
 

@@ -1,10 +1,35 @@
 ﻿# Core Validation History
 
-Updated: 2026-05-31
+Updated: 2026-06-01
 
-This file records Core branch validation history only. Detailed CLI live
+This file records Core package validation history only. Detailed CLI live
 validation, CLI wrapper, JSONL, soft-trigger, soft-stop, and artifact history
-belongs to the `Cli` branch.
+belongs to the CLI package docs.
+
+## 2026-06-01 core-v1.2.0 Release Validation
+
+- Target release: `core-v1.2.0`.
+- Package metadata: `keysight-logger-core` version `1.2.0`.
+- CLI and WebUI dependency ranges were updated to
+  `keysight-logger-core>=1.2.0,<1.3` while keeping their package versions
+  unchanged.
+- No SCPI behavior, VISA timeout behavior, trigger wait strategy, stop/cleanup
+  order, measurement logic, CSV schema, or existing JSON field meanings changed
+  in this Core version bump.
+- Editable workspace install passed and refreshed `keysight-logger-core` from
+  `1.1.1` to `1.2.0`.
+- Version check:
+  `.\.venv\Scripts\python.exe -c "import importlib.metadata as m; print(m.version('keysight-logger-core'))"`
+  reported `1.2.0`.
+- Core package tests:
+  `.\.venv\Scripts\python.exe -m pytest packages\core\tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_core120`
+  passed with `222 passed, 69 subtests passed`.
+- Full workspace tests:
+  `.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_core120_full`
+  passed with `389 passed, 1 warning, 145 subtests passed`.
+- Live Keysight 34461A validation for the monorepo package layout passed
+  through the CLI on 2026-06-01; no additional Core API live pass was required
+  for this metadata/dependency release.
 
 ## Core Baseline
 

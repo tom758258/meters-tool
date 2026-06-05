@@ -82,7 +82,7 @@ Check the wrapper:
 Expected package metadata version for this release branch:
 
 ```text
-keysight-logger-webui 1.1.0
+keysight-logger-webui 1.2.0
 ```
 
 Start the server:

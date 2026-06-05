@@ -18,7 +18,7 @@ validation, runtime orchestration, trigger routing, and cleanup behavior.
 
 ## Current Baseline
 
-Release tag target: `webui-v1.1.0`.
+Release tag target: `webui-v1.2.0`.
 
 The maintained runtime boundary is:
 
@@ -26,7 +26,7 @@ The maintained runtime boundary is:
 - Web UI adapter and HTTP endpoints: `packages/webui/src/keysight_logger_webui/web_ui.py`
 - Static browser UI: `packages/webui/src/keysight_logger_webui/static/`
 
-The distribution metadata is `keysight-logger-webui` version `1.1.0`. It
+The distribution metadata is `keysight-logger-webui` version `1.2.0`. It
 publishes the WebUI console script `keysight-logger-webui`; install it through
 uv.
 

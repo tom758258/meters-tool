@@ -61,7 +61,7 @@ def test_keysight_logger_console_script_points_to_cli_main():
     dependencies = project["dependencies"]
 
     assert project["name"] == "keysight-logger-cli"
-    assert project["version"] == "1.3.0"
+    assert project["version"] == "1.3.1"
     assert scripts["keysight-logger"] == "keysight_logger_cli.cli:main"
-    assert "keysight-logger-core>=1.1.1,<1.2" in dependencies
+    assert "keysight-logger-core>=1.2.0,<1.3" in dependencies
     assert callable(main)

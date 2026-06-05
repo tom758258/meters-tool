@@ -4,6 +4,14 @@
 
 No unreleased changes.
 
+## webui-v1.2.0 - 2026-06-01
+
+- Released the WebUI package from the unified monorepo layout after merging the
+  Core, CLI, and WebUI product branches into `main` while preserving WebUI
+  package boundaries.
+- Updated the Core dependency range to `keysight-logger-core>=1.2.0,<1.3`.
+- Bumped package metadata to `keysight-logger-webui 1.2.0`.
+
 ## webui-v1.1.0 - 2026-05-29
 
 - Added the WebUI Live data panel with latest sample, trend chart, statistics,

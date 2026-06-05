@@ -1,8 +1,8 @@
 ﻿# Web UI Session Handoff
 
-Updated: 2026-05-29
+Updated: 2026-06-01
 
-This file is the single source of current WebUI branch status, validation,
+This file is the single source of current WebUI package status, validation,
 active risks, and next work. Keep `docs/session-handoff.md` as a thin index so
 Core and WebUI branch merges do not repeatedly conflict on detailed status.
 
@@ -13,12 +13,12 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
 
 ## Current Status
 
-- Branch: `Webui`.
-- Release tag target: `webui-v1.1.0`.
-- Purpose: WebUI adapter branch on top of the independent Core runtime.
-- Core `core-v1.1.0` runtime changes have been merged into this branch.
+- Branch: `main`.
+- Release tag target: `webui-v1.2.0`.
+- Purpose: WebUI adapter package on top of the independent Core runtime.
+- Core `core-v1.2.0` package metadata and dependency alignment are available.
 - Distribution metadata is the WebUI adapter package
-  `keysight-logger-webui` version `1.1.0`.
+  `keysight-logger-webui` version `1.2.0`.
 - The Web UI starts with the uv-installed console wrapper
   `keysight-logger-webui`; the wrapper supports `--version`.
 - `packages/webui/src/keysight_logger_webui/web_ui.py` adapts browser payloads to Core
@@ -52,7 +52,7 @@ stays in `docs/integration.md`; WebUI-specific UI rules stay in
 - CLI: complete on the separate CLI branch. CLI-specific runtime, wrapper,
   console behavior, and JSONL/artifact contracts remain adapter-owned and are
   not part of this WebUI release.
-- WebUI: ready for `webui-v1.1.0` after current no-hardware validation.
+- WebUI: ready for `webui-v1.2.0` after current no-hardware validation.
   Existing browser UI and API behavior are preserved while using Core
   `StartRequest`, Core validation, and Core `run_start_session()` underneath.
 
@@ -179,6 +179,32 @@ Frontend behavior:
 
 ## Latest Validation
 
+Latest no-hardware validation for the `webui-v1.2.0` release tag target:
+
+```powershell
+uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]" --link-mode=copy
+```
+
+Result: passed; refreshed `keysight-logger-webui` from `1.1.0` to `1.2.0`.
+
+```powershell
+.\.venv\Scripts\keysight-logger-webui.exe --version
+```
+
+Result: `keysight-logger-webui 1.2.0`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages\webui\tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_webui120
+```
+
+Result: 31 passed, 1 warning, 64 subtests passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_release_all
+```
+
+Result: 389 passed, 1 warning, 145 subtests passed on 2026-06-01.
+
 Latest no-hardware validation for the `webui-v1.1.0` release tag target was
 run on 2026-05-29:
 
@@ -265,7 +291,7 @@ passed with 74 tests and 123 subtests.
 ## Next Conversation
 
 1. Commit the WebUI release-ready state.
-2. Tag the commit as `webui-v1.1.0`.
+2. Tag the commit as `webui-v1.2.0`.
 3. Keep LAN validation and real AC signal validation deferred until those test
    environments are available.
 4. Record any future live validation results in this file and

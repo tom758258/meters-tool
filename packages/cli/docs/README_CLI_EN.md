@@ -1,6 +1,6 @@
 ﻿# Keysight 34461A CLI Logger
 
-Current CLI baseline: `cli-v1.3.0`.
+Current CLI baseline: `cli-v1.3.1`.
 
 ## Documentation Set
 
@@ -25,7 +25,7 @@ DCV ratio, and 2-wire or 4-wire resistance measurements over VISA.
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
-`cli-v1.3.0` is the current CLI baseline after unifying the former Core, CLI,
+`cli-v1.3.1` is the current CLI baseline after unifying the former Core, CLI,
 and WebUI branches into the monorepo `main` branch while keeping independent
 package metadata, console scripts, JSON/JSONL contracts, wrapper scripts, and
 tests. It continues to expose Core v1.1.0 measurement fields through the CLI:
@@ -35,7 +35,7 @@ validation, dry-run planning, runtime orchestration, public integration exports,
 and measurement naming remain separated from adapter-only CLI concerns. This
 baseline also records the legacy root-level import cleanup, CLI contract v1.5
 additive client diagnostics, no-hardware release validation, wrapper report
-metadata, and Core/CLI boundary guards.
+metadata, Core/CLI boundary guards, and the Core `1.2.x` dependency alignment.
 
 Python integrations should import shared APIs from `keysight_logger_core` or
 `keysight_logger_core.*`. The old root-level Core module imports such as

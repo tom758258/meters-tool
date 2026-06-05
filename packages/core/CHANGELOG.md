@@ -2,7 +2,14 @@
 
 ## Unreleased
 
-- No unreleased changes yet.
+## core-v1.2.0 - 2026-06-01
+
+- Released the Core package from the unified monorepo layout after merging the
+  Core, CLI, and WebUI product branches into `main` while preserving Core's
+  public API and package boundary.
+- Updated downstream CLI and WebUI package dependency ranges to require
+  `keysight-logger-core>=1.2.0,<1.3`.
+- Bumped `keysight-logger-core` package metadata from `1.1.1` to `1.2.0`.
 
 ## core-v1.1.1 - 2026-05-31
 

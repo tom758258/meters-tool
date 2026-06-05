@@ -40,10 +40,10 @@ jobs:
       - name: Install package
         run: |
           uv venv .venv
-          uv pip install -e ".[dev]"
+          uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]"
 
       - name: Run tests
-        run: ./.venv/bin/python -m pytest tests -q -p no:cacheprovider
+        run: ./.venv/bin/python -m pytest packages tests -q -p no:cacheprovider
 
   pytest-windows:
     name: Windows Python ${{ matrix.python-version }}
@@ -71,7 +71,7 @@ jobs:
       - name: Install package
         run: |
           uv venv .venv
-          uv pip install -e ".[dev]"
+          uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]"
 
       - name: Run tests
-        run: .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+        run: .\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider

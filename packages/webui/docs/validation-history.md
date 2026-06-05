@@ -1,10 +1,27 @@
 ﻿# Web UI Validation History
 
-Updated: 2026-05-29
+Updated: 2026-06-01
 
-This file records validation history for the WebUI adapter branch after merging
-the independent Core runtime. Detailed CLI wrapper, JSONL, soft-trigger, and
-artifact validation belongs to the `Cli` branch.
+This file records validation history for the WebUI adapter package after
+merging the independent Core runtime. Detailed CLI wrapper, JSONL,
+soft-trigger, and artifact validation belongs to the CLI package docs.
+
+## WebUI v1.2.0 Release Validation
+
+- Target release: `webui-v1.2.0`.
+- Package metadata: `keysight-logger-webui` version `1.2.0`.
+- Core dependency range was updated to `keysight-logger-core>=1.2.0,<1.3`.
+- No WebUI endpoint, browser UI, Core runtime, SCPI, VISA timeout, trigger wait
+  strategy, cleanup order, measurement logic, or CSV behavior changed in this
+  package/dependency release.
+- `.\.venv\Scripts\keysight-logger-webui.exe --version` reported
+  `keysight-logger-webui 1.2.0`.
+- `node --check packages\webui\src\keysight_logger_webui\static\app.js`
+  passed.
+- `.\.venv\Scripts\python.exe -m pytest packages\webui\tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_webui120`
+  passed with `31 passed, 1 warning, 64 subtests passed`.
+- Full workspace validation passed with
+  `389 passed, 1 warning, 145 subtests passed`.
 
 ## Core v1.1.0 Merge
 

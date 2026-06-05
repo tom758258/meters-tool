@@ -2,14 +2,15 @@
 
 ## Unreleased
 
-## cli-v1.3.0 - 2026-06-01
+## cli-v1.3.1 - 2026-06-01
 
 - Released the CLI package from the unified monorepo layout after merging the
   Core, CLI, and WebUI product branches into `main` while preserving package
   boundaries.
 - Recorded full monorepo validation, full CLI live validation on a Keysight
   34461A, and release-wrapper validation for the package-separated layout.
-- Updated package metadata to version `1.3.0`.
+- Updated the Core dependency range to `keysight-logger-core>=1.2.0,<1.3`.
+- Updated package metadata to version `1.3.1`.
 
 ## cli-v1.2.1 - 2026-05-31
 

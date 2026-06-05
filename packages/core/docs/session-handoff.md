@@ -1,8 +1,8 @@
 ﻿# Core Branch Handoff
 
-Updated: 2026-05-31
+Updated: 2026-06-01
 
-This file tracks current Core branch status, active risks, and next work.
+This file tracks current Core package status, active risks, and next work.
 Durable direction stays in `docs/project-plan.md`; the Core public contract
 stays in `docs/integration.md`; hardware validation workflow stays in
 `docs/hardware-test-plan.md`; historical Core validation records stay in
@@ -10,12 +10,13 @@ stays in `docs/integration.md`; hardware validation workflow stays in
 
 ## Current Status
 
-- Branch: `Core`.
-- Full Core Cut is complete for this branch: CLI runtime, wrapper scripts,
-  CLI-specific tests, and old top-level compatibility shims have been removed.
-- Distribution metadata is now `keysight-logger-core` version `1.1.1`.
-- Core is ready for the `core-v1.1.1` tag after the 2026-05-31 no-hardware
-  release regression.
+- Branch: `main`.
+- Full Core Cut is complete: CLI runtime, wrapper scripts, CLI-specific tests,
+  and old top-level compatibility shims have been removed from Core.
+- Distribution metadata is now `keysight-logger-core` version `1.2.0`.
+- Core is ready for the `core-v1.2.0` tag after the 2026-06-01 monorepo
+  dependency alignment and no-hardware release regression.
+- CLI and WebUI now depend on `keysight-logger-core>=1.2.0,<1.3`.
 - The package no longer declares a console script entry point.
 - The maintained public Python API boundary is `keysight_logger_core`.
 - Public Core symbols are covered by `tests/test_core_public_api.py`.
@@ -41,7 +42,29 @@ stays in `docs/integration.md`; hardware validation workflow stays in
 
 ## Latest Validation
 
-Latest local no-hardware validation:
+Latest local no-hardware validation for `core-v1.2.0`:
+
+```powershell
+uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]" --link-mode=copy
+```
+
+Result: passed; refreshed `keysight-logger-core` from `1.1.1` to `1.2.0`.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages/core/tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_core120
+```
+
+Result: 222 passed, 69 subtests passed on 2026-06-01.
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp_core120_full
+```
+
+Result: 389 passed, 1 warning, 145 subtests passed on 2026-06-01. Final
+release-alignment full workspace validation also passed with
+`.tmp_tests\pytest_tmp_release_all`.
+
+Previous local no-hardware validation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_core_public_api.py tests/test_core_validation.py tests/test_core_run_plan.py tests/test_core_runner.py tests/test_simulator.py tests/test_csv_writer.py packages/core/tests/test_core_package_metadata.py packages/core/tests/test_core_docs_ownership.py -q -p no:cacheprovider
@@ -99,13 +122,14 @@ previous command sequences.
   the package metadata rename.
 - Hardware validation should move through Core API snippets or adapter-owned
   tooling, not removed wrapper scripts from this branch.
-- No open Core runtime blocker is known for `core-v1.1.1`. Remaining work is
+- No open Core runtime blocker is known for `core-v1.2.0`. Remaining work is
   downstream adapter packaging and future model or measurement expansion.
 
 ## Next Work
 
 1. Keep Core-only tests green after adapter branches merge this package.
-2. Update downstream adapter packages to depend on `keysight-logger-core`.
+2. Keep downstream adapter packages aligned with the current
+   `keysight-logger-core` dependency range.
 3. Re-run no-hardware simulator validation after any runner or control-plane
    change.
 4. Keep hardware-facing changes behind explicit user confirmation and update
