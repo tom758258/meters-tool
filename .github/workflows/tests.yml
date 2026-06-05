@@ -5,8 +5,9 @@ on:
   push:
     branches:
       - main
+      - Core
       - Cli
-      - Codex
+      - Webui
 
 permissions:
   contents: read

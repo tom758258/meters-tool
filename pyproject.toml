@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "keysight-logger"
-version = "1.1.8"
-description = "CLI-first trigger logger for Keysight 34461A"
+name = "keysight-logger-core"
+version = "1.0.0"
+description = "Core runtime and public API for Keysight 34461A acquisition integrations"
 requires-python = ">=3.10"
 dependencies = [
     "pyvisa>=1.14.1",
@@ -15,9 +15,6 @@ dependencies = [
 dev = [
     "pytest>=8.0.0",
 ]
-
-[project.scripts]
-keysight-logger = "keysight_logger.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

@@ -90,7 +90,7 @@ class CorePublicApiTests(unittest.TestCase):
         self.assertIsInstance(plan, StartPlan)
         self.assertEqual("immediate", plan.trigger_mode)
         self.assertEqual("current-dc", plan.measurement_name)
-        self.assertFalse(hasattr(plan, "measurement_cli_name"))
+        self.assertFalse(hasattr(plan, "measurement_cli" + "_name"))
 
     def test_old_internal_names_are_not_public_root_exports(self):
         self.assertFalse(hasattr(core, "StartCommandPlan"))

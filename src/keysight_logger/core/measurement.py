@@ -87,10 +87,6 @@ class MeasurementDefinition:
     range_label: str
     accepts_current_range_alias: bool = False
 
-    @property
-    def cli_name(self) -> str:
-        return self.canonical_name
-
 
 CURRENT_DC_DEFINITION = MeasurementDefinition(
     canonical_name="current-dc",

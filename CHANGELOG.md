@@ -4,18 +4,15 @@
 
 - No unreleased changes yet.
 
-## cli-v1.1.8 - 2026-05-26
+## v1.0.0-core - 2026-05-26
 
-- Recorded the `core-v1.0.0` merge-base baseline on the CLI branch while
-  preserving the CLI file tree and command-line behavior.
-- Kept the CLI distribution as `keysight-logger` with the `keysight-logger`
-  console script, adapter-owned JSON/JSONL contracts, wrapper scripts, and
-  CLI-specific tests.
-- Removed the retired `--enable-hw-trigger` CLI compatibility flag. Use
-  `--trigger-mode external` for simple external hardware-triggered runs.
-- No SCPI command sequences, VISA timeout behavior, trigger wait strategy,
-  measurement logic, stop flow, cleanup order, release/local behavior, NPLC,
-  Auto Range/Zero, VM Comp behavior, or CLI JSON/JSONL schema changed.
+- Completed the Core/Cli separation on the Core branch by removing adapter
+  runtime code, wrapper scripts, adapter-specific tests, and legacy top-level
+  re-export shims.
+- Renamed package metadata to `keysight-logger-core` and removed console
+  script metadata while preserving the `keysight_logger.core` public import
+  boundary.
+- Removed the adapter measurement-name alias from Core measurement metadata.
 
 ## v1.1.7-cli
 
