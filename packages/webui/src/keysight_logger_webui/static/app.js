@@ -1235,13 +1235,14 @@ document.querySelector("#start-run").addEventListener("click", async () => {
 document.querySelector("#trigger-run").addEventListener("click", async () => {
   try {
     const metadata = triggerMetadataPayload();
-    const status = await api("/api/runs/current/command", {
+    await api("/api/runs/current/command", {
       method: "POST",
       body: JSON.stringify({
         command: "software_trigger",
         arguments: { metadata },
       }),
     });
+    const status = await api("/api/runs/current");
     if (status.latest_status === "software trigger queued") {
       markSoftwareTriggerQueuedForLog();
     }

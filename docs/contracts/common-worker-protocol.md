@@ -51,13 +51,27 @@ top-level fields:
 
 - `command`: required string command name.
 - `arguments`: optional JSON object; omitted means `{}`.
-- `job_id`: optional client-provided string that workers may echo in command
-  responses or diagnostics.
+- `job_id`: optional client-provided string that workers echo in command
+  responses.
 
 Workers should reject malformed JSON, a non-object body, unknown top-level
 fields, a missing or non-string `command`, a non-object `arguments`, and a
 non-string `job_id` with a structured validation error. Validation failures
 must not perform device I/O or enqueue domain work.
+
+Every `POST /command` HTTP response is a JSON object with this common
+envelope:
+
+- `status`: `accepted`, `rejected`, or `error`.
+- `command`: the safely identifiable client-provided command string, or
+  `null`.
+- `job_id`: the safely identifiable client-provided string, or `null`.
+
+Accepted responses use `status: "accepted"`. Queue, rate, or other
+worker-specific admission failures use `status: "rejected"` and a
+worker-specific `reason`. Validation and runtime errors use `status: "error"`
+with `error` and `message`. The common protocol does not define
+worker-specific rejection reasons.
 
 This common protocol does not define `POST /start`. Instrument-specific
 commands belong in the worker-specific contract for that instrument family.

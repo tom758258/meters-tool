@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- No unreleased changes.
-
 ## core-v1.2.1
 
+- Unified `/command` accepted, rejected, and validation responses under the
+  common JSON envelope with safe `command` and `job_id` echoing.
 - Bumped `keysight-logger-core` package metadata from `1.2.0` to `1.2.1`
   for the patch release baseline without changing public APIs or runtime
   behavior.

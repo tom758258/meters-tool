@@ -8,7 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Empty, Full, Queue
 from typing import Callable, Optional, Tuple
 
-from .command import CommandValidationError, parse_command_envelope_json
+from .command import CommandValidationError, command_response, parse_command_envelope_json
 from .instrument import is_pyvisa_timeout_error
 from .instrument_backend import InstrumentBackend
 from .models import TriggerEvent, TriggerSource
@@ -152,6 +152,14 @@ class SoftwareTriggerAdapter:
         router = self._router
 
         class Handler(BaseHTTPRequestHandler):
+            def _send_json(self, status_code: int, payload: dict[str, object]) -> None:
+                body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+                self.send_response(status_code)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
             def do_GET(self):  # type: ignore[override]
                 if self.path != "/status":
                     self.send_response(404)
@@ -188,30 +196,48 @@ class SoftwareTriggerAdapter:
                 try:
                     command = parse_command_envelope_json(payload)
                 except CommandValidationError as exc:
-                    self.send_response(400)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(
-                        json.dumps(
-                            {"status": "rejected", "reason": "validation", "message": str(exc)}
-                        ).encode("utf-8")
+                    self._send_json(
+                        400,
+                        command_response(
+                            "error",
+                            command=exc.command,
+                            job_id=exc.job_id,
+                            error="validation_error",
+                            message=str(exc),
+                        ),
                     )
                     return
                 accepted, reason = self.server.adapter._try_accept_trigger()  # type: ignore[attr-defined]
                 if not accepted:
-                    self.send_response(429)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "rejected", "reason": reason}).encode("utf-8"))
+                    self._send_json(
+                        429,
+                        command_response(
+                            "rejected",
+                            command="software_trigger",
+                            job_id=command.job_id,
+                            reason=reason,
+                        ),
+                    )
                     return
                 if not router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, metadata=command.metadata)):
-                    self.send_response(429)
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(json.dumps({"status": "rejected", "reason": "queue_full"}).encode("utf-8"))
+                    self._send_json(
+                        429,
+                        command_response(
+                            "rejected",
+                            command="software_trigger",
+                            job_id=command.job_id,
+                            reason="queue_full",
+                        ),
+                    )
                     return
-                self.send_response(202)
-                self.end_headers()
+                self._send_json(
+                    202,
+                    command_response(
+                        "accepted",
+                        command="software_trigger",
+                        job_id=command.job_id,
+                    ),
+                )
 
             def log_message(self, format, *args):  # noqa: A003
                 return

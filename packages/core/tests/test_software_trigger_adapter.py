@@ -23,6 +23,24 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         except HTTPError as err:
             return err.code
 
+    def _post_command_json(self, port: int, payload: bytes) -> tuple[int, dict, str]:
+        req = request.Request(
+            f"http://127.0.0.1:{port}/command",
+            method="POST",
+            data=payload,
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            response = request.urlopen(req, timeout=1.0)
+        except HTTPError as err:
+            response = err
+        with response:
+            return (
+                response.status,
+                json.loads(response.read().decode("utf-8")),
+                response.headers.get_content_type(),
+            )
+
     def _post_stop(self, port: int) -> int:
         req = request.Request(
             f"http://127.0.0.1:{port}/stop",
@@ -185,6 +203,55 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         _, port = server.start()
         try:
             self.assertEqual(400, self._post_command(port, b'{"command":"unknown"}'))
+            self.assertIsNone(router.wait(timeout_s=0.01))
+        finally:
+            server.stop()
+
+    def test_command_responses_use_common_envelope_and_echo_safe_identity(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=1000, queue_max=0)
+        _, port = server.start()
+        try:
+            accepted = self._post_command_json(
+                port,
+                b'{"command":"software_trigger","job_id":"job-1"}',
+            )
+            rejected = self._post_command_json(
+                port,
+                b'{"command":"software_trigger","job_id":"job-2"}',
+            )
+            invalid = self._post_command_json(
+                port,
+                b'{"command":"software_trigger","job_id":"job-3","arguments":{"metadata":[]}}',
+            )
+            invalid_job = self._post_command_json(
+                port,
+                b'{"command":"software_trigger","job_id":3}',
+            )
+
+            self.assertEqual(
+                (202, {"status": "accepted", "command": "software_trigger", "job_id": "job-1"}, "application/json"),
+                accepted,
+            )
+            self.assertEqual(
+                (429, {"status": "rejected", "command": "software_trigger", "job_id": "job-2", "reason": "rate_limited"}, "application/json"),
+                rejected,
+            )
+            self.assertEqual(400, invalid[0])
+            self.assertEqual(
+                {
+                    "status": "error",
+                    "command": "software_trigger",
+                    "job_id": "job-3",
+                    "error": "validation_error",
+                    "message": "metadata must be a JSON object",
+                },
+                invalid[1],
+            )
+            self.assertEqual(400, invalid_job[0])
+            self.assertIsNone(invalid_job[1]["job_id"])
+            self.assertEqual("software_trigger", invalid_job[1]["command"])
+            self.assertIsNotNone(router.wait(timeout_s=0.01))
             self.assertIsNone(router.wait(timeout_s=0.01))
         finally:
             server.stop()

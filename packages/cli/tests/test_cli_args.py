@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 from urllib import request
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 
 from keysight_logger_cli.cli import (
     WindowsConsoleStopHandler,
@@ -618,6 +618,9 @@ class CliCommandTests(unittest.TestCase):
         class FakeResponse:
             status = 202
 
+            def read(self):
+                return b'{"status":"accepted","command":"software_trigger","job_id":null}'
+
             def __enter__(self):
                 return self
 
@@ -728,6 +731,9 @@ class CliCommandTests(unittest.TestCase):
     def test_soft_trigger_uses_configured_timeout(self, mock_urlopen):
         class FakeResponse:
             status = 202
+
+            def read(self):
+                return b'{"status":"accepted","command":"software_trigger","job_id":null}'
 
             def __enter__(self):
                 return self
@@ -2551,6 +2557,9 @@ class CliCommandJsonTests(unittest.TestCase):
         class FakeResponse:
             status = 202
 
+            def read(self):
+                return b'{"status":"accepted","command":"software_trigger","job_id":"job-1"}'
+
             def __enter__(self):
                 return self
 
@@ -2560,7 +2569,12 @@ class CliCommandJsonTests(unittest.TestCase):
         mock_urlopen.return_value = FakeResponse()
         stdout = io.StringIO()
         with redirect_stdout(stdout):
-            rc = cmd_send_command(8765, '{"metadata":{"operator": "tom"}}', output_format="json")
+            rc = cmd_send_command(
+                8765,
+                '{"metadata":{"operator": "tom"}}',
+                output_format="json",
+                job_id="job-1",
+            )
         self.assertEqual(0, rc)
         events = [json.loads(line) for line in stdout.getvalue().splitlines() if line.strip()]
         self.assertEqual(1, len(events))
@@ -2575,6 +2589,91 @@ class CliCommandJsonTests(unittest.TestCase):
             request_sent=True,
         )
         self.assertTrue(events[0]["reachable"])
+        self.assertEqual("software_trigger", events[0]["command"])
+        self.assertEqual("job-1", events[0]["job_id"])
+
+    def test_soft_trigger_rejects_non_object_metadata_before_request(self):
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+            rc = cmd_send_command(8765, '{"metadata":[]}', output_format="json")
+
+        self.assertEqual(2, rc)
+        event = json.loads(stdout.getvalue())
+        self.assertEqual("validation", event["error_phase"])
+        self.assertEqual("validation_error", event["error"])
+        self.assertEqual("software_trigger", event["command"])
+        mock_urlopen.assert_not_called()
+
+    @patch("keysight_logger_cli.cli.request.urlopen")
+    def test_soft_trigger_http_400_merges_worker_response_and_returns_2(self, mock_urlopen):
+        body = io.BytesIO(
+            b'{"status":"error","command":"software_trigger","job_id":"job-1",'
+            b'"error":"validation_error","message":"metadata must be a JSON object"}'
+        )
+        mock_urlopen.side_effect = HTTPError(
+            "http://127.0.0.1:8765/command",
+            400,
+            "Bad Request",
+            {},
+            body,
+        )
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            rc = cmd_send_command(8765, "{}", output_format="json", job_id="job-1")
+
+        self.assertEqual(2, rc)
+        event = json.loads(stdout.getvalue())
+        self.assertEqual(400, event["http_status"])
+        self.assertEqual("validation", event["error_phase"])
+        self.assertEqual("job-1", event["job_id"])
+        self.assertEqual("validation_error", event["error"])
+
+    @patch("keysight_logger_cli.cli.request.urlopen")
+    def test_soft_trigger_empty_success_response_returns_3(self, mock_urlopen):
+        class FakeResponse:
+            status = 202
+
+            def read(self):
+                return b""
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        mock_urlopen.return_value = FakeResponse()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            rc = cmd_send_command(8765, "{}", output_format="json")
+
+        self.assertEqual(3, rc)
+        event = json.loads(stdout.getvalue())
+        self.assertEqual(202, event["http_status"])
+        self.assertIn("empty response", event["message"])
+
+    @patch("keysight_logger_cli.cli.request.urlopen")
+    def test_soft_trigger_mismatched_success_identity_returns_3(self, mock_urlopen):
+        class FakeResponse:
+            status = 202
+
+            def read(self):
+                return b'{"status":"accepted","command":"software_trigger","job_id":"other"}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        mock_urlopen.return_value = FakeResponse()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout):
+            rc = cmd_send_command(8765, "{}", output_format="json", job_id="job-1")
+
+        self.assertEqual(3, rc)
+        event = json.loads(stdout.getvalue())
+        self.assertIn("mismatched command identity", event["message"])
 
     @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
     def test_soft_command_url_error_json_returns_error_event(self, _mock_urlopen):

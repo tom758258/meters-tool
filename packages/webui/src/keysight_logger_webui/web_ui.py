@@ -13,8 +13,8 @@ from typing import Any, Callable, Optional
 from uuid import uuid4
 
 try:
-    from fastapi import Body, FastAPI, HTTPException
-    from fastapi.responses import FileResponse, StreamingResponse
+    from fastapi import Body, FastAPI, HTTPException, Request
+    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel
 except ImportError as exc:  # pragma: no cover - exercised only without web deps
@@ -35,7 +35,13 @@ from keysight_logger_core import (
     validate_start_request,
 )
 from keysight_logger_core.constants import UTC_PLUS_8
-from keysight_logger_core.command import CommandValidationError, parse_command_envelope
+from keysight_logger_core.command import (
+    CommandValidationError,
+    SoftwareTriggerCommand,
+    command_identity,
+    command_response,
+    parse_command_envelope,
+)
 from keysight_logger_core.instrument import VisaInstrument
 from keysight_logger_core.measurement import (
     get_measurement_definition,
@@ -177,14 +183,10 @@ class _WebControlPlane:
         self._ready_cb()
         return StartControlPlaneHandle(_stop_fn=self.close)
 
-    def send_command(self, payload: dict[str, Any] | None = None) -> tuple[bool, str]:
+    def send_command(self, command: SoftwareTriggerCommand) -> tuple[bool, str]:
         with self._lock:
             if self._closed or self._router is None:
                 return False, "run_not_ready"
-            try:
-                command = parse_command_envelope(payload or {})
-            except CommandValidationError as exc:
-                return False, str(exc)
             accepted, reason = self._try_accept_trigger_locked()
             if not accepted:
                 return False, reason
@@ -442,18 +444,52 @@ class WebRunManager:
             self._last_status = status
             return dict(status)
 
-    def send_command(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def send_command(self, payload: Any) -> tuple[int, dict[str, Any]]:
+        command_name, job_id = command_identity(payload)
         with self._lock:
             handle = self._active
             if handle is None or not self._is_handle_active(handle):
-                raise NoActiveRun("no active run")
-        accepted, reason = handle.control_plane.send_command(payload)
+                return 409, command_response(
+                    "error",
+                    command=command_name,
+                    job_id=job_id,
+                    error="no_active_run",
+                    message="no active run",
+                )
+        try:
+            command = parse_command_envelope(payload)
+        except CommandValidationError as exc:
+            return 400, command_response(
+                "error",
+                command=exc.command,
+                job_id=exc.job_id,
+                error="validation_error",
+                message=str(exc),
+            )
+        accepted, reason = handle.control_plane.send_command(command)
         if not accepted:
-            raise RunValidationError(reason)
+            if reason == "run_not_ready":
+                return 409, command_response(
+                    "error",
+                    command=command_name,
+                    job_id=job_id,
+                    error=reason,
+                    message="run is not ready",
+                )
+            return 429, command_response(
+                "rejected",
+                command=command_name,
+                job_id=job_id,
+                reason=reason,
+            )
         with self._lock:
             handle.latest_status = "software trigger queued"
             self._publish_status_locked(handle)
-            return dict(self._last_status)
+        return 202, command_response(
+            "accepted",
+            command=command_name,
+            job_id=job_id,
+        )
 
     def stop(self) -> dict[str, Any]:
         with self._lock:
@@ -787,12 +823,23 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
             media_type="text/event-stream",
         )
 
-    @app.post("/api/runs/current/command", status_code=202)
-    def api_command(payload: dict[str, Any] | None = Body(default=None)) -> dict[str, Any]:
+    @app.post("/api/runs/current/command")
+    async def api_command(request: Request) -> JSONResponse:
         try:
-            return app.state.manager.send_command(payload)
-        except WebRunError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+            payload = json.loads((await request.body()).decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            return JSONResponse(
+                status_code=400,
+                content=command_response(
+                    "error",
+                    command=None,
+                    job_id=None,
+                    error="validation_error",
+                    message=f"malformed JSON: {exc}",
+                ),
+            )
+        status_code, response = app.state.manager.send_command(payload)
+        return JSONResponse(status_code=status_code, content=response)
 
     @app.post("/api/runs/current/stop", status_code=202)
     def api_stop() -> dict[str, Any]:

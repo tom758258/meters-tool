@@ -252,7 +252,7 @@ Root options:
 | `--port N` | `8765` | Local command endpoint port. Supported range: `1` to `65535`. |
 | `--timeout-ms N` | `3000` | HTTP client timeout in milliseconds. Supported range: `100` to `600000`. |
 | `--command NAME` | `software_trigger` | Meters command name. This revision supports only `software_trigger`. |
-| `--arguments-json JSON` | `{}` | JSON command arguments. Use `{"metadata":{...}}` to attach trigger metadata written to CSV as `trigger_metadata`. Invalid JSON is rejected before sending the request. |
+| `--arguments-json JSON` | `{}` | Complete JSON command arguments object. Use `{"metadata":{...}}` to attach trigger metadata written to CSV as `trigger_metadata`. Invalid JSON, non-object metadata, and other command validation failures are rejected before sending the request. |
 | `--job-id TEXT` | unset | Optional client-generated job id echoed by the command envelope only. |
 | `--format text\|json` | `text` | Response output format. `json` emits one structured object for agent callers. |
 | `--json` | No | Off | Alias for `--format json`. |
@@ -436,12 +436,15 @@ Use the JSONL `run_id` as the correlation key between stdout runtime events,
 Output:
 
 ```json
-{"event": "send-command", "http_status": 202, "message": "command accepted",
- "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}
+{"command": "software_trigger", "event": "send-command", "http_status": 202,
+ "job_id": null, "message": "command accepted", "schema_version": 1,
+ "status": "accepted", "timestamp_utc": "2026-05-18T..."}
 ```
 
-Invalid `--arguments-json` JSON exits with code 2. Connection or request failures exit
-with code 3. Both emit structured error JSON objects.
+Local validation and worker HTTP `400` responses exit with code 2. HTTP `409`,
+`429`, connection/request failures, and invalid or empty successful response
+bodies exit with code 3. Structured JSON diagnostics merge worker `command`,
+`job_id`, `reason`, `error`, and `message` fields when available.
 
 ### stop --format json
 

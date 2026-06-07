@@ -92,14 +92,18 @@ def test_worker_contract_documents_cross_instrument_boundary():
     assert "Common Worker Protocol" in text
     assert "Meters worker contract only" in text
     assert "GET /status" in text
+    assert "`GET /status`, `POST /command`, `POST /stop`" in text
     assert "does not change state" in text
     assert "mutate queues" in text
 
 
-def test_cli_jsonl_contract_documents_v15_status_clients():
+def test_cli_jsonl_contract_documents_v16_command_and_status_clients():
     text = read_contract("meters-cli-jsonl-contract.md")
 
-    assert "Runtime contract revision: `v1.5`" in text
+    assert "Runtime contract revision: `v1.6`" in text
+    assert "tracks this document's evolution only" in text
+    assert "must use the JSON `schema_version` field" in text
+    assert "must not use the document revision for runtime negotiation" in text
     assert "`summary`:" in text
     assert "`ok`" in text
     assert "optional `fatal_error`" in text
@@ -112,6 +116,8 @@ def test_cli_jsonl_contract_documents_v15_status_clients():
     assert "request_sent" in text
     assert "elapsed_ms" in text
     assert "endpoint" in text
+    assert "invalid or empty" in text
+    assert "`command`, `job_id`, `reason`, `error`, and `message`" in text
 
 
 def test_common_contracts_stay_instrument_neutral():

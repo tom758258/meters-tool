@@ -10,7 +10,16 @@ METERS_SOFTWARE_TRIGGER_COMMAND = "software_trigger"
 
 
 class CommandValidationError(ValueError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        command: str | None = None,
+        job_id: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.command = command
+        self.job_id = job_id
 
 
 @dataclass(frozen=True)
@@ -44,34 +53,78 @@ def parse_command_envelope_json(raw_payload: str) -> SoftwareTriggerCommand:
     return parse_command_envelope(payload)
 
 
-def parse_command_envelope(payload: Any) -> SoftwareTriggerCommand:
+def command_identity(payload: Any) -> tuple[str | None, str | None]:
     if not isinstance(payload, dict):
-        raise CommandValidationError("request body must be a JSON object")
+        return None, None
+    command = payload.get("command")
+    job_id = payload.get("job_id")
+    return (
+        command if isinstance(command, str) and command else None,
+        job_id if isinstance(job_id, str) else None,
+    )
+
+
+def command_response(
+    status: str,
+    *,
+    command: str | None,
+    job_id: str | None,
+    reason: str | None = None,
+    error: str | None = None,
+    message: str | None = None,
+) -> dict[str, Any]:
+    response: dict[str, Any] = {
+        "status": status,
+        "command": command,
+        "job_id": job_id,
+    }
+    if reason is not None:
+        response["reason"] = reason
+    if error is not None:
+        response["error"] = error
+    if message is not None:
+        response["message"] = message
+    return response
+
+
+def parse_command_envelope(payload: Any) -> SoftwareTriggerCommand:
+    command_identity_value, job_id_identity = command_identity(payload)
+
+    def fail(message: str) -> None:
+        raise CommandValidationError(
+            message,
+            command=command_identity_value,
+            job_id=job_id_identity,
+        )
+
+    if not isinstance(payload, dict):
+        fail("request body must be a JSON object")
     unknown = sorted(set(payload) - ALLOWED_COMMAND_ENVELOPE_KEYS)
     if unknown:
-        raise CommandValidationError(f"unknown top-level field: {unknown[0]}")
+        fail(f"unknown top-level field: {unknown[0]}")
 
     command = payload.get("command")
     if not isinstance(command, str) or not command:
-        raise CommandValidationError("command must be a non-empty string")
+        fail("command must be a non-empty string")
     if command != METERS_SOFTWARE_TRIGGER_COMMAND:
-        raise CommandValidationError(f"unknown command: {command}")
+        fail(f"unknown command: {command}")
 
     job_id = payload.get("job_id")
     if job_id is not None and not isinstance(job_id, str):
-        raise CommandValidationError("job_id must be a string")
+        fail("job_id must be a string")
 
     arguments = payload.get("arguments", {})
     if not isinstance(arguments, dict):
-        raise CommandValidationError("arguments must be a JSON object")
+        fail("arguments must be a JSON object")
     metadata = arguments.get("metadata", {})
     if not isinstance(metadata, dict):
-        raise CommandValidationError("metadata must be a JSON object")
+        fail("metadata must be a JSON object")
 
-    return SoftwareTriggerCommand(
-        metadata=normalize_command_metadata(metadata),
-        job_id=job_id,
-    )
+    try:
+        normalized_metadata = normalize_command_metadata(metadata)
+    except CommandValidationError as exc:
+        fail(str(exc))
+    return SoftwareTriggerCommand(metadata=normalized_metadata, job_id=job_id)
 
 
 def software_trigger_envelope(

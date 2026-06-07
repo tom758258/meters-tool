@@ -148,6 +148,10 @@ The Web Trigger button sends a separate JSON object to
 `{ "source": "web-ui" }`; non-empty metadata must remain a JSON object and is
 merged into that default object.
 
+The command endpoint uses the Core command response envelope and must not use
+FastAPI's `{"detail": ...}` wrapper for command validation or admission
+failures. After `202`, the frontend fetches current run status separately.
+
 The UI must continue to use `/api/capabilities` as the source of truth for
 measurement options, range options, NPLC options, defaults, and trigger modes.
 Do not invent measurement or trigger options in the frontend.

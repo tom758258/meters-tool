@@ -2,10 +2,10 @@
 
 ## Unreleased
 
-- No unreleased changes.
-
 ## webui-v1.2.2
 
+- Unified WebUI software-command responses with the Core command envelope and
+  refreshed current run status after accepted frontend requests.
 - Bumped package metadata and fallback version to `keysight-logger-webui 1.2.2`
   for the patch release baseline without changing WebUI runtime behavior.
 

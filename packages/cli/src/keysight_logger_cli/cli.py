@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib import request
 from urllib.error import URLError
 
-from keysight_logger_core.command import software_trigger_envelope
+from keysight_logger_core.command import CommandValidationError, parse_command_envelope
 from keysight_logger_core.instrument import VisaInstrument
 from keysight_logger_core.measurement import format_measurement_type
 from keysight_logger_core.models import StartRequest, get_default_instrument_profile
@@ -35,6 +35,12 @@ FALLBACK_CLI_VERSION = "1.3.2"
 
 
 class StatusPayloadError(ValueError):
+    def __init__(self, message: str, http_status: int) -> None:
+        super().__init__(message)
+        self.http_status = http_status
+
+
+class CommandResponsePayloadError(ValueError):
     def __init__(self, message: str, http_status: int) -> None:
         super().__init__(message)
         self.http_status = http_status
@@ -1155,6 +1161,44 @@ def _fetch_worker_status(port: int, timeout_ms: int) -> tuple[int, dict[str, obj
         return http_status, worker_status
 
 
+def _read_command_response(response: Any, http_status: int) -> dict[str, object]:
+    raw_payload = response.read()
+    if not raw_payload:
+        raise CommandResponsePayloadError("command endpoint returned an empty response", http_status)
+    try:
+        payload = json.loads(raw_payload.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CommandResponsePayloadError(
+            f"command endpoint returned invalid JSON: {exc}",
+            http_status,
+        ) from exc
+    if not isinstance(payload, dict):
+        raise CommandResponsePayloadError(
+            "command endpoint returned an invalid JSON object",
+            http_status,
+        )
+    if payload.get("status") not in {"accepted", "rejected", "error"}:
+        raise CommandResponsePayloadError(
+            "command endpoint returned an invalid status",
+            http_status,
+        )
+    if "command" not in payload or (
+        payload["command"] is not None and not isinstance(payload["command"], str)
+    ):
+        raise CommandResponsePayloadError(
+            "command endpoint returned an invalid command identity",
+            http_status,
+        )
+    if "job_id" not in payload or (
+        payload["job_id"] is not None and not isinstance(payload["job_id"], str)
+    ):
+        raise CommandResponsePayloadError(
+            "command endpoint returned an invalid job_id identity",
+            http_status,
+        )
+    return payload
+
+
 def _normalized_status_payload(
     event: str,
     port: int,
@@ -1223,89 +1267,85 @@ def cmd_send_command(
     command: str = "software_trigger",
     job_id: str | None = None,
 ) -> int:
+    endpoint = "/command"
+    url = _client_url(port, endpoint)
+
+    def emit_error(
+        message: str,
+        *,
+        exit_code: int,
+        error_phase: str,
+        request_sent: bool,
+        reachable: bool = False,
+        http_status: int | None = None,
+        elapsed_ms: int | None = None,
+        worker_response: dict[str, object] | None = None,
+    ) -> int:
+        if output_format == "json":
+            payload = _client_error_payload(
+                "error",
+                port,
+                message,
+                exit_code=exit_code,
+                client_command="send-command",
+                error_phase=error_phase,
+                request_sent=request_sent,
+                reachable=reachable,
+                http_status=http_status,
+                method="POST",
+                url=url,
+                endpoint=endpoint,
+                timeout_ms=timeout_ms,
+                elapsed_ms=elapsed_ms,
+            )
+            if worker_response is not None:
+                for key in ("command", "job_id", "reason", "error", "message"):
+                    if key in worker_response:
+                        payload[key] = worker_response[key]
+            print(json.dumps(payload, sort_keys=True))
+        else:
+            print(message, file=sys.stderr)
+        return exit_code
+
     try:
         arguments = json.loads(arguments_json)
     except json.JSONDecodeError:
-        if output_format == "json":
-            print(
-                json.dumps(
-                    _client_error_payload(
-                        "error",
-                        port,
-                        "arguments-json must be valid JSON",
-                        exit_code=2,
-                        client_command="send-command",
-                        error_phase="validation",
-                        request_sent=False,
-                        method="POST",
-                        url=_client_url(port, "/command"),
-                        endpoint="/command",
-                        timeout_ms=timeout_ms,
-                    ),
-                    sort_keys=True,
-                )
-            )
-        else:
-            print("arguments-json must be valid JSON", file=sys.stderr)
-        return 2
-    if command != "software_trigger":
-        message = "command must be software_trigger"
-        if output_format == "json":
-            print(
-                json.dumps(
-                    _client_error_payload(
-                        "error",
-                        port,
-                        message,
-                        exit_code=2,
-                        client_command="send-command",
-                        error_phase="validation",
-                        request_sent=False,
-                        method="POST",
-                        url=_client_url(port, "/command"),
-                        endpoint="/command",
-                        timeout_ms=timeout_ms,
-                    ),
-                    sort_keys=True,
-                )
-            )
-        else:
-            print(message, file=sys.stderr)
-        return 2
+        return emit_error(
+            "arguments-json must be valid JSON",
+            exit_code=2,
+            error_phase="validation",
+            request_sent=False,
+        )
     if not isinstance(arguments, dict):
-        message = "arguments-json must be a JSON object"
-        if output_format == "json":
-            print(
-                json.dumps(
-                    _client_error_payload(
-                        "error",
-                        port,
-                        message,
-                        exit_code=2,
-                        client_command="send-command",
-                        error_phase="validation",
-                        request_sent=False,
-                        method="POST",
-                        url=_client_url(port, "/command"),
-                        endpoint="/command",
-                        timeout_ms=timeout_ms,
-                    ),
-                    sort_keys=True,
-                )
-            )
-        else:
-            print(message, file=sys.stderr)
-        return 2
-    envelope = software_trigger_envelope(
-        metadata=arguments.get("metadata", {}),
-        job_id=job_id,
-    )
+        return emit_error(
+            "arguments-json must be a JSON object",
+            exit_code=2,
+            error_phase="validation",
+            request_sent=False,
+        )
+    envelope: dict[str, object] = {"command": command, "arguments": arguments}
+    if job_id is not None:
+        envelope["job_id"] = job_id
+    try:
+        parse_command_envelope(envelope)
+    except CommandValidationError as exc:
+        return emit_error(
+            str(exc),
+            exit_code=2,
+            error_phase="validation",
+            request_sent=False,
+            worker_response={
+                "command": exc.command,
+                "job_id": exc.job_id,
+                "error": "validation_error",
+                "message": str(exc),
+            },
+        )
     if dry_run:
         _emit_client_dry_run("send-command", port, envelope, output_format, path="/command")
         return 0
-    endpoint = "/command"
     req = request.Request(
-        _client_url(port, endpoint),
+        url,
         method="POST",
         data=json.dumps(envelope, separators=(",", ":")).encode("utf-8"),
         headers={"Content-Type": "application/json"},
@@ -1314,59 +1354,81 @@ def cmd_send_command(
     try:
         with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
-            if output_format == "json":
-                print(
-                    json.dumps(
-                        {
-                            "client_command": "send-command",
-                            "elapsed_ms": elapsed_ms,
-                            "endpoint": endpoint,
-                            "event": "send-command",
-                            "http_status": response.status,
-                            "message": "command accepted",
-                            "method": "POST",
-                            "ok": True,
-                            "port": port,
-                            "reachable": True,
-                            "request_sent": True,
-                            "schema_version": CLI_EVENT_SCHEMA_VERSION,
-                            "status": "accepted",
-                            "timeout_ms": timeout_ms,
-                            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-                            "url": _client_url(port, endpoint),
-                        },
-                        sort_keys=True,
-                    )
+            worker_response = _read_command_response(response, response.status)
+            if response.status != 202 or worker_response.get("status") != "accepted":
+                raise CommandResponsePayloadError(
+                    "command endpoint returned a non-accepted success response",
+                    response.status,
                 )
+            if (
+                worker_response.get("command") != command
+                or worker_response.get("job_id") != job_id
+            ):
+                raise CommandResponsePayloadError(
+                    "command endpoint returned mismatched command identity",
+                    response.status,
+                )
+            if output_format == "json":
+                payload = {
+                    "client_command": "send-command",
+                    "elapsed_ms": elapsed_ms,
+                    "endpoint": endpoint,
+                    "event": "send-command",
+                    "http_status": response.status,
+                    "message": "command accepted",
+                    "method": "POST",
+                    "ok": True,
+                    "port": port,
+                    "reachable": True,
+                    "request_sent": True,
+                    "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                    "status": "accepted",
+                    "timeout_ms": timeout_ms,
+                    "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+                    "url": url,
+                }
+                for key in ("command", "job_id", "reason", "error", "message"):
+                    if key in worker_response:
+                        payload[key] = worker_response[key]
+                print(json.dumps(payload, sort_keys=True))
             else:
                 print(f"command accepted: {response.status}")
+    except CommandResponsePayloadError as exc:
+        elapsed_ms = int((time.monotonic() - started_at) * 1000)
+        return emit_error(
+            str(exc),
+            exit_code=3,
+            error_phase="request",
+            request_sent=True,
+            reachable=True,
+            http_status=exc.http_status,
+            elapsed_ms=elapsed_ms,
+        )
     except URLError as exc:
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         http_status = _client_http_status(exc)
-        if output_format == "json":
-            print(
-                json.dumps(
-                    _client_error_payload(
-                        "error",
-                        port,
-                        f"command request failed: {exc}",
-                        client_command="send-command",
-                        error_phase="request",
-                        request_sent=True,
-                        reachable=http_status is not None,
-                        http_status=http_status,
-                        method="POST",
-                        url=_client_url(port, endpoint),
-                        endpoint=endpoint,
-                        timeout_ms=timeout_ms,
-                        elapsed_ms=elapsed_ms,
-                    ),
-                    sort_keys=True,
-                )
-            )
-        else:
-            print(f"command request failed: {exc}", file=sys.stderr)
-        return 3
+        worker_response = None
+        if http_status is not None:
+            try:
+                worker_response = _read_command_response(exc, http_status)
+            except CommandResponsePayloadError:
+                worker_response = None
+        exit_code = 2 if http_status == 400 else 3
+        message = (
+            str(worker_response.get("message"))
+            if worker_response is not None and worker_response.get("message")
+            else f"command request failed: {exc}"
+        )
+        return emit_error(
+            message,
+            exit_code=exit_code,
+            error_phase="validation" if http_status == 400 else "request",
+            request_sent=True,
+            reachable=http_status is not None,
+            http_status=http_status,
+            elapsed_ms=elapsed_ms,
+            worker_response=worker_response,
+        )
     return 0
 
 

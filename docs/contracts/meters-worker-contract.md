@@ -16,9 +16,10 @@ runtime behavior.
 
 Orchestrators should depend only on the common lifecycle for cross-instrument
 coordination: process start, stdout JSONL observation, the JSONL `ready` event,
-`GET /status`, `POST /stop`, runtime events, process exit codes, and artifacts.
-Meters-specific trigger behavior, measurement fields, CSV columns, and
-instrument setup belong to this document, not the common protocol.
+`GET /status`, `POST /command`, `POST /stop`, runtime events, process exit
+codes, and artifacts. Meters-specific trigger behavior, measurement fields,
+CSV columns, and instrument setup belong to this document, not the common
+protocol.
 
 ## Worker Modes
 
@@ -105,11 +106,33 @@ not written to measurement metadata.
 
 Malformed JSON, non-object bodies, unknown top-level fields, a missing or
 non-string `command`, unknown commands, non-object `arguments`, non-object
-metadata, and non-string metadata keys return `400` with structured JSON and do
-not publish queue events or touch instrument I/O. Accepted requests return
-`202`. Queue and rate-limit rejections return `429` with JSON status, for example
-`{"status":"rejected","reason":"queue_full"}` or
-`{"status":"rejected","reason":"rate_limited"}`.
+metadata, non-string metadata keys, and a non-string `job_id` return `400` with
+structured JSON and do not publish queue events or touch instrument I/O.
+
+Every response includes `status`, `command`, and `job_id`. A valid
+client-provided string identity is echoed even when the request has an unknown
+command or unknown top-level field. Malformed JSON, non-object bodies, and
+non-string command identities use `command: null`; omitted or non-string
+`job_id` values use `job_id: null`.
+
+Accepted requests return `202`:
+
+```json
+{"status":"accepted","command":"software_trigger","job_id":"job-1"}
+```
+
+Queue and rate-limit rejections return `429` with `reason: "queue_full"` or
+`reason: "rate_limited"`:
+
+```json
+{"status":"rejected","command":"software_trigger","job_id":"job-1","reason":"queue_full"}
+```
+
+Validation failures return `400`:
+
+```json
+{"status":"error","command":"software_trigger","job_id":"job-1","error":"validation_error","message":"metadata must be a JSON object"}
+```
 
 This endpoint must not be used as a stop mechanism. In hardware-triggered
 simple and external-custom modes, software trigger events may be ignored by the

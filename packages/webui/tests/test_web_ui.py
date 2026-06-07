@@ -317,6 +317,10 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual(202, triggered.status_code)
         self.assertEqual(
+            {"status": "accepted", "command": "software_trigger", "job_id": None},
+            triggered.json(),
+        )
+        self.assertEqual(
             404,
             client.post(
                 "/api/runs/current/trigger",
@@ -352,6 +356,36 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("web-ui", sample["trigger_metadata"]["source"])
         self.assertRegex(sample["timestamp_utc_plus_8"], r"\+08:00$")
         self.assertIsInstance(sample["measurement_metadata"], dict)
+
+    def test_command_endpoint_returns_structured_validation_and_no_active_errors(self):
+        client, _ = self.make_client()
+
+        no_active = client.post(
+            "/api/runs/current/command",
+            json={"command": "software_trigger", "job_id": "job-1"},
+        )
+        malformed = client.post(
+            "/api/runs/current/command",
+            content="{bad json",
+            headers={"Content-Type": "application/json"},
+        )
+
+        self.assertEqual(409, no_active.status_code)
+        self.assertEqual(
+            {
+                "status": "error",
+                "command": "software_trigger",
+                "job_id": "job-1",
+                "error": "no_active_run",
+                "message": "no active run",
+            },
+            no_active.json(),
+        )
+        self.assertEqual(400, malformed.status_code)
+        self.assertEqual("error", malformed.json()["status"])
+        self.assertEqual("validation_error", malformed.json()["error"])
+        self.assertIsNone(malformed.json()["command"])
+        self.assertIsNone(malformed.json()["job_id"])
 
     def test_live_data_retains_latest_5000_samples_until_next_start(self):
         self.tempdir = tempfile.TemporaryDirectory()

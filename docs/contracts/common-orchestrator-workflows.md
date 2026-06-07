@@ -13,7 +13,8 @@ semantics, and artifacts belong in instrument-specific workflow documents.
 4. Correlate stdout events, status responses, and artifacts with `run_id` when
    the worker creates a runtime session.
 5. Use worker-specific `POST /command` requests only after the control plane is
-   ready.
+   ready. Parse the common command response envelope and correlate echoed
+   `command` and `job_id` identities.
 6. Use `GET /status` for non-mutating health and progress checks.
 7. Use `POST /stop` or the worker-specific stop client for cooperative
    cleanup.

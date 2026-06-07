@@ -2,10 +2,11 @@
 
 ## Unreleased
 
-- No unreleased changes.
-
 ## cli-v1.3.2
 
+- Updated `send-command` for runtime contract `v1.6`: shared pre-send command
+  validation, complete arguments envelopes, response parsing, identity echo,
+  and HTTP-specific exit codes.
 - Added a packaged fallback version so PyInstaller-built CLI executables can
   answer `--version` when distribution metadata and local `pyproject.toml` are
   unavailable.

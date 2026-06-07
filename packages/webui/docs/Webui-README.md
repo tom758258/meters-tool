@@ -398,7 +398,9 @@ The browser-facing API surface is:
 - `GET /api/runs/current`: returns current or latest run status.
 - `GET /api/runs/current/events`: returns Server-Sent Events (SSE) stream of run status changes.
 - `POST /api/runs/current/command`: queues a software trigger for supported
-  modes.
+  modes. Returns the common command response envelope: `202` accepted, `400`
+  validation error, `429` queue/rate rejection, or `409` when no run is active
+  or the run is not ready.
 - `POST /api/runs/current/stop`: requests stop through the Core control plane.
 - `POST /api/runs/current/open-csv`: opens the latest completed CSV.
 - `POST /api/csv/select-folder`: opens a local folder picker and returns a
@@ -406,6 +408,10 @@ The browser-facing API surface is:
 
 Do not rename, remove, or repurpose these endpoints without updating frontend
 code, tests, and documentation together.
+
+After an accepted command response, the frontend fetches
+`GET /api/runs/current` to refresh the displayed run status. Command responses
+do not embed the full run status.
 
 ## Frontend Payload Fields
 

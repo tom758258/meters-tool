@@ -92,7 +92,7 @@ try:
     )
     assert json.loads(status.stdout)["run_id"] == ready["run_id"]
 
-    subprocess.run(
+    command_result = subprocess.run(
         [
             sys.executable,
             "-m",
@@ -106,6 +106,9 @@ try:
         capture_output=True,
         check=True,
     )
+    command_response = json.loads(command_result.stdout)
+    assert command_response["status"] == "accepted"
+    assert command_response["command"] == "software_trigger"
 
     for line in worker.stdout:
         event = json.loads(line)
@@ -149,6 +152,11 @@ the current run.
 Use `send-command --json` or direct `POST /command` for software-triggered
 Meters measurement requests. Use `stop --json` or direct `POST /stop` for
 cooperative cleanup.
+
+Treat `send-command` exit `2` as local or worker validation failure. Treat
+HTTP `409`, `429`, other request failures, and invalid response bodies as exit
+`3`. The JSON diagnostics echo worker `command`, `job_id`, `reason`, `error`,
+and `message` fields when available.
 
 If the process has already exited, `stop` may return
 `status: "already_stopped"` with exit code `0`; this remains a successful

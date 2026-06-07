@@ -2,7 +2,11 @@
 
 Schema version: `1`
 
-Runtime contract revision: `v1.5`
+Runtime contract revision: `v1.6`
+
+The runtime contract revision tracks this document's evolution only.
+Orchestrators must use the JSON `schema_version` field to determine runtime
+compatibility and must not use the document revision for runtime negotiation.
 
 This document defines Meters-specific CLI JSON and JSONL payloads. Shared
 envelope rules, schema version policy, parsing guidance, and generic client
@@ -93,6 +97,13 @@ values from `100` to `600000`. Their default is `3000` ms.
 by `wait-ready` uses at most `1000` ms and polling uses a fixed 200 ms
 interval.
 
+`send-command` defaults to `--command software_trigger`,
+`--arguments-json {}`, no `--job-id`, `--format text`, and
+`--timeout-ms 3000`. It places the complete JSON object from
+`--arguments-json` in the command envelope and validates the envelope with the
+Meters command parser before sending. Invalid JSON, a non-object arguments
+value, non-object metadata, and unknown commands exit `2` without a request.
+
 `status` wraps non-mutating `GET /status` and emits a flat normalized JSON
 object. `wait-ready` emits the same status fields after any successful `200`
 JSON response from `/status`, plus `attempts`, `elapsed_ms`, and `timeout_ms`.
@@ -152,6 +163,12 @@ and optional `http_status`. Validation errors use
 Successful `send-command` and `stop` responses include the same additive
 client diagnostics when knowable: `method`, `url`, `endpoint`, `timeout_ms`,
 and `elapsed_ms`.
+
+In contract `v1.6`, `send-command` parses the worker response envelope and
+merges `command`, `job_id`, `reason`, `error`, and `message` into its JSON
+diagnostics when present. Worker HTTP `400` is a validation failure and exits
+`2`. HTTP `409`, `429`, other HTTP/request failures, and invalid or empty
+successful response bodies exit `3`.
 
 ## Dry-Run Previews
 
