@@ -1,3 +1,5 @@
+[中文版](README.zh-TW.md)
+
 # Keysight Logger
 
 Keysight Logger is a Python-based data acquisition and logging application for the Keysight 34461A digital multimeter.
