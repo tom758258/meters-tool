@@ -44,6 +44,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\p
 `list-resources --dry-run` does not create a VISA resource manager, list/open
 VISA resources, query instruments, or run release/local cleanup.
 
+Live instrument validation starts by discovering an operator-selected VISA
+resource, then running the live wrapper in plan-only mode before interactive
+live acquisition:
+
+```powershell
+.\.venv\Scripts\keysight-logger.exe list-resources --live-only --json
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\live-cli-check.ps1 -Target keysight-34461a -Connection usb -Resource "<VISA_RESOURCE>" -Suite minimal -PlanOnly
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\live-cli-check.ps1 -Target keysight-34461a -Connection usb -Resource "<VISA_RESOURCE>" -Suite minimal
+```
+
+See the CLI guide for the full live validation flow and script reference.
+
 Build the optional standalone console exe with PyInstaller from an environment
 that already has CLI and Core installed. PyInstaller is a local release-build
 tool, not a CLI runtime dependency, so install it into the venv before

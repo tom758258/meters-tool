@@ -196,6 +196,72 @@ resources, open resources, query `*IDN?`, or run release/local cleanup. If the
 console script has not been generated yet, install the package first; the module
 form above remains a development fallback.
 
+## Live Instrument Validation
+
+Use this section when moving to a new PC, a new VISA runtime, or a different
+34461A. Start with no-hardware validation, then discover a live resource, then
+run a plan-only live wrapper before allowing the wrapper to touch the
+instrument.
+
+1. Run the no-hardware recipe above.
+2. Discover resources that currently answer `*IDN?`:
+
+```powershell
+.\.venv\Scripts\keysight-logger.exe list-resources --live-only --json
+```
+
+3. Copy one resource string from the JSON output. Use that exact value in the
+   commands below. The live wrapper never scans for or guesses a resource.
+
+4. Generate the live plan without opening VISA or changing the instrument:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\live-cli-check.ps1 `
+  -Target keysight-34461a `
+  -Connection usb `
+  -Resource "<VISA_RESOURCE>" `
+  -Suite minimal `
+  -PlanOnly
+```
+
+5. If the plan looks correct, run the minimal live smoke test. The wrapper will
+   run preflight first, print the planned instrument state changes, and require
+   interactive Enter confirmation before live acquisition:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\packages\cli\scripts\live-cli-check.ps1 `
+  -Target keysight-34461a `
+  -Connection usb `
+  -Resource "<VISA_RESOURCE>" `
+  -Suite minimal
+```
+
+The minimal suite captures one bounded immediate-mode sample. It writes
+`report.json`, `summary.md`, command stdout/stderr files, and the case CSV under
+`.tmp_tests\cli_live\...`. Check `summary.md` first; a passed case should show
+`captured=1`, `errors=0`, and at least one CSV data row. Compare the CSV value
+with the 34461A front panel before trusting longer captures.
+
+For broader live coverage, use `-Suite basic` after the minimal suite passes.
+That suite covers immediate measurements and software-triggered paths. Use
+`-Suite external` only when an operator can safely provide the required
+external trigger edge. Use `-Suite full` only when both basic and external
+coverage are intended.
+
+If stdin is redirected and `-PlanOnly` is not set, `live-cli-check.ps1` refuses
+live acquisition and writes a `confirmation_required` report. This is expected:
+live instrument runs require an interactive confirmation.
+
+## CLI Validation Scripts
+
+The CLI package has three wrapper scripts:
+
+| Script | Hardware use | Purpose |
+| --- | --- | --- |
+| `packages\cli\scripts\preflight-cli.ps1` | No hardware | Runs dry-run, simulator, client dry-run, mocked `list-resources`, and wrapper contract checks. Use this before live work. |
+| `packages\cli\scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs live-wrapper plans and, with interactive confirmation, bounded live smoke cases against the explicit `-Resource`. |
+| `packages\cli\scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
+
 ## Basic Workflow
 
 1. List VISA resources.
