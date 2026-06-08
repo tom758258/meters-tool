@@ -150,3 +150,11 @@ If Windows temporary-directory permissions block pytest, rerun it with a reposit
 * [Public Contracts](docs/contracts)
 * [Meters CLI JSONL Contract](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker Contract](docs/contracts/meters-worker-contract.md)
+
+## License and Disclaimer
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+This project is an independent, unofficial project and is not affiliated with, endorsed by, or sponsored by Keysight Technologies.
+
+Users are responsible for complying with all applicable Keysight software, driver, instrument, and documentation license terms.
