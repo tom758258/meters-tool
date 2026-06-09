@@ -17,11 +17,12 @@ def test_webui_docs_are_package_local():
 
     for path in (
         "docs/USER_GUIDE.md",
-        "docs/web-ui-ai-change-rules.md",
+        "docs/web-ui-change-rules.md",
     ):
         assert (PACKAGE_ROOT / path).exists()
 
     assert not (PACKAGE_ROOT / "docs" / f"Webui-{'README'}.md").exists()
+    assert not (PACKAGE_ROOT / "docs" / f"web-ui-{'ai'}-change-rules.md").exists()
 
     cli_docs = (
         "docs/cli-integration.md",
@@ -57,7 +58,7 @@ def test_webui_docs_point_to_new_import_and_static_paths():
         read_doc(*path)
         for path in (
             ("README.md",),
-            ("docs", "web-ui-ai-change-rules.md"),
+            ("docs", "web-ui-change-rules.md"),
         )
     )
 

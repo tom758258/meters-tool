@@ -485,7 +485,7 @@ Backend adapter file:
 
 Tests:
 
-- `tests/test_web_ui.py`
+- `packages/webui/tests/test_web_ui.py`
 - `packages/webui/tests/test_launcher.py`
 - Core contract and package boundary tests listed in the validation commands
   below.
@@ -610,5 +610,5 @@ Live panel has no samples:
 
 - `README.md`: this detailed WebUI guide.
 - `docs/USER_GUIDE.md`: operator-facing WebUI usage guide.
-- `docs/web-ui-ai-change-rules.md`: rules for UI changes.
+- `docs/web-ui-change-rules.md`: rules for UI changes.
 - `CHANGELOG.md`: package release notes.

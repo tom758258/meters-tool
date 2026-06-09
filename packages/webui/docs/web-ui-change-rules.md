@@ -1,8 +1,8 @@
-# Web UI AI Change Rules
+# Web UI Change Rules
 
-This document is the working contract for any AI asked to polish or reorganize
-the Keysight Logger Web UI. It exists to let UI work move quickly without
-damaging the measurement, trigger, VISA, or cleanup behavior underneath.
+This document is the working contract for Web UI polish and reorganization
+work. It exists to let UI work move quickly without damaging the measurement,
+trigger, VISA, or cleanup behavior underneath.
 
 Read this file before changing code. Also read `AGENTS.md` and the current
 task context.
@@ -32,11 +32,11 @@ Preferred editable files:
 Optional, only when a stable UI contract changes or a new public behavior needs
 contract coverage:
 
-- `tests/test_web_ui.py`
+- `packages/webui/tests/test_web_ui.py`
 
 Optional documentation updates:
 
-- `docs/web-ui-ai-change-rules.md`, only when the UI contract itself changes or
+- `docs/web-ui-change-rules.md`, only when the UI contract itself changes or
   this document becomes stale.
 
 Keep edits surgical. Do not touch unrelated files.
@@ -116,8 +116,8 @@ are intentionally changed by a separate approved backend task.
 - `sample_capacity`
 
 Do not remove or rename those fields without updating the Live data panel,
-tests, and handoff docs. They are derived from Core `sample` events and must
-not trigger extra VISA reads.
+tests, and relevant WebUI docs. They are derived from Core `sample` events and
+must not trigger extra VISA reads.
 
 Important payload fields currently sent by the UI include:
 
@@ -309,12 +309,12 @@ Ask the user before implementing if the request requires:
 If unsure whether a change is visual or behavioral, treat it as behavioral and
 ask.
 
-## Required Checks Before Handoff
+## Required Checks Before Completion
 
 Run the narrowest relevant checks first:
 
 ```powershell
-uv run pytest tests/test_web_ui.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests/test_web_ui.py -q -p no:cacheprovider
 ```
 
 If `app.js` changed, also run:
@@ -326,7 +326,7 @@ node --check packages\webui\src\keysight_logger_webui\static\app.js
 When practical, run broader smoke tests:
 
 ```powershell
-uv run pytest tests/test_web_ui.py tests/test_capabilities.py tests/test_measurement.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest packages/webui/tests/test_web_ui.py packages/core/tests/test_capabilities.py packages/core/tests/test_measurement.py -q -p no:cacheprovider
 ```
 
 If the local environment lacks dependencies, say exactly what could not run and
@@ -355,9 +355,9 @@ Do not perform real-instrument high-risk trigger experiments unless the user
 explicitly asks. If an instrument is connected and the user requests a smoke
 test, start with low-risk immediate mode, Auto Range on, `max_samples=1`.
 
-## Handoff Format For Codex Review
+## Completion Summary
 
-When finished, provide this short handoff:
+When finished, provide this short summary:
 
 - Files changed.
 - What visual/user workflow problem was addressed.
@@ -366,6 +366,3 @@ When finished, provide this short handoff:
 - Manual UI checks run, with viewport notes if relevant.
 - Any skipped validation and why.
 - Any risk or follow-up that requires backend approval.
-
-Codex should review the diff against this document, then run or request the
-checks above before accepting the UI work.
