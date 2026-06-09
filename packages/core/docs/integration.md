@@ -1,14 +1,14 @@
 ﻿# Core Integration
 
-This document is the Core branch public contract for downstream adapters. It
+This document is the Core package public contract for downstream adapters. It
 defines the stable package-root API, request boundary, validation flow, dry-run
 plan, runtime events/results, control plane, and safety rules for acquisition
 runtime integration.
 
-Adapter branches such as CLI and WebUI should merge Core, then maintain their
-own adapter documentation and user-facing workflows from this contract. Core
-does not maintain adapter-specific JSON, terminal, websocket, wrapper, or UI
-contracts on this branch.
+Adapters such as CLI and WebUI consume Core through `keysight_logger_core` and
+the package contracts documented here, then maintain their own package-local
+documentation and user-facing workflows. Core does not maintain
+adapter-specific JSON, terminal, websocket, wrapper, or UI contracts.
 
 This contract does not change SCPI, VISA timeout behavior, trigger wait
 strategy, stop flow, cleanup order, measurement behavior, or public runtime
@@ -85,7 +85,7 @@ grouping remain adapter-owned.
 Adapters that expose DCV Ratio as a `voltage-dc` option should translate that
 adapter-owned selection into Core `measurement="voltage-dc-ratio"` before
 constructing `StartRequest`. Core does not add a separate CLI/UI flag for this
-mapping on this branch.
+mapping.
 
 ## Capabilities Lookup
 
@@ -147,8 +147,8 @@ the Core dry-run preview contract for resource, CSV path, trigger mode,
 measurement, SCPI plan, read path, cleanup steps, and buffer warnings.
 
 `StartPlan` uses Core-neutral fields such as `measurement_name`.
-Adapter branches may derive their own display or compatibility fields, but
-those fields are outside the Core schema and are not returned by Core.
+Adapters may derive their own display or compatibility fields, but those fields
+are outside the Core schema and are not returned by Core.
 
 ```python
 plan = build_start_plan(request, trigger_mode, profile, buffer_warnings=warnings)
@@ -170,8 +170,7 @@ returned as `StartRunResult`, including `ok`, `reason`, `captured`, `errors`,
 `fatal_error`, `csv_path`, `run_id`, and optional control-plane handle data.
 
 Adapters own serialization. Core does not define terminal output, HTTP
-payloads, websocket messages, artifact formats, or localized display text on
-this branch.
+payloads, websocket messages, artifact formats, or localized display text.
 
 ```python
 class EventSink:

@@ -40,8 +40,7 @@
   manager state, without accepting frontend-supplied file paths.
 - Updated WebUI branch documentation so transient branch status is separated
   from the detailed WebUI operator and maintainer guide.
-- Added `docs/Webui-README.md` as the detailed WebUI operator and maintainer
-  guide.
+- Added a detailed WebUI operator and maintainer guide.
 - Recorded current no-hardware release validation: JavaScript syntax check
   passed, focused WebUI/Core pytest passed with 74 tests and 123 subtests, and
   full pytest passed with 243 tests and 128 subtests.

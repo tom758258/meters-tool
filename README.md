@@ -141,14 +141,13 @@ If Windows temporary-directory permissions block pytest, rerun it with a reposit
 
 * [Core README](packages/core/README.md)
 * [CLI README](packages/cli/README.md)
-* [CLI Guide](packages/cli/docs/README_CLI_EN.md)
 * [WebUI README](packages/webui/README.md)
-* [WebUI Guide](packages/webui/docs/Webui-README.md)
 * [WebUI User Guide](packages/webui/docs/USER_GUIDE.md)
 
 ### Architecture and automation
 
 * [Monorepo Architecture](docs/architecture/monorepo-layout.md)
+* [Testing Guidelines](docs/architecture/testing-guidelines.md)
 * [Public Contracts](docs/contracts)
 * [Meters CLI JSONL Contract](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker Contract](docs/contracts/meters-worker-contract.md)

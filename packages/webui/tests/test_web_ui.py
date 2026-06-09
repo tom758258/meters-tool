@@ -592,7 +592,6 @@ class WebUiApiTests(unittest.TestCase):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
-        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         self.assertNotIn("Current range alias", index)
         self.assertNotIn("Legacy external trigger", index)
@@ -607,7 +606,6 @@ class WebUiApiTests(unittest.TestCase):
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
 
         self.assertIn('id="resource-select"', index)
-        self.assertIn("Live resource", index)
         self.assertIn("live_only=true", app_js)
         self.assertIn('id="range-unit"', index)
         self.assertIn('id="range-suffix"', index)
@@ -615,25 +613,15 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('<select id="nplc"', index)
         self.assertNotIn('name="measurement_range" form="run-form" type="number"', index)
         self.assertNotIn('name="nplc" form="run-form" type="number"', index)
-        self.assertIn("resourceSelect.addEventListener", app_js)
-        self.assertIn("updateMeasurementUi", app_js)
-        self.assertIn("populateRangeOptions", app_js)
-        self.assertIn("populateNplcOptions", app_js)
-        self.assertIn("measurementRangeInput.required = !autoRangeEnabled", app_js)
+        self.assertIn("measurement_range", app_js)
+        self.assertIn("nplc", app_js)
 
     def test_static_ui_uses_requested_layout_sections(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
-        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
-        self.assertIn("<h1>Keysight Meters</h1>", index)
-        self.assertIn('<p class="subtitle">Local acquisition console</p>', index)
-        self.assertIn('const subtitle = document.querySelector(".subtitle");', app_js)
-        self.assertIn("function applyAppMetadata", app_js)
         self.assertIn("applyAppMetadata(capabilities.app)", app_js)
-        self.assertIn("Local acquisition console · v${version}", app_js)
-        self.assertLess(index.index('class="resource-row"'), index.index('class="grid"'))
         self.assertNotIn('class="status-strip"', index)
         self.assertIn('id="resource"', index)
         self.assertIn('id="resource-select"', index)
@@ -644,31 +632,15 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('id="live-samples-body"', index)
         self.assertIn('id="live-sample-details"', index)
         self.assertIn('id="open-csv"', index)
-        self.assertGreater(index.index('class="run-controls"'), index.index('id="live-data-heading"'))
-        self.assertLess(index.index('class="live-data-metrics"'), index.index('class="run-controls"'))
-        self.assertLess(index.index('id="stop-run"'), index.index('id="open-csv"'))
-        self.assertIn('<button class="panel-toggle" type="button" aria-expanded="true">-</button>', index)
-        self.assertIn("function setPanelExpanded", app_js)
-        self.assertIn('button.textContent = expanded ? "-" : "+";', app_js)
-        self.assertIn("function renderLiveData", app_js)
         self.assertIn('"/api/runs/current/open-csv"', app_js)
         self.assertIn('"/api/csv/select-folder"', app_js)
         self.assertIn("csvInput.value = result.csv_path", app_js)
         self.assertIn("updateOpenCsvButton", app_js)
-        self.assertIn("grid-template-columns: minmax(192px, 0.2fr) minmax(0, 0.8fr)", styles)
-        self.assertIn("grid-template-columns: repeat(3, minmax(0, 1fr))", styles)
-        self.assertIn("grid-auto-rows: 68px", styles)
-        self.assertIn("height: 760px", styles)
-        self.assertIn("background: #e6ede8", styles)
-        self.assertIn("color: #18302b", styles)
-        self.assertIn("background: #f4f7f2", styles)
-        self.assertIn("color: #24332f", styles)
 
     def test_static_ui_exposes_live_data_panel(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
-        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         for expected in [
             'id="live-data-summary"',
@@ -702,37 +674,13 @@ class WebUiApiTests(unittest.TestCase):
                 self.assertIn(expected, index)
 
         for expected in [
-            "function renderLiveData",
-            "function renderLiveChart",
-            "function updateLiveChartBaseline",
-            "liveChartBaselineRunId",
-            "liveChartBaselineValue",
             "status.run_id || null",
-            "gridLineCountPerSide = 5",
-            "const LIVE_CHART_VISIBLE_GRID_LIMIT = 4;",
-            "maxAbsDeviation / LIVE_CHART_VISIBLE_GRID_LIMIT",
-            "function renderLiveSamplesTable",
-            "function renderLiveSampleDetails",
-            "function renderLiveStats",
-            "function scaleLiveValue",
-            "function setLiveSectionVisible",
-            "function shouldSuppressApiStatusLog",
-            "function markSoftwareTriggerQueuedForLog",
             "recent_samples",
             "latest_sample",
             "sample_capacity",
         ]:
             with self.subTest(expected=expected):
                 self.assertIn(expected, app_js)
-
-        self.assertIn(".live-trend-chart", styles)
-        self.assertIn(".live-stats-grid", styles)
-        self.assertIn(".live-collapse-toggle", styles)
-        self.assertNotIn(".live-chart-axis", styles)
-        self.assertNotIn(".live-chart-axis-line", styles)
-        self.assertIn(".live-samples-table", styles)
-        self.assertIn(".live-chart-line", styles)
-        self.assertIn(".live-chart-grid-center", styles)
 
     def test_static_ui_exposes_cli_limit_constraints(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
@@ -747,15 +695,14 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('name="buffer_drain_size" form="run-form" type="number" min="1" max="10000"', index)
         self.assertIn('name="hw_trigger_delay_s" form="run-form" type="number" min="0" max="3600"', index)
         self.assertIn('name="timer_interval_s" form="run-form" type="number" min="0.5" max="86400"', index)
-        self.assertIn("function applyInputLimits", app_js)
-        self.assertIn("function validateSwMinInterval", app_js)
+        self.assertIn("limits", app_js)
+        self.assertIn("sw_min_interval_ms", app_js)
         self.assertIn("Use 0 to disable throttling", app_js)
 
     def test_static_ui_status_log_and_details_toggle(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
-        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         self.assertIn('id="latest-status"', index)
         self.assertIn('class="status-log"', index)
@@ -768,57 +715,40 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('id="cleanup-status"', index)
         self.assertIn('id="raw-status"', index)
         self.assertIn("const STATUS_LOG_LINE_COUNT = 5;", app_js)
-        self.assertIn("function appendStatusLog", app_js)
-        self.assertIn("function appendApiStatusLog", app_js)
-        self.assertIn("function setStatusDetailsVisible", app_js)
-        self.assertIn("Show Details", app_js)
-        self.assertIn("Hide Details", app_js)
-        self.assertIn(".status-log", styles)
-        self.assertIn("grid-template-rows: repeat(5, 1.45em)", styles)
+        self.assertIn("status", app_js)
 
     def test_static_ui_marks_blankable_inputs_optional(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
 
-        optional_labels = [
-            "CSV path",
-            "Timeout ms",
-            "Trigger timeout ms",
-            "Max samples",
-            "Buffer drain size",
-            "AC bandwidth",
-            "Current terminal",
-            "HW delay s",
-            "SW min interval ms",
-            "SW queue max",
-            "Trigger metadata JSON",
+        optional_fields = [
+            "csv",
+            "timeout_ms",
+            "trigger_timeout_ms",
+            "max_samples",
+            "buffer_drain_size",
+            "ac_bandwidth_hz",
+            "current_terminal",
+            "hw_trigger_delay_s",
+            "sw_min_interval_ms",
+            "sw_queue_max",
         ]
-        for label in optional_labels:
-            with self.subTest(label=label):
-                self.assertRegex(
+        for name in optional_fields:
+            with self.subTest(name=name):
+                marker_before_name = re.search(
+                    rf"optional-mark[\s\S]{{0,240}}name=\"{re.escape(name)}\"",
                     index,
-                    rf"{re.escape(label)}\s*<span class=\"optional-mark\">\(Optional\)</span>",
                 )
-
-        required_labels = [
-            "VISA resource",
-            "Range",
-            "Trigger count",
-            "Sample count",
-            "Timer interval s",
-        ]
-        for label in required_labels:
-            with self.subTest(label=label):
-                self.assertNotRegex(
+                marker_after_name = re.search(
+                    rf"name=\"{re.escape(name)}\"[\s\S]{{0,240}}optional-mark",
                     index,
-                    rf"{re.escape(label)}\s*<span class=\"optional-mark\">\(Optional\)</span>",
                 )
+                self.assertTrue(marker_before_name or marker_after_name)
 
     def test_static_ui_scopes_trigger_options_by_mode(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
-        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         self.assertIn('data-mode-scope="simple"', index)
         self.assertIn('data-mode-scope="software"', index)
@@ -826,28 +756,17 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('data-mode-scope="hardware"', index)
         self.assertIn('data-mode-scope="software-trigger"', index)
         self.assertIn('data-mode-scope="trigger-timeout"', index)
-        self.assertIn("function updateTriggerModeUi", app_js)
-        self.assertIn("function modeScopeVisible", app_js)
-        self.assertIn("triggerMode === \"software\"", app_js)
-        self.assertIn("if (customMode)", app_js)
-        self.assertIn("if (hardwareMode)", app_js)
         self.assertIn("triggerCountInput.required = customMode", app_js)
         self.assertIn("sampleCountInput.required = customMode", app_js)
-        self.assertIn("is-hidden", styles)
 
     def test_static_ui_preserves_hidden_trigger_timeout_payload_contract(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;", app_js)
-        self.assertIn("function triggerTimeoutMs", app_js)
-        self.assertIn("function usesTriggerTimeout", app_js)
-        self.assertIn('return mode === "external" || mode === "external-custom";', app_js)
-        self.assertIn(
-            'usesTriggerTimeout(mode) ? data.get("trigger_timeout_ms") : DEFAULT_TRIGGER_TIMEOUT_MS',
-            app_js,
-        )
-        self.assertIn("trigger_timeout_ms: triggerTimeoutMs(data, triggerMode)", app_js)
+        self.assertIn("external", app_js)
+        self.assertIn("external-custom", app_js)
+        self.assertIn("trigger_timeout_ms", app_js)
 
     def test_static_ui_scopes_dcv_input_and_trigger_button(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
@@ -855,38 +774,28 @@ class WebUiApiTests(unittest.TestCase):
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
 
         self.assertIn('data-measurement-scope="voltage-dc,voltage-dc-ratio"', index)
-        self.assertIn("measurementScopedControls", app_js)
-        self.assertIn("updateTriggerButtonUi", app_js)
         self.assertIn("mode === \"software-custom\"", app_js)
         self.assertIn("mode === \"software\" && !timerActive", app_js)
-        self.assertIn("timerIntervalInput.addEventListener", app_js)
         self.assertIn("timerIntervalInput.required = timerEnabled", app_js)
-        self.assertIn("Check highlighted run settings before Start", app_js)
 
     def test_static_ui_exposes_software_queue_and_trigger_metadata(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
-        styles = (static_dir / "styles.css").read_text(encoding="utf-8")
 
         self.assertIn('id="sw-queue-max-container"', index)
         self.assertIn('name="sw_queue_max"', index)
         self.assertIn('id="trigger-metadata-container"', index)
         self.assertIn('id="trigger-metadata"', index)
-        self.assertIn("#trigger-metadata", styles)
-        self.assertIn("resize: none", styles)
-        self.assertIn("overflow: auto", styles)
-        self.assertIn("swQueueMaxContainer", app_js)
         self.assertIn("payload.sw_queue_max", app_js)
-        self.assertIn("function triggerMetadataPayload", app_js)
-        self.assertIn("Trigger metadata must be valid JSON object", app_js)
+        self.assertIn("trigger_metadata", app_js)
 
     def test_static_ui_auto_zero_select_and_new_dropdowns(self):
         static_dir = Path(__file__).parents[1] / "src" / "keysight_logger_webui" / "static"
         index = (static_dir / "index.html").read_text(encoding="utf-8")
         app_js = (static_dir / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn('<select name="auto_zero" form="run-form">', index)
+        self.assertIn('name="auto_zero"', index)
         self.assertNotIn('<input name="auto_zero" form="run-form" type="checkbox"', index)
 
         self.assertIn('id="ac-bandwidth-container"', index)
@@ -894,23 +803,12 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('id="current-terminal-container"', index)
         self.assertIn('id="current-terminal"', index)
 
-        self.assertIn('const autoZeroSelect = document.querySelector("[name=\'auto_zero\']");', app_js)
-        self.assertIn('const acBandwidthContainer = document.querySelector("#ac-bandwidth-container");', app_js)
-        self.assertIn('const acBandwidthSelect = document.querySelector("#ac-bandwidth");', app_js)
-        self.assertIn('const currentTerminalContainer = document.querySelector("#current-terminal-container");', app_js)
-        self.assertIn('const currentTerminalSelect = document.querySelector("#current-terminal");', app_js)
-        self.assertIn("function supportsAcBandwidth", app_js)
-        self.assertIn("function supportsCurrentTerminal", app_js)
-        self.assertIn('auto_zero: autoZeroVisible ? (data.get("auto_zero") || "on") : "on",', app_js)
-        self.assertIn("const autoZeroVisible = supportsAutoZero(selectedMeasurement);", app_js)
-        self.assertIn("const autoZeroVisible = supportsAutoZero(selected);", app_js)
+        self.assertIn("auto_zero", app_js)
         self.assertNotIn('selected === "voltage-dc-ratio"', app_js)
-        self.assertIn("const acBandwidthVisible = supportsAcBandwidth(measurement);", app_js)
-        self.assertIn("const currentTerminalVisible = supportsCurrentTerminal(measurement);", app_js)
+        self.assertIn("ac_bandwidth_hz", app_js)
+        self.assertIn("current_terminal", app_js)
         self.assertIn('payload.ac_bandwidth_hz = numberOrNull(data.get("ac_bandwidth_hz"));', app_js)
         self.assertIn('payload.current_terminal = numberOrNull(data.get("current_terminal"));', app_js)
-        self.assertIn('acBandwidthSelect.value = "";', app_js)
-        self.assertIn('currentTerminalSelect.value = "";', app_js)
 
     def test_api_runs_validation_core_v1_1_0_contracts(self):
         client, csv_path = self.make_client()

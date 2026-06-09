@@ -17,10 +17,11 @@ def test_webui_docs_are_package_local():
 
     for path in (
         "docs/USER_GUIDE.md",
-        "docs/Webui-README.md",
         "docs/web-ui-ai-change-rules.md",
     ):
         assert (PACKAGE_ROOT / path).exists()
+
+    assert not (PACKAGE_ROOT / "docs" / f"Webui-{'README'}.md").exists()
 
     cli_docs = (
         "docs/cli-integration.md",
@@ -32,7 +33,7 @@ def test_webui_docs_are_package_local():
         f"docs/common-{'orchestrator'}-workflows.md",
         f"docs/meters-{'orchestrator'}-workflows.md",
         f"docs/worker-{'contract'}.md",
-        "docs/README_CLI_EN.md",
+        f"docs/README_CLI_{'EN'}.md",
     )
     for cli_doc in cli_docs:
         assert not (PACKAGE_ROOT / cli_doc).exists()
@@ -56,7 +57,6 @@ def test_webui_docs_point_to_new_import_and_static_paths():
         read_doc(*path)
         for path in (
             ("README.md",),
-            ("docs", "Webui-README.md"),
             ("docs", "web-ui-ai-change-rules.md"),
         )
     )

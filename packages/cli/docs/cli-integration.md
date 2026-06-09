@@ -1,8 +1,8 @@
 # CLI Integration
 
 This document is for maintainers of the CLI adapter. Shared Core contracts live
-in `docs/integration.md`; user-facing command usage lives in
-`docs/README_CLI_EN.md`; shared and Meters JSON/JSONL schema details live in
+in `packages/core/docs/integration.md`; user-facing command usage lives in
+`packages/cli/README.md`; shared and Meters JSON/JSONL schema details live in
 root `docs/contracts/`.
 
 This is documentation-only. It does not change runtime behavior, SCPI, VISA,
@@ -22,11 +22,10 @@ trigger handling, cleanup order, JSON schema, or public API.
 
 Core owns shared validation, dry-run plan construction, runtime orchestration,
 typed events/results, and cleanup sequencing. See
-`docs/integration.md` for that boundary. After `core-v1.0.0`, the Core
-branch no longer carries CLI runtime, wrapper scripts, CLI-specific tests, or
-legacy top-level compatibility shims. This CLI branch owns the remaining
-adapter runtime, package metadata, scripts, and tests, but no longer supports
-old root-level Core module import paths.
+`packages/core/docs/integration.md` for that boundary. The CLI package owns the
+adapter runtime, argparse mapping, JSON/JSONL adaptation, wrapper scripts,
+package metadata, scripts, and tests. It no longer supports old root-level Core
+module import paths.
 
 ## Namespace To StartRequest
 
@@ -76,9 +75,8 @@ Terminal signal and keyboard stop handling are CLI concerns. The CLI injects
 terminal controls into the Core runner; Core remains responsible for routing
 stop into the acquisition engine and running cleanup in the documented order.
 
-Do not move terminal-specific behavior into WebUI adapters. WebUI stop routing
-should use a Core control plane or backend job controller, as described in
-`docs/webui-integration.md`.
+Do not move terminal-specific behavior into other adapters. Adapter stop
+routing should use Core control-plane APIs or adapter-owned job controllers.
 
 ## Client Commands
 

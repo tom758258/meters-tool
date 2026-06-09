@@ -32,7 +32,7 @@ def test_core_docs_are_package_local():
         f"docs/meters-worker-{'contract'}.md",
         f"docs/common-{'orchestrator'}-workflows.md",
         f"docs/meters-{'orchestrator'}-workflows.md",
-        "docs/Webui-README.md",
+        f"docs/Webui-{'README'}.md",
     )
     for adapter_doc in adapter_docs:
         assert not (PACKAGE_ROOT / adapter_doc).exists()
@@ -45,6 +45,24 @@ def test_core_integration_names_public_core_api():
         assert name in text
 
     assert "keysight_logger_core" in text
+
+
+def test_core_integration_uses_package_boundary_wording():
+    text = read_doc("docs", "integration.md")
+
+    assert "Core package public contract" in text
+    assert "keysight_logger_core" in text
+
+    obsolete_branch_terms = (
+        "Core branch",
+        "CLI branch",
+        "Adapter branches",
+        "adapter branches",
+        "merge Core",
+        "on this branch",
+    )
+    for term in obsolete_branch_terms:
+        assert term not in text
 
 
 def test_core_docs_do_not_document_adapter_schema_as_core_contract():

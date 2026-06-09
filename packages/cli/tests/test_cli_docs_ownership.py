@@ -22,9 +22,10 @@ def test_cli_docs_are_package_local_and_contracts_are_root_level():
 
     for path in (
         "docs/cli-integration.md",
-        "docs/README_CLI_EN.md",
     ):
         assert (PACKAGE_ROOT / path).exists()
+
+    assert not (PACKAGE_ROOT / "docs" / f"README_CLI_{'EN'}.md").exists()
 
     removed_contracts = (
         f"docs/cli-{'jsonl'}-contract.md",
@@ -45,7 +46,7 @@ def test_cli_docs_are_package_local_and_contracts_are_root_level():
     ):
         assert (REPO_ROOT / "docs" / "contracts" / contract).exists()
 
-    assert not (PACKAGE_ROOT / "docs/Webui-README.md").exists()
+    assert not (PACKAGE_ROOT / "docs" / f"Webui-{'README'}.md").exists()
 
 
 def test_cli_integration_keeps_cli_fields_out_of_core_schema():
@@ -55,6 +56,49 @@ def test_cli_integration_keeps_cli_fields_out_of_core_schema():
     assert "not Core schema" in text
     assert "argparse.Namespace" in text
     assert "`--enable-hw-trigger` was removed" in text
+    assert "packages/core/docs/integration.md" in text
+
+
+def test_cli_integration_uses_package_boundary_wording():
+    text = read_doc("docs", "cli-integration.md")
+
+    assert "The CLI package owns" in text
+    assert "packages/core/docs/integration.md" in text
+
+    obsolete_branch_terms = (
+        "Core branch",
+        "CLI branch",
+        "Adapter branches",
+        "adapter branches",
+        "merge Core",
+        "on this branch",
+        "This CLI branch",
+    )
+    for term in obsolete_branch_terms:
+        assert term not in text
+
+
+def test_cli_docs_do_not_link_removed_or_webui_guides():
+    text = "\n".join(
+        read_doc(*path)
+        for path in (
+            ("README.md",),
+            ("docs", "cli-integration.md"),
+        )
+    )
+
+    forbidden = (
+        f"README_CLI_{'EN'}.md",
+        f"README_CLI_{'ZH-TW'}.md",
+        f"README_UI_{'EN'}.md",
+        f"README_UI_{'ZH-TW'}.md",
+        f"Webui-{'README'}.md",
+        f"docs/{'webui'}-integration.md",
+        "packages/webui/README.md",
+        "packages/webui/docs/",
+    )
+    for value in forbidden:
+        assert value not in text
 
 
 def test_cli_changelog_contains_only_cli_release_headings():

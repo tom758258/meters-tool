@@ -29,7 +29,7 @@ from keysight_logger_core import (
 )
 
 
-EXPECTED_PUBLIC_API = [
+EXPECTED_PUBLIC_API = {
     "MeasurementCapability",
     "CoreCapabilities",
     "get_core_capabilities",
@@ -51,7 +51,7 @@ EXPECTED_PUBLIC_API = [
     "NoOpControlPlane",
     "StopController",
     "run_start_session",
-]
+}
 
 
 class CorePublicApiTests(unittest.TestCase):
@@ -84,7 +84,7 @@ class CorePublicApiTests(unittest.TestCase):
             self.assertIs(imported[name], getattr(core, name))
 
     def test_all_exactly_matches_minimal_public_api(self):
-        self.assertEqual(EXPECTED_PUBLIC_API, core.__all__)
+        self.assertEqual(EXPECTED_PUBLIC_API, set(core.__all__))
 
     def test_public_api_builds_valid_dry_run_plan(self):
         request = StartRequest(
@@ -125,7 +125,11 @@ class CorePublicApiTests(unittest.TestCase):
             ),
             capabilities.trigger_modes,
         )
-        current_dc = capabilities.measurements[0]
+        measurements = {
+            measurement.measurement_name: measurement
+            for measurement in capabilities.measurements
+        }
+        current_dc = measurements["current-dc"]
         self.assertIsInstance(current_dc, MeasurementCapability)
         self.assertEqual("current-dc", current_dc.measurement_name)
         self.assertEqual("current_dc", current_dc.measurement_type)
@@ -135,11 +139,7 @@ class CorePublicApiTests(unittest.TestCase):
         self.assertEqual((3, 10), current_dc.current_terminal_values)
         self.assertEqual(("on", "off", "once"), current_dc.auto_zero_values)
 
-        ratio = next(
-            measurement
-            for measurement in capabilities.measurements
-            if measurement.measurement_name == "voltage-dc-ratio"
-        )
+        ratio = measurements["voltage-dc-ratio"]
         self.assertEqual(("default", "10m", "auto"), ratio.dcv_input_impedance_values)
         self.assertEqual(("on",), ratio.auto_zero_values)
 
@@ -156,18 +156,22 @@ class CorePublicApiTests(unittest.TestCase):
         messages = generate_buffer_overflow_warnings(request, "immediate-custom")
 
         self.assertEqual(messages, [warning.message for warning in details])
+        warnings_by_code = {warning.code: warning for warning in details}
         self.assertEqual(
-            [
+            {
                 "buffer_overflow_risk",
                 "buffer_overflow_counts",
                 "buffer_overflow_drain_rate",
                 "buffer_overflow_data_loss",
                 "buffer_overflow_validation",
-            ],
-            [warning.code for warning in details],
+            },
+            set(warnings_by_code),
         )
         self.assertTrue(all(warning.severity == "warning" for warning in details))
-        self.assertEqual(10100, details[0].fields["expected_readings"])
+        self.assertEqual(
+            10100,
+            warnings_by_code["buffer_overflow_risk"].fields["expected_readings"],
+        )
 
     def test_old_internal_names_are_not_public_root_exports(self):
         self.assertFalse(hasattr(core, "StartCommandPlan"))

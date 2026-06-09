@@ -29,7 +29,8 @@ Preferred editable files:
 - `packages/webui/src/keysight_logger_webui/static/styles.css`
 - `packages/webui/src/keysight_logger_webui/static/app.js`
 
-Optional, only when needed to protect existing UI behavior with tests:
+Optional, only when a stable UI contract changes or a new public behavior needs
+contract coverage:
 
 - `tests/test_web_ui.py`
 
@@ -159,8 +160,11 @@ Do not invent measurement or trigger options in the frontend.
 ## DOM And Form Contract To Preserve
 
 You may reorganize layout and visual grouping, but preserve functional IDs,
-`name` attributes, and scope attributes unless you also update tests and prove
-behavior is unchanged.
+`name` attributes, and scope attributes unless the stable UI contract changes.
+Only update source-string/static tests for those stable contracts; do not lock
+CSS colors, layout measurements, helper function names, local JavaScript
+variable names, or panel copy as a substitute for behavioral coverage. See the
+root [Testing Guidelines](../../../docs/architecture/testing-guidelines.md).
 
 Important IDs:
 

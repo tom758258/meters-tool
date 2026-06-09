@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import re
 from pathlib import Path
+from urllib.parse import unquote
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -127,3 +128,40 @@ def test_public_package_versions_match_package_metadata():
             in readme
         )
         assert f"| {label} | `{distribution}` | `{import_name}` | `{version}` |" in architecture
+
+
+def test_readme_markdown_links_point_to_existing_local_targets():
+    readmes = (
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "README.zh-TW.md",
+        REPO_ROOT / "packages" / "core" / "README.md",
+        REPO_ROOT / "packages" / "cli" / "README.md",
+        REPO_ROOT / "packages" / "webui" / "README.md",
+    )
+    link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+    missing = []
+
+    for readme in readmes:
+        text = readme.read_text(encoding="utf-8")
+        for match in link_pattern.finditer(text):
+            target = match.group(1).strip()
+            if (
+                not target
+                or target.startswith("#")
+                or re.match(r"^[a-z][a-z0-9+.-]*:", target, re.IGNORECASE)
+            ):
+                continue
+
+            path_part = unquote(target.split("#", 1)[0])
+            if not path_part:
+                continue
+            candidate = (readme.parent / path_part).resolve()
+            try:
+                candidate.relative_to(REPO_ROOT)
+            except ValueError:
+                missing.append(f"{readme.relative_to(REPO_ROOT).as_posix()}: escapes repo: {target}")
+                continue
+            if not candidate.exists():
+                missing.append(f"{readme.relative_to(REPO_ROOT).as_posix()}: missing {target}")
+
+    assert not missing, "\n".join(missing)

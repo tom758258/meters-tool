@@ -12,7 +12,6 @@ RUNNABLE_MODULE_PATTERNS = (
 def test_active_docs_prefer_console_script_for_runnable_cli_examples():
     repo_root = Path(__file__).resolve().parents[1]
     forbidden_docs = [
-        repo_root / "README.md",
         repo_root / "docs" / "cli-integration.md",
     ]
 
@@ -24,15 +23,15 @@ def test_active_docs_prefer_console_script_for_runnable_cli_examples():
 
 def test_cli_guide_module_form_only_appears_as_explicit_alternative():
     repo_root = Path(__file__).resolve().parents[1]
-    path = repo_root / "docs" / "README_CLI_EN.md"
+    path = repo_root / "README.md"
     lines = path.read_text(encoding="utf-8").splitlines()
-    module_lines = [
-        line
-        for line in lines
-        if any(pattern in line for pattern in RUNNABLE_MODULE_PATTERNS)
-    ]
+    context_terms = ("fallback", "alternative", "development")
+    for line_number, line in enumerate(lines):
+        if not any(pattern in line for pattern in RUNNABLE_MODULE_PATTERNS):
+            continue
 
-    assert module_lines == [
-        r".\.venv\Scripts\python.exe -m keysight_logger_cli <command> [options]",
-        r".\.venv\Scripts\python.exe -m keysight_logger_cli <command> [options]",
-    ]
+        window = "\n".join(lines[max(0, line_number - 4) : line_number + 5]).lower()
+        assert any(term in window for term in context_terms), (
+            "module-form CLI examples must be framed as fallback, alternative, "
+            f"or development usage near line {line_number + 1}"
+        )
