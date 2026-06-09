@@ -51,7 +51,7 @@ These instructions guide coding agents working in this repository. They are long
 
 ## 7. Testing Rules
 
-- Follow the contributor-facing [Testing Guidelines](docs/architecture/testing-guidelines.md): tests should protect public contracts, instrument safety boundaries, package ownership, stable schemas, stable endpoints, and private-info boundaries.
+- Follow the contributor-facing [Testing Guidelines](docs/testing-guidelines.md): tests should protect public contracts, instrument safety boundaries, package ownership, stable schemas, stable endpoints, and private-info boundaries.
 - Do not add overly precise prose, UI implementation, CSS, JavaScript helper-name, list-order, or generated-count assertions unless the checked detail is a public contract or safety/privacy boundary and the test makes that reason clear.
 - Run the narrowest relevant tests first, then broader tests when practical.
 - Common commands:

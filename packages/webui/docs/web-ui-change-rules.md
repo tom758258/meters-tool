@@ -164,7 +164,7 @@ You may reorganize layout and visual grouping, but preserve functional IDs,
 Only update source-string/static tests for those stable contracts; do not lock
 CSS colors, layout measurements, helper function names, local JavaScript
 variable names, or panel copy as a substitute for behavioral coverage. See the
-root [Testing Guidelines](../../../docs/architecture/testing-guidelines.md).
+root [Testing Guidelines](../../../docs/testing-guidelines.md).
 
 Important IDs:
 

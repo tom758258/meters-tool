@@ -147,7 +147,7 @@ If Windows temporary-directory permissions block pytest, rerun it with a reposit
 ### Architecture and automation
 
 * [Monorepo Architecture](docs/architecture/monorepo-layout.md)
-* [Testing Guidelines](docs/architecture/testing-guidelines.md)
+* [Testing Guidelines](docs/testing-guidelines.md)
 * [Public Contracts](docs/contracts)
 * [Meters CLI JSONL Contract](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker Contract](docs/contracts/meters-worker-contract.md)
