@@ -1,4 +1,4 @@
-[中文](README.zh-TW.md)
+[繁體中文](README.zh-TW.md)
 
 # Keysight Logger
 
