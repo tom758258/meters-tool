@@ -1005,8 +1005,8 @@ function applyAppMetadata(app) {
   }
   const version = app?.version;
   subtitle.textContent = version
-    ? `Local acquisition console · v${version}`
-    : "Local acquisition console";
+    ? `Unofficial Tool v${version}`
+    : "Unofficial Tool";
 }
 
 async function loadCapabilities() {
