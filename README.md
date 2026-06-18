@@ -79,30 +79,61 @@ Windows creates virtualenv console wrappers such as
 
 ## Build
 
-Build the wheel and source distribution:
+Build the wheel and source distribution. This uses the `build` package from
+the `dev` extra installed above:
 
 ```powershell
 .\.venv\Scripts\python.exe -m build
 ```
 
-This produces one Python distribution:
+This produces only one Python distribution:
 
 ```text
 dist\keysight_logger-1.4.0-py3-none-any.whl
 dist\keysight_logger-1.4.0.tar.gz
 ```
 
-Standalone executables are separate PyInstaller workflows:
+Standalone executables are separate PyInstaller workflows. Install PyInstaller
+before building exe artifacts:
+
+```powershell
+uv pip install pyinstaller --python .\.venv\Scripts\python.exe
+```
+
+If your virtual environment uses pip directly:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pyinstaller
+```
+
+Build the standalone CLI and WebUI launcher executables:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_cli_exe.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_exe.ps1
 ```
 
+By default, these commands produce:
+
+```text
+dist\keysight-logger.exe
+dist\keysight-logger-webui-launcher.exe
+```
+
 Build a release folder with wheel, sdist, standalone executables, and checksums:
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.ps1
+```
+
+This produces versioned release artifacts:
+
+```text
+release\1.4.0\keysight-logger-1.4.0.exe
+release\1.4.0\keysight-logger-webui-launcher-1.4.0.exe
+release\1.4.0\keysight_logger-1.4.0-py3-none-any.whl
+release\1.4.0\keysight_logger-1.4.0.tar.gz
+release\1.4.0\checksums.txt
 ```
 
 ## Test

@@ -70,6 +70,8 @@ These instructions guide coding agents working in this repository. They are long
 
 - Keep long-term agent rules in this file.
 - Keep tracked public docs limited to README, changelog, architecture, contracts, integration guides, user guides, supported models, and change rules.
+- Default documentation edits should update English `.md` files only. Do not update Traditional Chinese docs such as `README.zh-TW.md` unless explicitly requested.
+- Do not update HTML or static UI copy as part of ordinary documentation work unless explicitly requested or required by a user-facing UI change.
 - Keep current planning, package status, validation records, and hardware-specific operator context outside tracked public docs.
 - Do not add personal filesystem paths, real VISA resources, instrument serial numbers, or link-local/private lab IP addresses to tracked docs.
 - Do not duplicate large status sections here.

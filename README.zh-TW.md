@@ -71,30 +71,59 @@ Windows 會建立 virtualenv console wrappers，例如
 
 ## 建置
 
-建置 wheel 與 source distribution：
+建置 wheel 與 source distribution。這會使用上面安裝的 `dev` 額外相依套件中的 `build` 套件：
 
 ```powershell
 .\.venv\Scripts\python.exe -m build
 ```
 
-輸出會是一個 Python distribution：
+這會產生僅一個 Python distribution：
 
 ```text
 dist\keysight_logger-1.4.0-py3-none-any.whl
 dist\keysight_logger-1.4.0.tar.gz
 ```
 
-Standalone executable 是獨立的 PyInstaller 流程：
+獨立執行檔是獨立的 PyInstaller 工作流程。在建置 exe 產物之前，請先安裝 PyInstaller：
+
+```powershell
+uv pip install pyinstaller --python .\.venv\Scripts\python.exe
+```
+
+如果您的虛擬環境直接使用 pip：
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install pyinstaller
+```
+
+建置獨立的 CLI 和 WebUI 啟動器執行檔：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_cli_exe.ps1
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_exe.ps1
 ```
 
-建立 release 資料夾，包含 wheel、sdist、standalone executable 與 checksums：
+預設情況下，這些命令會產生：
+
+```text
+dist\keysight-logger.exe
+dist\keysight-logger-webui-launcher.exe
+```
+
+建置包含 wheel、sdist、獨立執行檔與總和檢查碼（checksums）的 release 資料夾：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.ps1
+```
+
+這會產生帶有版本號的 release 產物：
+
+```text
+release\1.4.0\keysight-logger-1.4.0.exe
+release\1.4.0\keysight-logger-webui-launcher-1.4.0.exe
+release\1.4.0\keysight_logger-1.4.0-py3-none-any.whl
+release\1.4.0\keysight_logger-1.4.0.tar.gz
+release\1.4.0\checksums.txt
 ```
 
 ## 測試
