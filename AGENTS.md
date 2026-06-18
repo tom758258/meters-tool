@@ -33,11 +33,11 @@ These instructions guide coding agents working in this repository. They are long
 
 ## 5. Package Metadata Boundary
 
-- `packages/*/pyproject.toml` files are product/package identity boundary files. Do not change them without explicit user approval.
-- Root `pyproject.toml` is workspace tooling only. Changes there affect test/tool behavior, not package identity.
-- Before modifying any `pyproject.toml`, stop and ask the user. Clearly state whether the change affects package name, package version, package description, dependencies or optional dependency groups, console scripts or entry points, build system, pytest/ruff/mypy/tool configuration, or Core/CLI/WebUI package ownership.
-- Do not rename the package, add or remove console scripts, or change dependency relationships as part of unrelated Core, CLI, WebUI, test, or documentation work.
-- For branch separation work, treat Core, CLI, and WebUI package metadata as separate product decisions. Do not assume Core package metadata should be merged into CLI or WebUI branches, or that CLI/WebUI metadata should be copied back into Core.
+- The root `pyproject.toml` is the single distribution metadata boundary for `keysight-logger`.
+- Do not recreate `packages/*/pyproject.toml` or split Core, CLI, and WebUI back into separate distributions without explicit user approval.
+- Before modifying `pyproject.toml`, stop and ask the user. Clearly state whether the change affects package name, package version, package description, dependencies or optional dependency groups, console scripts or entry points, build system, pytest/ruff/mypy/tool configuration, or Core/CLI/WebUI component ownership.
+- Do not rename the distribution, add or remove console scripts, or change dependency relationships as part of unrelated Core, CLI, WebUI, test, or documentation work.
+- Preserve the current import boundaries: `keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
 
 ## 6. Project-Specific Safety Rules
 
@@ -57,10 +57,10 @@ These instructions guide coding agents working in this repository. They are long
 - Common commands:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest packages/core/tests -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest packages/cli/tests -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest packages/webui/tests -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests/core -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests/cli -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests/webui -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 ```
 
 - Full test runs may hit local Windows temp or pytest cache permission warnings. Report that clearly and rely on focused tests plus real instrument validation when full tests are blocked by environment permissions.

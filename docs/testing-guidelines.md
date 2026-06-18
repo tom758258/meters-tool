@@ -7,13 +7,13 @@ breaking users.
 
 ## What To Test
 
-- Public Python APIs, package ownership boundaries, console entry points, JSON
+- Public Python APIs, component ownership boundaries, console entry points, JSON
   and JSONL schema fields, HTTP endpoints, request payload names, and stable DOM
   IDs or form `name` attributes used by automation.
 - Instrument safety behavior, including cleanup order, stop/release behavior,
   trigger read-path selection, and validation limits that prevent risky runs.
 - Documentation structure that affects users or maintainers: live links,
-  package-local ownership, stale renamed paths, private lab information, and
+  component ownership, stale renamed paths, private lab information, and
   durable contract headings or schema tokens.
 
 ## What Not To Freeze
@@ -33,7 +33,7 @@ breaking users.
 Documentation tests should prefer structural checks over prose checks:
 
 - Verify that linked files exist and old public paths are not referenced.
-- Check durable headings, contract revision tokens, schema field names, package
+- Check durable headings, contract revision tokens, schema field names,
   names, import names, and safety/privacy boundaries.
 - Do not require full paragraphs or exact natural-language sentences unless the
   sentence itself is a public warning, legal/safety boundary, or contract text.
@@ -56,4 +56,4 @@ to users or automation.
 
 When adding a strict assertion, make the reason clear in the test name or nearby
 code. Strict tests are appropriate when the checked detail is a public contract,
-an instrument safety boundary, a privacy boundary, or a package ownership rule.
+an instrument safety boundary, a privacy boundary, or a component ownership rule.

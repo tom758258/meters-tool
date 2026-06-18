@@ -40,10 +40,19 @@ jobs:
       - name: Install package
         run: |
           uv venv .venv
-          uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]"
+          uv pip install -e ".[all,dev]"
+
+      - name: Build package
+        run: ./.venv/bin/python -m build
+
+      - name: Smoke commands
+        run: |
+          ./.venv/bin/python -c "import keysight_logger_core; import keysight_logger_cli; import keysight_logger_webui"
+          ./.venv/bin/keysight-logger --help
+          ./.venv/bin/keysight-logger-webui --help
 
       - name: Run tests
-        run: ./.venv/bin/python -m pytest packages tests -q -p no:cacheprovider
+        run: ./.venv/bin/python -m pytest tests -q -p no:cacheprovider
 
   pytest-windows:
     name: Windows Python ${{ matrix.python-version }}
@@ -71,7 +80,16 @@ jobs:
       - name: Install package
         run: |
           uv venv .venv
-          uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]"
+          uv pip install -e ".[all,dev]"
+
+      - name: Build package
+        run: .\.venv\Scripts\python.exe -m build
+
+      - name: Smoke commands
+        run: |
+          .\.venv\Scripts\python.exe -c "import keysight_logger_core; import keysight_logger_cli; import keysight_logger_webui"
+          .\.venv\Scripts\keysight-logger.exe --help
+          .\.venv\Scripts\keysight-logger-webui.exe --help
 
       - name: Run tests
-        run: .\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider
+        run: .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider

@@ -1,12 +1,55 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "keysight-logger"
+version = "1.4.0"
+description = "Keysight 34461A acquisition toolkit with Core, CLI, and WebUI components"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyvisa>=1.14.1",
+]
+
+[project.optional-dependencies]
+webui = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+    "build",
+]
+all = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+]
+
+[project.scripts]
+keysight-logger = "keysight_logger_cli.cli:main"
+keysight-logger-webui = "keysight_logger_webui.web_ui:main"
+keysight-logger-webui-launcher = "keysight_logger_webui.launcher:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = [
+    "keysight_logger_core*",
+    "keysight_logger_cli*",
+    "keysight_logger_webui*",
+]
+
+[tool.setuptools.package-data]
+keysight_logger_webui = [
+    "static/*.html",
+    "static/*.css",
+    "static/*.js",
+]
+
 [tool.pytest.ini_options]
-pythonpath = [
-    "packages/core/src",
-    "packages/cli/src",
-    "packages/webui/src",
-]
-testpaths = [
-    "packages/core/tests",
-    "packages/cli/tests",
-    "packages/webui/tests",
-    "tests",
-]
+pythonpath = ["src"]
+testpaths = ["tests"]

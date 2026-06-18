@@ -1,151 +1,139 @@
-[中文版](README.zh-TW.md)
+[中文](README.zh-TW.md)
 
 # Keysight Logger
 
-Keysight Logger is a Python-based data acquisition and logging application for the Keysight 34461A digital multimeter.
+Keysight Logger is a Python data acquisition and logging toolkit for the
+Keysight 34461A digital multimeter. It provides one installable distribution,
+`keysight-logger` `1.4.0`, while preserving three import packages:
+`keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
 
-It supports DC and AC current, DC and AC voltage, DC voltage ratio, and 2-wire or 4-wire resistance measurements over VISA. Each captured sample is written as one row in a CSV file, together with its timestamp, measurement type, unit, trigger source, and related metadata.
-
-The project provides both a command-line interface and a local WebUI, and supports software, timer, external hardware, immediate, and buffered custom trigger modes.
+The project supports DC and AC current, DC and AC voltage, DC voltage ratio,
+and 2-wire or 4-wire resistance measurements over VISA. Each captured sample is
+written as one CSV row with timestamp, measurement type, unit, trigger source,
+and related metadata.
 
 ## Features
 
 * Control a Keysight 34461A over USB or LAN using VISA
-* Measure:
-
-  * DC current
-  * AC current
-  * DC voltage
-  * AC voltage
-  * DC voltage ratio
-  * 2-wire resistance
-  * 4-wire resistance
-* Record one CSV row for every captured sample
-* Configure measurement range, NPLC, Auto Zero, AC bandwidth, current terminal, and DC voltage input impedance
+* Configure measurement range, NPLC, Auto Zero, AC bandwidth, current terminal,
+  and DC voltage input impedance
 * Support software, timer, external hardware, immediate, and buffered trigger workflows
 * Preview instrument commands using dry-run mode
 * Test workflows without hardware using the built-in simulator
 * Operate through either the CLI or local WebUI
 * Produce JSON and JSONL output for automation, agents, and orchestrators
 
-## Interfaces
-
-Keysight Logger provides two user-facing interfaces:
-
-### Command-line interface
-
-The CLI is intended for scripting, repeatable tests, automated acquisition, and integration with agents or orchestration tools.
-
-```powershell
-keysight-logger start-trigger-record `
-  --resource "SIM::34461A" `
-  --measurement voltage-dc `
-  --trigger-mode immediate `
-  --max-samples 10 `
-  --csv data/voltage.csv
-```
-
-### WebUI
-
-The WebUI provides a local browser-based interface for configuring measurements, starting and stopping acquisition, sending software triggers, viewing live samples, and opening completed CSV files.
-
-The WebUI runs locally and communicates with the same shared acquisition core used by the CLI.
-
 ## Project Structure
 
-This repository is organized as a monorepo containing three separately installable packages:
+The repository now has one distribution and one version number:
 
-* `packages/core`: `keysight-logger-core` `1.2.1`, imported as `keysight_logger_core` — instrument communication, measurement configuration, triggering, acquisition, validation, simulation, and CSV storage
-* `packages/cli`: `keysight-logger-cli` `1.3.2`, imported as `keysight_logger_cli` — command-line interface and machine-readable JSON/JSONL integration
-* `packages/webui`: `keysight-logger-webui` `1.2.2`, imported as `keysight_logger_webui` — local WebUI, HTTP API, live status, and acquisition controls
+* Distribution: `keysight-logger` `1.4.0`
+* Core import: `keysight_logger_core`
+* CLI import: `keysight_logger_cli`
+* WebUI import: `keysight_logger_webui`
 
-The root `pyproject.toml` is used only for workspace tooling. Package metadata is maintained inside each package directory.
+The import paths remain independent. Do not use a `keysight_logger.*`
+namespace package.
+
+```text
+src/
+  keysight_logger_core/
+  keysight_logger_cli/
+  keysight_logger_webui/
+tests/
+  core/
+  cli/
+  webui/
+docs/
+  core/
+  cli/
+  webui/
+scripts/
+```
 
 ## Install
 
+Development install with CLI, WebUI, and test/build tools:
+
 ```powershell
 uv venv .venv
-uv pip install -e "packages/core[dev]" -e "packages/cli[dev]" -e "packages/webui[dev]" --link-mode=copy
+uv pip install -e ".[all,dev]" --link-mode=copy
 ```
 
-After installation, Windows creates virtualenv console wrappers such as
+Basic Core/CLI install:
+
+```powershell
+pip install .
+```
+
+Install WebUI dependencies:
+
+```powershell
+pip install ".[webui]"
+```
+
+Windows creates virtualenv console wrappers such as
 `.\.venv\Scripts\keysight-logger.exe`,
 `.\.venv\Scripts\keysight-logger-webui.exe`, and
-`.\.venv\Scripts\keysight-logger-webui-launcher.exe`. These wrappers require
-the project virtual environment. Use the PyInstaller steps below when you need
-a standalone executable under `dist\`.
+`.\.venv\Scripts\keysight-logger-webui-launcher.exe`.
 
-## Build EXE
+## Build
 
-Install PyInstaller into the same virtual environment that already has Core,
-CLI, and WebUI installed:
+Build the wheel and source distribution:
 
 ```powershell
-uv pip install pyinstaller
+.\.venv\Scripts\python.exe -m build
 ```
 
-Build the standalone CLI executable:
-
-```powershell
-.\.venv\Scripts\python.exe -m PyInstaller --onefile --console --name keysight-logger --paths packages\cli\src --paths packages\core\src packages\cli\src\keysight_logger_cli\cli.py
-```
-
-Result:
+This produces one Python distribution:
 
 ```text
-dist\keysight-logger.exe
+dist\keysight_logger-1.4.0-py3-none-any.whl
+dist\keysight_logger-1.4.0.tar.gz
 ```
 
-Build the standalone WebUI launcher executable:
+Standalone executables are separate PyInstaller workflows:
 
 ```powershell
-.\.venv\Scripts\python.exe -m PyInstaller --onefile --windowed --name keysight-logger-webui-launcher --paths packages\webui\src --paths packages\core\src --add-data "packages\webui\src\keysight_logger_webui\static;keysight_logger_webui\static" packages\webui\src\keysight_logger_webui\launcher.py
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_cli_exe.ps1
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_exe.ps1
 ```
 
-Result:
-
-```text
-dist\keysight-logger-webui-launcher.exe
-```
-
-Run no-hardware smoke checks after rebuilding:
+Build a release folder with wheel, sdist, standalone executables, and checksums:
 
 ```powershell
-.\dist\keysight-logger.exe --version
-.\dist\keysight-logger.exe --help
-.\dist\keysight-logger.exe list-resources --dry-run --json
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.ps1
 ```
-
-PyInstaller writes `.spec`, `build\`, and `dist\` artifacts locally. Do not
-commit the generated `.spec` file unless the project intentionally switches to a
-checked-in PyInstaller build recipe.
 
 ## Test
 
+Run focused tests while iterating:
+
 ```powershell
-.\.venv\Scripts\python.exe -m pytest packages/core/tests -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest packages/cli/tests -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest packages/webui/tests -q -p no:cacheprovider
-.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests\core -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests\cli -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests\webui -q -p no:cacheprovider
 ```
 
-If Windows temporary-directory permissions block pytest, rerun it with a repository-local temporary directory:
+Run the full no-hardware suite:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest packages tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+```
+
+If Windows temporary-directory permissions block pytest, rerun it with a
+repository-local temporary directory:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp
 ```
 
 ## Documentation
 
-### User and integration documentation
-
-* [Core README](packages/core/README.md)
-* [CLI README](packages/cli/README.md)
-* [WebUI README](packages/webui/README.md)
-* [WebUI User Guide](packages/webui/docs/USER_GUIDE.md)
-
-### Architecture and automation
-
+* [Core README](docs/core/README.md)
+* [CLI README](docs/cli/README.md)
+* [WebUI README](docs/webui/README.md)
+* [WebUI User Guide](docs/webui/USER_GUIDE.md)
 * [Monorepo Architecture](docs/architecture/monorepo-layout.md)
 * [Testing Guidelines](docs/testing-guidelines.md)
 * [Public Contracts](docs/contracts)
@@ -156,6 +144,8 @@ If Windows temporary-directory permissions block pytest, rerun it with a reposit
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
-This project is an independent, unofficial project and is not affiliated with, endorsed by, or sponsored by Keysight Technologies.
+This project is independent and unofficial. It is not affiliated with,
+endorsed by, or sponsored by Keysight Technologies.
 
-Users are responsible for complying with all applicable Keysight software, driver, instrument, and documentation license terms.
+Users are responsible for complying with all applicable Keysight software,
+driver, instrument, and documentation license terms.

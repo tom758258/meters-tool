@@ -9,8 +9,8 @@ from urllib.parse import unquote
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def read_project_version(package: str) -> str:
-    text = (REPO_ROOT / "packages" / package / "pyproject.toml").read_text(encoding="utf-8")
+def read_project_version() -> str:
+    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
     match = re.search(r'^version = "([^"]+)"$', text, re.MULTILINE)
     assert match is not None
     return match.group(1)
@@ -30,18 +30,38 @@ def test_new_import_packages_are_discoverable():
     assert importlib.util.find_spec("keysight_logger_webui") is not None
 
 
-def test_root_pyproject_is_tooling_only():
+def test_root_pyproject_defines_single_distribution():
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    assert "[project]" not in text
+    assert 'name = "keysight-logger"' in text
+    assert 'version = "1.4.0"' in text
+    assert 'keysight-logger = "keysight_logger_cli.cli:main"' in text
+    assert 'keysight-logger-webui = "keysight_logger_webui.web_ui:main"' in text
     assert "[tool.pytest.ini_options]" in text
+    assert 'pythonpath = ["src"]' in text
 
 
-def test_package_pyprojects_define_distribution_boundaries():
+def test_package_pyprojects_are_removed():
     for path in (
         REPO_ROOT / "packages" / "core" / "pyproject.toml",
         REPO_ROOT / "packages" / "cli" / "pyproject.toml",
         REPO_ROOT / "packages" / "webui" / "pyproject.toml",
+    ):
+        assert not path.exists()
+
+
+def test_component_layout_is_rooted():
+    for path in (
+        REPO_ROOT / "src" / "keysight_logger_core",
+        REPO_ROOT / "src" / "keysight_logger_cli",
+        REPO_ROOT / "src" / "keysight_logger_webui",
+        REPO_ROOT / "tests" / "core",
+        REPO_ROOT / "tests" / "cli",
+        REPO_ROOT / "tests" / "webui",
+        REPO_ROOT / "docs" / "core",
+        REPO_ROOT / "docs" / "cli",
+        REPO_ROOT / "docs" / "webui",
+        REPO_ROOT / "scripts",
     ):
         assert path.exists()
 
@@ -66,7 +86,6 @@ def test_public_markdown_avoids_local_private_context():
         REPO_ROOT / "README.md",
         REPO_ROOT / "CHANGELOG.md",
         REPO_ROOT / "docs",
-        REPO_ROOT / "packages",
     )
     public_markdown = []
     for root in public_roots:
@@ -114,29 +133,26 @@ def test_public_package_versions_match_package_metadata():
     architecture = (REPO_ROOT / "docs" / "architecture" / "monorepo-layout.md").read_text(
         encoding="utf-8"
     )
+    version = read_project_version()
 
-    packages = {
-        "core": ("Core", "keysight-logger-core", "keysight_logger_core"),
-        "cli": ("CLI", "keysight-logger-cli", "keysight_logger_cli"),
-        "webui": ("WebUI", "keysight-logger-webui", "keysight_logger_webui"),
-    }
-    for package, (label, distribution, import_name) in packages.items():
-        version = read_project_version(package)
-
-        assert (
-            f"`packages/{package}`: `{distribution}` `{version}`, imported as `{import_name}`"
-            in readme
-        )
-        assert f"| {label} | `{distribution}` | `{import_name}` | `{version}` |" in architecture
+    assert f"`keysight-logger` `{version}`" in readme
+    for import_name in (
+        "keysight_logger_core",
+        "keysight_logger_cli",
+        "keysight_logger_webui",
+    ):
+        assert f"`{import_name}`" in readme
+        assert f"`{import_name}`" in architecture
+    assert f"| Distribution | `keysight-logger` | `{version}` |" in architecture
 
 
 def test_readme_markdown_links_point_to_existing_local_targets():
     readmes = (
         REPO_ROOT / "README.md",
         REPO_ROOT / "README.zh-TW.md",
-        REPO_ROOT / "packages" / "core" / "README.md",
-        REPO_ROOT / "packages" / "cli" / "README.md",
-        REPO_ROOT / "packages" / "webui" / "README.md",
+        REPO_ROOT / "docs" / "core" / "README.md",
+        REPO_ROOT / "docs" / "cli" / "README.md",
+        REPO_ROOT / "docs" / "webui" / "README.md",
     )
     link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
     missing = []
