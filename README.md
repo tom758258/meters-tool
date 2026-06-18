@@ -53,25 +53,31 @@ scripts/
 
 ## Install
 
-Basic Core/CLI install:
+Open PowerShell and enter the project root first:
 
 ```powershell
-pip install .
+cd path\to\Keysight_Meters_Logger
 ```
 
-Install WebUI runtime dependencies:
+Install uv if it is not already available:
 
 ```powershell
-pip install ".[webui]"
+py -m pip install --user uv
 ```
 
-Install everything needed for local development and tests without uv:
+Verify uv:
 
 ```powershell
-pip install -e ".[all,dev]"
+uv --version
 ```
 
-With uv, use the lock file to reproduce the development and test environment:
+Create the project virtual environment in the project folder:
+
+```powershell
+uv venv .venv
+```
+
+Sync the reproducible development and test environment from `uv.lock`:
 
 ```powershell
 uv sync --all-extras --link-mode=copy
@@ -83,8 +89,24 @@ For CI or strict local checks, require the committed lock file to stay unchanged
 uv sync --all-extras --locked --link-mode=copy
 ```
 
-The `uv.lock` file is for development and CI reproducibility. It does not
-replace the standard `pip install` commands for package users.
+This project supports Python `>=3.10`. `uv venv .venv` uses an available
+compatible Python. If you need a specific Python version, request it explicitly:
+
+```powershell
+uv venv .venv --python 3.12
+```
+
+The `uv.lock` file is used by uv for development and CI reproducibility.
+`pip install .` reads `pyproject.toml`, not `uv.lock`. Users without uv must
+install uv before using the locked environment.
+
+If you need pip directly, use the virtual environment's Python:
+
+```powershell
+.\.venv\Scripts\python.exe -m pip install .
+.\.venv\Scripts\python.exe -m pip install ".[webui]"
+.\.venv\Scripts\python.exe -m pip install -e ".[all,dev]"
+```
 
 Windows creates virtualenv console wrappers such as
 `.\.venv\Scripts\keysight-logger.exe`,
