@@ -38,9 +38,7 @@ jobs:
         run: python -m pip install --upgrade uv
 
       - name: Install package
-        run: |
-          uv venv .venv
-          uv pip install -e ".[all,dev]"
+        run: uv sync --python ${{ matrix.python-version }} --all-extras --locked --link-mode=copy
 
       - name: Build package
         run: ./.venv/bin/python -m build
@@ -78,9 +76,7 @@ jobs:
         run: python -m pip install --upgrade uv
 
       - name: Install package
-        run: |
-          uv venv .venv
-          uv pip install -e ".[all,dev]"
+        run: uv sync --python ${{ matrix.python-version }} --all-extras --locked --link-mode=copy
 
       - name: Build package
         run: .\.venv\Scripts\python.exe -m build

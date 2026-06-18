@@ -45,24 +45,37 @@ scripts/
 
 ## 安裝
 
-開發安裝，包含 CLI、WebUI、測試與 build 工具：
-
-```powershell
-uv venv .venv
-uv pip install -e ".[all,dev]" --link-mode=copy
-```
-
 只安裝基本 Core/CLI：
 
 ```powershell
 pip install .
 ```
 
-安裝 WebUI dependencies：
+安裝 WebUI 執行階段（runtime）相依套件：
 
 ```powershell
 pip install ".[webui]"
 ```
+
+在不使用 uv 的情況下，安裝本機開發和測試所需的所有套件：
+
+```powershell
+pip install -e ".[all,dev]"
+```
+
+使用 uv 時，使用 lock 檔案來重現開發和測試環境：
+
+```powershell
+uv sync --all-extras --link-mode=copy
+```
+
+若用於 CI 或嚴格的本機檢查，要求已提交的 lock 檔案保持不變：
+
+```powershell
+uv sync --all-extras --locked --link-mode=copy
+```
+
+`uv.lock` 檔案是為了開發和 CI 的重現性。它並非用來取代套件使用者標準的 `pip install` 命令。
 
 Windows 會建立 virtualenv console wrappers，例如
 `.\.venv\Scripts\keysight-logger.exe`、

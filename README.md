@@ -53,24 +53,38 @@ scripts/
 
 ## Install
 
-Development install with CLI, WebUI, and test/build tools:
-
-```powershell
-uv venv .venv
-uv pip install -e ".[all,dev]" --link-mode=copy
-```
-
 Basic Core/CLI install:
 
 ```powershell
 pip install .
 ```
 
-Install WebUI dependencies:
+Install WebUI runtime dependencies:
 
 ```powershell
 pip install ".[webui]"
 ```
+
+Install everything needed for local development and tests without uv:
+
+```powershell
+pip install -e ".[all,dev]"
+```
+
+With uv, use the lock file to reproduce the development and test environment:
+
+```powershell
+uv sync --all-extras --link-mode=copy
+```
+
+For CI or strict local checks, require the committed lock file to stay unchanged:
+
+```powershell
+uv sync --all-extras --locked --link-mode=copy
+```
+
+The `uv.lock` file is for development and CI reproducibility. It does not
+replace the standard `pip install` commands for package users.
 
 Windows creates virtualenv console wrappers such as
 `.\.venv\Scripts\keysight-logger.exe`,
