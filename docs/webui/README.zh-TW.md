@@ -417,7 +417,7 @@ POST /api/runs/current/open-csv
 - 硬體觸發的讀取是否使用 `FETC?`。
 - 軟體觸發或即時讀取是否使用 `READ?`。
 
-對於首次真實儀器的冒煙測試（smoke tests），請使用低風險的即時（immediate）模式、啟用自動範圍（Auto Range on），以及設定較小的限制樣本數。
+對於首次真實儀器的基本功能驗證（smoke tests，即快速健檢），請使用低風險的即時（immediate）模式、啟用自動範圍（Auto Range on），以及設定較小的限制樣本數。
 
 ## 開發邊界
 
@@ -472,13 +472,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_ex
 uv run pytest tests -q -p no:cacheprovider
 ```
 
-真實儀器驗證需要操作者提供 VISA 資源。在開始使用其他觸發模式或進行較長期的擷取之前，請先使用低風險的即時（immediate）模式進行冒煙測試，並啟用自動範圍（Auto Range on）與 `max_samples=1`。
+真實儀器驗證需要操作者提供 VISA 資源。在開始使用其他觸發模式或進行較長期的擷取之前，請先使用低風險的即時（immediate）模式進行基本功能驗證（快速健檢），並啟用自動範圍（Auto Range on）與 `max_samples=1`。
 
 完整測試執行可能會遇到本機 Windows 暫存或 pytest 快取權限警告。請清楚回報此類警告，並在廣泛測試套件因環境權限受阻時，依賴專注測試與真實儀器驗證。
 
-## 手動 UI 冒煙測試檢核表
+## 手動 UI 快速健檢檢核表
 
-無硬體的 UI 冒煙測試：
+無硬體的 UI 快速功能驗證：
 
 - 網頁可在 `http://127.0.0.1:8767/` 正常載入。
 - 首次載入時沒有出現瀏覽器主控台錯誤。
@@ -495,7 +495,7 @@ uv run pytest tests -q -p no:cacheprovider
 - 行動版寬度約 390 px 時，文字或控制項無重疊。
 - 桌上版寬度約 1280 px 時，維持緊湊但易於閱讀。
 
-針對真實儀器的冒煙測試，除非操作者明確要求，否則請勿進行高風險的觸發實驗。請先以即時（immediate）模式、啟用自動範圍（Auto Range on）與 `max_samples=1` 開始。
+針對真實儀器的基本功能驗證（快速健檢），除非操作者明確要求，否則請勿進行高風險的觸發實驗。請先以即時（immediate）模式、啟用自動範圍（Auto Range on）與 `max_samples=1` 開始。
 
 ## 疑難排解
 
@@ -518,7 +518,7 @@ uv run pytest tests -q -p no:cacheprovider
 - 確認儀器已連接並開啟電源。
 - 確認已安裝 VISA 驅動程式，且資源可在應用程式外部被偵測到。
 - 嘗試手動輸入已知的 VISA 資源。
-- 在進行真實擷取前，先以低風險的即時模式、啟用自動範圍與 `max_samples=1` 進行冒煙測試。
+- 在進行真實擷取前，先以低風險的即時模式、啟用自動範圍與 `max_samples=1` 進行快速功能驗證。
 
 開啟 CSV 遭停用（Open CSV is disabled）：
 
