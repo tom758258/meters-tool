@@ -39,7 +39,27 @@ These instructions guide coding agents working in this repository. They are long
 - Do not rename the distribution, add or remove console scripts, or change dependency relationships as part of unrelated Core, CLI, WebUI, test, or documentation work.
 - Preserve the current import boundaries: `keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
 
-## 6. Project-Specific Safety Rules
+## 6. Monorepo Structure and Import Boundaries
+
+This repository is organized as a single-distribution monorepo for
+`keysight-logger` under the root `src/` directory:
+
+- `src/keysight_logger_core`: Core instrument, VISA/SCPI, logging, trigger, and runtime layer.
+- `src/keysight_logger_cli`: Command line interface adapter.
+- `src/keysight_logger_webui`: WebUI adapter, launcher, and static UI.
+
+Always read root `pyproject.toml` plus the relevant package-local code and
+docs under `docs/core`, `docs/cli`, or `docs/webui` before implementing or
+modifying features.
+
+- Never let `keysight_logger_core` import from `keysight_logger_cli` or `keysight_logger_webui`.
+- Never let `keysight_logger_cli` import from `keysight_logger_webui`.
+- Never let `keysight_logger_webui` import from `keysight_logger_cli`.
+- CLI and WebUI may depend on Core through the existing `keysight_logger_core` import package.
+- CLI commands are invoked via `keysight-logger` or `python -m keysight_logger_cli.cli`.
+- WebUI commands are invoked via `keysight-logger-webui` or `keysight-logger-webui-launcher`.
+
+## 7. Project-Specific Safety Rules
 
 - This project controls a Keysight 34461A through VISA/SCPI. Treat instrument-affecting changes as high risk.
 - Get user confirmation before changing SCPI behavior, VISA timeout, trigger wait strategy, `TRIG:DEL`, `NPLC`, Auto Zero, Auto Range, VM Comp, or stop/release/local behavior.
@@ -49,7 +69,7 @@ These instructions guide coding agents working in this repository. They are long
 - Hardware-triggered reads use `FETC?` after the trigger adapter arms and completes measurement. Software-triggered reads use `READ?`.
 - Avoid high-risk query polling conflicts; do not introduce repeated `*OPC?` polling without explicit approval.
 
-## 7. Testing Rules
+## 8. Testing Rules
 
 - Follow the contributor-facing [Testing Guidelines](docs/testing-guidelines.md): tests should protect public contracts, instrument safety boundaries, package ownership, stable schemas, stable endpoints, and private-info boundaries.
 - Do not add overly precise prose, UI implementation, CSS, JavaScript helper-name, list-order, or generated-count assertions unless the checked detail is a public contract or safety/privacy boundary and the test makes that reason clear.
@@ -66,12 +86,14 @@ These instructions guide coding agents working in this repository. They are long
 - Full test runs may hit local Windows temp or pytest cache permission warnings. Report that clearly and rely on focused tests plus real instrument validation when full tests are blocked by environment permissions.
 - Do not hide failed or skipped verification. State exactly what ran and what did not.
 
-## 8. Documentation Boundary
+## 9. Documentation Boundary
 
 - Keep long-term agent rules in this file.
 - Keep tracked public docs limited to README, changelog, architecture, contracts, integration guides, user guides, supported models, and change rules.
-- Default documentation edits should update English `.md` files only. Do not update Traditional Chinese docs such as `README.zh-TW.md` unless explicitly requested.
-- Do not update HTML or static UI copy as part of ordinary documentation work unless explicitly requested or required by a user-facing UI change.
+- Default documentation edits should update English `.md` source files only.
+- Do not update Traditional Chinese docs such as `README.zh-TW.md` unless explicitly requested.
+- Generated or presentation-oriented documentation HTML may be updated only when the task explicitly concerns published docs or documentation presentation.
+- Do not update product WebUI HTML, CSS, JavaScript, static assets, or in-app UI copy as part of ordinary documentation work unless explicitly requested or required by a user-facing UI change.
 - Keep current planning, package status, validation records, and hardware-specific operator context outside tracked public docs.
 - Do not add personal filesystem paths, real VISA resources, instrument serial numbers, or link-local/private lab IP addresses to tracked docs.
 - Do not duplicate large status sections here.
