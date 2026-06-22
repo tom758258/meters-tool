@@ -29,6 +29,7 @@ htmlcov/
 # Build/dist directories
 dist/
 build/
+release/
 target/
 *.egg-info/
 
