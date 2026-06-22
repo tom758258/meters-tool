@@ -21,7 +21,9 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             with request.urlopen(req, timeout=1.0) as resp:
                 return resp.status
         except HTTPError as err:
-            return err.code
+            with err:
+                err.read()
+                return err.code
 
     def _post_command_json(self, port: int, payload: bytes) -> tuple[int, dict, str]:
         req = request.Request(
@@ -63,7 +65,9 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             with request.urlopen(req, timeout=1.0) as resp:
                 return resp.status
         except HTTPError as err:
-            return err.code
+            with err:
+                err.read()
+                return err.code
 
     def test_status_endpoint_returns_base_json(self):
         router = TriggerRouter()
