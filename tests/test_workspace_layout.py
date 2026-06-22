@@ -135,7 +135,8 @@ def test_public_package_versions_match_package_metadata():
     )
     version = read_project_version()
 
-    assert f"`keysight-logger` `{version}`" in readme
+    assert "`keysight-logger` `<version>`" in readme
+    assert "`[project].version`" in readme
     for import_name in (
         "keysight_logger_core",
         "keysight_logger_cli",
