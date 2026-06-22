@@ -542,5 +542,5 @@ uv run pytest tests -q -p no:cacheprovider
 
 - [WebUI 使用者指南](USER_GUIDE.zh-TW.md)：面向操作者的 WebUI 使用指南。
 - [WebUI README](README.zh-TW.md)：本 WebUI 行為、API、驗證與維護者指南。
-- [WebUI 變更規則](web-ui-change-rules.md)：UI 變更規則。
+- [WebUI 變更規則](web-ui-change-rules.md)：面向維護者與 Agent 的 UI 變更規則。
 - [WebUI 變更日誌](CHANGELOG.md)：套件版本發布說明。

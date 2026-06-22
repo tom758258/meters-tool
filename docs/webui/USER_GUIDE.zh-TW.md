@@ -189,5 +189,4 @@ http://127.0.0.1:8767/
 
 - [WebUI README](README.zh-TW.md)：工程設定、WebUI API 行為、驗證、建置說明與維護者邊界。
 - [WebUI 變更日誌 (Changelog)](CHANGELOG.md)：版本發布說明。
-- [WebUI 變更規則](web-ui-change-rules.md)：UI 變更規則。
 

@@ -1,8 +1,9 @@
 # Web UI Change Rules
 
-This document is the working contract for Web UI polish and reorganization
-work. It exists to let UI work move quickly without damaging the measurement,
-trigger, VISA, or cleanup behavior underneath.
+This document is the maintainer and agent-facing working contract for Web UI
+polish and reorganization work. It is not an operator guide. It exists to let
+UI work move quickly without damaging the measurement, trigger, VISA, or
+cleanup behavior underneath.
 
 Read this file before changing code. Also read `AGENTS.md` and the current
 task context.
@@ -36,8 +37,8 @@ contract coverage:
 
 Optional documentation updates:
 
-- `docs/web-ui-change-rules.md`, only when the UI contract itself changes or
-  this document becomes stale.
+- `docs/webui/web-ui-change-rules.md`, only when the UI contract itself
+  changes or this document becomes stale.
 
 Keep edits surgical. Do not touch unrelated files.
 
@@ -73,11 +74,15 @@ backend/API change as a proposal instead of implementing it.
 
 ## Current Web UI Shape
 
-Runtime entry point:
+Developer runtime entry point:
 
 ```powershell
 .\.venv\Scripts\keysight-logger-webui.exe --port 8767
 ```
+
+Operator releases normally start from the built launcher executable documented
+in `USER_GUIDE.md`. Source-checkout and validation workflows belong in
+`README.md`.
 
 Local URL:
 
@@ -103,8 +108,11 @@ Do not rename, remove, or repurpose these endpoints:
 - `GET /api/resources?verify=true&live_only=true`
 - `POST /api/runs`
 - `GET /api/runs/current`
+- `GET /api/runs/current/events`
 - `POST /api/runs/current/command`
 - `POST /api/runs/current/stop`
+- `POST /api/runs/current/open-csv`
+- `POST /api/csv/select-folder`
 
 Do not change request payload names in `app.js` unless the backend and tests
 are intentionally changed by a separate approved backend task.
@@ -133,6 +141,8 @@ Important payload fields currently sent by the UI include:
 - `measurement_range`
 - `dcv_input_impedance`
 - `vm_comp_slope`
+- `ac_bandwidth_hz`
+- `current_terminal`
 - `max_samples`
 - `timer_interval_s`
 - `trigger_count`
@@ -164,15 +174,17 @@ You may reorganize layout and visual grouping, but preserve functional IDs,
 Only update source-string/static tests for those stable contracts; do not lock
 CSS colors, layout measurements, helper function names, local JavaScript
 variable names, or panel copy as a substitute for behavioral coverage. See the
-root [Testing Guidelines](../../../docs/testing-guidelines.md).
+root [Testing Guidelines](../testing-guidelines.md).
 
 Important IDs:
 
 - `run-form`
 - `refresh-resources`
+- `select-csv-folder`
 - `start-run`
 - `trigger-run`
 - `stop-run`
+- `open-csv`
 - `status-state`
 - `status-captured`
 - `status-errors`
@@ -191,6 +203,10 @@ Important IDs:
 - `range-suffix`
 - `nplc-field`
 - `nplc`
+- `ac-bandwidth-container`
+- `ac-bandwidth`
+- `current-terminal-container`
+- `current-terminal`
 - `trigger-mode`
 - `timer-trigger-checkbox`
 - `sw-min-interval-container`
@@ -210,6 +226,14 @@ Important IDs:
 - `live-samples-body`
 - `live-selected-sample`
 - `live-sample-details`
+- `toggle-live-chart`
+- `live-chart-shell`
+- `toggle-live-stats`
+- `live-stats-grid`
+- `toggle-live-samples`
+- `live-table-wrap`
+- `live-sample-metadata`
+- `close-live-sample-details`
 
 Important UI scoping attributes:
 
@@ -219,7 +243,7 @@ Important UI scoping attributes:
 - `data-mode-scope="hardware"`
 - `data-mode-scope="software-trigger"`
 - `data-mode-scope="trigger-timeout"`
-- `data-measurement-scope="voltage-dc"`
+- `data-measurement-scope="voltage-dc,voltage-dc-ratio"`
 
 Keep `.is-hidden` behavior available. Hidden controls must be disabled so stale
 values are not submitted from inactive modes.
@@ -237,6 +261,8 @@ The UI may look different, but these behaviors must remain true:
 - NPLC is hidden/disabled when unsupported.
 - DCV Input Z appears only for `voltage-dc`.
 - AC measurements do not show NPLC.
+- AC measurements show AC bandwidth where supported.
+- Current measurements show current terminal where supported.
 - Non-custom trigger modes show `max_samples`.
 - `software` mode shows `timer_interval_s` only when Timer trigger is checked.
 - Custom trigger modes show trigger count, sample count, buffer drain size,
@@ -248,7 +274,14 @@ The UI may look different, but these behaviors must remain true:
 - The Trigger button appears only for manual software-triggered modes:
   `software` without Timer trigger, and `software-custom`.
 - Stop calls `POST /api/runs/current/stop`.
-- Live data and status updates are driven by Server-Sent Events (SSE) via `GET /api/runs/current/events` as the primary mechanism, falling back to polling `GET /api/runs/current` every 1s if the SSE connection is lost or unavailable.
+- Open CSV calls `POST /api/runs/current/open-csv` and must use the backend's
+  current or latest completed CSV path, not a frontend-supplied path.
+- Select CSV folder calls `POST /api/csv/select-folder` and fills the existing
+  CSV input with the returned timestamped path when a folder is selected.
+- Live data and status updates are driven by Server-Sent Events (SSE) via
+  `GET /api/runs/current/events` as the primary mechanism, falling back to
+  polling `GET /api/runs/current` every 1s if the SSE connection is lost or
+  unavailable.
 - The Status panel keeps a five-line terminal-style log. It starts blank, adds
   frontend operation messages and changed backend `latest_status` values, and
   does not spam identical poll results or multiple SSE fallback messages.

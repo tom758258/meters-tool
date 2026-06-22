@@ -613,6 +613,7 @@ Live panel has no samples:
 - [WebUI User Guide](USER_GUIDE.md): operator-facing WebUI usage guide.
 - [WebUI README](README.md): this WebUI behavior, API, validation, and
   maintainer guide.
-- [WebUI Change Rules](web-ui-change-rules.md): rules for UI changes.
+- [WebUI Change Rules](web-ui-change-rules.md): maintainer and agent-facing
+  rules for UI changes.
 - [WebUI Changelog](CHANGELOG.md): package release notes.
 
