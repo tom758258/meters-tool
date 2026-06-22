@@ -1,8 +1,8 @@
 # Keysight Logger WebUI User Guide
 
-This guide is for operators using the local WebUI to record measurements from a
-Keysight 34461A. It avoids developer details and focuses on the normal
-measurement workflow.
+This guide is for operators who receive the built WebUI launcher and use it to
+record measurements from a Keysight 34461A. It avoids developer details and
+focuses on the normal measurement workflow.
 
 ## What The WebUI Does
 
@@ -21,30 +21,35 @@ It is not a cloud service.
 
 ## Start The WebUI
 
-For normal use, double-click:
+For normal use, double-click the WebUI launcher provided with the release or
+local build:
 
 ```text
 keysight-logger-webui-launcher.exe
+```
+
+Release folders may include a versioned launcher name, such as:
+
+```text
+keysight-logger-webui-launcher-1.4.0.exe
 ```
 
 In the launcher window:
 
 1. Keep `Use default port 8767` selected unless that port is already in use.
 2. Click `Start`.
-3. Wait for the browser to open.
+3. Wait for the browser to open. The launcher starts a local WebUI server on
+   this computer and opens the browser page for you.
 4. Click `Quit` in the launcher when you are done with the WebUI.
 
-If you start from a terminal instead, run:
-
-```powershell
-.\.venv\Scripts\keysight-logger-webui-launcher.exe
-```
-
-The browser address is normally:
+If the browser does not open automatically, open this address manually:
 
 ```text
 http://127.0.0.1:8767/
 ```
+
+Developers or source-checkout users should use the [WebUI README](README.md)
+for terminal commands, validation, and build details.
 
 ## Screen Overview
 
@@ -100,12 +105,13 @@ the operator understands the effect on the instrument.
 
 ## Settings Reference
 
-The WebUI validates settings before starting a run. If `Start` is blocked, read
+The WebUI checks settings before starting a run. If `Start` is blocked, read
 the Status log and adjust the field it names.
 
 `VISA resource` is the instrument address used for the run. Prefer a resource
-found by `Scan Device`, or type a known operator-provided VISA resource. Do not
-guess a resource when more than one instrument may be connected.
+found by `Scan Device`, or type a known resource provided by the operator or
+test procedure. Do not guess a resource when more than one instrument may be
+connected.
 
 `Live resource` shows the result of the last scan. Use it to confirm which
 instrument answered before copying or selecting a resource for the run.
@@ -114,8 +120,8 @@ instrument answered before copying or selecting a resource for the run.
 and let the WebUI generate a timestamped file name, or type a specific file path
 before clicking `Start`.
 
-Run count and sample limit fields bound how long a run can continue. Keep new
-setups bounded while validating wiring, measurement type, and trigger behavior.
+Run count and sample limit fields control how long a run can continue. Keep new
+setups bounded while checking wiring, measurement type, and trigger behavior.
 
 `Measurement type` selects what the 34461A measures: DC or AC voltage, DC or AC
 current, DC voltage ratio, or 2-wire or 4-wire resistance. Match this to the
@@ -159,8 +165,9 @@ waits longer.
 `External trigger slope` selects the physical trigger edge. Match it to the
 signal source connected to the instrument.
 
-For full CLI automation details and accepted argument limits, see the
-[CLI README](../cli/README.md).
+For deeper CLI automation details and accepted argument limits, see the
+[CLI README](../cli/README.md). Normal WebUI operation does not require reading
+the CLI reference.
 
 ## CSV Output
 
@@ -183,8 +190,8 @@ the latest readings visible after the run stops so you can review them.
 Use `Quit` in the launcher window to stop the local WebUI server and close the
 launcher. Closing only the browser tab does not necessarily stop the server.
 
-If you started the WebUI from a terminal, use `Ctrl+C` in that terminal to stop
-the server.
+If you are running the WebUI from a developer terminal instead of the launcher,
+use the [WebUI README](README.md) for shutdown details.
 
 ## Common Problems
 
@@ -240,4 +247,15 @@ timeout behavior.
 - Keep Auto Range enabled unless a fixed range is required.
 - Treat external trigger wiring and polarity as part of the measurement setup.
 - Stop the run before disconnecting the instrument when practical.
+
+## More WebUI Documentation
+
+- [WebUI README](README.md): engineering setup, WebUI API behavior, validation,
+  build notes, and maintainer boundaries.
+- [WebUI Changelog](CHANGELOG.md): release notes.
+- [WebUI Change Rules](web-ui-change-rules.md): rules for UI changes.
+- [CLI README](../cli/README.md): CLI command, validation, JSON/JSONL, and
+  automation reference.
+- [Contracts](../contracts/): stable worker, orchestrator, and structured
+  output contracts.
 

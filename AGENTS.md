@@ -90,6 +90,8 @@ modifying features.
 
 - Keep long-term agent rules in this file.
 - Keep tracked public docs limited to README, changelog, architecture, contracts, integration guides, user guides, supported models, and change rules.
+- Keep `USER_GUIDE.md` files operator/user-facing. Avoid source-checkout, virtualenv, build, validation, or maintainer workflow details there unless explicitly needed for the user-facing task.
+- Keep `README.md` files available for engineering setup, build, validation, detailed reference, automation, and maintainer boundaries.
 - Default documentation edits should update English `.md` source files only.
 - Do not update Traditional Chinese docs such as `README.zh-TW.md` unless explicitly requested.
 - Generated or presentation-oriented documentation HTML may be updated only when the task explicitly concerns published docs or documentation presentation.

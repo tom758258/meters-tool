@@ -262,7 +262,7 @@
 
         <h2 id="documentation">文件集</h2>
         <ul>
-            <li><a href="USER_GUIDE.zh-TW.md">CLI 使用者指南</a> - 操作人員工作流程與常見設定指引。</li>
+            <li><a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> - 操作人員工作流程與常見設定指引。</li>
             <li><a href="README.md">CLI README</a> - 詳細的 CLI 參考、驗證與自動化指南。</li>
             <li><a href="CHANGELOG.md">Changelog</a> - 版本發布說明與待決基準。</li>
             <li><a href="cli-integration.md">CLI 整合</a> - CLI 配接器維護邊界。</li>
@@ -273,7 +273,7 @@
             <li><a href="../contracts/meters-worker-contract.md">Meters Worker 合約</a> - 用於 Agent 和協調器的 Meters 工作器控制面、JSONL 與產物合約。</li>
         </ul>
         <p>適用於 Keysight 34461A 的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率以及 2 線式或 4 線式電阻量測。它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。</p>
-        <p>對於標準操作人員的工作流程，請從 <a href="USER_GUIDE.zh-TW.md">CLI 使用者指南</a> 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。</p>
+        <p>對於標準操作人員的工作流程，請從 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。</p>
         <p><code>keysight-logger</code> <code>1.4.0</code> 是目前的單一 distribution 基準。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
         <p>Python 整合應從 <code>keysight_logger_core</code> 或 <code>keysight_logger_core.*</code> 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 <code>keysight_logger.measurement</code> 和 <code>keysight_logger.instrument</code>。</p>
 
@@ -412,7 +412,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         </div>
 
         <h2 id="basic-workflow">基本工作流程</h2>
-        <p>對於包含常見設定說明的引導式操作人員路徑，請參閱 <a href="USER_GUIDE.zh-TW.md">CLI 使用者指南</a>。簡要參考流程如下：</p>
+        <p>對於包含常見設定說明的引導式操作人員路徑，請參閱 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a>。簡要參考流程如下：</p>
         <ol>
             <li>列出 VISA 資源。</li>
             <li>選擇資源字串。</li>

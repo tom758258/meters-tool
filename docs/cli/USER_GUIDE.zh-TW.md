@@ -1,26 +1,22 @@
 # Keysight Logger CLI 使用者指南
 
-本指南適用於使用 PowerShell 以及安裝的 `keysight-logger` 指令，來記錄 Keysight 34461A 測量數據的操作人員。本指南專注於標準的測量工作流程與常見設定。如需完整的指令參考、驗證腳本、JSON/JSONL 輸出與自動化合約 (automation contracts)，請參閱 [CLI README](README.md)。
+本指南適用於收到已建置之 CLI 執行檔或已安裝之 `keysight-logger` 指令，並使用它來記錄 Keysight 34461A 測量數據的操作人員。本指南專注於標準的測量工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
 
-## 從 PowerShell 啟動
+## 啟動 CLI
 
-在專案根目錄下開啟 PowerShell，並確保虛擬環境已安裝主控台包裝程式 (console wrapper)：
-
-```powershell
-.\.venv\Scripts\keysight-logger.exe --version
-```
-
-如果缺少此包裝程式，請先安裝或重新整理專案環境：
+在包含 CLI 執行檔的資料夾下開啟 PowerShell，並檢查它：
 
 ```powershell
-uv pip install -e ".[all,dev]" --link-mode=copy
+.\keysight-logger.exe --version
 ```
 
-若在開發階段需要替代方案，也可以使用明確的模組形式來執行：
+發布資料夾可能包含帶有版本號的執行檔名稱，例如：
 
-```powershell
-.\.venv\Scripts\python.exe -m keysight_logger_cli --version
+```text
+keysight-logger-1.4.0.exe
 ```
+
+如果您的發布資料夾使用帶有版本號的執行檔，請在下方的指令中替換為該檔案名稱。開發人員或從原始碼簽出 (source-checkout) 的使用者，應參閱 [CLI README](README.zh-TW.md) 以取得虛擬環境、模組、驗證與建置指令。
 
 ## 首次即時執行 (First Live Run)
 
@@ -30,14 +26,14 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 2. 列出目前能回應 `*IDN?` 指令的資源：
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe list-resources --live-only
+.\keysight-logger.exe list-resources --live-only
 ```
 
 3. 複製 34461A 的資源字串。
 4. 執行一次有上限的立即模式 (immediate-mode) 採樣：
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+.\keysight-logger.exe start-trigger-record `
   --resource "<VISA_RESOURCE>" `
   --measurement voltage-dc `
   --trigger-mode immediate `
@@ -72,7 +68,7 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 當作業需要等待軟體觸發指令時，請使用 `--trigger-mode software`。在一個終端機啟動 logger，然後從另一個終端機發送觸發訊號：
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe send-command
+.\keysight-logger.exe send-command
 ```
 
 當作業需要按排程進行軟體觸發讀取時，請使用計時器擷取 (timer capture)。請明確設定計時器間隔，並在驗證設定時保持作業的有界性 (bounded，即設定次數上限)。
@@ -101,7 +97,7 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 
 `--trigger-timeout-ms` (觸發超時) 控制觸發工作流程在進入保護性超時機制前的等待時間。只有在測量設定有意等待更長時間時，才調高此值。
 
-有關完整的可接受值與驗證限制，請參閱 [驗證參數限制 (Validated Argument Limits)](README.md#validated-argument-limits)。
+有關完整的可接受值與驗證限制，請參閱 [驗證參數限制](README.zh-TW.md#已驗證引數限制)。
 
 ## CSV 輸出
 
@@ -126,14 +122,14 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 - 從另一個終端機執行 stop 指令：
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe stop
+.\keysight-logger.exe stop
 ```
 
 停止後，請確認指令已乾淨結束，並且 CSV 中包含預期的數據列。
 
 ## 常見問題
 
-如果缺少 `keysight-logger.exe`，請使用 `uv pip install -e ".[all,dev]" --link-mode=copy` 重新將專案安裝到虛擬環境中。
+如果缺少 `keysight-logger.exe`，請確認您正處於包含 CLI 執行檔的發布資料夾中。如果您的發布版本使用帶有版本號的名稱，如 `keysight-logger-1.4.0.exe`，請在指令中使用該檔案名稱。
 
 如果 `list-resources` 顯示過時失效的資源，請使用 `list-resources --verify` 來查看哪些資源有回應，以及其他資源失敗的原因。如果您只想要對 `*IDN?` 做出回應的資源，請使用 `--live-only`。
 
@@ -145,8 +141,7 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 
 ## 更多 CLI 文件
 
-- [CLI README](README.md)：完整的指令參考、驗證腳本、範例、參數限制與自動化工作流程。
+- [CLI README](README.zh-TW.md)：完整的指令參考、驗證腳本、範例、參數限制與自動化工作流程。
 - [CLI Integration](cli-integration.md)：CLI 轉接器 (adapter) 的維護邊界說明。
 - [Meters CLI JSON / JSONL Contract](../contracts/meters-cli-jsonl-contract.md)：用於自動化的結構化輸出 schema。
 - [Meters Worker Contract](../contracts/meters-worker-contract.md)：worker 控制平面 (control plane) 與產出物合約。
-```

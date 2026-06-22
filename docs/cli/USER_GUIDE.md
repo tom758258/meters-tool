@@ -1,31 +1,29 @@
 # Keysight Logger CLI User Guide
 
-This guide is for operators using PowerShell and the installed
-`keysight-logger` command to record measurements from a Keysight 34461A. It
-focuses on the normal measurement workflow and common settings. For the full
-command reference, validation scripts, JSON/JSONL output, and automation
-contracts, see the [CLI README](README.md).
+This guide is for operators who receive the built CLI executable or an
+already-installed `keysight-logger` command and use it to record measurements
+from a Keysight 34461A. It focuses on the normal measurement workflow and
+common settings. For developer setup, validation scripts, JSON/JSONL output,
+and automation contracts, see the [CLI README](README.md).
 
-## Start From PowerShell
+## Start The CLI
 
-Open PowerShell in the project root and make sure the virtual environment has
-the installed console wrapper:
-
-```powershell
-.\.venv\Scripts\keysight-logger.exe --version
-```
-
-If the wrapper is missing, install or refresh the project environment first:
+Open PowerShell in the folder that contains the CLI executable and check it:
 
 ```powershell
-uv pip install -e ".[all,dev]" --link-mode=copy
+.\keysight-logger.exe --version
 ```
 
-The explicit module form is also available for development fallback:
+Release folders may include a versioned executable name, such as:
 
-```powershell
-.\.venv\Scripts\python.exe -m keysight_logger_cli --version
+```text
+keysight-logger-1.4.0.exe
 ```
+
+Use that file name in the commands below if your release folder uses a
+versioned executable. Developers or source-checkout users should use the
+[CLI README](README.md) for virtual environment, module, validation, and build
+commands.
 
 ## First Live Run
 
@@ -36,14 +34,14 @@ instrument setup.
 2. List resources that currently answer `*IDN?`:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe list-resources --live-only
+.\keysight-logger.exe list-resources --live-only
 ```
 
 3. Copy the resource string for the 34461A.
 4. Run one bounded immediate-mode sample:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+.\keysight-logger.exe start-trigger-record `
   --resource "<VISA_RESOURCE>" `
   --measurement voltage-dc `
   --trigger-mode immediate `
@@ -86,7 +84,7 @@ Use `--trigger-mode software` when the run should wait for software trigger
 commands. Start the logger in one terminal, then send triggers from another:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe send-command
+.\keysight-logger.exe send-command
 ```
 
 Use timer capture when the run should take software-triggered readings on a
@@ -162,7 +160,7 @@ For a running worker, use one of these stop paths:
 - run the stop command from another terminal:
 
 ```powershell
-.\.venv\Scripts\keysight-logger.exe stop
+.\keysight-logger.exe stop
 ```
 
 After stopping, confirm the command exits cleanly and the CSV contains the
@@ -170,8 +168,9 @@ expected rows.
 
 ## Common Problems
 
-If `keysight-logger.exe` is missing, reinstall the project into the virtual
-environment with `uv pip install -e ".[all,dev]" --link-mode=copy`.
+If `keysight-logger.exe` is missing, confirm you are in the release folder that
+contains the CLI executable. If your release uses a versioned name such as
+`keysight-logger-1.4.0.exe`, use that file name in the commands.
 
 If `list-resources` shows stale resources, use `list-resources --verify` to see
 which resources answer and why others failed. Use `--live-only` when you only
