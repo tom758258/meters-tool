@@ -98,6 +98,70 @@ Do not change trigger timing, trigger delay, NPLC, Auto Range, Auto Zero, VM
 Comp, or current terminal settings unless the measurement setup requires it and
 the operator understands the effect on the instrument.
 
+## Settings Reference
+
+The WebUI validates settings before starting a run. If `Start` is blocked, read
+the Status log and adjust the field it names.
+
+`VISA resource` is the instrument address used for the run. Prefer a resource
+found by `Scan Device`, or type a known operator-provided VISA resource. Do not
+guess a resource when more than one instrument may be connected.
+
+`Live resource` shows the result of the last scan. Use it to confirm which
+instrument answered before copying or selecting a resource for the run.
+
+`CSV path` is where readings will be written. Use `Select` to choose a folder
+and let the WebUI generate a timestamped file name, or type a specific file path
+before clicking `Start`.
+
+Run count and sample limit fields bound how long a run can continue. Keep new
+setups bounded while validating wiring, measurement type, and trigger behavior.
+
+`Measurement type` selects what the 34461A measures: DC or AC voltage, DC or AC
+current, DC voltage ratio, or 2-wire or 4-wire resistance. Match this to the
+instrument wiring before starting a run.
+
+`Auto Range` lets the instrument choose the measurement range. Keep it enabled
+for first runs unless the measurement procedure requires a fixed range.
+
+Manual range fields are used when Auto Range is disabled. Choose a range that
+safely covers the expected signal.
+
+`NPLC` controls integration time for DC and resistance measurements. Higher
+values are slower and can be more stable. AC modes use their AC bandwidth
+setting instead.
+
+`Auto Zero` controls offset handling for DC and resistance measurements. It can
+improve accuracy but may slow readings. Leave it at the normal setup value
+unless the measurement procedure calls for a change.
+
+`AC bandwidth` applies to AC voltage and AC current. Choose the bandwidth that
+matches the signal and measurement procedure.
+
+`Current terminal` applies to current measurements. Confirm the physical lead is
+connected to the matching current terminal before starting the run.
+
+DC voltage ratio and VM Comp settings are specialized measurement controls. Use
+them only when the test setup explicitly requires ratio measurement or voltage
+measurement compensation.
+
+`Trigger mode` controls when samples are taken. Immediate mode is the simplest
+first-run choice. Software mode waits for the WebUI `Trigger` button. External
+or hardware trigger modes require a physical trigger signal.
+
+`Trigger delay` waits after a trigger before measurement. Leave it unchanged
+unless the external setup requires a delay.
+
+`Trigger timeout` controls how long trigger workflows wait before the protective
+timeout path is used. Increase it only when the measurement setup intentionally
+waits longer.
+
+`External trigger slope` selects the physical trigger edge. Match it to the
+signal source connected to the instrument.
+
+For full CLI automation details and accepted argument limits, see the
+[CLI README](../cli/README.md).
+
 ## CSV Output
 
 The CSV path shown in `Run Setup` is the file that will be used when `Start` is

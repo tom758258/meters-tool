@@ -1,12 +1,12 @@
 ﻿# Keysight Logger WebUI README
 
-This document is the detailed operator and maintainer guide for the WebUI
-component. It explains how to install, run, use, validate, and maintain the
-local browser console for Keysight 34461A acquisition.
+This document is the WebUI behavior, API, validation, and maintainer guide for
+the WebUI component. For normal operator workflows and field explanations, use
+the [WebUI User Guide](USER_GUIDE.md).
 
 For release notes, use the package changelog. For Core API and ownership rules,
 use the Core integration guide. Keep this guide focused on durable public
-operator and maintainer behavior.
+WebUI behavior and maintainer boundaries.
 
 ## Purpose
 
@@ -37,6 +37,10 @@ Core owns:
 
 The WebUI must use Core public APIs instead of depending on CLI adapter code or
 directly reaching into acquisition engine internals.
+
+Core validates measurement requests and protects instrument-facing limits. The
+WebUI user guide explains fields in UI terms; complete CLI automation and
+structured output references remain in the CLI and contracts documentation.
 
 ## Package And Entry Point
 
@@ -606,8 +610,10 @@ Live panel has no samples:
 
 ## Documentation Map
 
-- `README.md`: this detailed WebUI guide.
-- `docs/USER_GUIDE.md`: operator-facing WebUI usage guide.
-- `docs/web-ui-change-rules.md`: rules for UI changes.
-- `CHANGELOG.md`: package release notes.
+- `docs/webui/USER_GUIDE.md`: operator-facing WebUI usage guide.
+- `docs/webui/README.md`: this WebUI behavior, API, validation, and maintainer guide.
+- `docs/webui/web-ui-change-rules.md`: rules for UI changes.
+- `docs/webui/CHANGELOG.md`: package release notes.
+- `docs/cli/README.md`: full CLI command, validation, JSON/JSONL, and automation reference.
+- `docs/contracts/`: stable worker, orchestrator, and structured output contracts.
 

@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keysight 34461A CLI Logger 說明書</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-body: #ffffff;
+            --bg-sidebar: #f8fafc;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --border-color: #e2e8f0;
+            --bg-code: #1e293b;
+            --text-code: #f8fafc;
+            --bg-inline-code: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+            line-height: 1.7;
+            color: var(--text-main);
+            background-color: var(--bg-body);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        aside {
+            width: 280px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 2rem 1.5rem;
+            flex-shrink: 0;
+        }
+
+        aside h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toc-link {
+            text-decoration: none;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .toc-link:hover, .toc-link.active {
+            background-color: #e2e8f0;
+            color: var(--primary);
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            padding: 3rem 4rem;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-top: 3rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            scroll-margin-top: 2rem;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+
+        p {
+            margin-bottom: 1.25rem;
+            color: var(--text-muted);
+        }
+
+        ul, ol {
+            margin-bottom: 1.25rem;
+            padding-left: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Code Blocks & Inline Code */
+        code {
+            font-family: "Fira Code", "Consolas", monospace;
+            font-size: 0.9em;
+        }
+
+        p > code, li > code, td > code {
+            background-color: var(--bg-inline-code);
+            color: #be123c;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .code-wrapper {
+            position: relative;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--bg-code);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        pre {
+            margin: 0;
+            padding: 1.25rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            color: var(--text-code);
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Tables */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 2rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 0.875rem 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            color: var(--text-main);
+            white-space: nowrap;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background-color: #f8fafc;
+        }
+
+        .badge {
+            display: inline-block;
+            background-color: var(--primary);
+            color: white;
+            padding: 0.1rem 0.5rem;
+            border-radius: 999px;
+            font-size: 0.8rem;
+            margin-left: 0.5rem;
+            vertical-align: middle;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            aside {
+                width: 100%;
+                height: auto;
+                position: relative;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+            }
+            main {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <h3>目錄 (Table of Contents)</h3>
+        <nav id="toc">
+            <!-- JavaScript 會自動產生側邊導航 -->
+        </nav>
+    </aside>
+
+    <main>
+        <h1>Keysight 34461A CLI Logger</h1>
+        <p>目前發布基準：<code>keysight-logger</code> <span class="badge">1.4.0</span></p>
+
+        <h2 id="documentation">文件集</h2>
+        <ul>
+            <li><a href="USER_GUIDE.zh-TW.md">CLI 使用者指南</a> - 操作人員工作流程與常見設定指引。</li>
+            <li><a href="README.md">CLI README</a> - 詳細的 CLI 參考、驗證與自動化指南。</li>
+            <li><a href="CHANGELOG.md">Changelog</a> - 版本發布說明與待決基準。</li>
+            <li><a href="cli-integration.md">CLI 整合</a> - CLI 配接器維護邊界。</li>
+            <li><a href="../contracts/common-cli-jsonl-contract.md">通用 CLI JSON / JSONL 合約</a> - 共享命令列 JSON 外殼規則。</li>
+            <li><a href="../contracts/meters-cli-jsonl-contract.md">Meters CLI JSON / JSONL 合約</a> - Meters 命令列 JSON schema 與別名規則。</li>
+            <li><a href="../contracts/common-orchestrator-workflows.md">通用協調器工作流程</a> - 共享子程序生命週期指引。</li>
+            <li><a href="../contracts/meters-orchestrator-workflows.md">Meters 協調器工作流程</a> - 用於 Agent 和自動化的 Meters 子程序範例。</li>
+            <li><a href="../contracts/meters-worker-contract.md">Meters Worker 合約</a> - 用於 Agent 和協調器的 Meters 工作器控制面、JSONL 與產物合約。</li>
+        </ul>
+        <p>適用於 Keysight 34461A 的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率以及 2 線式或 4 線式電阻量測。它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。</p>
+        <p>對於標準操作人員的工作流程，請從 <a href="USER_GUIDE.zh-TW.md">CLI 使用者指南</a> 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。</p>
+        <p><code>keysight-logger</code> <code>1.4.0</code> 是目前的單一 distribution 基準。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
+        <p>Python 整合應從 <code>keysight_logger_core</code> 或 <code>keysight_logger_core.*</code> 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 <code>keysight_logger.measurement</code> 和 <code>keysight_logger.instrument</code>。</p>
+
+        <h2 id="current-scope">目前範圍</h2>
+        <h3>已實現：</h3>
+        <ul>
+            <li>透過 PyVISA 偵測到的 USB 和 LAN 資源的 VISA 資源列表。</li>
+            <li>DC 電流、DC 電壓、DCV 比率、AC 電流、AC 電壓以及 2 線或 4 線電阻量測記錄。</li>
+            <li>透過本機 HTTP 端點實現的軟體觸發模式。</li>
+            <li>透過 <code>GET /status</code> 實現的本機工作器狀態端點。</li>
+            <li>軟體計時器擷取（作為軟體觸發模式的一部分）。</li>
+            <li>外接硬體觸發模式。</li>
+            <li>即時擷取模式。</li>
+            <li>透過 <code>--max-samples</code> 限制樣本數的執行。</li>
+            <li>透過 HTTP、Ctrl+C、Ctrl+Break 或 <code>q</code> 進行正常停止。</li>
+            <li>軟體觸發 metadata 儲存至 CSV 中的 <code>trigger_metadata</code>。</li>
+            <li>當省略 <code>--csv</code> 時，選用的 UTC+8 時間戳記 CSV 輸出路徑。</li>
+            <li>透過 <code>list-resources --verify</code> 進行選用的資源驗證。</li>
+            <li>透過 <code>list-resources --live-only</code> 進行選用的作用中資源篩選。</li>
+            <li>選用的量測控制項：量測類型、自動範圍、手動範圍、DCV 輸入阻抗、包含 <code>once</code> 在內的自動歸零（Auto Zero）、NPLC、AC 頻寬、電流端子選擇、硬體觸發延遲、硬體觸發斜率與 VM Comp 斜率。</li>
+            <li>每筆擷取樣本後立即排空（flush）CSV。</li>
+        </ul>
+        <h3>重要限制：</h3>
+        <ul>
+            <li>本專案目前專注於 Keysight 34461A 的電流、電壓、DCV 比率以及 2 線或 4 線電阻記錄。</li>
+            <li>AC 模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬設定。在實際投入生產使用前，請使用操作者提供的 VISA 資源執行低風險的實際資源基本功能驗證（即快速健檢），並將 CLI 資料列與 34461A 前面板讀數進行對比。</li>
+            <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流和 AC 電壓僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為 AC 模式不會寫入 NPLC SCPI。AC 模式也不會寫入 Auto Zero SCPI 指令。</li>
+            <li>不支援在同一次執行中混合使用軟體和硬體擷取。</li>
+            <li>單純呼叫 <code>list-resources</code> 會直接調用 VISA 探測，可能會顯示 VISA 執行階段快取的過期資源。使用 <code>list-resources --verify</code> 開啟每個資源並查詢 <code>*IDN?</code>；驗證成功的資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 <code>list-resources --live-only</code>。</li>
+            <li><code>immediate</code>（即時）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 <code>--max-samples</code>。</li>
+        </ul>
+
+        <h2 id="system-requirements">系統需求</h2>
+        <ul>
+            <li>Python 3.10 或更新版本。</li>
+            <li>VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。</li>
+            <li>透過 USB 或 LAN 對 VISA 可見的 Keysight 34461A。</li>
+        </ul>
+
+        <h2 id="development">開發</h2>
+        <p>在 PowerShell 中，切換到專案目錄，建立或重複使用本機虛擬環境，安裝包含開發相依套件的套件，然後執行預設測試：</p>
+        <div class="code-wrapper"><pre><code>cd path\to\Keysight
+uv venv .venv
+uv pip install -e ".[all,dev]"
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider</code></pre></div>
+        <p>如果 <code>uv</code> 警告硬連結（hardlinking）失敗並降級為複製檔案，該警告通常不代表安裝失敗。對於跨磁碟結帳或不支援硬連結的環境，請使用以下命令安裝：</p>
+        <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]" --link-mode=copy</code></pre></div>
+        <p>在 Windows 上，完整的 pytest 執行可能需要系統管理員權限的 PowerShell 視窗，因為 VISA 相關的探測或本機環境存取可能需要系統管理員權限。</p>
+        <p>安裝後，使用 <code>keysight-logger</code> 主控台指令來執行專案命令：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe &lt;command&gt; [options]</code></pre></div>
+        <p><code>.venv\Scripts\keysight-logger.exe</code> 是安裝時產生的，並非受版本控制的專案檔案。如果遺失，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。如果 PowerShell 因執行原則限制而阻擋啟用，請繼續使用本指南中顯示的明確 <code>.\.venv\Scripts\...</code> 命令。</p>
+        <p>也支援將明確的模組形式作為開發/後備替代方案：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m keysight_logger_cli &lt;command&gt; [options]</code></pre></div>
+        <p>選用的環境啟用：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\Activate.ps1</code></pre></div>
+        <p>如果 PowerShell 因執行原則限制而阻擋啟用，請使用上方顯示的明確 <code>.\.venv\Scripts\python.exe</code> 指令。</p>
+
+        <h2 id="standalone-exe">獨立 EXE 建置</h2>
+        <p>安裝的 <code>.venv\Scripts\keysight-logger.exe</code> 是一個 virtualenv 主控台包裝器。對於沒有專案環境的機器，它並非獨立的執行檔。</p>
+        <p>若要建置選用的獨立主控台 exe，請在已安裝 <code>keysight-logger</code> 的環境中使用 PyInstaller。PyInstaller 是本機版本建置工具，而非 CLI 執行階段相依套件，因此在全新機器上重新建置之前，請將其安裝到 venv 中：</p>
+        <div class="code-wrapper"><pre><code>uv pip install pyinstaller</code></pre></div>
+        <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_cli_exe.ps1</code></pre></div>
+        <p>輸出為：</p>
+        <div class="code-wrapper"><pre><code>dist\keysight-logger.exe</code></pre></div>
+        <p>重新建置後執行無硬體的快速功能健檢：</p>
+        <div class="code-wrapper"><pre><code>.\dist\keysight-logger.exe --version
+.\dist\keysight-logger.exe --help
+.\dist\keysight-logger.exe list-resources --dry-run --json
+.\dist\keysight-logger.exe start-trigger-record --resource SIM::34461A --simulate --measurement voltage-dc --trigger-mode immediate --max-samples 1 --csv .tmp_tests\cli_exe_smoke.csv --status-format jsonl</code></pre></div>
+        <p>PyInstaller 會將產生的檔案寫入本機 <code>build\</code> 和 <code>dist\</code> 目錄。除非專案刻意切換為簽入的 PyInstaller spec，否則請勿提交產生的 <code>.spec</code> 檔案。</p>
+
+        <h2 id="no-hardware-verification">無硬體驗證</h2>
+        <p>在進行實體儀器工作前執行此配方：</p>
+        <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]"
+.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.ps1 -Target keysight-34461a
+.\.venv\Scripts\keysight-logger.exe list-resources --dry-run --json</code></pre></div>
+        <p><code>list-resources --dry-run</code> 不會建立 VISA 資源管理員、列出 VISA 資源、開啟資源、查詢 <code>*IDN?</code> 或執行發布/本機清除。如果主控台指令尚未產生，請先安裝套件；上述的模組形式仍可作為開發後備方案。</p>
+
+        <h2 id="physical-instrument-verification">實體儀器驗證路徑</h2>
+        <p>當搬移到新電腦、新的 VISA 執行階段或不同的 34461A 時，請使用本段落。先從無硬體驗證開始，然後探測作用中的資源，接著在允許包裝器接觸儀器前，執行僅限規劃的實際包裝器。</p>
+        <ol>
+            <li>執行上方的無硬體配方。</li>
+            <li>探測目前有回應 <code>*IDN?</code> 的資源：
+                <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --live-only --json</code></pre></div>
+            </li>
+            <li>從 JSON 輸出中複製一個資源字串。在下方的命令中使用該精確值。實際包裝器絕不會自行掃描或猜測資源。</li>
+            <li>產生實際規劃，而不開啟 VISA 或變更儀器：
+                <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
+  -Target keysight-34461a `
+  -Connection usb `
+  -Resource "&lt;VISA_RESOURCE&gt;" `
+  -Suite minimal `
+  -PlanOnly</code></pre></div>
+            </li>
+            <li>如果規劃看起來正確，請執行最小限度的實際功能驗證（快速健檢）。包裝器會先執行 preflight，列印規劃的儀器狀態變更，並在實際擷取前要求互動式的 Enter 確認：
+                <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
+  -Target keysight-34461a `
+  -Connection usb `
+  -Resource "&lt;VISA_RESOURCE&gt;" `
+  -Suite minimal</code></pre></div>
+            </li>
+        </ol>
+        <p>最小套件會擷取一個受限的即時模式樣本。它會將 <code>report.json</code>、<code>summary.md</code>、指令 stdout/stderr 檔案以及測試案例 CSV 寫入 <code>.tmp_tests\cli_live\...</code>。請先檢查 <code>summary.md</code>；通過的測試案例應顯示 <code>captured=1</code>、<code>errors=0</code>，且至少有一列 CSV 數據。在信任較長期的擷取之前，請將 CSV 數值與 34461A 前面板進行對比。</p>
+        <p>若要獲得更廣泛的實際覆蓋範圍，請在最小套件通過後使用 <code>-Suite basic</code>。該套件涵蓋即時量測和軟體觸發路徑。僅當操作者可以安全提供所需的外接觸發邊緣時，才使用 <code>-Suite external</code>。僅當同時需要基本和外接覆蓋時，才使用 <code>-Suite full</code>。</p>
+        <p>如果 stdin 被重新導向且未設定 <code>-PlanOnly</code>，<code>live-cli-check.ps1</code> 將拒絕實際擷取並寫入 <code>confirmation_required</code> 報告。這是預期行為：實際儀器執行需要互動式確認。</p>
+
+        <h2 id="cli-scripts">CLI 驗證指令腳本</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>腳本</th>
+                        <th>硬體使用</th>
+                        <th>目的</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>scripts\preflight-cli.ps1</code></td>
+                        <td>無硬體</td>
+                        <td>執行 dry-run、模擬器、用戶端 dry-run、模擬的 <code>list-resources</code> 以及包裝器合約檢查。在實際工作前使用。</td>
+                    </tr>
+                    <tr>
+                        <td><code>scripts\live-cli-check.ps1</code></td>
+                        <td>實體硬體（除非設定了 <code>-PlanOnly</code>）</td>
+                        <td>執行實際包裝器規劃，並在互動確認後，針對明確的 <code>-Resource</code> 執行有限的實際驗證案例（快速健檢）。</td>
+                    </tr>
+                    <tr>
+                        <td><code>scripts\release-cli-check.ps1</code></td>
+                        <td>預設無硬體</td>
+                        <td>執行發布門檻檢查，包括完整 pytest、preflight 和 <code>live-cli-check.ps1 -PlanOnly</code>。其預設驗證模式為 <code>release_no_hardware</code>。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 id="basic-workflow">基本工作流程</h2>
+        <p>對於包含常見設定說明的引導式操作人員路徑，請參閱 <a href="USER_GUIDE.zh-TW.md">CLI 使用者指南</a>。簡要參考流程如下：</p>
+        <ol>
+            <li>列出 VISA 資源。</li>
+            <li>選擇資源字串。</li>
+            <li>在一個終端機中啟動 <code>start-trigger-record</code>。</li>
+            <li>傳送觸發、等待外接觸發邊緣，或使用即時模式。</li>
+            <li>透過 <code>stop</code>、Ctrl+C、Ctrl+Break、<code>q</code> 或 <code>--max-samples</code> 停止。</li>
+            <li>檢查 CSV 輸出。</li>
+        </ol>
+
+        <h2 id="command-reference">指令參考</h2>
+        <p>使用已安裝的主控台指令：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe &lt;command&gt; [options]</code></pre></div>
+        <p>模組形式仍可作為明確的開發/後備替代方案：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m keysight_logger_cli &lt;command&gt; [options]</code></pre></div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>指令</th>
+                        <th>目的</th>
+                        <th>典型用法</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>list-resources</code></td>
+                        <td>列印由 PyVISA 偵測到的 VISA 資源。</td>
+                        <td>尋找 USB 或 LAN 資源字串。加入 <code>--verify</code> 以查詢 <code>*IDN?</code>；加入 <code>--live-only</code> 以隱藏過期的快取資源；加入 <code>--dry-run</code> 以預覽探測動作而不接觸 VISA。</td>
+                    </tr>
+                    <tr>
+                        <td><code>start-trigger-record</code></td>
+                        <td>連接到儀器並記錄樣本到 CSV。</td>
+                        <td>主要記錄指令。</td>
+                    </tr>
+                    <tr>
+                        <td><code>send-command</code></td>
+                        <td>將一個 <code>software_trigger</code> 指令 POST 到本機指令端點。</td>
+                        <td>與 <code>--trigger-mode software</code> 配合使用。</td>
+                    </tr>
+                    <tr>
+                        <td><code>stop</code></td>
+                        <td>將正常停止請求 POST 到本機停止端點。</td>
+                        <td>從另一個終端機停止執行中的記錄器。</td>
+                    </tr>
+                    <tr>
+                        <td><code>status</code></td>
+                        <td>GET 本機狀態端點並正規化工作器狀態。</td>
+                        <td>檢查工作器健康狀態並關聯 <code>run_id</code> 而不變更狀態。</td>
+                    </tr>
+                    <tr>
+                        <td><code>wait-ready</code></td>
+                        <td>輪詢本機狀態端點，直到工作器控制面可供連接。</td>
+                        <td>觸發/停止/狀態呼叫前的協調器準備就緒門檻。</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3>根選項：</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--version</code></td><td>列印 <code>keysight-logger &lt;package-version&gt;</code>並退出，不需要子指令。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3><code>list-resources</code> 選項：</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td>無</td><td>列印由 PyVISA 傳回的原始 VISA 資源。這可能包含過期的快取資源，且不會開啟資源或執行釋放回本機清除。</td></tr>
+                    <tr><td><code>--verify</code></td><td>開啟每個偵測到的資源並查詢 <code>*IDN?</code>。文字輸出將資料列標記為 <code>live</code>（作用中）或 <code>stale</code>（過期）；JSON 輸出包含 <code>live</code>、<code>status</code> 和 <code>detail</code>。成功的作用中檢查會在關閉前盡力執行釋放回本機狀態。</td></tr>
+                    <tr><td><code>--live-only</code></td><td>驗證資源並僅列印有回應的資料列。成功的作用中檢查會在關閉前盡力執行釋放回本機狀態。如果沒有連接或可連線的資源，文字輸出會列印 <code>no live VISA resources found</code>。</td></tr>
+                    <tr><td><code>--dry-run</code></td><td>列印資源探測合約並以 0 退出，而不建立 VISA 資源管理員、列出資源、開啟資源、查詢 <code>*IDN?</code> 或執行發布/本機清除。可與 <code>--verify</code>、<code>--live-only</code> 和 <code>--json</code> 結合使用。</td></tr>
+                    <tr><td><code>--format json</code></td><td>為腳本發出一個 JSON 物件。可與 <code>--verify</code> 或 <code>--live-only</code> 結合使用。</td></tr>
+                    <tr><td><code>--json</code></td><td><code>--format json</code> 的別名。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3><code>send-command</code> 選項：</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機指令端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
+                    <tr><td><code>--timeout-ms N</code></td><td><code>3000</code></td><td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
+                    <tr><td><code>--command NAME</code></td><td><code>software_trigger</code></td><td>Meters 指令名稱。此版本僅支援 <code>software_trigger</code>。</td></tr>
+                    <tr><td><code>--arguments-json JSON</code></td><td><code>{}</code></td><td>完整的 JSON 指令引數物件。使用 <code>{"metadata":{...}}</code> 來附加寫入 CSV 中 <code>trigger_metadata</code> 欄位的觸發 metadata。無效的 JSON、非物件的 metadata 以及其他指令驗證失敗將在傳送請求前被拒絕。</td></tr>
+                    <tr><td><code>--job-id TEXT</code></td><td>未設置</td><td>選用的用戶端產生工作識別碼，僅由指令外殼回應。</td></tr>
+                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 為 Agent 呼叫端發出一個結構化物件。</td></tr>
+                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
+                    <tr><td><code>--dry-run</code></td><td>否</td><td>在本機預覽請求而不傳送 HTTP。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3><code>stop</code> 選項：</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機停止端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
+                    <tr><td><code>--timeout-ms N</code></td><td><code>3000</code></td><td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
+                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 為 Agent 呼叫端發出一個結構化物件。</td></tr>
+                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
+                    <tr><td><code>--dry-run</code></td><td>否</td><td>在本機預覽請求而不傳送 HTTP。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3><code>status</code> 選項：</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機狀態端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
+                    <tr><td><code>--timeout-ms N</code></td><td><code>3000</code></td><td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
+                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 發出一個正規化的狀態物件。</td></tr>
+                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
+                    <tr><td><code>--dry-run</code></td><td>否</td><td>在本機預覽非變更性的 GET 請求而不傳送 HTTP。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3><code>wait-ready</code> 選項：</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機狀態端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
+                    <tr><td><code>--timeout-ms N</code></td><td><code>10000</code></td><td>整體準備就緒期限（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
+                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 發出正規化狀態加上準備就緒計時欄位。</td></tr>
+                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 id="trigger-modes">觸發模式</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>模式</th><th>擷取如何開始</th><th>讀取路徑</th><th>CSV <code>trigger_source</code></th><th>備註</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>software</code></td><td><code>send-command</code> 發送至本機 HTTP 端點，或 <code>--timer-interval-s</code> 建立自動計時器事件。</td><td><code>READ?</code></td><td><code>software</code> 或 <code>timer</code></td><td>省略 <code>--trigger-mode</code> 時的預設值。計時器模式在每次擷取嘗試後使用固定延遲間隔。</td></tr>
+                    <tr><td><code>external</code></td><td>儀器接收到外接硬體觸發邊緣。</td><td><code>FETC?</code></td><td><code>hardware</code></td><td>使用 <code>--trigger-mode external</code>。</td></tr>
+                    <tr><td><code>immediate</code></td><td>工作器直接擷取而不等待觸發事件。</td><td><code>READ?</code></td><td><code>immediate</code></td><td>使用 <code>--max-samples</code> 來限制執行樣本數。</td></tr>
+                    <tr><td><code>immediate-custom</code></td><td>儀器執行明確的即時觸發/樣本序列並將讀數儲存在記憶體中。</td><td><code>INIT</code> + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td><td><code>immediate-custom</code></td><td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 無效。</td></tr>
+                    <tr><td><code>software-custom</code></td><td>儀器準備接收匯流排觸發；每個接受的 <code>send-command</code> 會傳送 <code>*TRG</code>。</td><td><code>INIT</code> + <code>*TRG</code> + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td><td><code>software-custom</code></td><td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 和 <code>--timer-interval-s</code> 無效。</td></tr>
+                    <tr><td><code>external-custom</code></td><td>儀器準備接收外接觸發邊緣並將讀數儲存在記憶體中。</td><td><code>INIT</code> + 外接邊緣 + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td><td><code>external-custom</code></td><td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 和 <code>--timer-interval-s</code> 無效。</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p>在 <code>external</code> 模式下，意外的軟體觸發會被忽略，且不應中斷硬體觸發流程。在 <code>immediate</code> 模式下，軟體觸發同樣會被忽略。</p>
+        <p>當 <code>--timer-interval-s</code> 作用中時，一般的 <code>send-command</code> 請求會被忽略，而 <code>stop</code> 仍可停止執行。當記錄開始時會擷取第一個計時器樣本；後續的每個計時器樣本會在前一次擷取嘗試完成後，至少等待設定的間隔時間。計時器模式是簡單的軟體模式擷取路徑，因此 <code>--max-samples</code> 有效，並會在達到該數量成功的計時器 CSV 資料列後停止執行。</p>
+
+        <h2 id="start-trigger-record-options"><code>start-trigger-record</code> 選項</h2>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>選項</th><th>是否必要</th><th>預設值</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--resource RESOURCE</code></td><td>是</td><td>無</td><td>VISA 資源字串，例如 USB 或 TCPIP HiSLIP。</td></tr>
+                    <tr><td><code>--csv PATH</code></td><td>否</td><td><code>data/YYYY-MM-DD-HH-MM-SS.csv</code></td><td>CSV 輸出路徑。若省略，則在 <code>data</code> 下建立帶有 UTC+8 時間戳記的檔案。父目錄會自動建立。</td></tr>
+                    <tr><td><code>--status-format text|jsonl</code></td><td>否</td><td><code>text</code></td><td>執行階段狀態輸出格式。<code>jsonl</code> 為 Agent 呼叫端每行發出一個 JSON 物件。</td></tr>
+                    <tr><td><code>--dry-run</code></td><td>否</td><td>關閉</td><td>驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。</td></tr>
+                    <tr><td><code>--simulate</code></td><td>否</td><td>關閉</td><td>針對確定的模擬儀器後端執行，而不開啟實際的 VISA 工作階段。簡單模式需要有界限的執行，例如 <code>--max-samples</code>。</td></tr>
+                    <tr><td><code>--json</code></td><td>否</td><td>關閉</td><td><code>--status-format jsonl</code> 的別名。</td></tr>
+                    <tr><td><code>--timeout-ms N</code></td><td>否</td><td><code>5000</code></td><td>VISA 工作階段逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
+                    <tr><td><code>--trigger-timeout-ms N</code></td><td>否</td><td><code>10000</code></td><td>外接/自訂觸發等待逾時。支援範圍：<code>500</code> 到 <code>600000</code>。逾時會重新 arm 硬體模式，其本身並非擷取錯誤。對於預期的外接邊緣時間而言太短的值將會重複 arm 而不進行擷取。</td></tr>
+                    <tr><td><code>--sw-trigger-port N</code></td><td>否</td><td><code>8765</code></td><td>用於 <code>/command</code>、<code>/stop</code> 和 <code>/status</code> 的本機 HTTP 連接埠。使用 <code>0</code> 讓伺服器選擇連接埠，或使用 <code>1024</code> 到 <code>65535</code>。</td></tr>
+                    <tr><td><code>--sw-min-interval-ms N</code></td><td>否</td><td><code>0</code></td><td>接受的軟體觸發之間的最小間隔。使用 <code>0</code> 停用速率限制，或使用 <code>50</code> 到 <code>600000</code>。</td></tr>
+                    <tr><td><code>--sw-queue-max N</code></td><td>否</td><td><code>0</code></td><td>佇列軟體觸發的最大數量。支援範圍：<code>0</code> 到 <code>10000</code>；<code>0</code> 使用預設的安全限制。</td></tr>
+                    <tr><td><code>--trigger-mode software|external|immediate|immediate-custom|software-custom|external-custom</code></td><td>否</td><td><code>software</code></td><td>精確選擇一種擷取模式。</td></tr>
+                    <tr><td><code>--max-samples N</code></td><td>僅限簡單模式</td><td>無</td><td>在成功取得 N 個 CSV 樣本後自動停止簡單模式。支援範圍：<code>1</code> 到 <code>1000000</code>。與自訂模式不相容。</td></tr>
+                    <tr><td><code>--trigger-count N</code></td><td>僅限自訂模式</td><td>無</td><td>儀器觸發計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td></tr>
+                    <tr><td><code>--sample-count N</code></td><td>僅限自訂模式</td><td>無</td><td>每次觸發的儀器樣本計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td></tr>
+                    <tr><td><code>--timer-interval-s SECONDS</code></td><td>否</td><td>無</td><td>啟用固定延遲的軟體計時器擷取。支援範圍：<code>0.5</code> 到 <code>86400</code> 秒。僅在 <code>--trigger-mode software</code> 時有效；當省略 <code>--trigger-mode</code> 時也有效（因為預設為 software）。可與 <code>--max-samples</code> 結合以限制計時器執行次數。</td></tr>
+                    <tr><td><code>--buffer-drain-size N</code></td><td>僅限自訂模式</td><td>無</td><td>每次緩衝區排空移除的最大讀數。支援範圍：<code>1</code> 到 <code>10000</code>，受儀器設定檔讀取記憶體限制。進階選項，僅在自訂模式下有效；不會變更 <code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 或儀器讀取記憶體容量。</td></tr>
+                    <tr><td><code>--allow-buffer-overflow-risk</code></td><td>否</td><td>關閉</td><td>允許自訂模式請求超過 34461A 的 10,000 個讀數記憶體限制。這取決於排空讀數的速度是否夠快，可能會遺失數據或產生 SCPI 錯誤。</td></tr>
+                    <tr><td><code>--hw-trigger-slope pos|neg</code></td><td>否</td><td><code>neg</code></td><td>外接觸發邊緣極性。</td></tr>
+                    <tr><td><code>--hw-trigger-delay-s SECONDS</code></td><td>否</td><td><code>0.0</code></td><td>硬體觸發延遲，對應到 <code>TRIG:DEL</code>。支援範圍：<code>0</code> 到 <code>3600</code> 秒。</td></tr>
+                    <tr><td><code>--measurement current-dc|voltage-dc|voltage-dc-ratio|current-ac|voltage-ac|resistance-2w|resistance-4w</code></td><td>否</td><td><code>current-dc</code></td><td>量測類型。</td></tr>
+                    <tr><td><code>--nplc VALUE</code></td><td>否</td><td><code>1.0</code></td><td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC 電流和 AC 電壓僅接受中性預設值 <code>1.0</code>；除非您刻意傳送 <code>1.0</code>，否則 AC 模式請省略 <code>--nplc</code>。</td></tr>
+                    <tr><td><code>--auto-zero on|off|once</code></td><td>否</td><td><code>on</code></td><td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻和 AC 量測則將 Auto Zero 交給儀器處理。</td></tr>
+                    <tr><td><code>--auto-range on|off</code></td><td>否</td><td><code>on</code></td><td>啟用或停用自動範圍（Auto Range）。</td></tr>
+                    <tr><td><code>--range VALUE</code></td><td>當 <code>--auto-range off</code> 時必要</td><td>無</td><td>所選量測的手動範圍。電流為安培，電壓為伏特，電阻為歐姆。</td></tr>
+                    <tr><td><code>--current-range VALUE</code></td><td>僅限 DC 電流</td><td>無</td><td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在 AC 電流、電壓和電阻量測下無效。</td></tr>
+                    <tr><td><code>--ac-bandwidth-hz 3|20|200</code></td><td>僅限 AC</td><td>無</td><td>用於 AC 電流和 AC 電壓的 AC 頻寬/濾波器設定。省略以保持儀器預設/目前設定不變。</td></tr>
+                    <tr><td><code>--current-terminal 3|10</code></td><td>僅限電流</td><td><code>3</code></td><td>電流輸入端子。10 A 範圍需要 <code>--current-terminal 10</code>；<code>--current-terminal 10</code> 僅在 10 A 範圍下有效。</td></tr>
+                    <tr><td><code>--dcv-input-impedance default|10m|auto</code></td><td>僅限 DC 電壓或 DCV 比率</td><td><code>default</code></td><td>DC 電壓輸入阻抗。<code>default</code> 不寫入阻抗指令；<code>10m</code> 強制為 10 MOhm；<code>auto</code> 啟用儀器自動（Auto）模式（在較低的 DC 電壓範圍下可能會顯示 HighZ）。</td></tr>
+                    <tr><td><code>--vm-comp-slope pos|neg</code></td><td>否</td><td>無</td><td>設定後面板 VM Comp 輸出脈衝斜率。省略以保持 VM Comp 不變。</td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p><code>--measurement</code> 預設為 <code>current-dc</code>，因此現有的電流量測記錄指令不需要特別指定。新指令應偏好使用 <code>--range</code>；<code>--current-range</code> 繼續適用於現有的 DC 電流腳本。對於 <code>current-ac</code>、<code>voltage-dc</code>、<code>voltage-dc-ratio</code>、<code>voltage-ac</code>、<code>resistance-2w</code> 和 <code>resistance-4w</code> 請使用 <code>--range</code>；<code>--current-range</code> 在這些量測下會被拒絕。
+        <code>--dcv-input-impedance</code> 僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 時有效。使用 <code>default</code> 以保持儀器目前的 Input Z設定不變，<code>10m</code> 強制為 10 MOhm，或 <code>auto</code> 啟用 34461A 的 Auto Input Z 行為。當 Auto 作用於較低 DC 電壓範圍時，儀器可能會顯示 HighZ。</p>
+
+        <h2 id="agent-friendly-workflow">友善 Agent 的 CLI 工作流程</h2>
+        <p>使用 <code>--dry-run</code> 來驗證命令並檢查規劃的 SCPI/讀取路徑，而不接觸實體儀器：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1 `
+  --dry-run `
+  --status-format jsonl</code></pre></div>
+        <p>使用 <code>--simulate</code> 進行工作流程檢查，而不需要實際的 VISA 工作階段：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "SIM::34461A" `
+  --csv ".\data\simulate.csv" `
+  --trigger-mode immediate `
+  --measurement current-dc `
+  --max-samples 2 `
+  --simulate `
+  --status-format jsonl</code></pre></div>
+        <p>JSONL 輸出是每行一個 JSON 物件。這是專為 Agent 和腳本設計的；預設的文字輸出仍然是面向人類的介面。模擬器數值是確定的工作流程資料，並非真實的 34461A 量測驗證。</p>
+        <p>自動化呼叫端應解析 JSONL、單一回應 JSON、CSV 檔案以及包裝器 <code>report.json</code> 產物來做出決策。人類文字訊息僅用於診斷，且可能會因可讀性而有所變更。</p>
+        <p>有關目前的 schema 和別名規則，請參閱 <a href="../../docs/contracts/meters-cli-jsonl-contract.md">Meters CLI JSON / JSONL 合約</a>。</p>
+        <p>有關 Meters 工作器模式、本機控制端點、狀態 payload 以及包裝器產物/報告 schema，請參閱 <a href="../../docs/contracts/meters-worker-contract.md">Meters Worker 合約</a>。</p>
+        <p>當工作器執行中，<code>status</code> 會包裝非變更性的 <code>GET /status</code> 並傳回正規化 JSON 以供協調器健康檢查：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe status --port 8765 --json</code></pre></div>
+        <p>推薦的協調器流程：</p>
+        <ol>
+            <li>執行 <code>start-trigger-record --dry-run --status-format jsonl</code> 並驗證規劃（plan）物件。</li>
+            <li>以相同的命令搭配 <code>--simulate --status-format jsonl</code> 與有限範圍（如 <code>--max-samples</code>）執行。</li>
+            <li>對於實際擷取，使用明確的 <code>--resource</code> 啟動工作器；在無人值守的實際執行中，絕不可掃描、推斷或猜測 VISA 資源。</li>
+            <li>等待 JSONL 的 <code>ready</code> 事件，或執行 <code>wait-ready --port 8765 --json</code>，然後呼叫 <code>status --port 8765 --json</code> 來驗證 <code>run_id</code>。</li>
+            <li>僅在軟體觸發模式下使用 <code>POST /command</code>，並使用 <code>POST /stop</code> 進行正常停止。</li>
+            <li>讀取 stdout 的 JSONL、CSV 以及例如 <code>report.json</code> 的包裝器產物以做出成功/失敗的決策。</li>
+        </ol>
+        <p>請參閱 <a href="../../docs/contracts/meters-orchestrator-workflows.md">Meters 協調器工作流程</a> 了解完整的 Python 子程序工作流程。</p>
+        <p><code>ready</code> 事件與 <code>wait-ready</code> 代表本機控制面可以接受 <code>/command</code>、<code>/stop</code> 與 <code>/status</code> 請求。它們並不代表第一個樣本已經擷取。使用 JSONL <code>run_id</code> 作為同一次執行的 stdout 執行階段事件、<code>status</code> 或直接 <code>GET /status</code> 以及包裝器產物之間的關聯鍵。</p>
+
+        <h3>send-command --format json</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command --port 8765 --format json</code></pre></div>
+        <p>輸出：</p>
+        <div class="code-wrapper"><pre><code>{"command": "software_trigger", "event": "send-command", "http_status": 202,
+ "job_id": null, "message": "command accepted", "schema_version": 1,
+ "status": "accepted", "timestamp_utc": "2026-05-18T..."}</code></pre></div>
+        <p>本機驗證和工作器 HTTP <code>400</code> 回應會以代碼 2 退出。HTTP <code>409</code>、<code>429</code>、連線/請求失敗，以及無效或空的成功回應主體會以代碼 3 退出。結構化 JSON 診斷會合併工作器的 <code>command</code>、<code>job_id</code>、<code>reason</code>、<code>error</code> 和 <code>message</code> 欄位（如果可用）。</p>
+
+        <h3>stop --format json</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe stop --port 8765 --format json</code></pre></div>
+        <p>輸出：</p>
+        <div class="code-wrapper"><pre><code>{"event": "stop", "http_status": 202, "message": "stop accepted",
+ "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}</code></pre></div>
+        <p>如果端點未在監聽（程序已停止），則以代碼 0 退出，並發出 <code>{"status": "already_stopped", ...}</code>。</p>
+
+        <h3>status --format json</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe status --port 8765 --format json</code></pre></div>
+        <p>輸出包含 <code>event: "status"</code>、<code>reachable</code>、<code>ok</code>、<code>running</code>、<code>stopping</code>、<code>run_id</code>、工作器 URL、佇列欄位、<code>captured</code>（已擷取數）、<code>errors</code>（錯誤數）以及 <code>fatal_error</code>。<code>ok</code> 是工作器健康狀態：僅在端點可連線且 <code>fatal_error</code> 為 <code>null</code> 時才為 <code>true</code>。</p>
+
+        <h3>wait-ready --format json</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe wait-ready --port 8765 --timeout-ms 10000 --format json</code></pre></div>
+        <p><code>wait-ready</code> 在收到來自 <code>/status</code> 的任何有效 <code>200</code> JSON 回應時成功，並將 <code>attempts</code>、<code>elapsed_ms</code> 和 <code>timeout_ms</code> 加入正規化的狀態物件中。逾時或無效狀態 JSON 將以代碼 3 退出。</p>
+
+        <h3>結束代碼 (Exit Codes)</h3>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>代碼</th><th>意義</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>0</code></td><td>成功，包括含有 <code>fatal_error</code> 的可連線 <code>status</code>，以及當端點已停止時的 <code>stop</code>。</td></tr>
+                    <tr><td><code>2</code></td><td>在請求的操作執行前的驗證或使用錯誤。</td></tr>
+                    <tr><td><code>3</code></td><td>執行階段、連線、HTTP 請求失敗、無效的 <code>/status</code> JSON，或 <code>wait-ready</code> 逾時。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 id="validated-argument-limits">已驗證引數限制</h2>
+        <p>CLI 在開啟儀器前會驗證使用者輸入。超出這些範圍的值將快速失敗並顯示明確的錯誤。</p>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>引數</th><th>接受值</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>--measurement</code></td><td><code>current-dc</code>, <code>voltage-dc</code>, <code>voltage-dc-ratio</code>, <code>current-ac</code>, <code>voltage-ac</code>, <code>resistance-2w</code>, <code>resistance-4w</code></td></tr>
+                    <tr><td><code>--auto-zero</code></td><td><code>on</code>, <code>off</code> 或 <code>once</code>（依量測而有不同限制）</td></tr>
+                    <tr><td><code>--auto-range</code></td><td><code>on</code> 或 <code>off</code></td></tr>
+                    <tr><td><code>--ac-bandwidth-hz</code></td><td><code>3</code>, <code>20</code> 或 <code>200</code>（僅限 AC 電流/電壓）</td></tr>
+                    <tr><td><code>--current-terminal</code></td><td><code>3</code> 或 <code>10</code>（僅限電流量測）</td></tr>
+                    <tr><td><code>--status-format</code></td><td><code>text</code> 或 <code>jsonl</code></td></tr>
+                    <tr><td><code>--timeout-ms</code></td><td><code>100</code> 到 <code>600000</code></td></tr>
+                    <tr><td><code>--trigger-timeout-ms</code></td><td><code>500</code> 到 <code>600000</code></td></tr>
+                    <tr><td><code>--sw-trigger-port</code></td><td><code>0</code> 或 <code>1024</code> 到 <code>65535</code>；<code>0</code> 讓伺服器自行選擇</td></tr>
+                    <tr><td><code>--sw-min-interval-ms</code></td><td><code>0</code> 或 <code>50</code> 到 <code>600000</code>；<code>0</code> 停用節流</td></tr>
+                    <tr><td><code>--sw-queue-max</code></td><td><code>0</code> 到 <code>10000</code>；<code>0</code> 使用預設安全限制</td></tr>
+                    <tr><td><code>--max-samples</code></td><td><code>1</code> 到 <code>1000000</code>（僅限簡單模式）</td></tr>
+                    <tr><td><code>--trigger-count</code>, <code>--sample-count</code></td><td><code>1</code> 到 <code>1000000</code>（僅限自訂模式）</td></tr>
+                    <tr><td><code>--timer-interval-s</code></td><td><code>0.5</code> 到 <code>86400</code> 秒（僅限軟體模式）</td></tr>
+                    <tr><td><code>--buffer-drain-size</code></td><td><code>1</code> 到 <code>10000</code>（僅限自訂模式且受讀取記憶體限制）</td></tr>
+                    <tr><td><code>--hw-trigger-delay-s</code></td><td><code>0</code> 到 <code>3600</code> 秒</td></tr>
+                    <tr><td><code>send-command --port</code>, <code>stop --port</code>, <code>status --port</code>, <code>wait-ready --port</code></td><td><code>1</code> 到 <code>65535</code></td></tr>
+                    <tr><td><code>send-command --timeout-ms</code>, <code>stop --timeout-ms</code>, <code>status --timeout-ms</code>, <code>wait-ready --timeout-ms</code></td><td><code>100</code> 到 <code>600000</code></td></tr>
+                    <tr><td><code>send-command --format</code>, <code>stop --format</code>, <code>status --format</code>, <code>wait-ready --format</code></td><td><code>text</code> 或 <code>json</code></td></tr>
+                </tbody>
+            </table>
+        </div>
+        <p>對於 Agent 或自動化使用，<code>start-trigger-record --status-format jsonl</code> 和 <code>--json</code> 別名會在控制面啟動後發出一個 <code>ready</code> 事件。該事件包含 <code>command_url</code>、<code>stop_url</code> 和 <code>status_url</code>。請將其視為可以傳送 <code>/command</code>、<code>/stop</code> 和非變更性 <code>/status</code> 請求的訊號；這不是第一個樣本或量測完成的訊號。</p>
+        <p><code>--trigger-timeout-ms</code> 對於外接硬體觸發模式最為重要。如果它短於外接邊緣之間的預期時間，主控台將會一直列印硬體觸發逾時/重新 arm 狀態，且在逾時視窗內有新的邊緣到達前不會進行任何擷取。在軟體模式下，此值僅用於工作器輪詢步調，並在內部限制為每次等待最多 200 ms；這不是量測完成的逾時。</p>
+        <p>對於 Agent 或自動化使用，請保守分類觸發等待結果：尚未到達的外接觸發邊緣是正常等待狀態，而非錯誤。在簡單的外接模式中，重複的 PyVISA 狀態位元組輪詢逾時只會發出診斷，不會成為致命的擷取失敗：第 5 次連續逾時會發出警告，第 25 次連續逾時會增加 <code>errors</code> 數並發出降級狀態，之後每增加 25 次連續逾時會再次增加 <code>errors</code> 數。成功讀取狀態位元組會重設連續逾時次數。實際的 <code>READ?</code>、<code>FETC?</code>、連線、識別或 SCPI 指令失敗則是擷取錯誤且可能是致命的。</p>
+        
+        <p>手動範圍值針對每種量測類型進行白名單管理：</p>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>量測類型</th><th>允許的 <code>--range</code> 值</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>current-dc</code></td><td><code>0.0001</code>, <code>0.001</code>, <code>0.01</code>, <code>0.1</code>, <code>1</code>, <code>3</code>, <code>10</code> A</td></tr>
+                    <tr><td><code>current-ac</code></td><td><code>0.0001</code>, <code>0.001</code>, <code>0.01</code>, <code>0.1</code>, <code>1</code>, <code>3</code>, <code>10</code> A</td></tr>
+                    <tr><td><code>voltage-dc</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td></tr>
+                    <tr><td><code>voltage-dc-ratio</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td></tr>
+                    <tr><td><code>voltage-ac</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V</td></tr>
+                    <tr><td><code>resistance-2w</code></td><td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td></tr>
+                    <tr><td><code>resistance-4w</code></td><td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <p>額外驗證規則：</p>
+        <ul>
+            <li><code>--auto-range off</code> 需要手動範圍。對於 <code>current-dc</code>，接受 <code>--range</code> 或相容別名 <code>--current-range</code>。對於所有其他量測，請使用 <code>--range</code>。</li>
+            <li><code>--range</code> 和 <code>--current-range</code> 不能同時使用。</li>
+            <li><code>--current-range</code> 僅在 <code>--measurement current-dc</code> 下有效。</li>
+            <li>除了 <code>default</code> 之外的 <code>--dcv-input-impedance</code> 值僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 下有效。</li>
+            <li>DC、DCV 比率和電阻量測僅接受以下 NPLC 值：<code>0.02</code>, <code>0.2</code>, <code>1</code>, <code>10</code>, <code>100</code>。</li>
+            <li>AC 電流和 AC 電壓拒絕非預設的 NPLC 值。請省略 <code>--nplc</code> 或傳送 <code>--nplc 1.0</code>。</li>
+            <li><code>--auto-zero once</code> 僅在 <code>current-dc</code>, <code>voltage-dc</code> 和 <code>resistance-2w</code> 下有效。</li>
+            <li><code>voltage-dc-ratio</code> 僅接受預設/啟用（on）的 Auto Zero 行為。</li>
+            <li><code>--ac-bandwidth-hz</code> 僅在 <code>current-ac</code> 或 <code>voltage-ac</code> 下有效。</li>
+            <li><code>--current-terminal</code> 僅在電流量測下有效。10 A 範圍需要 <code>--current-terminal 10</code>，而 <code>--current-terminal 10</code> 需要 10 A 範圍。</li>
+            <li>自訂模式需要同時提供 <code>--trigger-count</code> 和 <code>--sample-count</code>；簡單模式會拒絕這兩個選項。</li>
+            <li>自訂模式拒絕 <code>--max-samples</code>；簡單模式使用 <code>--max-samples</code> 進行有限的執行。</li>
+            <li><code>--buffer-drain-size</code> 和 <code>--allow-buffer-overflow-risk</code> 僅在自訂模式下有效。</li>
+            <li>除非設定了 <code>--allow-buffer-overflow-risk</code>，否則自訂模式拒絕 <code>trigger_count * sample_count > 10000</code>。</li>
+            <li><code>--timer-interval-s</code> 需要軟體模式。它在預設觸發模式下有效（因為省略 <code>--trigger-mode</code> 會解析為 <code>software</code>）。可與 <code>--max-samples</code> 結合使用。</li>
+        </ul>
+
+        <h2 id="examples">範例</h2>
+        <p>這些範例依照實用驗證路徑排序：先確認作用中資源，然後執行單一樣本快速功能健檢，最後使用符合實驗設計的觸發模式。下方顯示的 USB 資源是專案驗證時使用的 34461A；請替換為適合您儀器和測試執行的資源字串與 CSV 路徑。</p>
+
+        <h3>列出 VISA 資源</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources</code></pre></div>
+        <p>驗證哪些資源是作用中（live）的：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --verify</code></pre></div>
+        <p>成功驗證的作用中資源會在掃描工作階段關閉前盡力釋放回本機狀態。未通過 IDN 查詢的過期資源將在不執行釋放 SCPI 的情況下關閉。</p>
+        <p>僅顯示作用中資源並隱藏過期的 VISA 快取項目：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --live-only</code></pre></div>
+        <p>在腳本中使用 JSON 輸出：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --verify --format json</code></pre></div>
+        <p>預覽探測合約而不接觸 VISA：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --dry-run --live-only --json</code></pre></div>
+        <p>驗證後的文字輸出以 tab 分隔：</p>
+        <div class="code-wrapper"><pre><code>live    USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR    Keysight Technologies,34461A,...
+stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></pre></div>
+        <p><code>--live-only</code> 仍會驗證每個資源，但會隱藏過期（stale）的資料列。如果沒有資源回應，文字輸出會列印：</p>
+        <div class="code-wrapper"><pre><code>no live VISA resources found</code></pre></div>
+        <p>驗證後的 JSON 輸出為單一物件：</p>
+        <div class="code-wrapper"><pre><code>{
+  "resources": [
+    {
+      "detail": "Keysight Technologies,34461A,...",
+      "live": true,
+      "resource": "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR",
+      "status": "live"
+    }
+  ],
+  "verify": true
+}</code></pre></div>
+        <p><code>--live-only --format json</code> 保留相同的資源記錄格式，篩選掉過期的項目，並加入 <code>live_only</code>：</p>
+        <div class="code-wrapper"><pre><code>{
+  "live_only": true,
+  "resources": [
+    {
+      "detail": "Keysight Technologies,34461A,...",
+      "live": true,
+      "resource": "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR",
+      "status": "live"
+    }
+  ],
+  "verify": true
+}</code></pre></div>
+        <p>資源字串範例：</p>
+        <div class="code-wrapper"><pre><code>USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR
+TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
+
+        <h3>真實儀器驗證路徑</h3>
+        <p>在檢查環境設定時，請使用此順序：</p>
+        <ol>
+            <li>執行 <code>list-resources --live-only</code> 並選擇作用中的資源。當需要診斷過期的 VISA 快取項目時，請改用 <code>list-resources --verify</code>。</li>
+            <li>以 <code>--trigger-mode immediate</code> 與 <code>--max-samples 1</code> 執行單一樣本的電流、電壓或電阻快速健檢。</li>
+            <li>執行實驗所需的特定觸發模式：軟體、計時器、外接、即時或自訂/緩衝。</li>
+            <li>確認 CSV 中的 <code>measurement_type</code>、<code>unit</code>、<code>trigger_source</code> 與列數。</li>
+            <li>在信賴長期無人值守執行前，先用 <code>stop</code>、Ctrl+C、Ctrl+Break 或 <code>q</code> 確認正常停止行為。</li>
+        </ol>
+        <p>在進行無人值守擷取前，請使用操作者提供的 Keysight 34461A VISA 資源來驗證工作流程。從即時模式、自動範圍開啟以及 <code>--max-samples 1</code> 開始，然後擴展至預期的量測、觸發模式與緩衝模式。對於 AC 電流與 AC 電壓，請在快速健檢期間將 CLI CSV 資料列與 34461A 前面板讀數進行對比。</p>
+
+        <h3>DC 電流快速健檢</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\current_smoke.csv" `
+  --trigger-mode immediate `
+  --measurement current-dc `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero off `
+  --nplc 1.0 `
+  --max-samples 1</code></pre></div>
+        <p>對於電流列，預期 CSV 中的 <code>measurement_type=current_dc</code> 且 <code>unit=A</code>。</p>
+
+        <h3>軟體觸發，限制樣本執行</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\software_5.csv" `
+  --trigger-mode software `
+  --max-samples 5 `
+  --measurement current-dc `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero on `
+  --nplc 1.0</code></pre></div>
+        <p>終端機 2，傳送一次軟體觸發：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command --port 8765</code></pre></div>
+        <p>執行 <code>send-command</code> 指令五次。記錄器會因為 <code>--max-samples 5</code> 而在成功取得五個樣本後自動停止。</p>
+
+        <h3>驗證過的 DC 電壓基本功能驗證</h3>
+        <p>自動範圍，單一即時電壓樣本：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\voltage_auto_smoke.csv" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --auto-range on `
+  --auto-zero off `
+  --nplc 1.0 `
+  --max-samples 1</code></pre></div>
+
+        <h3>DCV 比率 (Ratio) 快速功能驗證</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\voltage_dc_ratio_smoke.csv" `
+  --trigger-mode immediate `
+  --measurement voltage-dc-ratio `
+  --auto-range on `
+  --nplc 1.0 `
+  --max-samples 1 `
+  --status-format jsonl</code></pre></div>
+
+        <h3>AC 電流與電壓快速功能驗證</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\voltage_ac_auto_smoke.csv" `
+  --trigger-mode immediate `
+  --measurement voltage-ac `
+  --ac-bandwidth-hz 20 `
+  --auto-range on `
+  --max-samples 1</code></pre></div>
+
+        <h3>驗證過的 2 線式電阻基本功能驗證</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\resistance_2w_auto_smoke.csv" `
+  --trigger-mode immediate `
+  --measurement resistance-2w `
+  --auto-range on `
+  --auto-zero off `
+  --nplc 1.0 `
+  --max-samples 1</code></pre></div>
+
+        <h3>4 線式電阻基本功能驗證</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\resistance_4w_auto_smoke.csv" `
+  --trigger-mode immediate `
+  --measurement resistance-4w `
+  --auto-range on `
+  --nplc 1.0 `
+  --max-samples 1</code></pre></div>
+
+        <h3>軟體觸發附帶 Metadata</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command `
+  --port 8765 `
+  --arguments-json "{""metadata"":{""batch"":""A1"",""operator"":""lab""}}"</code></pre></div>
+
+        <h3>軟體計時器，限制樣本執行</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\software_timer_100.csv" `
+  --trigger-mode software `
+  --timer-interval-s 1.0 `
+  --max-samples 100 `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero off `
+  --nplc 1.0</code></pre></div>
+
+        <h3>外接硬體觸發，限制樣本執行</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\external_10.csv" `
+  --trigger-mode external `
+  --max-samples 10 `
+  --hw-trigger-slope neg `
+  --trigger-timeout-ms 10000 `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero on `
+  --nplc 1.0</code></pre></div>
+
+        <h3>即時自訂（Immediate Custom）模式</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\immediate_custom_1000.csv" `
+  --trigger-mode immediate-custom `
+  --trigger-count 1 `
+  --sample-count 1000 `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero off `
+  --nplc 1.0</code></pre></div>
+
+        <h3>外接自訂（External Custom）模式</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\external_custom_10.csv" `
+  --trigger-mode external-custom `
+  --trigger-count 1 `
+  --sample-count 10 `
+  --hw-trigger-slope neg `
+  --hw-trigger-delay-s 0 `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero off `
+  --nplc 1.0</code></pre></div>
+
+        <h3>LAN 資源範例</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "TCPIP0::&lt;host&gt;::hislip0::INSTR" `
+  --csv ".\data\lan_software.csv" `
+  --trigger-mode software `
+  --max-samples 5</code></pre></div>
+
+        <h3>較慢的高精度 DC/電阻設定</h3>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\software_high_accuracy.csv" `
+  --trigger-mode software `
+  --auto-range off `
+  --range 0.1 `
+  --auto-zero on `
+  --nplc 10.0</code></pre></div>
+
+        <h3>VM Comp 斜率</h3>
+        <p>除非您需要設定後面板 VM Comp 輸出脈衝斜率，否則請省略 <code>--vm-comp-slope</code>。</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --csv ".\data\vm_comp_pos.csv" `
+  --trigger-mode software `
+  --max-samples 5 `
+  --vm-comp-slope pos</code></pre></div>
+
+        <h2 id="stop-execution">停止執行</h2>
+        <p>記錄器啟動時會印出本機控制端點：</p>
+        <div class="code-wrapper"><pre><code>command endpoint: http://127.0.0.1:8765/command
+software stop endpoint: http://127.0.0.1:8765/stop
+software status endpoint: http://127.0.0.1:8765/status
+local stop keys: Ctrl+C, Ctrl+Break, q</code></pre></div>
+        <p>從另一個終端機停止：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe stop --port 8765</code></pre></div>
+        <p>其他支援的停止方法：</p>
+        <ul>
+            <li>在記錄終端機中按 <code>Ctrl+C</code>。</li>
+            <li>在記錄終端機中按 <code>Ctrl+Break</code>。</li>
+            <li>在記錄終端機中按 <code>q</code>。</li>
+            <li>使用 <code>--max-samples N</code> 讓工作器在取得 N 次成功擷取後自動停止。</li>
+        </ul>
+        <p>預期的清除輸出包含：</p>
+        <div class="code-wrapper"><pre><code>stop request received
+recording stopped
+release_to_local: ...
+cleanup_release_to_local: ...
+software trigger server stopped</code></pre></div>
+        <p>如果在記錄器已經退出後傳送 <code>stop</code>，可能會印出：</p>
+        <div class="code-wrapper"><pre><code>already stopped (endpoint not listening)</code></pre></div>
+        <p>這會被視為成功。</p>
+
+        <h2 id="console-output">主控台狀態輸出</h2>
+        <p>在軟體觸發的執行期間，對於每個連續的等待期間僅會印出一次 <code>waiting trigger</code>，而不會在每次短時間輪詢逾時都重複列印。<code>software-custom</code> 模式也會對 <code>waiting software custom trigger</code> 執行相同的規則。</p>
+        <p>對於 Agent 自動化，人類易讀的狀態列可以幫助診斷等待和輪詢行為，但穩定的成功/失敗決策仍應依賴程序結束代碼、CSV 列數、<code>captured=X errors=Y</code> 以及明確的致命錯誤文字。</p>
+        <p>成功擷取會列印計數與最新顯示數值，例如：</p>
+        <div class="code-wrapper"><pre><code>[status] captured=1 value=12.3 mA
+[status] captured=2 value=1.23 kOhm</code></pre></div>
+        <p>像是 <code>mA</code>, <code>mV</code>, <code>kOhm</code>, <code>MOhm</code> 的顯示字首僅用於主控台。CSV 資料列會繼續以量測的基本單位（<code>A</code>, <code>V</code>, <code>ratio</code> 或 <code>Ohm</code>）儲存原始數值。自訂/緩衝模式可能會一次排空多個讀數；主控台狀態會顯示該次排空批次中的最後一個樣本。</p>
+
+        <h2 id="csv-output">CSV 輸出</h2>
+        <p>如果省略 <code>--csv</code>，記錄器會寫入 <code>data</code> 下的 UTC+8 時間戳記檔案，例如 <code>data/2026-05-11-14-30-05.csv</code>。傳送 <code>--csv PATH</code> 會繼續寫入該確切路徑。</p>
+        <p>CSV 欄位：</p>
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>欄位</th><th>說明</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><code>timestamp_utc_plus_8</code></td><td>讀取樣本時的 UTC+8 時間戳記，序列化為 ISO 8601，帶有 <code>+08:00</code> 偏移量。</td></tr>
+                    <tr><td><code>measurement_type</code></td><td>選取的量測類型，例如 <code>current_dc</code>、<code>voltage_dc</code>、<code>voltage_dc_ratio</code>、<code>current_ac</code>、<code>voltage_ac</code>、<code>resistance_2w</code> 或 <code>resistance_4w</code>。</td></tr>
+                    <tr><td><code>value</code></td><td>量測數值。</td></tr>
+                    <tr><td><code>unit</code></td><td>單位，電流為 <code>A</code>，電壓為 <code>V</code>，DCV 比率為 <code>ratio</code>，電阻為 <code>Ohm</code>。</td></tr>
+                    <tr><td><code>trigger_id</code></td><td>指派給觸發事件的 UUID。</td></tr>
+                    <tr><td><code>trigger_source</code></td><td><code>software</code>, <code>timer</code>, <code>hardware</code>, <code>immediate</code>, <code>immediate-custom</code>, <code>software-custom</code>, 或 <code>external-custom</code>。</td></tr>
+                    <tr><td><code>trigger_metadata</code></td><td>來自 <code>send-command --arguments-json</code> 的 JSON 物件字串，或 <code>{}</code>。</td></tr>
+                    <tr><td><code>measurement_metadata</code></td><td>量測特定內容的 JSON 物件字串，或 <code>{}</code>。DCV Ratio 可包含來自 <code>DATA2?</code> 的信號/參考電壓欄位。</td></tr>
+                    <tr><td><code>resource_id</code></td><td>此執行所使用的 VISA 資源。</td></tr>
+                    <tr><td><code>status</code></td><td>樣本狀態，成功擷取目前為 <code>ok</code>。</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h2 id="troubleshooting">疑難排解</h2>
+        <ul>
+            <li>如果 <code>uv</code> 警告硬連結失敗並降級為複製檔案，安裝通常仍已成功。對於跨磁碟或受硬連結限制的環境，請使用 <code>uv pip install -e ".[all,dev]" --link-mode=copy</code> 重新執行安裝。</li>
+            <li>如果缺少 <code>.\.venv\Scripts\keysight-logger.exe</code>，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。主控台指令是安裝產物，而非版本控制下的專案檔案。</li>
+            <li>如果 PowerShell 啟用受阻，請繼續使用明確的 <code>.\.venv\Scripts\python.exe</code> 或 <code>.\.venv\Scripts\keysight-logger.exe</code> 指令，而非啟用虛擬環境。</li>
+            <li>如果未出現 VISA 資源，請確認 VISA 執行階段已安裝，且儀器在廠商連線工具中是可見的。</li>
+            <li>如果 <code>list-resources</code> 顯示過期的快取資源，請執行 <code>list-resources --live-only</code> 來隱藏過期的項目。當需要檢查過期資源錯誤時，請使用 <code>list-resources --verify</code>。</li>
+            <li>如果 CLI 指示無法開啟 CSV 輸出檔案，請關閉 Excel 或任何其他程序中的該檔案，或選擇不同的 <code>--csv</code> 路徑。</li>
+            <li>如果使用 <code>--auto-range off</code>，則必須提供 <code>--range</code> 或 <code>--current-range</code>。</li>
+            <li>如果 <code>--dcv-input-impedance</code> 用於 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 以外的任何量測，CLI 將會拒絕該指令。</li>
+            <li>如果在高精度 DC/電阻設定下遺失外接觸發邊緣，請在變更觸發行為前嘗試 <code>--nplc 1.0 --auto-zero off</code>。</li>
+            <li>如果長時間執行的 Windows 主控台看起來像凍結了，請確認 QuickEdit/文字選擇沒有暫停終端機執行。</li>
+        </ul>
+
+        <h2 id="testing">測試</h2>
+        <p>在執行測試前，請依「開發」段落所示，使用 <code>uv pip install -e ".[all,dev]"</code> 安裝開發相依套件。</p>
+        <p>預設 pytest 執行：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider</code></pre></div>
+        <p>與 GitHub Actions 一致的單元測試搜集與執行：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py" -v</code></pre></div>
+
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // 自動產生 TOC 側邊導航欄
+            const toc = document.getElementById("toc");
+            const headers = document.querySelectorAll("h2");
+            
+            headers.forEach(h2 => {
+                if (!h2.id) {
+                    h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
+                }
+                const a = document.createElement("a");
+                a.href = "#" + h2.id;
+                a.innerText = h2.innerText;
+                a.className = "toc-link";
+                toc.appendChild(a);
+            });
+
+            // 加入「複製程式碼」功能
+            document.querySelectorAll(".code-wrapper pre").forEach(pre => {
+                const btn = document.createElement("button");
+                btn.innerText = "複製";
+                btn.className = "copy-btn";
+                
+                // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
+                pre.parentElement.appendChild(btn);
+                
+                btn.onclick = () => {
+                    const code = pre.querySelector("code").innerText;
+                    navigator.clipboard.writeText(code).then(() => {
+                        btn.innerText = "已複製!";
+                        btn.style.backgroundColor = "rgba(16, 185, 129, 0.8)";
+                        setTimeout(() => {
+                            btn.innerText = "複製";
+                            btn.style.backgroundColor = "";
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('複製失敗:', err);
+                    });
+                };
+            });
+
+            // 滾動時標記目前章節 (Scrollspy)
+            const tocLinks = document.querySelectorAll('.toc-link');
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px 0px -80% 0px',
+                threshold: 0
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        tocLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${entry.target.id}`) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            headers.forEach(header => observer.observe(header));
+        });
+    </script>
+</body>
+</html>

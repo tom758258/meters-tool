@@ -184,9 +184,10 @@ release\1.4.0\checksums.txt
 ## 文件
 
 * [Core README](docs/core/README.zh-TW.md)
+* [CLI User Guide](docs/cli/USER_GUIDE.zh-TW.md)
 * [CLI README](docs/cli/README.zh-TW.md)
 * [WebUI README](docs/webui/README.zh-TW.md)
-* [WebUI User Guide](docs/webui/USER_GUIDE.md)
+* [WebUI User Guide](docs/webui/USER_GUIDE.zh-TW.md)
 * [Monorepo Architecture](docs/architecture/monorepo-layout.md)
 * [Testing Guidelines](docs/testing-guidelines.md)
 * [Public Contracts](docs/contracts)

@@ -4,7 +4,8 @@ Current distribution baseline: `keysight-logger` `1.4.0`.
 
 ## Documentation Set
 
-- [CLI README](README.md) - current document.
+- [CLI User Guide](USER_GUIDE.md) - operator workflow and common setting guidance.
+- [CLI README](README.md) - detailed CLI reference, validation, and automation guide.
 - [Changelog](CHANGELOG.md) - release notes and pending baseline.
 - [CLI Integration](cli-integration.md) - CLI adapter maintenance boundary.
 - [Common CLI JSON / JSONL Contract](../contracts/common-cli-jsonl-contract.md) - shared command-line JSON envelope rules.
@@ -17,6 +18,10 @@ CLI-first Python logger for Keysight 34461A DC/AC current, DC/AC voltage,
 DCV ratio, and 2-wire or 4-wire resistance measurements over VISA.
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
+
+For normal operator workflows, start with the [CLI User Guide](USER_GUIDE.md).
+This README keeps the detailed command reference, validation paths, JSON/JSONL
+contracts, examples, and maintainer-facing CLI behavior in one place.
 
 `keysight-logger` `1.4.0` is the current single-distribution baseline. The CLI
 keeps its import package, console command, JSON/JSONL contracts, wrapper
@@ -260,6 +265,9 @@ The CLI package has three wrapper scripts:
 | `scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
 
 ## Basic Workflow
+
+For a guided operator path with common setting explanations, use the
+[CLI User Guide](USER_GUIDE.md). The short reference flow is:
 
 1. List VISA resources.
 2. Choose a resource string.

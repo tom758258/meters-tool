@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keysight Logger WebUI 使用者指南</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-body: #ffffff;
+            --bg-sidebar: #f8fafc;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --border-color: #e2e8f0;
+            --bg-code: #1e293b;
+            --text-code: #f8fafc;
+            --bg-inline-code: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+            line-height: 1.7;
+            color: var(--text-main);
+            background-color: var(--bg-body);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        aside {
+            width: 280px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 2rem 1.5rem;
+            flex-shrink: 0;
+        }
+
+        aside h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toc-link {
+            text-decoration: none;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .toc-link:hover, .toc-link.active {
+            background-color: #e2e8f0;
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            padding: 3rem 4rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-top: 3rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            scroll-margin-top: 2rem;
+        }
+
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: #1e293b;
+        }
+
+        p {
+            margin-bottom: 1.25rem;
+            color: var(--text-muted);
+        }
+
+        ul, ol {
+            margin-bottom: 1.25rem;
+            padding-left: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Code Blocks & Inline Code */
+        code {
+            font-family: "Fira Code", "Consolas", monospace;
+            font-size: 0.9em;
+        }
+
+        p > code, li > code {
+            background-color: var(--bg-inline-code);
+            color: #be123c;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .code-wrapper {
+            position: relative;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--bg-code);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        pre {
+            margin: 0;
+            padding: 1.25rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            color: var(--text-code);
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            aside {
+                width: 100%;
+                height: auto;
+                position: relative;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 1.5rem;
+            }
+            main {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <h3>章節導覽</h3>
+        <nav id="toc">
+            <!-- JavaScript 會自動產生側邊導航 -->
+        </nav>
+    </aside>
+
+    <main>
+        <h1>Keysight Logger WebUI 使用者指南</h1>
+        <p>本指南適用於使用本機 WebUI 來記錄 Keysight 34461A 測量數據的操作人員。本指南避開了開發人員細節，專注於標準的測量工作流程。</p>
+
+        <h2 id="features">WebUI 的功能</h2>
+        <p>WebUI 會啟動一個本機瀏覽器頁面，用於設定與監控數據擷取作業 (acquisition run)。它的功能包含：</p>
+        <ul>
+            <li>尋找已連線的 VISA 儀器。</li>
+            <li>每次啟動一次測量作業。</li>
+            <li>將讀值記錄到 CSV 檔案中。</li>
+            <li>在作業執行期間顯示最新與最近的讀值。</li>
+            <li>當所選的觸發模式需要時，發送軟體觸發訊號。</li>
+            <li>停止目前的作業並開啟已完成的 CSV 檔案。</li>
+        </ul>
+        <p>WebUI 執行於與儀器連接的同一台 Windows 電腦上。這不是一項雲端服務。</p>
+
+        <h2 id="startup">啟動 WebUI</h2>
+        <p>一般使用情況下，請按兩下執行：</p>
+        <div class="code-wrapper"><pre><code>keysight-logger-webui-launcher.exe</code></pre></div>
+        
+        <p>在啟動器視窗中：</p>
+        <ol>
+            <li>除非該連接埠已被佔用，否則請保持選取 <code>Use default port 8767</code> (使用預設連接埠 8767)。</li>
+            <li>點擊 <code>Start</code> (開始)。</li>
+            <li>等待瀏覽器開啟。</li>
+            <li>使用完 WebUI 後，點擊啟動器中的 <code>Quit</code> (退出)。</li>
+        </ol>
+
+        <p>如果您是從終端機啟動，請執行：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui-launcher.exe</code></pre></div>
+        
+        <p>瀏覽器網址通常是：</p>
+        <div class="code-wrapper"><pre><code>http://127.0.0.1:8767/</code></pre></div>
+
+        <h2 id="screen-overview">畫面總覽</h2>
+        <p>WebUI 是一個本機的擷取控制台。主要區域包含：</p>
+        <ul>
+            <li><code>VISA resource</code> (VISA 資源)：作業將使用的儀器位址。</li>
+            <li><code>Live resource</code> (即時資源)：掃描偵測到的儀器。</li>
+            <li><code>Scan Device</code> (掃描裝置)：搜尋已連線的可用儀器。</li>
+            <li><code>Run Setup</code> (作業設定)：CSV 輸出路徑與執行次數設定。</li>
+            <li><code>Measurement</code> (測量)：測量類型與相關選項。</li>
+            <li><code>Trigger</code> (觸發)：觸發模式與觸發相關選項。</li>
+            <li><code>Status</code> (狀態)：目前的作業狀態、擷取到的樣本數、錯誤、CSV 路徑與日誌。</li>
+            <li><code>Live data</code> (即時數據)：最新讀值、趨勢圖、最近樣本與選定的樣本詳細資訊。</li>
+        </ul>
+
+        <h2 id="first-run">首次執行</h2>
+        <p>進行基本的立即測量，請採用以下流程：</p>
+        <ol>
+            <li>開啟 Keysight 34461A 電源並將其連接至電腦。</li>
+            <li>啟動 WebUI。</li>
+            <li>點擊 <code>Scan Device</code> (掃描裝置)。</li>
+            <li>選取或將偵測到的 VISA 資源複製到 <code>VISA resource</code> 欄位中。</li>
+            <li>選擇測量類型，例如直流電壓 (DC voltage) 或直流電流 (DC current)。</li>
+            <li>在 <code>Run Setup</code> 中，選擇 CSV 檔案位置。使用 <code>Select</code> (選擇) 挑選一個資料夾，系統會產生帶有時間戳記的 CSV 檔案路徑。</li>
+            <li>除非特別需要軟體或外部觸發，否則請將觸發模式保持在立即/預設模式 (immediate/default mode)。</li>
+            <li>確認反白顯示的設定。</li>
+            <li>點擊 <code>Start</code> (開始)。</li>
+            <li>觀察 <code>Captured</code> (已擷取)、<code>Status</code> (狀態) 及 <code>Live data</code> (即時數據)。</li>
+            <li>當需要結束作業時，點擊 <code>Stop</code> (停止)。</li>
+            <li>作業停止後，點擊 <code>Open CSV</code> (開啟 CSV) 以開啟已完成的 CSV 檔案。</li>
+        </ol>
+        <p>一次只能執行一個作業。啟動新作業將會清除畫面上前次作業的最近樣本。</p>
+
+        <h2 id="trigger-modes">選擇觸發模式</h2>
+        <p>最簡單的工作流程請使用<strong>立即模式 (immediate mode)</strong>。作業一啟動，儀器就會立即讀取數據。</p>
+        
+        <p>當作業需要等待操作人員在 WebUI 執行動作時，請使用<strong>軟體觸發模式 (software trigger mode)</strong>。作業啟動後，點擊 <code>Trigger</code> (觸發) 來發送每次的軟體觸發訊號。</p>
+        
+        <p>只有在已連接物理觸發訊號並為儀器完成設定時，才使用<strong>外部 (external)</strong> 或<strong>硬體 (hardware)</strong> 觸發模式。硬體觸發超時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並不自動代表測量失敗。</p>
+
+        <p>除非測量設定有此需求，且操作人員了解對儀器造成的影響，否則請勿更改觸發時序 (trigger timing)、觸發延遲 (trigger delay)、NPLC、自動換檔 (Auto Range)、自動歸零 (Auto Zero)、電壓測量補償 (VM Comp) 或電流端子 (current terminal) 的設定。</p>
+
+        <h2 id="settings-reference">設定參考</h2>
+        <p>WebUI 會在啟動作業前驗證各項設定。如果 <code>Start</code> 被封鎖無法點擊，請閱讀狀態日誌 (Status log) 並調整其指出的欄位。</p>
+
+        <p><code>VISA resource</code> (VISA 資源) 是作業將使用的儀器位址。建議使用透過 <code>Scan Device</code> 找到的資源，或手動輸入由操作人員提供的已知 VISA 資源。當可能連接多台儀器時，請勿用猜測的方式填寫資源。</p>
+
+        <p><code>Live resource</code> (即時資源) 顯示最後一次掃描的結果。請先用它來確認是哪台儀器回應，然後再複製或選取資源以進行作業。</p>
+
+        <p><code>CSV path</code> (CSV 路徑) 是讀值寫入的位置。請使用 <code>Select</code> 選擇資料夾並讓 WebUI 產生帶有時間戳記的檔案名稱，或在點擊 <code>Start</code> 前手動輸入特定的檔案路徑。</p>
+
+        <p><strong>執行次數 (Run count)</strong> 與<strong>樣本限制 (sample limit)</strong> 欄位用來限制作業的持續時間。在驗證接線、測量類型與觸發行為時，請為新的設定保持上限限制。</p>
+
+        <p><code>Measurement type</code> (測量類型) 用來選擇 34461A 要測量的項目：直流或交流電壓、直流或交流電流、直流電壓比 (DC voltage ratio)、或是 2 線/4 線電阻。在啟動作業前，請確保這與儀器的實體接線相符。</p>
+
+        <p><code>Auto Range</code> (自動換檔) 讓儀器自行選擇測量範圍。除非測量程序要求固定範圍，否則首次執行時請保持啟用。</p>
+
+        <p>當 Auto Range 停用時會使用<strong>手動範圍 (Manual range)</strong> 欄位。請選擇一個能安全涵蓋預期訊號的範圍。</p>
+
+        <p><code>NPLC</code> 控制直流與電阻測量的積分時間。較高的數值速度較慢，但可能更穩定。交流模式則會使用它們專屬的交流頻寬 (AC bandwidth) 設定。</p>
+
+        <p><code>Auto Zero</code> (自動歸零) 控制直流與電阻測量的偏移處理。它可以提高精確度，但可能會減慢讀取速度。除非測量程序要求更改，否則請保持在正常的設定值。</p>
+
+        <p><code>AC bandwidth</code> (交流頻寬) 適用於交流電壓與交流電流。請選擇符合訊號與測量程序的頻寬。</p>
+
+        <p><code>Current terminal</code> (電流端子) 適用於電流測量。啟動作業前，請確認實體導線已連接至相符的電流端子。</p>
+
+        <p><strong>直流電壓比 (DC voltage ratio)</strong> 與 <strong>VM Comp</strong> 設定是特殊的測量控制選項。只有當測試設定明確要求進行比值測量或電壓測量補償時才使用。</p>
+
+        <p><code>Trigger mode</code> (觸發模式) 控制採樣的時間點。立即模式 (Immediate mode) 是最簡單的首選。軟體模式 (Software mode) 會等待 WebUI 的 <code>Trigger</code> 按鈕。外部或硬體觸發模式則需要實體的物理觸發訊號。</p>
+
+        <p><code>Trigger delay</code> (觸發延遲) 設定觸發後要等待多久才進行測量。除非外部設定需要延遲，否則請保持不變。</p>
+
+        <p><code>Trigger timeout</code> (觸發超時) 控制觸發工作流程在進入保護性超時機制前的等待時間。只有在測量設定有意等待更長時間時，才調高此值。</p>
+
+        <p><code>External trigger slope</code> (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。</p>
+
+        <p>如需完整的 CLI 自動化細節與可接受的參數限制，請參閱 <a href="../cli/README.md">CLI README</a>。</p>
+
+        <h2 id="csv-output">CSV 輸出</h2>
+        <p>在 <code>Run Setup</code> 中顯示的 CSV 路徑就是當點擊 <code>Start</code> 時將寫入數據的檔案。</p>
+
+        <p><code>Select</code> (選擇) 會在執行 WebUI 的 Windows 電腦上開啟一個資料夾選擇器。選擇資料夾後，WebUI 會在該資料夾內填入帶有時間戳記的 CSV 檔案路徑。您也可以在點擊 <code>Start</code> 之前手動編輯該路徑。</p>
+
+        <p>只有在已完成的作業且具有 CSV 路徑時才能使用 <code>Open CSV</code> (開啟 CSV)。它會使用 Windows 的預設應用程式開啟上一次完成作業的 CSV。在作業執行期間，此按鈕會處於停用狀態。</p>
+
+        <h2 id="stop-and-quit">停止與退出</h2>
+        <p>在瀏覽器中使用 <code>Stop</code> (停止) 來停止目前的擷取作業。WebUI 會在作業停止後保留畫面上最新的讀值，以供您檢視。</p>
+
+        <p>在啟動器視窗中使用 <code>Quit</code> (退出) 來停止本機 WebUI 伺服器並關閉啟動器。僅關閉瀏覽器分頁不一定會停止伺服器。</p>
+
+        <p>若您是從終端機啟動 WebUI，請在該終端機按下 <code>Ctrl+C</code> 來停止伺服器。</p>
+
+        <h2 id="faq">常見問題</h2>
+
+        <h3>瀏覽器未開啟</h3>
+        <p>請手動開啟此網址：</p>
+        <div class="code-wrapper"><pre><code>http://127.0.0.1:8767/</code></pre></div>
+        <p>如果頁面仍然無法載入，請回到啟動器並檢查是否顯示啟動錯誤。</p>
+
+        <h3>啟動器顯示連接埠已被佔用</h3>
+        <p>所選的連接埠已由另一個程式使用中。如果有另一個 WebUI 已經在該連接埠上執行，啟動器會直接開啟它。如果該連接埠被其他不同的程式佔用，請選擇另一個連接埠或關閉該程式。</p>
+
+        <h3>Scan Device (掃描裝置) 找不到任何裝置</h3>
+        <p>請檢查：</p>
+        <ul>
+            <li>儀器電源已開啟。</li>
+            <li>已經接上 USB/LAN/GPIB 連線。</li>
+            <li>VISA 驅動程式能偵測到該儀器。</li>
+            <li>沒有其他程式正在佔用該儀器的連線。</li>
+        </ul>
+        <p>您仍然可以手動輸入已知的 VISA 資源。</p>
+
+        <h3>無法點擊 Start (Start 被封鎖)</h3>
+        <p>請確保已填寫 <code>VISA resource</code>，且反白顯示的設定皆具有有效值。狀態日誌 (Status log) 會顯示需要注意的設定。</p>
+
+        <h3>Open CSV 按鈕被停用</h3>
+        <p><code>Open CSV</code> 將被停用，直到作業停止並產生完整的 CSV 路徑為止。在作業執行期間，它也會保持停用狀態。</p>
+
+        <h3>硬體觸發作業似乎卡在等待狀態</h3>
+        <p>外部觸發模式會等待物理的觸發訊號。如果沒有收到觸發訊號，作業會根據設定的超時 (timeout) 行為繼續等待或重新準備 (re-arm)。</p>
+
+        <h2 id="safety">操作人員安全注意事項</h2>
+        <ul>
+            <li>在測量電流之前，請先確認儀器的輸入接線與電流端子。</li>
+            <li>檢查新的設定時，請先使用立即模式 (immediate mode)。</li>
+            <li>除非需要固定範圍，否則請保持啟用自動換檔 (Auto Range)。</li>
+            <li>請將外部觸發的接線與極性視為測量設定的一部分。</li>
+            <li>在可行的情況下，請在斷開儀器連接前先停止測量作業。</li>
+        </ul>
+
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // 自動產生 TOC 側邊導航欄
+            const toc = document.getElementById("toc");
+            const headers = document.querySelectorAll("h2");
+            
+            headers.forEach(h2 => {
+                if (!h2.id) {
+                    h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
+                }
+                const a = document.createElement("a");
+                a.href = "#" + h2.id;
+                a.innerText = h2.innerText;
+                a.className = "toc-link";
+                toc.appendChild(a);
+            });
+
+            // 加入「複製程式碼」功能
+            document.querySelectorAll(".code-wrapper pre").forEach(pre => {
+                const btn = document.createElement("button");
+                btn.innerText = "複製";
+                btn.className = "copy-btn";
+                
+                // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
+                pre.parentElement.appendChild(btn);
+                
+                btn.onclick = () => {
+                    const code = pre.querySelector("code").innerText;
+                    navigator.clipboard.writeText(code).then(() => {
+                        btn.innerText = "已複製!";
+                        btn.style.backgroundColor = "rgba(16, 185, 129, 0.8)";
+                        setTimeout(() => {
+                            btn.innerText = "複製";
+                            btn.style.backgroundColor = "";
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('複製失敗:', err);
+                    });
+                };
+            });
+
+            // 滾動時標記目前章節 (Scrollspy)
+            const tocLinks = document.querySelectorAll('.toc-link');
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px 0px -80% 0px',
+                threshold: 0
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        tocLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${entry.target.id}`) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            headers.forEach(header => observer.observe(header));
+        });
+    </script>
+</body>
+</html>

@@ -4,7 +4,8 @@
 
 ## 文件集
 
-- [CLI README](README.md) - 目前文件。
+- [CLI 使用者指南](USER_GUIDE.zh-TW.md) - 操作人員工作流程與常見設定指引。
+- [CLI README](README.md) - 詳細的 CLI 參考、驗證與自動化指南。
 - [Changelog](CHANGELOG.md) - 版本發布說明與待決基準。
 - [CLI 整合](cli-integration.md) - CLI 配接器維護邊界。
 - [通用 CLI JSON / JSONL 合約](../contracts/common-cli-jsonl-contract.md) - 共享命令列 JSON 外殼規則。
@@ -15,6 +16,8 @@
 
 適用於 Keysight 34461A 的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率以及 2 線式或 4 線式電阻量測。
 它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。
+
+對於標準操作人員的工作流程，請從 [CLI 使用者指南](USER_GUIDE.zh-TW.md) 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。
 
 `keysight-logger` `1.4.0` 是目前的單一 distribution 基準。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：
 `voltage-dc-ratio`、`--auto-zero once`、`--ac-bandwidth-hz` 和 `--current-terminal`。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。
@@ -192,6 +195,8 @@ CLI 套件有三個包裝器腳本：
 | `scripts\release-cli-check.ps1` | 預設無硬體 | 執行發布門檻檢查，包括完整 pytest、preflight 和 `live-cli-check.ps1 -PlanOnly`。其預設驗證模式為 `release_no_hardware`。 |
 
 ## 基本工作流程
+
+對於包含常見設定說明的引導式操作人員路徑，請參閱 [CLI 使用者指南](USER_GUIDE.zh-TW.md)。簡要參考流程如下：
 
 1. 列出 VISA 資源。
 2. 選擇資源字串。

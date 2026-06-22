@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Keysight Logger CLI 使用者指南</title>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --primary-hover: #1d4ed8;
+            --bg-body: #ffffff;
+            --bg-sidebar: #f8fafc;
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --border-color: #e2e8f0;
+            --bg-code: #1e293b;
+            --text-code: #f8fafc;
+            --bg-inline-code: #f1f5f9;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans TC", sans-serif;
+            line-height: 1.7;
+            color: var(--text-main);
+            background-color: var(--bg-body);
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar Navigation */
+        aside {
+            width: 280px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 2rem 1.5rem;
+            flex-shrink: 0;
+        }
+
+        aside h3 {
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            color: var(--text-muted);
+            letter-spacing: 0.05em;
+            margin-bottom: 1rem;
+        }
+
+        nav {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .toc-link {
+            text-decoration: none;
+            color: var(--text-main);
+            font-size: 0.95rem;
+            padding: 0.4rem 0.75rem;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+        }
+
+        .toc-link:hover, .toc-link.active {
+            background-color: #e2e8f0;
+            color: var(--primary);
+            font-weight: 500;
+        }
+
+        /* Main Content */
+        main {
+            flex: 1;
+            padding: 3rem 4rem;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.02em;
+        }
+
+        h2 {
+            font-size: 1.75rem;
+            font-weight: 600;
+            margin-top: 3rem;
+            margin-bottom: 1.25rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border-color);
+            scroll-margin-top: 2rem;
+        }
+
+        p {
+            margin-bottom: 1.25rem;
+            color: var(--text-muted);
+        }
+
+        ul, ol {
+            margin-bottom: 1.25rem;
+            padding-left: 1.5rem;
+            color: var(--text-muted);
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+
+        /* Code Blocks & Inline Code */
+        code {
+            font-family: "Fira Code", "Consolas", monospace;
+            font-size: 0.9em;
+        }
+
+        p > code, li > code {
+            background-color: var(--bg-inline-code);
+            color: #be123c;
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+        }
+
+        .code-wrapper {
+            position: relative;
+            margin-bottom: 1.5rem;
+            border-radius: 8px;
+            overflow: hidden;
+            background-color: var(--bg-code);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        pre {
+            margin: 0;
+            padding: 1.25rem;
+            overflow-x: auto;
+        }
+
+        pre code {
+            color: var(--text-code);
+            background: transparent;
+            padding: 0;
+            border-radius: 0;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 0.25rem 0.75rem;
+            font-size: 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            aside {
+                width: 100%;
+                height: auto;
+                position: relative;
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                padding: 1.5rem;
+            }
+            main {
+                padding: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <aside>
+        <h3>章節導覽</h3>
+        <nav id="toc">
+            <!-- JavaScript 會自動產生側邊導航 -->
+        </nav>
+    </aside>
+
+    <main>
+        <h1>Keysight Logger CLI 使用者指南</h1>
+        <p>本指南適用於使用 PowerShell 以及安裝的 <code>keysight-logger</code> 指令，來記錄 Keysight 34461A 測量數據的操作人員。本指南專注於標準的測量工作流程與常見設定。如需完整的指令參考、驗證腳本、JSON/JSONL 輸出與自動化合約 (automation contracts)，請參閱 <a href="README.md">CLI README</a>。</p>
+
+        <h2 id="start-from-powershell">從 PowerShell 啟動</h2>
+        <p>在專案根目錄下開啟 PowerShell，並確保虛擬環境已安裝主控台包裝程式 (console wrapper)：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe --version</code></pre></div>
+        
+        <p>如果缺少此包裝程式，請先安裝或重新整理專案環境：</p>
+        <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]" --link-mode=copy</code></pre></div>
+        
+        <p>若在開發階段需要替代方案，也可以使用明確的模組形式來執行：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m keysight_logger_cli --version</code></pre></div>
+
+        <h2 id="first-live-run">首次即時執行 (First Live Run)</h2>
+        <p>在檢查新的電腦、VISA 執行環境、連線或儀器設定時，請使用此流程。</p>
+        <ol>
+            <li>開啟 Keysight 34461A 電源並將其連接至電腦。</li>
+            <li>列出目前能回應 <code>*IDN?</code> 指令的資源：
+                <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --live-only</code></pre></div>
+            </li>
+            <li>複製 34461A 的資源字串。</li>
+            <li>執行一次有上限的立即模式 (immediate-mode) 採樣：
+                <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "&lt;VISA_RESOURCE&gt;" `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 1 `
+  --csv ".\data\cli_smoke.csv"</code></pre></div>
+            </li>
+            <li>確認指令正常結束、CSV 檔案已建立，且 CSV 包含一筆數據列。</li>
+            <li>在進行較長時間的數據擷取前，請先核對 CSV 的數值與儀器前面板的讀值是否一致。</li>
+        </ol>
+        <p>進行即時擷取時請使用明確的資源字串。請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。</p>
+
+        <h2 id="choose-measurement">選擇測量類型</h2>
+        <p>請選擇與儀器接線及待測訊號相符的測量類型：</p>
+        <ul>
+            <li><code>voltage-dc</code>：直流電壓。</li>
+            <li><code>voltage-dc-ratio</code>：直流電壓比。</li>
+            <li><code>current-dc</code>：直流電流。</li>
+            <li><code>voltage-ac</code>：交流電壓。</li>
+            <li><code>current-ac</code>：交流電流。</li>
+            <li><code>resistance-2w</code>：2 線電阻。</li>
+            <li><code>resistance-4w</code>：4 線電阻。</li>
+        </ul>
+        <p>測量電流或 4 線電阻前，請先確認輸入端子是否正確。<br>
+        使用交流 (AC) 模式時，請先執行低風險的快速測試 (smoke test)，並將 CSV 數值與前面板讀值進行比對，確認無誤後再使用該設定進行較長時間的擷取。</p>
+
+        <h2 id="choose-trigger-mode">選擇觸發模式</h2>
+        <p><code>--trigger-mode immediate</code> 適用於最簡單的工作流程。作業一啟動，儀器就會開始擷取數據。除非您刻意要進行連續測量，否則請加上 <code>--max-samples</code> 限制次數。</p>
+        
+        <p>當作業需要等待軟體觸發指令時，請使用 <code>--trigger-mode software</code>。在一個終端機啟動 logger，然後從另一個終端機發送觸發訊號：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command</code></pre></div>
+        
+        <p>當作業需要按排程進行軟體觸發讀取時，請使用計時器擷取 (timer capture)。請明確設定計時器間隔，並在驗證設定時保持作業的有界性 (bounded，即設定次數上限)。</p>
+        
+        <p>只有在已連接物理觸發訊號，且操作人員了解觸發邊緣 (trigger edge) 與延遲 (delay) 設定的情況下，才使用外部或硬體觸發模式。硬體觸發超時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並不自動代表測量失敗。</p>
+
+        <h2 id="common-settings">常見設定</h2>
+        <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。</p>
+        
+        <p><code>--csv</code> 是輸出檔案路徑。若省略此項，CLI 會自動產生一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。</p>
+        
+        <p><code>--max-samples</code> 用來限制簡單作業的執行次數。在進行快速測試與驗證時請使用它，讓指令能自行停止。</p>
+        
+        <p><code>--auto-range</code> (自動換檔) 讓儀器自行選擇測量範圍。除非測量設定要求固定範圍，否則請保持啟用。</p>
+        
+        <p>當自動換檔停用時，使用 <code>--range</code> 來選擇手動範圍。請選擇一個能安全涵蓋預期訊號的範圍。</p>
+        
+        <p><code>--nplc</code> 控制直流與電阻測量的積分時間。較高的數值速度較慢，但可能更穩定。交流模式只接受中立的預設值，因為它們不會寫入 NPLC 的 SCPI 指令。</p>
+        
+        <p><code>--auto-zero</code> (自動歸零) 控制直流與電阻測量的偏移處理。它可以提高精確度，但可能會減慢讀取速度。交流模式不會寫入 Auto Zero 的 SCPI 指令。</p>
+        
+        <p><code>--ac-bandwidth-hz</code> (交流頻寬) 適用於交流電壓與交流電流。請使用與測量設定相符的頻寬。</p>
+        
+        <p><code>--current-terminal</code> (電流端子) 適用於電流測量。請與儀器上實際使用的電流端子保持一致。</p>
+        
+        <p><code>--trigger-timeout-ms</code> (觸發超時) 控制觸發工作流程在進入保護性超時機制前的等待時間。只有在測量設定有意等待更長時間時，才調高此值。</p>
+        
+        <p>有關完整的可接受值與驗證限制，請參閱 <a href="README.md#validated-argument-limits">驗證參數限制 (Validated Argument Limits)</a>。</p>
+
+        <h2 id="csv-output">CSV 輸出</h2>
+        <p>每個擷取到的樣本都會被寫成 CSV 檔案中的一列 (row)。在進行快速測試後，請檢查 CSV 檔案以確認：</p>
+        <ul>
+            <li>至少有一筆數據列；</li>
+            <li>預期的 <code>measurement_type</code> (測量類型)；</li>
+            <li>預期的 <code>unit</code> (單位)；</li>
+            <li>預期的 <code>trigger_source</code> (觸發來源)；</li>
+            <li>一個與前面板顯示足夠接近，且符合測試設定預期的數值。</li>
+        </ul>
+        <p>每擷取一個樣本後，CSV 都會立即刷新 (flush) 寫入磁碟，因此即使在較長時間的作業中，也隨時能查看已完成的數據列。</p>
+
+        <h2 id="stopping">停止作業</h2>
+        <p>對於有界的驗證作業，建議使用 <code>--max-samples</code> 讓作業自行停止。</p>
+        <p>若要停止正在執行中的 worker 程式，請使用下列其中一種停止方法：</p>
+        <ul>
+            <li>在 logger 終端機按下 <code>q</code> 鍵；</li>
+            <li>按下 <code>Ctrl+C</code> 或 <code>Ctrl+Break</code>；</li>
+            <li>從另一個終端機執行 stop 指令：</li>
+        </ul>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe stop</code></pre></div>
+        <p>停止後，請確認指令已乾淨結束，並且 CSV 中包含預期的數據列。</p>
+
+        <h2 id="troubleshooting">常見問題</h2>
+        <p>如果缺少 <code>keysight-logger.exe</code>，請使用 <code>uv pip install -e ".[all,dev]" --link-mode=copy</code> 重新將專案安裝到虛擬環境中。</p>
+        
+        <p>如果 <code>list-resources</code> 顯示過時失效的資源，請使用 <code>list-resources --verify</code> 來查看哪些資源有回應，以及其他資源失敗的原因。如果您只想要對 <code>*IDN?</code> 做出回應的資源，請使用 <code>--live-only</code>。</p>
+        
+        <p>如果找不到任何即時連線的資源，請檢查儀器電源、USB/LAN/GPIB 連線、VISA 驅動程式是否能識別儀器，以及是否有其他程式正在佔用該儀器。</p>
+        
+        <p>如果在開啟儀器前作業就被阻擋，請閱讀驗證錯誤訊息，並調整其指出的選項設定。CLI 會在進行實體 I/O 之前驗證常見設定。</p>
+        
+        <p>如果硬體觸發作業似乎卡在等待狀態，請確認物理觸發訊號、斜率 (slope)、延遲 (delay) 與超時 (timeout) 設定。若遺失觸發邊緣 (trigger edges) 訊號，會導致作業根據設定的超時行為繼續等待或重新準備 (re-arm)。</p>
+
+        <h2 id="more-docs">更多 CLI 文件</h2>
+        <ul>
+            <li><a href="README.zh-TW.html">CLI README</a>：完整的指令參考、驗證腳本、範例、參數限制與自動化工作流程。</li>
+            <li><a href="cli-integration.md">CLI Integration</a>：CLI 轉接器 (adapter) 的維護邊界說明。</li>
+            <li><a href="../contracts/meters-cli-jsonl-contract.md">Meters CLI JSON / JSONL Contract</a>：用於自動化的結構化輸出 schema。</li>
+            <li><a href="../contracts/meters-worker-contract.md">Meters Worker Contract</a>：worker 控制平面 (control plane) 與產出物合約。</li>
+        </ul>
+    </main>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            // 自動產生 TOC 側邊導航欄
+            const toc = document.getElementById("toc");
+            const headers = document.querySelectorAll("h2");
+            
+            headers.forEach(h2 => {
+                if (!h2.id) {
+                    h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
+                }
+                const a = document.createElement("a");
+                a.href = "#" + h2.id;
+                a.innerText = h2.innerText;
+                a.className = "toc-link";
+                toc.appendChild(a);
+            });
+
+            // 加入「複製程式碼」功能
+            document.querySelectorAll(".code-wrapper pre").forEach(pre => {
+                const btn = document.createElement("button");
+                btn.innerText = "複製";
+                btn.className = "copy-btn";
+                
+                // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
+                pre.parentElement.appendChild(btn);
+                
+                btn.onclick = () => {
+                    const code = pre.querySelector("code").innerText;
+                    navigator.clipboard.writeText(code).then(() => {
+                        btn.innerText = "已複製!";
+                        btn.style.backgroundColor = "rgba(16, 185, 129, 0.8)";
+                        setTimeout(() => {
+                            btn.innerText = "複製";
+                            btn.style.backgroundColor = "";
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('複製失敗:', err);
+                    });
+                };
+            });
+
+            // 滾動時標記目前章節 (Scrollspy)
+            const tocLinks = document.querySelectorAll('.toc-link');
+            const observerOptions = {
+                root: null,
+                rootMargin: '0px 0px -80% 0px',
+                threshold: 0
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        tocLinks.forEach(link => {
+                            link.classList.remove('active');
+                            if (link.getAttribute('href') === `#${entry.target.id}`) {
+                                link.classList.add('active');
+                            }
+                        });
+                    }
+                });
+            }, observerOptions);
+
+            headers.forEach(header => observer.observe(header));
+        });
+    </script>
+</body>
+</html>

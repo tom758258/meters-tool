@@ -198,6 +198,7 @@ repository-local temporary directory:
 ## Documentation
 
 * [Core README](docs/core/README.md)
+* [CLI User Guide](docs/cli/USER_GUIDE.md)
 * [CLI README](docs/cli/README.md)
 * [WebUI README](docs/webui/README.md)
 * [WebUI User Guide](docs/webui/USER_GUIDE.md)

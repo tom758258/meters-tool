@@ -1,8 +1,8 @@
 # Keysight Logger WebUI 說明文件
 
-本文件是 WebUI 元件的詳細操作者與維護者指南。它說明了如何安裝、執行、使用、驗證和維護用於 Keysight 34461A 擷取的本機瀏覽器主控台。
+本文件是 WebUI 元件的 WebUI 行為、API、驗證與維護者指南。對於一般的操作人員工作流程與欄位說明，請參閱 [WebUI 使用者指南](USER_GUIDE.zh-TW.md)。
 
-關於版本發布說明，請參閱套件變更日誌。關於 Core API 和擁有權規則，請參閱 Core 整合指南。本指南將專注於長期的公開操作者與維護者行為。
+關於版本發布說明，請參閱套件變更日誌。關於 Core API 和擁有權規則，請參閱 Core 整合指南。本指南將專注於長期的公開 WebUI 行為與維護者邊界。
 
 ## 目的
 
@@ -31,6 +31,8 @@ Core 擁有以下內容的擁有權：
 - 釋放至本機（release-to-local）、關閉、清除釋放以及控制面關閉順序。
 
 WebUI 必須使用 Core 的公用 API，而不是依賴 CLI 配接器程式碼或直接存取擷取引擎內部運作。
+
+Core 會驗證量測請求並保護儀器端的限制。WebUI 使用者指南以 UI 術語說明各個欄位；完整的 CLI 自動化與結構化輸出參考仍保留在 CLI 和合約說明文件中。
 
 ## 套件與進入點（Entry Point）
 
@@ -538,7 +540,9 @@ uv run pytest tests -q -p no:cacheprovider
 
 ## 文件地圖
 
-- `README.md`：本詳細 WebUI 指南。
-- `docs/USER_GUIDE.md`：操作者面向的 WebUI 使用指南。
-- `docs/web-ui-change-rules.md`：UI 變更規則。
-- `CHANGELOG.md`：套件版本發布說明。
+- `docs/webui/USER_GUIDE.zh-TW.md`：面向操作者的 WebUI 使用指南。
+- `docs/webui/README.zh-TW.md`：本 WebUI 行為、API、驗證與維護者指南。
+- `docs/webui/web-ui-change-rules.md`：UI 變更規則。
+- `docs/webui/CHANGELOG.md`：套件版本發布說明。
+- `docs/cli/README.zh-TW.md`：完整的 CLI 指令、驗證、JSON/JSONL 以及自動化參考。
+- `docs/contracts/`：穩定的工作器 (worker)、協調器 (orchestrator) 與結構化輸出合約。
