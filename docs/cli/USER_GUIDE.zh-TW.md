@@ -13,7 +13,7 @@
 發布資料夾可能包含帶有版本號的執行檔名稱，例如：
 
 ```text
-keysight-logger-1.4.0.exe
+keysight-logger-<version>.exe
 ```
 
 如果您的發布資料夾使用帶有版本號的執行檔，請在下方的指令中替換為該檔案名稱。開發人員或從原始碼簽出 (source-checkout) 的使用者，應參閱 [CLI README](README.zh-TW.md) 以取得虛擬環境、模組、驗證與建置指令。
@@ -129,7 +129,7 @@ keysight-logger-1.4.0.exe
 
 ## 常見問題
 
-如果缺少 `keysight-logger.exe`，請確認您正處於包含 CLI 執行檔的發布資料夾中。如果您的發布版本使用帶有版本號的名稱，如 `keysight-logger-1.4.0.exe`，請在指令中使用該檔案名稱。
+如果缺少 `keysight-logger.exe`，請確認您正處於包含 CLI 執行檔的發布資料夾中。如果您的發布版本使用帶有版本號的名稱，如 `keysight-logger-<version>.exe`，請在指令中使用該檔案名稱。
 
 如果 `list-resources` 顯示過時失效的資源，請使用 `list-resources --verify` 來查看哪些資源有回應，以及其他資源失敗的原因。如果您只想要對 `*IDN?` 做出回應的資源，請使用 `--live-only`。
 

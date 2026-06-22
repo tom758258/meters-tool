@@ -17,7 +17,7 @@ Open PowerShell in the folder that contains the CLI executable and check it:
 Release folders may include a versioned executable name, such as:
 
 ```text
-keysight-logger-1.4.0.exe
+keysight-logger-<version>.exe
 ```
 
 Use that file name in the commands below if your release folder uses a
@@ -170,7 +170,7 @@ expected rows.
 
 If `keysight-logger.exe` is missing, confirm you are in the release folder that
 contains the CLI executable. If your release uses a versioned name such as
-`keysight-logger-1.4.0.exe`, use that file name in the commands.
+`keysight-logger-<version>.exe`, use that file name in the commands.
 
 If `list-resources` shows stale resources, use `list-resources --verify` to see
 which resources answer and why others failed. Use `--live-only` when you only
