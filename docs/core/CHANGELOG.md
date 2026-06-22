@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## Unreleased
+## v1.4.0
 
 - Core now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_core` import package.

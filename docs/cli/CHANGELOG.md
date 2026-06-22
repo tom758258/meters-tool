@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## v1.4.0
 
 - CLI now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_cli` import package and `keysight-logger`
   console command.
+- Added an operator-facing CLI `USER_GUIDE.md` for executable-based workflows,
+  while keeping detailed command reference, validation, JSON/JSONL, automation,
+  and maintainer material in the CLI README.
 
 ## cli-v1.3.2
 

@@ -1,10 +1,13 @@
 ﻿# Changelog
 
-## Unreleased
+## v1.4.0
 
 - WebUI now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_webui` import package and WebUI console
   commands.
+- Updated the WebUI `USER_GUIDE.md` for launcher-exe operator workflows and
+  field guidance, while keeping engineering setup, API behavior, validation,
+  build, and maintainer details in the WebUI README.
 
 ## webui-v1.2.2
 
