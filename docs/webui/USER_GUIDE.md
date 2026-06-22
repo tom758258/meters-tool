@@ -165,10 +165,6 @@ waits longer.
 `External trigger slope` selects the physical trigger edge. Match it to the
 signal source connected to the instrument.
 
-For deeper CLI automation details and accepted argument limits, see the
-[CLI README](../cli/README.md). Normal WebUI operation does not require reading
-the CLI reference.
-
 ## CSV Output
 
 The CSV path shown in `Run Setup` is the file that will be used when `Start` is
@@ -254,8 +250,4 @@ timeout behavior.
   build notes, and maintainer boundaries.
 - [WebUI Changelog](CHANGELOG.md): release notes.
 - [WebUI Change Rules](web-ui-change-rules.md): rules for UI changes.
-- [CLI README](../cli/README.md): CLI command, validation, JSON/JSONL, and
-  automation reference.
-- [Contracts](../contracts/): stable worker, orchestrator, and structured
-  output contracts.
 

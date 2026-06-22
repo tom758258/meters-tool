@@ -39,8 +39,8 @@ The WebUI must use Core public APIs instead of depending on CLI adapter code or
 directly reaching into acquisition engine internals.
 
 Core validates measurement requests and protects instrument-facing limits. The
-WebUI user guide explains fields in UI terms; complete CLI automation and
-structured output references remain in the CLI and contracts documentation.
+WebUI user guide explains fields in UI terms; this README keeps WebUI behavior,
+API, validation, and maintainer boundaries in one place.
 
 ## Package And Entry Point
 
@@ -610,10 +610,9 @@ Live panel has no samples:
 
 ## Documentation Map
 
-- `docs/webui/USER_GUIDE.md`: operator-facing WebUI usage guide.
-- `docs/webui/README.md`: this WebUI behavior, API, validation, and maintainer guide.
-- `docs/webui/web-ui-change-rules.md`: rules for UI changes.
-- `docs/webui/CHANGELOG.md`: package release notes.
-- `docs/cli/README.md`: full CLI command, validation, JSON/JSONL, and automation reference.
-- `docs/contracts/`: stable worker, orchestrator, and structured output contracts.
+- [WebUI User Guide](USER_GUIDE.md): operator-facing WebUI usage guide.
+- [WebUI README](README.md): this WebUI behavior, API, validation, and
+  maintainer guide.
+- [WebUI Change Rules](web-ui-change-rules.md): rules for UI changes.
+- [WebUI Changelog](CHANGELOG.md): package release notes.
 

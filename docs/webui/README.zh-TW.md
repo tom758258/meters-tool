@@ -32,7 +32,7 @@ Core 擁有以下內容的擁有權：
 
 WebUI 必須使用 Core 的公用 API，而不是依賴 CLI 配接器程式碼或直接存取擷取引擎內部運作。
 
-Core 會驗證量測請求並保護儀器端的限制。WebUI 使用者指南以 UI 術語說明各個欄位；完整的 CLI 自動化與結構化輸出參考仍保留在 CLI 和合約說明文件中。
+Core 會驗證量測請求並保護儀器端的限制。WebUI 使用者指南以 UI 術語說明各個欄位；本 README 則集中整理 WebUI 行為、API、驗證與維護者邊界。
 
 ## 套件與進入點（Entry Point）
 
@@ -540,9 +540,7 @@ uv run pytest tests -q -p no:cacheprovider
 
 ## 文件地圖
 
-- `docs/webui/USER_GUIDE.zh-TW.md`：面向操作者的 WebUI 使用指南。
-- `docs/webui/README.zh-TW.md`：本 WebUI 行為、API、驗證與維護者指南。
-- `docs/webui/web-ui-change-rules.md`：UI 變更規則。
-- `docs/webui/CHANGELOG.md`：套件版本發布說明。
-- `docs/cli/README.zh-TW.md`：完整的 CLI 指令、驗證、JSON/JSONL 以及自動化參考。
-- `docs/contracts/`：穩定的工作器 (worker)、協調器 (orchestrator) 與結構化輸出合約。
+- [WebUI 使用者指南](USER_GUIDE.zh-TW.md)：面向操作者的 WebUI 使用指南。
+- [WebUI README](README.zh-TW.md)：本 WebUI 行為、API、驗證與維護者指南。
+- [WebUI 變更規則](web-ui-change-rules.md)：UI 變更規則。
+- [WebUI 變更日誌](CHANGELOG.md)：套件版本發布說明。
