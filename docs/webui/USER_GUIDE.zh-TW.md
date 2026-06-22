@@ -26,7 +26,7 @@ keysight-logger-webui-launcher.exe
 發布資料夾可能包含帶有版本號的啟動器名稱，例如：
 
 ```text
-keysight-logger-webui-launcher-1.4.0.exe
+keysight-logger-webui-launcher-<version>.exe
 ```
 
 在啟動器視窗中：

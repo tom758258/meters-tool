@@ -31,7 +31,7 @@ keysight-logger-webui-launcher.exe
 Release folders may include a versioned launcher name, such as:
 
 ```text
-keysight-logger-webui-launcher-1.4.0.exe
+keysight-logger-webui-launcher-<version>.exe
 ```
 
 In the launcher window:

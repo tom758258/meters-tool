@@ -165,11 +165,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.
 This produces versioned release artifacts:
 
 ```text
-release\1.4.0\keysight-logger-1.4.0.exe
-release\1.4.0\keysight-logger-webui-launcher-1.4.0.exe
-release\1.4.0\keysight_logger-1.4.0-py3-none-any.whl
-release\1.4.0\keysight_logger-1.4.0.tar.gz
-release\1.4.0\checksums.txt
+release\<version>\keysight-logger-<version>.exe
+release\<version>\keysight-logger-webui-launcher-<version>.exe
+release\<version>\keysight_logger-<version>-py3-none-any.whl
+release\<version>\keysight_logger-<version>.tar.gz
+release\<version>\checksums.txt
 ```
 
 ## Test
