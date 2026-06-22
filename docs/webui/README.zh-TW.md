@@ -76,10 +76,10 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 .\.venv\Scripts\keysight-logger-webui.exe --version
 ```
 
-預期版本：
+預期版本格式：
 
 ```text
-keysight-logger-webui 1.4.0
+keysight-logger-webui <package-version>
 ```
 
 啟動伺服器：

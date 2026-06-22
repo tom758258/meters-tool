@@ -1,7 +1,5 @@
 ﻿# Keysight 34461A CLI Logger
 
-Current distribution baseline: `keysight-logger` `1.4.0`.
-
 ## Documentation Set
 
 - [CLI User Guide](USER_GUIDE.md) - operator workflow and common setting guidance.
@@ -23,9 +21,10 @@ For normal operator workflows, start with the [CLI User Guide](USER_GUIDE.md).
 This README keeps the detailed command reference, validation paths, JSON/JSONL
 contracts, examples, and maintainer-facing CLI behavior in one place.
 
-`keysight-logger` `1.4.0` is the current single-distribution baseline. The CLI
-keeps its import package, console command, JSON/JSONL contracts, wrapper
-scripts, and tests while sharing one version number with Core and WebUI. It
+`keysight-logger` is the single-distribution baseline. Its package version is
+`[project].version` in the root `pyproject.toml`. The CLI keeps its import
+package, console command, JSON/JSONL contracts, wrapper scripts, and tests
+while sharing that one version number with Core and WebUI. It
 continues to expose Core measurement fields through the CLI:
 `voltage-dc-ratio`,
 `--auto-zero once`, `--ac-bandwidth-hz`, and `--current-terminal`. Core start

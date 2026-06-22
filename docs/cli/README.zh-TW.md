@@ -1,7 +1,5 @@
 # Keysight 34461A CLI Logger
 
-目前發布基準：`keysight-logger` `1.4.0`。
-
 ## 文件集
 
 - [CLI 使用者指南](USER_GUIDE.zh-TW.md) - 操作人員工作流程與常見設定指引。
@@ -19,7 +17,7 @@
 
 對於標準操作人員的工作流程，請從 [CLI 使用者指南](USER_GUIDE.zh-TW.md) 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。
 
-`keysight-logger` `1.4.0` 是目前的單一 distribution 基準。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：
+`keysight-logger` 是目前的單一 distribution 基準。其套件版本是 root `pyproject.toml` 內的 `[project].version`。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：
 `voltage-dc-ratio`、`--auto-zero once`、`--ac-bandwidth-hz` 和 `--current-terminal`。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。
 
 Python 整合應從 `keysight_logger_core` 或 `keysight_logger_core.*` 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 `keysight_logger.measurement` 和 `keysight_logger.instrument`。

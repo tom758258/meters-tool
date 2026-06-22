@@ -4,7 +4,8 @@
 
 Keysight Logger is a Python data acquisition and logging toolkit for the
 Keysight 34461A digital multimeter. It provides one installable distribution,
-`keysight-logger` `1.4.0`, while preserving three import packages:
+`keysight-logger`, with the package version defined by the root
+`pyproject.toml`, while preserving three import packages:
 `keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
 
 The project supports DC and AC current, DC and AC voltage, DC voltage ratio,
@@ -25,9 +26,10 @@ and related metadata.
 
 ## Project Structure
 
-The repository now has one distribution and one version number:
+The repository now has one distribution and one version number. In examples,
+`<version>` means `[project].version` from the root `pyproject.toml`:
 
-* Distribution: `keysight-logger` `1.4.0`
+* Distribution: `keysight-logger` `<version>`
 * Core import: `keysight_logger_core`
 * CLI import: `keysight_logger_cli`
 * WebUI import: `keysight_logger_webui`
@@ -125,8 +127,8 @@ the `dev` extra installed above:
 This produces only one Python distribution:
 
 ```text
-dist\keysight_logger-1.4.0-py3-none-any.whl
-dist\keysight_logger-1.4.0.tar.gz
+dist\keysight_logger-<version>-py3-none-any.whl
+dist\keysight_logger-<version>.tar.gz
 ```
 
 Standalone executables are separate PyInstaller workflows. Install PyInstaller

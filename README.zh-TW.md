@@ -2,7 +2,7 @@
 
 # Keysight Logger
 
-Keysight Logger 是給 Keysight 34461A 數位萬用電表使用的 Python 資料擷取與紀錄工具。此專案現在只發布一個 distribution：`keysight-logger` `1.4.0`，但仍保留三個既有 Python import package：`keysight_logger_core`、`keysight_logger_cli`、`keysight_logger_webui`。
+Keysight Logger 是給 Keysight 34461A 數位萬用電表使用的 Python 資料擷取與紀錄工具。此專案現在只發布一個 distribution：`keysight-logger`，其套件版本由 root `pyproject.toml` 定義，但仍保留三個既有 Python import package：`keysight_logger_core`、`keysight_logger_cli`、`keysight_logger_webui`。
 
 它支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DC 電壓比，以及 2 線式或 4 線式電阻量測。每筆樣本都會寫入 CSV，包含時間戳、量測類型、單位、觸發來源與相關 metadata。
 
@@ -18,9 +18,9 @@ Keysight Logger 是給 Keysight 34461A 數位萬用電表使用的 Python 資料
 
 ## 專案結構
 
-此 repository 現在只有一個 distribution 與一個版本號：
+此 repository 現在只有一個 distribution 與一個版本號。文件中的 `<version>` 代表 root `pyproject.toml` 內的 `[project].version`：
 
-* Distribution：`keysight-logger` `1.4.0`
+* Distribution：`keysight-logger` `<version>`
 * Core import：`keysight_logger_core`
 * CLI import：`keysight_logger_cli`
 * WebUI import：`keysight_logger_webui`
@@ -113,8 +113,8 @@ Windows 會建立 virtualenv console wrappers，例如
 這會產生僅一個 Python distribution：
 
 ```text
-dist\keysight_logger-1.4.0-py3-none-any.whl
-dist\keysight_logger-1.4.0.tar.gz
+dist\keysight_logger-<version>-py3-none-any.whl
+dist\keysight_logger-<version>.tar.gz
 ```
 
 獨立執行檔是獨立的 PyInstaller 工作流程。在建置 exe 產物之前，請先安裝 PyInstaller：
@@ -152,11 +152,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.
 這會產生帶有版本號的 release 產物：
 
 ```text
-release\1.4.0\keysight-logger-1.4.0.exe
-release\1.4.0\keysight-logger-webui-launcher-1.4.0.exe
-release\1.4.0\keysight_logger-1.4.0-py3-none-any.whl
-release\1.4.0\keysight_logger-1.4.0.tar.gz
-release\1.4.0\checksums.txt
+release\<version>\keysight-logger-<version>.exe
+release\<version>\keysight-logger-webui-launcher-<version>.exe
+release\<version>\keysight_logger-<version>-py3-none-any.whl
+release\<version>\keysight_logger-<version>.tar.gz
+release\<version>\checksums.txt
 ```
 
 ## 測試

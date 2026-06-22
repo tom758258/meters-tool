@@ -86,10 +86,10 @@ Check the wrapper:
 .\.venv\Scripts\keysight-logger-webui.exe --version
 ```
 
-Expected version:
+Expected version format:
 
 ```text
-keysight-logger-webui 1.4.0
+keysight-logger-webui <package-version>
 ```
 
 Start the server:
