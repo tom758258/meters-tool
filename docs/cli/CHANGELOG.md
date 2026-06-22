@@ -1,6 +1,6 @@
 # Changelog
 
-## v1.4.0
+## cli-v1.4.0
 
 - CLI now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_cli` import package and `keysight-logger`

@@ -1,6 +1,6 @@
 ﻿# Changelog
 
-## v1.4.0
+## webui-v1.4.0
 
 - WebUI now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_webui` import package and WebUI console
