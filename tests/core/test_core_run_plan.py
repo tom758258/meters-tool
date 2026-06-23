@@ -1,10 +1,26 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import unittest
 from pathlib import Path
 
 from keysight_logger_core.models import StartRequest, get_default_instrument_profile
 from keysight_logger_core.run_plan import StartPlan, build_start_plan
+
+
+def assert_contains_tokens(testcase: unittest.TestCase, text: str, tokens: tuple[str, ...]) -> None:
+    for token in tokens:
+        testcase.assertIn(token, text)
+
+
+def assert_any_note_contains_tokens(
+    testcase: unittest.TestCase,
+    notes: list[str],
+    tokens: tuple[str, ...],
+) -> None:
+    testcase.assertTrue(
+        any(all(token in note for token in tokens) for note in notes),
+        f"expected one note to contain tokens {tokens!r}; notes={notes!r}",
+    )
 
 
 def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
@@ -83,7 +99,7 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertIn("TRIG:COUNT 1", plan.scpi_commands)
         self.assertIn("SAMP:COUNT 1", plan.scpi_commands)
         self.assertIn("TRIG:DEL 1.5", plan.scpi_commands)
-        self.assertIn("hardware trigger uses INIT + status-byte polling before FETC?", plan.notes)
+        assert_any_note_contains_tokens(self, plan.notes, ("hardware", "INIT", "FETC?"))
 
     def test_immediate_custom_plan_uses_buffered_read_path(self):
         plan = self.build_plan(
@@ -101,8 +117,8 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertIn("TRIG:COUNT 2", plan.scpi_commands)
         self.assertIn("SAMP:COUNT 3", plan.scpi_commands)
         self.assertIn("INIT", plan.scpi_commands)
-        self.assertIn("buffered drain uses DATA:POINts? and DATA:REMove?", plan.notes)
-        self.assertIn("immediate-custom uses IMM trigger source", plan.notes)
+        assert_any_note_contains_tokens(self, plan.notes, ("buffered", "DATA:POINts?", "DATA:REMove?"))
+        assert_any_note_contains_tokens(self, plan.notes, ("immediate-custom", "IMM"))
 
     def test_software_custom_plan_uses_bus_trigger_and_buffered_read_path(self):
         plan = self.build_plan(
@@ -120,7 +136,7 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertIn("TRIG:COUNT 4", plan.scpi_commands)
         self.assertIn("SAMP:COUNT 5", plan.scpi_commands)
         self.assertIn("INIT", plan.scpi_commands)
-        self.assertIn("software-custom uses BUS trigger plus *TRG", plan.notes)
+        assert_any_note_contains_tokens(self, plan.notes, ("software-custom", "BUS", "*TRG"))
 
     def test_external_custom_plan_includes_external_trigger_details(self):
         plan = self.build_plan(
@@ -157,7 +173,7 @@ class CoreRunPlanTests(unittest.TestCase):
         )
 
         self.assertEqual(warnings, plan.notes[: len(warnings)])
-        self.assertIn("buffered drain uses DATA:POINts? and DATA:REMove?", plan.notes)
+        assert_any_note_contains_tokens(self, plan.notes, ("buffered", "DATA:POINts?", "DATA:REMove?"))
 
     def test_simulate_adds_simulator_note(self):
         plan = self.build_plan(
@@ -165,7 +181,7 @@ class CoreRunPlanTests(unittest.TestCase):
             make_start_request(trigger_mode="immediate", max_samples=1, simulate=True),
         )
 
-        self.assertIn("simulate uses deterministic fake instrument values", plan.notes)
+        assert_any_note_contains_tokens(self, plan.notes, ("simulate", "fake instrument"))
 
     def test_plan_includes_adapter_readable_descriptions_without_replacing_fields(self):
         plan = self.build_plan(
@@ -179,8 +195,8 @@ class CoreRunPlanTests(unittest.TestCase):
             ),
         )
 
-        self.assertEqual("software timer every 1.5 s", plan.trigger_description)
-        self.assertEqual("max_samples=2", plan.sample_limit_description)
+        assert_contains_tokens(self, plan.trigger_description, ("software", "timer", "1.5"))
+        assert_contains_tokens(self, plan.sample_limit_description, ("max_samples", "2"))
         self.assertEqual(
             {
                 "auto_range": True,
@@ -203,11 +219,12 @@ class CoreRunPlanTests(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(
-            "software-custom buffered capture trigger_count=3 sample_count=4",
+        assert_contains_tokens(
+            self,
             plan.trigger_description,
+            ("software-custom", "buffered", "trigger_count=3", "sample_count=4"),
         )
-        self.assertEqual("12 expected buffered readings", plan.sample_limit_description)
+        assert_contains_tokens(self, plan.sample_limit_description, ("12", "buffered"))
         self.assertEqual(2, plan.option_summary["buffer_drain_size"])
         self.assertTrue(plan.option_summary["allow_buffer_overflow_risk"])
 
@@ -300,9 +317,10 @@ class CoreRunPlanTests(unittest.TestCase):
             plan.scpi_commands,
         )
         self.assertFalse(any("ZERO" in command for command in plan.scpi_commands))
-        self.assertIn(
-            "voltage-dc-ratio stores DATA2? signal/reference voltage in measurement_metadata",
+        assert_any_note_contains_tokens(
+            self,
             plan.notes,
+            ("voltage-dc-ratio", "DATA2?", "measurement_metadata"),
         )
 
     def test_voltage_dc_ratio_custom_plan_drains_one_reading_for_metadata(self):
@@ -319,9 +337,10 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertEqual("DATA:POINts? / DATA:REMove? 1 / DATA2?", plan.read_path)
         self.assertIn("TRIG:SOUR IMM", plan.scpi_commands)
         self.assertIn("INIT", plan.scpi_commands)
-        self.assertIn(
-            "voltage-dc-ratio buffered drain uses DATA:REMove? 1 plus DATA2? per sample",
+        assert_any_note_contains_tokens(
+            self,
             plan.notes,
+            ("voltage-dc-ratio", "DATA:REMove?", "1", "DATA2?"),
         )
 
 

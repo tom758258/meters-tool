@@ -1,11 +1,11 @@
-﻿# Changelog
+# Changelog
 
-## core-v1.4.0
+## v1.4.0
 
 - Core now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_core` import package.
 
-## core-v1.2.1
+## v1.2.1
 
 - Unified `/command` accepted, rejected, and validation responses under the
   common JSON envelope with safe `command` and `job_id` echoing.
@@ -13,14 +13,14 @@
   for the patch release baseline without changing public APIs or runtime
   behavior.
 
-## core-v1.2.0
+## v1.2.0
 
 - Released the Core package from the unified monorepo layout after merging the
   Core, CLI, and WebUI product branches into `main` while preserving Core's
   public API and package boundary.
 - Bumped `keysight-logger-core` package metadata from `1.1.1` to `1.2.0`.
 
-## core-v1.1.1
+## v1.1.1
 
 - Added public Core capability introspection through `get_core_capabilities()`,
   `CoreCapabilities`, and `MeasurementCapability`.
@@ -33,7 +33,7 @@
   API, docs ownership, and package metadata coverage.
 - Bumped `keysight-logger-core` package metadata from `1.1.0` to `1.1.1`.
 
-## core-v1.0.0
+## v1.0.0
 
 - Completed the Core/Cli separation on the Core branch by removing adapter
   runtime code, wrapper scripts, adapter-specific tests, and legacy top-level

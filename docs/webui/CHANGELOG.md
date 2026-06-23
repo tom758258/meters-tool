@@ -1,6 +1,6 @@
-﻿# Changelog
+# Changelog
 
-## webui-v1.4.0
+## v1.4.0
 
 - WebUI now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_webui` import package and WebUI console
@@ -9,17 +9,17 @@
   field guidance, while keeping engineering setup, API behavior, validation,
   build, and maintainer details in the WebUI README.
 
-## webui-v1.2.2
+## v1.2.2
 
 - Unified WebUI software-command responses with the Core command envelope and
   refreshed current run status after accepted frontend requests.
 - Bumped package metadata and fallback version to `keysight-logger-webui 1.2.2`
   for the patch release baseline without changing WebUI runtime behavior.
 
-## webui-v1.2.1
+## v1.2.1
 
 - Bumped package metadata to `keysight-logger-webui 1.2.1` for the
-  `webui-v1.2.1` tag target.
+  `v1.2.1` tag target.
 - Added the `keysight-logger-webui-launcher` GUI entry point for double-click
   local startup on `127.0.0.1:8767` with browser auto-open and Quit-driven
   server shutdown.
@@ -30,7 +30,7 @@
 - Removed the temporary legacy `keysight_logger.web_ui` compatibility shim so
   the workspace keeps the Core/CLI/WebUI import boundaries clean.
 
-## webui-v1.2.0
+## v1.2.0
 
 - Released the WebUI package from the unified monorepo layout after merging the
   Core, CLI, and WebUI product branches into `main` while preserving WebUI
@@ -38,7 +38,7 @@
 - Updated the Core dependency range to `keysight-logger-core>=1.2.0,<1.3`.
 - Bumped package metadata to `keysight-logger-webui 1.2.0`.
 
-## webui-v1.1.0
+## v1.1.0
 
 - Added the WebUI Live data panel with latest sample, trend chart, statistics,
   recent-samples table, and selected-sample metadata while keeping acquisition,
@@ -52,9 +52,9 @@
   passed, focused WebUI/Core pytest passed with 74 tests and 123 subtests, and
   full pytest passed with 243 tests and 128 subtests.
 - Bumped package metadata to `keysight-logger-webui 1.1.0` for the
-  `webui-v1.1.0` tag.
+  `v1.1.0` tag.
 
-## webui-v1.0.0
+## v1.0.0
 
 - Migrated the Web UI adapter from the old CLI-backed runtime path to the
   independent Core `StartRequest` / `run_start_session()` architecture while

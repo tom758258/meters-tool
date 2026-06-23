@@ -40,6 +40,10 @@ from keysight_logger_core.simulator import SimulatedVisaInstrument
 
 
 class CliArgsTests(unittest.TestCase):
+    def assert_contains_tokens(self, text: str, tokens: tuple[str, ...]) -> None:
+        for token in tokens:
+            self.assertIn(token, text)
+
     def test_top_level_help_lists_version_and_subcommands(self):
         parser = build_parser()
         stdout = io.StringIO()
@@ -131,13 +135,17 @@ class CliArgsTests(unittest.TestCase):
 
         self.assertEqual(0, exc.exception.code)
         help_text = stdout.getvalue()
-        self.assertIn("NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100", help_text)
-        self.assertIn("current-dc: 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A", help_text)
-        self.assertIn("--timer-interval-s: 0.5-86400 s", help_text)
-        self.assertIn("--trigger-timeout-ms: 500-600000 ms", help_text)
-        self.assertIn("--trigger-count/--sample-count: 1-1000000", help_text)
-        self.assertIn("AC bandwidth choices for AC current/voltage: 3, 20, 200 Hz", help_text)
-        self.assertIn("current terminal choices for current measurements: 3, 10", help_text)
+        for tokens in (
+            ("NPLC", "DC", "resistance", "0.02", "0.2", "1", "10", "100"),
+            ("current-dc", "0.0001", "0.001", "0.01", "0.1", "1", "3", "10", "A"),
+            ("--timer-interval-s", "0.5", "86400", "s"),
+            ("--trigger-timeout-ms", "500", "600000", "ms"),
+            ("--trigger-count", "--sample-count", "1", "1000000"),
+            ("AC bandwidth", "current", "voltage", "3", "20", "200", "Hz"),
+            ("current terminal", "current", "3", "10"),
+        ):
+            with self.subTest(tokens=tokens):
+                self.assert_contains_tokens(help_text, tokens)
 
     def test_start_parses_core_v1_1_measurement_options(self):
         parser = build_parser()

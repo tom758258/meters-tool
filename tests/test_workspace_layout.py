@@ -144,7 +144,10 @@ def test_public_package_versions_match_package_metadata():
     ):
         assert f"`{import_name}`" in readme
         assert f"`{import_name}`" in architecture
-    assert f"| Distribution | `keysight-logger` | `{version}` |" in architecture
+    assert version
+    assert "`[project].version`" in architecture
+    assert "| Distribution | `keysight-logger` | `<version>` |" in architecture
+    assert "distribution version" in architecture
 
 
 def test_readme_markdown_links_point_to_existing_local_targets():

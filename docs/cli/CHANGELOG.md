@@ -1,6 +1,6 @@
 # Changelog
 
-## cli-v1.4.0
+## v1.4.0
 
 - CLI now ships inside the single root `keysight-logger` distribution while
   preserving the `keysight_logger_cli` import package and `keysight-logger`
@@ -9,7 +9,7 @@
   while keeping detailed command reference, validation, JSON/JSONL, automation,
   and maintainer material in the CLI README.
 
-## cli-v1.3.2
+## v1.3.2
 
 - Updated `send-command` for runtime contract `v1.6`: shared pre-send command
   validation, complete arguments envelopes, response parsing, identity echo,
@@ -21,7 +21,7 @@
   build and no-hardware smoke checks.
 - Updated package metadata and wrapper report expectations to version `1.3.2`.
 
-## cli-v1.3.1
+## v1.3.1
 
 - Released the CLI package from the unified monorepo layout after merging the
   Core, CLI, and WebUI product branches into `main` while preserving package
@@ -31,7 +31,7 @@
 - Updated the Core dependency range to `keysight-logger-core>=1.2.0,<1.3`.
 - Updated package metadata to version `1.3.1`.
 
-## cli-v1.2.1
+## v1.2.1
 
 - Added CLI contract `v1.5` additive soft-client diagnostics, subprocess
   orchestrator workflow docs, simulator worker subprocess coverage, and
@@ -46,7 +46,7 @@
   CLI command behavior is unchanged.
 - Updated package metadata to version `1.2.1`.
 
-## cli-v1.2.0
+## v1.2.0
 
 - Released the CLI branch after merging `Core-v1.1.0` while preserving the
   `keysight-logger` package identity, console script, CLI JSON/JSONL contract,
@@ -64,7 +64,7 @@
   behavior.
 - Updated package metadata to version `1.2.0`.
 
-## cli-v1.1.8
+## v1.1.8
 
 - Recorded the CLI branch merge-base baseline from Core v1.0.0 while preserving
   the CLI file tree and command-line behavior.
@@ -77,7 +77,7 @@
   measurement logic, stop flow, cleanup order, release/local behavior, NPLC,
   Auto Range/Zero, VM Comp behavior, or CLI JSON/JSONL schema changed.
 
-## cli-v1.1.7
+## v1.1.7
 
 - Added an internal `InstrumentBackend` Protocol and start/acquisition-path
   factory for live VISA, simulator, and test backends.
@@ -94,7 +94,7 @@
 - Updated active docs to prefer the installed console script and document
   no-hardware validation plus local install troubleshooting.
 
-## cli-v1.1.6
+## v1.1.6
 
 - Released the current patch baseline for control-plane and discovery behavior.
 - Documented JSONL `ready` events for non-dry-run workers and preserved
@@ -105,7 +105,7 @@
   acquisition/read paths, stop flow, cleanup order, and measurement logic
   unchanged.
 
-## cli-v1.1.5
+## v1.1.5
 
 - Kept acquisition behavior unchanged while making successful
   `list-resources --verify` / `--live-only` checks run best-effort

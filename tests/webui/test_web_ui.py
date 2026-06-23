@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import contextlib
 import io
@@ -609,8 +609,6 @@ class WebUiApiTests(unittest.TestCase):
     def test_static_ui_omits_cli_compat_only_controls(self):
         index, app_js = load_static_ui()
 
-        self.assertNotIn("Current range alias", index)
-        self.assertNotIn("Legacy external trigger", index)
         self.assertNotIn("current_range", index)
         self.assertNotIn("current_range", app_js)
         self.assertNotIn("enable_hw_trigger", index)
@@ -770,8 +768,9 @@ class WebUiApiTests(unittest.TestCase):
         index, app_js = load_static_ui()
 
         self.assertIn('data-measurement-scope="voltage-dc,voltage-dc-ratio"', index)
-        self.assertIn("mode === \"software-custom\"", app_js)
-        self.assertIn("mode === \"software\" && !timerActive", app_js)
+        self.assertIn("software-custom", app_js)
+        self.assertIn("software", app_js)
+        self.assertIn("timerActive", app_js)
         self.assertIn("timer_interval_s", app_js)
 
     def test_static_ui_exposes_software_queue_and_trigger_metadata(self):

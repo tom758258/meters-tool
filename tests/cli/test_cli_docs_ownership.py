@@ -108,8 +108,9 @@ def test_cli_changelog_contains_only_cli_release_headings():
     for heading in headings:
         if heading == "Unreleased":
             continue
-        assert heading.startswith("cli-v")
+        assert re.fullmatch(r"v\d+\.\d+\.\d+", heading)
         assert not heading.startswith("core-v")
+        assert not heading.startswith("cli-v")
         assert not heading.startswith("webui-v")
 
 

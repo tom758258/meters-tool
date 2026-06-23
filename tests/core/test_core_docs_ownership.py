@@ -89,6 +89,7 @@ def test_core_changelog_contains_only_core_release_headings():
     for heading in headings:
         if heading == "Unreleased":
             continue
-        assert heading.startswith("core-v")
-        assert not heading.endswith("-cli")
-        assert not heading.endswith("-webui")
+        assert re.fullmatch(r"v\d+\.\d+\.\d+", heading)
+        assert not heading.startswith("core-v")
+        assert not heading.startswith("cli-v")
+        assert not heading.startswith("webui-v")

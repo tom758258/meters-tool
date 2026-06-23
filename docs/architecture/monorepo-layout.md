@@ -19,12 +19,15 @@ scripts/
 
 ## Package Names
 
+In examples, `<version>` means `[project].version` from the root
+`pyproject.toml`.
+
 | Boundary | Name | Version |
 | --- | --- | --- |
-| Distribution | `keysight-logger` | `1.4.0` |
-| Core import | `keysight_logger_core` | `1.4.0` distribution version |
-| CLI import | `keysight_logger_cli` | `1.4.0` distribution version |
-| WebUI import | `keysight_logger_webui` | `1.4.0` distribution version |
+| Distribution | `keysight-logger` | `<version>` |
+| Core import | `keysight_logger_core` | distribution version |
+| CLI import | `keysight_logger_cli` | distribution version |
+| WebUI import | `keysight_logger_webui` | distribution version |
 
 Console commands:
 
