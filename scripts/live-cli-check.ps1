@@ -7,7 +7,7 @@ param(
 
     [string]$Resource,
 
-    [ValidateSet("minimal", "basic", "external", "full")]
+    [ValidateSet("minimal", "basic", "frequency-period", "external", "full")]
     [string]$Suite = "minimal",
 
     [switch]$PlanOnly
@@ -424,6 +424,9 @@ function New-LiveCase {
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string[]]$ModeArgs,
         [Parameter(Mandatory = $true)][int]$ExpectedCaptured,
+        [string]$ExpectedMeasurementType,
+        [string]$ExpectedUnit,
+        [string[]]$ExpectedScpiCommands = @(),
         [int]$SoftTriggerCount = 0,
         [int]$ExternalEdges = 0,
         [int]$TimeoutSeconds = 45
@@ -433,6 +436,9 @@ function New-LiveCase {
         name = $Name
         mode_args = $ModeArgs
         expected_captured = $ExpectedCaptured
+        expected_measurement_type = $ExpectedMeasurementType
+        expected_unit = $ExpectedUnit
+        expected_scpi_commands = $ExpectedScpiCommands
         soft_trigger_count = $SoftTriggerCount
         external_edges = $ExternalEdges
         timeout_seconds = $TimeoutSeconds
@@ -460,6 +466,48 @@ function Get-LiveCases {
     $basic += New-LiveCase -Name "basic_immediate_custom" -ModeArgs @("--trigger-mode", "immediate-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1") -ExpectedCaptured 1
     $basic += New-LiveCase -Name "basic_software_custom" -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1") -ExpectedCaptured 1 -SoftTriggerCount 1
 
+    $frequencyPeriod = @()
+    $frequencyPeriod += New-LiveCase `
+        -Name "frequency_period_frequency_immediate" `
+        -ModeArgs @(
+            "--trigger-mode", "immediate",
+            "--measurement", "frequency",
+            "--ac-bandwidth-hz", "20",
+            "--gate-time-s", "0.1",
+            "--freq-period-timeout", "auto",
+            "--max-samples", "1"
+        ) `
+        -ExpectedCaptured 1 `
+        -ExpectedMeasurementType "frequency" `
+        -ExpectedUnit "Hz" `
+        -ExpectedScpiCommands @(
+            "CONF:FREQ",
+            "FREQ:VOLT:RANG:AUTO ON",
+            "FREQ:RANG:LOW 20",
+            "FREQ:APER 0.1",
+            "FREQ:TIM:AUTO ON"
+        )
+    $frequencyPeriod += New-LiveCase `
+        -Name "frequency_period_period_immediate" `
+        -ModeArgs @(
+            "--trigger-mode", "immediate",
+            "--measurement", "period",
+            "--ac-bandwidth-hz", "20",
+            "--gate-time-s", "0.1",
+            "--freq-period-timeout", "auto",
+            "--max-samples", "1"
+        ) `
+        -ExpectedCaptured 1 `
+        -ExpectedMeasurementType "period" `
+        -ExpectedUnit "s" `
+        -ExpectedScpiCommands @(
+            "CONF:PER",
+            "PER:VOLT:RANG:AUTO ON",
+            "PER:RANG:LOW 20",
+            "PER:APER 0.1",
+            "PER:TIM:AUTO ON"
+        )
+
     $external = @()
     $external += New-LiveCase -Name "external_simple" -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
     $external += New-LiveCase -Name "external_custom" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
@@ -467,8 +515,9 @@ function Get-LiveCases {
     switch ($SelectedSuite) {
         "minimal" { return $minimal }
         "basic" { return $basic }
+        "frequency-period" { return $frequencyPeriod }
         "external" { return $external }
-        "full" { return @($basic + $external) }
+        "full" { return @($basic + $frequencyPeriod + $external) }
     }
 }
 
@@ -513,6 +562,15 @@ function Invoke-LiveDryRun {
     $events = @(Read-JsonLines -Path $jsonl)
     Assert-Condition ($events.Count -eq 1) "$($Case.name) dry-run should emit one plan"
     Assert-Condition ($events[0].event -eq "dry_run") "$($Case.name) dry-run event mismatch"
+    if (-not [string]::IsNullOrWhiteSpace($Case.expected_unit)) {
+        Assert-Condition ($events[0].measurement_unit -eq $Case.expected_unit) "$($Case.name) dry-run unit mismatch"
+    }
+    if ($Case.expected_scpi_commands.Count -gt 0) {
+        $actualScpi = @($events[0].scpi_commands)
+        Assert-Condition `
+            (($actualScpi -join "`n") -eq ($Case.expected_scpi_commands -join "`n")) `
+            "$($Case.name) dry-run SCPI sequence mismatch"
+    }
 
     Write-Host ""
     Write-Host "Live CLI plan: $($Case.name)"
@@ -612,6 +670,26 @@ function Invoke-LiveCase {
     if ($rowCount -lt $Case.expected_captured) {
         $failureReasons.Add("CSV row count mismatch: expected_at_least=$($Case.expected_captured) actual=$rowCount") | Out-Null
     }
+    $measurementType = $null
+    $unit = $null
+    $value = $null
+    if ($rowCount -gt 0) {
+        $firstRow = @(Import-Csv -LiteralPath $CsvPath)[0]
+        $measurementType = $firstRow.measurement_type
+        $unit = $firstRow.unit
+        $value = $firstRow.value
+        if (
+            -not [string]::IsNullOrWhiteSpace($Case.expected_measurement_type) -and
+            $measurementType -ne $Case.expected_measurement_type
+        ) {
+            $failureReasons.Add(
+                "CSV measurement type mismatch: expected=$($Case.expected_measurement_type) actual=$measurementType"
+            ) | Out-Null
+        }
+        if (-not [string]::IsNullOrWhiteSpace($Case.expected_unit) -and $unit -ne $Case.expected_unit) {
+            $failureReasons.Add("CSV unit mismatch: expected=$($Case.expected_unit) actual=$unit") | Out-Null
+        }
+    }
     $caseStatus = if ($failureReasons.Count -eq 0) { "passed" } else { "failed" }
 
     return [pscustomobject]@{
@@ -627,6 +705,9 @@ function Invoke-LiveCase {
         ready_events = $ready.Count
         csv_row_count = $rowCount
         csv_rows = $rowCount
+        measurement_type = $measurementType
+        unit = $unit
+        value = $value
         csv = $CsvPath
         jsonl = $jsonl
         stderr = $stderr
@@ -702,7 +783,7 @@ function Write-LiveArtifacts {
         $summaryLines += "- No live cases executed."
     } else {
         foreach ($result in $CaseItems) {
-            $line = "- $($result.name): status=$($result.status) run_id=$($result.run_id) expected_captured=$($result.expected_captured) captured=$($result.captured) errors=$($result.errors) csv_rows=$($result.csv_rows) csv=$($result.csv)"
+            $line = "- $($result.name): status=$($result.status) run_id=$($result.run_id) expected_captured=$($result.expected_captured) captured=$($result.captured) errors=$($result.errors) csv_rows=$($result.csv_rows) measurement_type=$($result.measurement_type) value=$($result.value) unit=$($result.unit) csv=$($result.csv)"
             if ($result.status -ne "passed") {
                 $line += " failure_reasons=$($result.failure_reasons -join '; ')"
             }

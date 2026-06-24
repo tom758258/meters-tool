@@ -247,9 +247,27 @@ with the 34461A front panel before trusting longer captures.
 
 For broader live coverage, use `-Suite basic` after the minimal suite passes.
 That suite covers immediate measurements and software-triggered paths. Use
+`-Suite frequency-period` when a stable input signal is connected and
+Frequency and Period should each capture one immediate Auto Range sample. Use
 `-Suite external` only when an operator can safely provide the required
-external trigger edge. Use `-Suite full` only when both basic and external
-coverage are intended.
+external trigger edge. Use `-Suite full` only when basic, Frequency/Period, and
+external coverage are all intended.
+
+Preview the Frequency/Period live suite without opening VISA:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
+  -Target keysight-34461a `
+  -Connection usb `
+  -Resource "<VISA_RESOURCE>" `
+  -Suite frequency-period `
+  -PlanOnly
+```
+
+After reviewing the plans, remove `-PlanOnly` to run the two bounded live
+cases. The suite uses Auto Range, a `20` Hz AC filter, a `0.1` second gate
+time, automatic Frequency/Period timeout, and one sample per measurement.
+Compare the reported value and CSV row with the 34461A front panel.
 
 If stdin is redirected and `-PlanOnly` is not set, `live-cli-check.ps1` refuses
 live acquisition and writes a `confirmation_required` report. This is expected:
@@ -262,7 +280,7 @@ The CLI package has three wrapper scripts:
 | Script | Hardware use | Purpose |
 | --- | --- | --- |
 | `scripts\preflight-cli.ps1` | No hardware | Runs dry-run, simulator, client dry-run, mocked `list-resources`, and wrapper contract checks. Use this before live work. |
-| `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs live-wrapper plans and, with interactive confirmation, bounded live smoke cases against the explicit `-Resource`. |
+| `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs live-wrapper plans and, with interactive confirmation, bounded live smoke cases against the explicit `-Resource`. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`. |
 | `scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
 
 ## Basic Workflow
@@ -1152,6 +1170,12 @@ commands without `--dry-run` and with an explicit `--csv` path. Run Frequency
 and Period separately, one sample each, and compare the CSV value to the front
 panel. Frequency rows use `measurement_type=frequency`, `unit=Hz`; Period rows
 use `measurement_type=period`, `unit=s`.
+
+The same pair of checks is available through
+`scripts\live-cli-check.ps1 -Suite frequency-period`. The wrapper performs
+preflight and dry-run planning first, requires interactive confirmation before
+live I/O, and records each measured value and unit in `report.json` and
+`summary.md`.
 
 ### Validated Resistance 2-Wire Smoke Tests
 

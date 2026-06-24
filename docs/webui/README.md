@@ -580,6 +580,16 @@ For real-instrument smoke, do not run high-risk trigger experiments unless the
 operator explicitly asks. Start with immediate mode, Auto Range on, and
 `max_samples=1`.
 
+For Frequency and Period real-instrument inspection:
+
+- Connect a stable signal that the 34461A front panel can measure.
+- Select Frequency, confirm Auto Range, `20 Hz` AC Filter, `0.1 s` Gate Time,
+  and `Auto` Timeout, then capture one immediate sample.
+- Confirm the Live data value uses raw `Hz` and compare it with the front panel.
+- Repeat with Period and confirm the raw unit is `s`.
+- Stop the run before changing measurement type, and inspect the generated CSV
+  row after each sample.
+
 ## Troubleshooting
 
 Wrapper is missing:

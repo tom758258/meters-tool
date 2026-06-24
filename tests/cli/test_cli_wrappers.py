@@ -172,15 +172,40 @@ def test_preflight_report_contract():
         "voltage-dc",
         "current-ac",
         "voltage-ac",
+        "frequency",
+        "period",
         "resistance-2w",
         "resistance-4w",
     }
     assert read_paths == {"READ?", "FETC?", "DATA:POINts? / DATA:REMove?"}
 
+    dry_run_events = {
+        event["measurement_cli_name"]: event
+        for check in report["checks"]
+        if check["name"].startswith("dry_run_immediate_") and "jsonl" in check
+        for event in load_jsonl(Path(check["jsonl"]))
+    }
+    assert dry_run_events["frequency"]["measurement_unit"] == "Hz"
+    assert dry_run_events["frequency"]["scpi_commands"] == [
+        "CONF:FREQ",
+        "FREQ:VOLT:RANG:AUTO ON",
+        "FREQ:RANG:LOW 20",
+        "FREQ:APER 0.1",
+        "FREQ:TIM:AUTO ON",
+    ]
+    assert dry_run_events["period"]["measurement_unit"] == "s"
+    assert dry_run_events["period"]["scpi_commands"] == [
+        "CONF:PER",
+        "PER:VOLT:RANG:AUTO ON",
+        "PER:RANG:LOW 20",
+        "PER:APER 0.1",
+        "PER:TIM:AUTO ON",
+    ]
+
     summary = summary_path.read_text(encoding="utf-8")
     assert "- Status: passed" in summary
-    assert "- Commands total: 25" in summary
-    assert "- Checks total: 25" in summary
+    assert "- Commands total: 29" in summary
+    assert "- Checks total: 29" in summary
     assert "Measurements covered by dry-run and simulator immediate" in summary
     assert "Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?" in summary
     assert f"- Report: {report_path}" in summary
@@ -284,6 +309,8 @@ def test_live_plan_only_full_report_contract():
         "basic_software_timer",
         "basic_immediate_custom",
         "basic_software_custom",
+        "frequency_period_frequency_immediate",
+        "frequency_period_period_immediate",
         "external_simple",
         "external_custom",
     ]
@@ -300,6 +327,8 @@ def test_live_plan_only_full_report_contract():
         "basic_software_timer": "READ?",
         "basic_immediate_custom": "DATA:POINts? / DATA:REMove?",
         "basic_software_custom": "DATA:POINts? / DATA:REMove?",
+        "frequency_period_frequency_immediate": "READ?",
+        "frequency_period_period_immediate": "READ?",
         "external_simple": "FETC?",
         "external_custom": "DATA:POINts? / DATA:REMove?",
     }
@@ -311,6 +340,52 @@ def test_live_plan_only_full_report_contract():
         assert Path(command["stderr"]).resolve().exists()
 
     assert_command_artifacts(report["commands"], output_dir)
+
+
+def test_live_plan_only_frequency_period_report_contract():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-Suite",
+        "frequency-period",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    assert report["status"] == "planned"
+    assert report["suite"] == "frequency-period"
+    assert report["plan_only"] is True
+    assert report["live_executed"] is False
+    assert report["cases"] == []
+
+    plans = {item["name"]: item["plan"] for item in report["dry_runs"]}
+    assert set(plans) == {
+        "frequency_period_frequency_immediate",
+        "frequency_period_period_immediate",
+    }
+    assert plans["frequency_period_frequency_immediate"]["measurement_unit"] == "Hz"
+    assert plans["frequency_period_frequency_immediate"]["scpi_commands"] == [
+        "CONF:FREQ",
+        "FREQ:VOLT:RANG:AUTO ON",
+        "FREQ:RANG:LOW 20",
+        "FREQ:APER 0.1",
+        "FREQ:TIM:AUTO ON",
+    ]
+    assert plans["frequency_period_period_immediate"]["measurement_unit"] == "s"
+    assert plans["frequency_period_period_immediate"]["scpi_commands"] == [
+        "CONF:PER",
+        "PER:VOLT:RANG:AUTO ON",
+        "PER:RANG:LOW 20",
+        "PER:APER 0.1",
+        "PER:TIM:AUTO ON",
+    ]
+    assert all(plan["read_path"] == "READ?" for plan in plans.values())
 
 
 def test_live_redirected_stdin_writes_confirmation_required_report():

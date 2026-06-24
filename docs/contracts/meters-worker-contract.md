@@ -311,9 +311,18 @@ Live case result objects include:
 - `errors`
 - `csv_row_count`
 - `csv_rows`
+- `measurement_type`: measurement type from the first captured CSV row.
+- `value`: raw value text from the first captured CSV row.
+- `unit`: unit from the first captured CSV row.
 - `csv`
 - `failure_reasons`
 - `command`
+
+The live wrapper supports `minimal`, `basic`, `frequency-period`, `external`,
+and `full` suites. `frequency-period` runs one immediate Auto Range Frequency
+sample and one immediate Auto Range Period sample with a `20` Hz AC filter,
+`0.1` second gate time, and automatic Frequency/Period timeout. `full` includes
+the basic, Frequency/Period, and external cases.
 
 `summary.md` is not a schema source of truth. Orchestrators should read
 `report.json` for pass/fail decisions and use `summary.md` only for operator

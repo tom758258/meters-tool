@@ -427,6 +427,8 @@ function Invoke-DryRunCase {
         [Parameter(Mandatory = $true)][string[]]$ModeArgs,
         [Parameter(Mandatory = $true)][string]$ExpectedMeasurement,
         [Parameter(Mandatory = $true)][string]$ExpectedReadPath,
+        [string]$ExpectedUnit,
+        [string[]]$ExpectedScpiCommands = @(),
         [Parameter(Mandatory = $true)][string]$OutDir,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Commands,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Checks
@@ -452,6 +454,15 @@ function Invoke-DryRunCase {
     Assert-Condition ($events[0].event -eq "dry_run") "$Name event type mismatch"
     Assert-Condition ($events[0].measurement_cli_name -eq $ExpectedMeasurement) "$Name measurement mismatch"
     Assert-Condition ($events[0].read_path -eq $ExpectedReadPath) "$Name read path mismatch"
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedUnit)) {
+        Assert-Condition ($events[0].measurement_unit -eq $ExpectedUnit) "$Name measurement unit mismatch"
+    }
+    if ($ExpectedScpiCommands.Count -gt 0) {
+        $actualScpi = @($events[0].scpi_commands)
+        Assert-Condition `
+            (($actualScpi -join "`n") -eq ($ExpectedScpiCommands -join "`n")) `
+            "$Name SCPI sequence mismatch"
+    }
     $Checks.Add([pscustomobject]@{
         name = $Name
         success = $true
@@ -459,6 +470,8 @@ function Invoke-DryRunCase {
         csv = $csv
         stderr = $stderr
         read_path = $ExpectedReadPath
+        measurement_unit = $events[0].measurement_unit
+        scpi_commands = @($events[0].scpi_commands)
     }) | Out-Null
 }
 
@@ -467,6 +480,8 @@ function Invoke-SimulateCase {
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][string[]]$ModeArgs,
         [Parameter(Mandatory = $true)][int]$ExpectedCaptured,
+        [string]$ExpectedMeasurementType,
+        [string]$ExpectedUnit,
         [int]$SoftTriggerCount = 0,
         [Parameter(Mandatory = $true)][string]$OutDir,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Commands,
@@ -510,6 +525,13 @@ function Invoke-SimulateCase {
     Assert-Condition ([int]$summary[0].errors -eq 0) "$Name errors should be 0"
     $rowCount = Test-CsvRowCount -Path $csv
     Assert-Condition ($rowCount -ge $ExpectedCaptured) "$Name CSV row count mismatch"
+    $rows = @(Import-Csv -LiteralPath $csv)
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedMeasurementType)) {
+        Assert-Condition ($rows[0].measurement_type -eq $ExpectedMeasurementType) "$Name CSV measurement type mismatch"
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedUnit)) {
+        Assert-Condition ($rows[0].unit -eq $ExpectedUnit) "$Name CSV unit mismatch"
+    }
     $Checks.Add([pscustomobject]@{
         name = $Name
         success = $true
@@ -531,21 +553,51 @@ function Invoke-TargetPreflight {
     $checks = [System.Collections.Generic.List[object]]::new()
     $commands = [System.Collections.Generic.List[object]]::new()
 
-    $measurements = @(
-        "current-dc",
-        "voltage-dc",
-        "current-ac",
-        "voltage-ac",
-        "resistance-2w",
-        "resistance-4w"
+    $measurementCases = @(
+        [pscustomobject]@{ name = "current-dc"; mode_args = @(); unit = $null; scpi_commands = @() },
+        [pscustomobject]@{ name = "voltage-dc"; mode_args = @(); unit = $null; scpi_commands = @() },
+        [pscustomobject]@{ name = "current-ac"; mode_args = @(); unit = $null; scpi_commands = @() },
+        [pscustomobject]@{ name = "voltage-ac"; mode_args = @(); unit = $null; scpi_commands = @() },
+        [pscustomobject]@{
+            name = "frequency"
+            mode_args = @("--ac-bandwidth-hz", "20", "--gate-time-s", "0.1", "--freq-period-timeout", "auto")
+            unit = "Hz"
+            scpi_commands = @(
+                "CONF:FREQ",
+                "FREQ:VOLT:RANG:AUTO ON",
+                "FREQ:RANG:LOW 20",
+                "FREQ:APER 0.1",
+                "FREQ:TIM:AUTO ON"
+            )
+        },
+        [pscustomobject]@{
+            name = "period"
+            mode_args = @("--ac-bandwidth-hz", "20", "--gate-time-s", "0.1", "--freq-period-timeout", "auto")
+            unit = "s"
+            scpi_commands = @(
+                "CONF:PER",
+                "PER:VOLT:RANG:AUTO ON",
+                "PER:RANG:LOW 20",
+                "PER:APER 0.1",
+                "PER:TIM:AUTO ON"
+            )
+        },
+        [pscustomobject]@{ name = "resistance-2w"; mode_args = @(); unit = $null; scpi_commands = @() },
+        [pscustomobject]@{ name = "resistance-4w"; mode_args = @(); unit = $null; scpi_commands = @() }
     )
+    $measurements = @($measurementCases | ForEach-Object { $_.name })
 
-    foreach ($measurement in $measurements) {
+    foreach ($measurementCase in $measurementCases) {
         Invoke-DryRunCase `
-            -Name "dry_run_immediate_$measurement" `
-            -ModeArgs @("--trigger-mode", "immediate", "--measurement", $measurement, "--max-samples", "1") `
-            -ExpectedMeasurement $measurement `
+            -Name "dry_run_immediate_$($measurementCase.name)" `
+            -ModeArgs @(
+                @("--trigger-mode", "immediate", "--measurement", $measurementCase.name, "--max-samples", "1") +
+                $measurementCase.mode_args
+            ) `
+            -ExpectedMeasurement $measurementCase.name `
             -ExpectedReadPath "READ?" `
+            -ExpectedUnit $measurementCase.unit `
+            -ExpectedScpiCommands $measurementCase.scpi_commands `
             -OutDir $outDir `
             -Commands $commands `
             -Checks $checks
@@ -569,11 +621,16 @@ function Invoke-TargetPreflight {
         -Commands $commands `
         -Checks $checks
 
-    foreach ($measurement in $measurements) {
+    foreach ($measurementCase in $measurementCases) {
         Invoke-SimulateCase `
-            -Name "simulate_immediate_$measurement" `
-            -ModeArgs @("--trigger-mode", "immediate", "--measurement", $measurement, "--max-samples", "1") `
+            -Name "simulate_immediate_$($measurementCase.name)" `
+            -ModeArgs @(
+                @("--trigger-mode", "immediate", "--measurement", $measurementCase.name, "--max-samples", "1") +
+                $measurementCase.mode_args
+            ) `
             -ExpectedCaptured 1 `
+            -ExpectedMeasurementType $measurementCase.name.Replace("-", "_") `
+            -ExpectedUnit $measurementCase.unit `
             -OutDir $outDir `
             -Commands $commands `
             -Checks $checks
