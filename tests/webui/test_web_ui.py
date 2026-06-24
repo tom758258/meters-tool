@@ -94,6 +94,8 @@ class WebUiApiTests(unittest.TestCase):
                 "voltage-dc-ratio",
                 "current-ac",
                 "voltage-ac",
+                "frequency",
+                "period",
                 "resistance-2w",
                 "resistance-4w",
             ],
@@ -121,6 +123,37 @@ class WebUiApiTests(unittest.TestCase):
         self.assertTrue(measurements["current-dc"]["supports_current_terminal"])
         self.assertFalse(measurements["voltage-dc"]["supports_ac_bandwidth"])
         self.assertFalse(measurements["voltage-dc"]["supports_current_terminal"])
+        for name, unit in [("frequency", "Hz"), ("period", "s")]:
+            with self.subTest(measurement=name):
+                measurement = measurements[name]
+                self.assertEqual(unit, measurement["unit"])
+                self.assertEqual(
+                    [
+                        {"label": "100 mV", "value": 0.1},
+                        {"label": "1 V", "value": 1.0},
+                        {"label": "10 V", "value": 10.0},
+                        {"label": "100 V", "value": 100.0},
+                        {"label": "750 V", "value": 750.0},
+                    ],
+                    measurement["range_options"],
+                )
+                self.assertEqual([3.0, 20.0, 200.0], measurement["ac_bandwidth_hz_options"])
+                self.assertEqual([0.01, 0.1, 1.0], measurement["gate_time_s_options"])
+                self.assertEqual(
+                    ["auto", "1s"],
+                    measurement["freq_period_timeout_options"],
+                )
+                self.assertTrue(measurement["supports_gate_time"])
+                self.assertTrue(measurement["supports_freq_period_timeout"])
+                self.assertEqual(
+                    {
+                        "auto_range": True,
+                        "ac_bandwidth_hz": 20.0,
+                        "gate_time_s": 0.1,
+                        "freq_period_timeout": "auto",
+                    },
+                    measurement["defaults"],
+                )
 
         limits = payload["limits"]
         self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
@@ -133,6 +166,8 @@ class WebUiApiTests(unittest.TestCase):
         defaults = payload["defaults"]
         self.assertEqual("on", defaults["auto_zero"])
         self.assertIsNone(defaults["ac_bandwidth_hz"])
+        self.assertIsNone(defaults["gate_time_s"])
+        self.assertIsNone(defaults["freq_period_timeout"])
         self.assertIsNone(defaults["current_terminal"])
 
     def test_capabilities_use_fallback_version_when_package_metadata_is_unavailable(self):
@@ -520,6 +555,8 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("current-dc", request.measurement)
         self.assertEqual("on", request.auto_zero)
         self.assertIsNone(request.ac_bandwidth_hz)
+        self.assertIsNone(request.gate_time_s)
+        self.assertIsNone(request.freq_period_timeout)
         self.assertIsNone(request.current_terminal)
 
     def test_manager_normalizes_legacy_auto_zero_booleans(self):
@@ -791,14 +828,29 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertIn('id="ac-bandwidth-container"', index)
         self.assertIn('id="ac-bandwidth"', index)
+        self.assertIn('id="gate-time-container"', index)
+        self.assertIn('id="gate-time"', index)
+        self.assertIn('id="freq-period-timeout-container"', index)
+        self.assertIn('id="freq-period-timeout"', index)
         self.assertIn('id="current-terminal-container"', index)
         self.assertIn('id="current-terminal"', index)
 
         self.assertIn("auto_zero", app_js)
         self.assertIn("ac_bandwidth_hz", app_js)
+        self.assertIn("gate_time_s", app_js)
+        self.assertIn("freq_period_timeout", app_js)
         self.assertIn("current_terminal", app_js)
         self.assertIn("payload.ac_bandwidth_hz", app_js)
+        self.assertIn("payload.gate_time_s", app_js)
+        self.assertIn("payload.freq_period_timeout", app_js)
         self.assertIn("payload.current_terminal", app_js)
+        self.assertIn("AC Filter >", app_js)
+
+        self.assertRegex(index, r'<select[^>]*id="gate-time"[^>]*disabled[^>]*>')
+        self.assertRegex(
+            index,
+            r'<select[^>]*id="freq-period-timeout"[^>]*disabled[^>]*>',
+        )
 
     def test_api_runs_validation_core_v1_1_0_contracts(self):
         client, csv_path = self.make_client()
@@ -811,6 +863,26 @@ class WebUiApiTests(unittest.TestCase):
                 "simulate": True,
                 "measurement": "current-dc",
                 "auto_zero": "once",
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(200, response.status_code)
+        client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "frequency",
+                "ac_bandwidth_hz": 20.0,
+                "gate_time_s": 0.1,
+                "freq_period_timeout": "auto",
                 "trigger_mode": "software-custom",
                 "trigger_timeout_ms": 500,
                 "trigger_count": 1,
@@ -895,6 +967,28 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual(422, response.status_code)
         self.assertIn("cannot be used with the 10 A current range", response.json()["detail"])
+
+    def test_api_rejects_frequency_period_fields_for_other_measurements(self):
+        client, csv_path = self.make_client()
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "voltage-dc",
+                "gate_time_s": 0.1,
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(422, response.status_code)
+        self.assertIn(
+            "gate-time-s can only be used with --measurement frequency or period",
+            response.json()["detail"],
+        )
 
     def test_immediate_run_publishes_final_inactive_status_without_polling(self):
         self.tempdir = tempfile.TemporaryDirectory()

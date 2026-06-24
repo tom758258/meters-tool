@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import unittest
 from pathlib import Path
@@ -142,6 +142,17 @@ class CorePublicApiTests(unittest.TestCase):
         ratio = measurements["voltage-dc-ratio"]
         self.assertEqual(("default", "10m", "auto"), ratio.dcv_input_impedance_values)
         self.assertEqual(("on",), ratio.auto_zero_values)
+
+        frequency = measurements["frequency"]
+        self.assertEqual("Hz", frequency.unit)
+        self.assertEqual((0.1, 1.0, 10.0, 100.0, 750.0), frequency.range_values)
+        self.assertEqual((3.0, 20.0, 200.0), frequency.ac_bandwidth_hz_values)
+        self.assertEqual((0.01, 0.1, 1.0), frequency.gate_time_s_values)
+        self.assertEqual(("auto", "1s"), frequency.freq_period_timeout_values)
+        self.assertTrue(frequency.default_auto_range)
+        self.assertEqual(20.0, frequency.default_ac_bandwidth_hz)
+        self.assertEqual(0.1, frequency.default_gate_time_s)
+        self.assertEqual("auto", frequency.default_freq_period_timeout)
 
     def test_public_api_exposes_structured_warnings(self):
         request = StartRequest(

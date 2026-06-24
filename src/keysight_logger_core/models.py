@@ -35,7 +35,13 @@ class MeasurementOptions:
     range_options: tuple[tuple[str, float], ...] = ()
     nplc_options: tuple[float, ...] = ()
     ac_bandwidth_hz_options: tuple[float, ...] = ()
+    gate_time_s_options: tuple[float, ...] = ()
+    freq_period_timeout_options: tuple[str, ...] = ()
     current_terminal_options: tuple[int, ...] = ()
+    default_auto_range: bool = True
+    default_ac_bandwidth_hz: Optional[float] = None
+    default_gate_time_s: Optional[float] = None
+    default_freq_period_timeout: Optional[str] = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -120,6 +126,7 @@ KEYSIGHT_34461A_ACV_RANGES = (
     ("100 V", 100.0),
     ("750 V", 750.0),
 )
+KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES = KEYSIGHT_34461A_ACV_RANGES
 KEYSIGHT_34461A_RESISTANCE_RANGES = (
     ("100 Ohm", 100.0),
     ("1 kOhm", 1_000.0),
@@ -130,6 +137,11 @@ KEYSIGHT_34461A_RESISTANCE_RANGES = (
     ("100 MOhm", 100_000_000.0),
 )
 KEYSIGHT_34461A_NPLC_OPTIONS = (0.02, 0.2, 1.0, 10.0, 100.0)
+KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS = (0.01, 0.1, 1.0)
+KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS = ("auto", "1s")
+KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ = 20.0
+KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S = 0.1
+KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT = "auto"
 
 
 KEYSIGHT_34461A_PROFILE = InstrumentProfile(
@@ -168,6 +180,26 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
             measurement_type="voltage_ac",
             range_options=KEYSIGHT_34461A_ACV_RANGES,
             ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+        ),
+        MeasurementOptions(
+            measurement_type="frequency",
+            range_options=KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+            gate_time_s_options=KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
+            freq_period_timeout_options=KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
+            default_ac_bandwidth_hz=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ,
+            default_gate_time_s=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S,
+            default_freq_period_timeout=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT,
+        ),
+        MeasurementOptions(
+            measurement_type="period",
+            range_options=KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+            gate_time_s_options=KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
+            freq_period_timeout_options=KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
+            default_ac_bandwidth_hz=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ,
+            default_gate_time_s=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S,
+            default_freq_period_timeout=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT,
         ),
         MeasurementOptions(
             measurement_type="resistance_2w",
@@ -228,6 +260,8 @@ class AcquisitionConfig:
     measurement_range: Optional[float] = None
     current_range: Optional[float] = None
     ac_bandwidth_hz: Optional[float] = None
+    gate_time_s: Optional[float] = None
+    freq_period_timeout: Optional[str] = None
     current_terminal: Optional[int] = None
     dcv_input_impedance: str = "default"
     hw_trigger_delay_s: float = 0.0
@@ -261,6 +295,8 @@ class StartRequest:
     measurement_range: Optional[float] = None
     current_range: Optional[float] = None
     ac_bandwidth_hz: Optional[float] = None
+    gate_time_s: Optional[float] = None
+    freq_period_timeout: Optional[str] = None
     current_terminal: Optional[int] = None
     dcv_input_impedance: str = "default"
     vm_comp_slope: Optional[str] = None

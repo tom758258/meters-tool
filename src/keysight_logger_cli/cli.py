@@ -563,6 +563,8 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
         measurement_range=args.measurement_range,
         current_range=args.current_range,
         ac_bandwidth_hz=args.ac_bandwidth_hz,
+        gate_time_s=args.gate_time_s,
+        freq_period_timeout=args.freq_period_timeout,
         current_terminal=args.current_terminal,
         dcv_input_impedance=args.dcv_input_impedance,
         vm_comp_slope=args.vm_comp_slope,
@@ -780,7 +782,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--nplc",
         type=float,
         default=1.0,
-        help="NPLC for DC/resistance: 0.02, 0.2, 1, 10, 100; AC supports only neutral 1.0",
+        help=(
+            "NPLC for DC/resistance: 0.02, 0.2, 1, 10, 100; "
+            "AC/Frequency/Period support only neutral 1.0"
+        ),
     )
     start.add_argument(
         "--auto-zero",
@@ -809,7 +814,24 @@ def build_parser() -> argparse.ArgumentParser:
         "--ac-bandwidth-hz",
         type=float,
         default=None,
-        help="AC bandwidth for current-ac or voltage-ac: 3, 20, or 200 Hz",
+        help=(
+            "AC filter bandwidth for current-ac, voltage-ac, frequency, or period: "
+            "3, 20, or 200 Hz"
+        ),
+    )
+    start.add_argument(
+        "--gate-time-s",
+        type=float,
+        choices=[0.01, 0.1, 1.0],
+        metavar="{0.01,0.1,1}",
+        default=None,
+        help="Frequency/Period gate time in seconds; default: 0.1",
+    )
+    start.add_argument(
+        "--freq-period-timeout",
+        choices=["auto", "1s"],
+        default=None,
+        help="Frequency/Period timeout behavior; default: auto",
     )
     start.add_argument(
         "--current-terminal",

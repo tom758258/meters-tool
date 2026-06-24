@@ -46,6 +46,10 @@ const autoZeroContainer = document.querySelector("#auto-zero-container");
 const autoZeroSelect = document.querySelector("[name='auto_zero']");
 const acBandwidthContainer = document.querySelector("#ac-bandwidth-container");
 const acBandwidthSelect = document.querySelector("#ac-bandwidth");
+const gateTimeContainer = document.querySelector("#gate-time-container");
+const gateTimeSelect = document.querySelector("#gate-time");
+const freqPeriodTimeoutContainer = document.querySelector("#freq-period-timeout-container");
+const freqPeriodTimeoutSelect = document.querySelector("#freq-period-timeout");
 const currentTerminalContainer = document.querySelector("#current-terminal-container");
 const currentTerminalSelect = document.querySelector("#current-terminal");
 const rangeContainer = document.querySelector("#range-container");
@@ -230,6 +234,14 @@ function supportsCurrentTerminal(measurement) {
   return Boolean(measurement?.supports_current_terminal);
 }
 
+function supportsGateTime(measurement) {
+  return Boolean(measurement?.supports_gate_time);
+}
+
+function supportsFreqPeriodTimeout(measurement) {
+  return Boolean(measurement?.supports_freq_period_timeout);
+}
+
 function supportsDcvInputZ(measurementName) {
   return ["voltage-dc", "voltage-dc-ratio"].includes(measurementName);
 }
@@ -277,6 +289,16 @@ function formPayload() {
   const acBandwidthVisible = supportsAcBandwidth(measurement);
   if (acBandwidthVisible && data.get("ac_bandwidth_hz")) {
     payload.ac_bandwidth_hz = numberOrNull(data.get("ac_bandwidth_hz"));
+  }
+
+  const gateTimeVisible = supportsGateTime(measurement);
+  if (gateTimeVisible && data.get("gate_time_s")) {
+    payload.gate_time_s = numberOrNull(data.get("gate_time_s"));
+  }
+
+  const freqPeriodTimeoutVisible = supportsFreqPeriodTimeout(measurement);
+  if (freqPeriodTimeoutVisible && data.get("freq_period_timeout")) {
+    payload.freq_period_timeout = String(data.get("freq_period_timeout"));
   }
 
   const currentTerminalVisible = supportsCurrentTerminal(measurement);
@@ -444,19 +466,56 @@ function updateMeasurementUi() {
   if (acBandwidthVisible) {
     const existingAcBandwidth = acBandwidthSelect.value;
     const bandwidthOptions = measurement?.ac_bandwidth_hz_options || [];
+    const defaultAcBandwidth = measurement?.defaults?.ac_bandwidth_hz;
     acBandwidthSelect.replaceChildren(
       optionElement("", "Auto (Default)"),
       ...bandwidthOptions.map((value) =>
         optionElement(value, `${formatNumberLabel(value)} Hz`)
       )
     );
-    if (bandwidthOptions.map(String).includes(String(existingAcBandwidth))) {
+    if (defaultAcBandwidth !== null && defaultAcBandwidth !== undefined) {
+      acBandwidthSelect.value = String(defaultAcBandwidth);
+    } else if (bandwidthOptions.map(String).includes(String(existingAcBandwidth))) {
       acBandwidthSelect.value = existingAcBandwidth;
     } else {
       acBandwidthSelect.value = "";
     }
   } else {
     acBandwidthSelect.value = "";
+  }
+
+  const gateTimeVisible = supportsGateTime(measurement);
+  gateTimeContainer.classList.toggle("is-hidden", !gateTimeVisible);
+  gateTimeSelect.disabled = !gateTimeVisible;
+
+  if (gateTimeVisible) {
+    const gateTimeOptions = measurement?.gate_time_s_options || [];
+    const defaultGateTime = measurement?.defaults?.gate_time_s;
+    gateTimeSelect.replaceChildren(
+      ...gateTimeOptions.map((value) =>
+        optionElement(value, `${formatNumberLabel(value)} s`)
+      )
+    );
+    gateTimeSelect.value = String(defaultGateTime ?? gateTimeOptions[0] ?? "");
+  } else {
+    gateTimeSelect.value = "";
+  }
+
+  const freqPeriodTimeoutVisible = supportsFreqPeriodTimeout(measurement);
+  freqPeriodTimeoutContainer.classList.toggle("is-hidden", !freqPeriodTimeoutVisible);
+  freqPeriodTimeoutSelect.disabled = !freqPeriodTimeoutVisible;
+
+  if (freqPeriodTimeoutVisible) {
+    const timeoutOptions = measurement?.freq_period_timeout_options || [];
+    const defaultTimeout = measurement?.defaults?.freq_period_timeout;
+    freqPeriodTimeoutSelect.replaceChildren(
+      ...timeoutOptions.map((value) =>
+        optionElement(value, value === "auto" ? "Auto" : "1 s")
+      )
+    );
+    freqPeriodTimeoutSelect.value = String(defaultTimeout ?? timeoutOptions[0] ?? "");
+  } else {
+    freqPeriodTimeoutSelect.value = "";
   }
 
   const currentTerminalVisible = supportsCurrentTerminal(measurement);
@@ -972,7 +1031,10 @@ function updatePanelSummaries() {
     const measurement = measurementsByName.get(selectedMeasurement);
     const autoZeroVisible = supportsAutoZero(selectedMeasurement);
     const acBandwidthVisible = supportsAcBandwidth(measurement);
+    const gateTimeVisible = supportsGateTime(measurement);
+    const freqPeriodTimeoutVisible = supportsFreqPeriodTimeout(measurement);
     const currentTerminalVisible = supportsCurrentTerminal(measurement);
+    const frequencyOrPeriod = ["frequency", "period"].includes(selectedMeasurement);
 
     const autoZeroText = autoZeroVisible && autoZeroSelect.value
       ? `Auto zero ${autoZeroSelect.value}`
@@ -983,7 +1045,15 @@ function updatePanelSummaries() {
       autoZeroText,
       (!nplcSelect.disabled && nplcSelect.value) ? `NPLC ${nplcSelect.value}` : "",
       (acBandwidthVisible && acBandwidthSelect.value)
-        ? `AC Band ${acBandwidthSelect.value} Hz`
+        ? (frequencyOrPeriod
+          ? `AC Filter >${acBandwidthSelect.value} Hz`
+          : `AC Band ${acBandwidthSelect.value} Hz`)
+        : "",
+      (gateTimeVisible && gateTimeSelect.value)
+        ? `Gate ${gateTimeSelect.value} s`
+        : "",
+      (freqPeriodTimeoutVisible && freqPeriodTimeoutSelect.value)
+        ? `Timeout ${freqPeriodTimeoutSelect.value}`
         : "",
       (currentTerminalVisible && currentTerminalSelect.value)
         ? `Terminal ${currentTerminalSelect.value} A`
@@ -1169,6 +1239,8 @@ timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
 autoZeroSelect.addEventListener("change", updatePanelSummaries);
 acBandwidthSelect.addEventListener("change", updatePanelSummaries);
+gateTimeSelect.addEventListener("change", updatePanelSummaries);
+freqPeriodTimeoutSelect.addEventListener("change", updatePanelSummaries);
 currentTerminalSelect.addEventListener("change", updatePanelSummaries);
 nplcSelect.addEventListener("change", updatePanelSummaries);
 document.querySelector("[name='max_samples']").addEventListener("input", updatePanelSummaries);

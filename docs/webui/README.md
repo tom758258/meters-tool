@@ -1,4 +1,4 @@
-﻿# Keysight Logger WebUI README
+# Keysight Logger WebUI README
 
 This document is the WebUI behavior, API, validation, and maintainer guide for
 the WebUI component. For normal operator workflows and field explanations, use
@@ -187,18 +187,24 @@ Currently surfaced measurement modes include:
 - `voltage-dc-ratio`
 - `current-ac`
 - `voltage-ac`
+- `frequency`
+- `period`
 - `resistance-2w`
 - `resistance-4w`
 
 The frontend must not invent measurement options. It should populate choices,
-defaults, ranges, NPLC options, AC bandwidth options, current terminal options,
-and measurement-specific controls from `/api/capabilities`.
+defaults, ranges, NPLC options, AC bandwidth/filter options, Frequency/Period
+gate-time and timeout options, current terminal options, and
+measurement-specific controls from `/api/capabilities`.
 
 Measurement-specific UI behavior:
 
 - NPLC appears only for supported measurements.
-- AC measurements do not show NPLC.
-- AC bandwidth appears only for AC current and AC voltage where supported.
+- AC, Frequency, and Period measurements do not show NPLC.
+- AC filter appears for AC current, AC voltage, Frequency, and Period where
+  supported.
+- Gate Time and Timeout appear only for Frequency and Period. Their effective
+  defaults are `0.1` s and `auto`; AC Filter defaults to `20` Hz.
 - Current terminal selection appears only for current measurements where
   supported.
 - DCV Input Z appears only for `voltage-dc`.
@@ -442,10 +448,17 @@ Important fields sent by the WebUI include:
 - `sw_min_interval_ms`
 - `sw_queue_max`
 - `ac_bandwidth_hz`
+- `gate_time_s`
+- `freq_period_timeout`
 - `current_terminal`
 
 Hidden controls must be disabled so stale values are not submitted from inactive
 modes.
+
+Frequency and Period payloads keep raw numeric values: AC Filter `20 Hz` is
+sent as `ac_bandwidth_hz: 20`, Gate Time as seconds, and Timeout as `auto` or
+`1s`. Live data displays Frequency in `Hz` and Period in `s` without automatic
+unit scaling.
 
 ## Safety Rules
 
@@ -550,7 +563,9 @@ For no-hardware UI smoke:
   resources cleanly.
 - Measurement changes update range unit, range choices, and NPLC visibility.
 - `voltage-dc` shows DCV Input Z; other measurements hide it.
-- AC measurements show AC bandwidth where supported and hide NPLC.
+- AC measurements show AC filter where supported and hide NPLC.
+- Frequency and Period show AC Filter, Gate Time, and Timeout; hidden controls
+  are disabled for every other measurement.
 - Current measurements show current terminal where supported.
 - Trigger mode changes show and hide only relevant fields.
 - Trigger button appears only for manual software-triggered modes.

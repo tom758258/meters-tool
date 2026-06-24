@@ -31,6 +31,7 @@ AUTO_ZERO_MEASUREMENTS = ("current_dc", "voltage_dc", "resistance_2w")
 DCV_INPUT_IMPEDANCE_MEASUREMENTS = ("voltage_dc", "voltage_dc_ratio")
 DCV_INPUT_IMPEDANCE_OPTIONS = ("default", "10m", "auto")
 CURRENT_MEASUREMENTS = ("current_dc", "current_ac")
+FREQUENCY_PERIOD_MEASUREMENTS = ("frequency", "period")
 
 
 @dataclass(frozen=True)
@@ -144,8 +145,11 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         "Limits:\n"
         f"  measurement choices: {', '.join(measurement_names)}\n"
         "  NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100\n"
-        "  AC current/voltage do not support NPLC SCPI; omit --nplc or use 1.0\n"
-        "  AC bandwidth choices for AC current/voltage: 3, 20, 200 Hz\n"
+        "  AC current/voltage and Frequency/Period do not support NPLC SCPI; "
+        "omit --nplc or use 1.0\n"
+        "  AC bandwidth choices for AC current/voltage and Frequency/Period: 3, 20, 200 Hz\n"
+        "  Frequency/Period gate time choices: 0.01, 0.1, 1 s; default: 0.1 s\n"
+        "  Frequency/Period timeout choices: auto, 1s; default: auto\n"
         "  current terminal choices for current measurements: 3, 10\n"
         "  range choices by measurement:\n"
         + "\n".join(range_lines)
@@ -263,13 +267,37 @@ def validate_start_request(
     if args.ac_bandwidth_hz is not None:
         if not options.ac_bandwidth_hz_options:
             raise ValueError(
-                "--ac-bandwidth-hz can only be used with --measurement current-ac or voltage-ac"
+                "--ac-bandwidth-hz can only be used with --measurement current-ac, voltage-ac, "
+                "frequency, or period"
             )
         if not value_in_options(args.ac_bandwidth_hz, options.ac_bandwidth_hz_options):
             raise ValueError(
                 f"--ac-bandwidth-hz {format_number(args.ac_bandwidth_hz)} is not valid for "
                 f"--measurement {definition.canonical_name}. Allowed AC bandwidth values in Hz: "
                 f"{format_values(options.ac_bandwidth_hz_options)}."
+            )
+    if args.gate_time_s is not None:
+        if not options.gate_time_s_options:
+            raise ValueError(
+                "--gate-time-s can only be used with --measurement frequency or period"
+            )
+        if not value_in_options(args.gate_time_s, options.gate_time_s_options):
+            raise ValueError(
+                f"--gate-time-s {format_number(args.gate_time_s)} is not valid for "
+                f"--measurement {definition.canonical_name}. Allowed gate time values in s: "
+                f"{format_values(options.gate_time_s_options)}."
+            )
+    if args.freq_period_timeout is not None:
+        normalized_freq_period_timeout = str(args.freq_period_timeout).strip().lower()
+        if not options.freq_period_timeout_options:
+            raise ValueError(
+                "--freq-period-timeout can only be used with --measurement frequency or period"
+            )
+        if normalized_freq_period_timeout not in options.freq_period_timeout_options:
+            raise ValueError(
+                f"--freq-period-timeout {args.freq_period_timeout} is not valid for "
+                f"--measurement {definition.canonical_name}. Allowed values: "
+                f"{', '.join(options.freq_period_timeout_options)}."
             )
     if args.current_terminal is not None:
         if not options.current_terminal_options:
@@ -298,6 +326,12 @@ def validate_start_request(
                 f"{format_values(options.nplc_options)}. Use one of the listed values."
             )
     elif args.nplc != NEUTRAL_AC_NPLC:
+        if measurement_type in FREQUENCY_PERIOD_MEASUREMENTS:
+            raise ValueError(
+                f"--nplc {format_number(args.nplc)} is not valid for "
+                f"--measurement {definition.canonical_name}. Frequency and Period do not "
+                "support NPLC SCPI. Omit --nplc or use the neutral default value 1.0."
+            )
         raise ValueError(
             f"--nplc {format_number(args.nplc)} is not valid for "
             f"--measurement {definition.canonical_name}. AC measurements do not support NPLC SCPI. "

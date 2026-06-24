@@ -115,6 +115,8 @@ class CliArgsTests(unittest.TestCase):
         self.assertIsNone(args.measurement_range)
         self.assertIsNone(args.current_range)
         self.assertIsNone(args.ac_bandwidth_hz)
+        self.assertIsNone(args.gate_time_s)
+        self.assertIsNone(args.freq_period_timeout)
         self.assertIsNone(args.current_terminal)
         self.assertEqual("default", args.dcv_input_impedance)
         self.assertIsNone(args.trigger_mode)
@@ -142,6 +144,8 @@ class CliArgsTests(unittest.TestCase):
             ("--trigger-timeout-ms", "500", "600000", "ms"),
             ("--trigger-count", "--sample-count", "1", "1000000"),
             ("AC bandwidth", "current", "voltage", "3", "20", "200", "Hz"),
+            ("Frequency/Period", "gate time", "0.01", "0.1", "1"),
+            ("Frequency/Period", "timeout", "auto", "1s"),
             ("current terminal", "current", "3", "10"),
         ):
             with self.subTest(tokens=tokens):
@@ -177,6 +181,51 @@ class CliArgsTests(unittest.TestCase):
         self.assertEqual("once", auto_zero_args.auto_zero)
         self.assertEqual(20.0, ac_args.ac_bandwidth_hz)
         self.assertEqual(10, ac_args.current_terminal)
+
+    def test_start_parses_frequency_period_options(self):
+        parser = build_parser()
+
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "frequency",
+                "--ac-bandwidth-hz",
+                "20",
+                "--gate-time-s",
+                "0.1",
+                "--freq-period-timeout",
+                "1s",
+            ]
+        )
+
+        self.assertEqual("frequency", args.measurement)
+        self.assertEqual(20.0, args.ac_bandwidth_hz)
+        self.assertEqual(0.1, args.gate_time_s)
+        self.assertEqual("1s", args.freq_period_timeout)
+
+    def test_start_rejects_invalid_frequency_period_choices(self):
+        parser = build_parser()
+        for option, value in [
+            ("--gate-time-s", "0.5"),
+            ("--freq-period-timeout", "2s"),
+        ]:
+            with self.subTest(option=option, value=value):
+                with self.assertRaises(SystemExit) as exc:
+                    parser.parse_args(
+                        [
+                            "start-trigger-record",
+                            "--resource",
+                            "USB::FAKE",
+                            "--measurement",
+                            "frequency",
+                            option,
+                            value,
+                        ]
+                    )
+                self.assertEqual(2, exc.exception.code)
 
     def test_list_resources_verify_flag(self):
         parser = build_parser()
@@ -1251,6 +1300,40 @@ class CliCommandTests(unittest.TestCase):
         self.assertEqual("FETC?", payload["read_path"])
         self.assertIn("TRIG:SOUR EXT", payload["scpi_commands"])
         self.assertNotIn("run_id", payload)
+
+    def test_frequency_dry_run_json_uses_effective_defaults(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--measurement",
+                "frequency",
+                "--dry-run",
+                "--json",
+            ]
+        )
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual("frequency", payload["measurement_type"])
+        self.assertEqual("Hz", payload["measurement_unit"])
+        self.assertEqual("READ?", payload["read_path"])
+        self.assertEqual(
+            [
+                "CONF:FREQ",
+                "FREQ:VOLT:RANG:AUTO ON",
+                "FREQ:RANG:LOW 20",
+                "FREQ:APER 0.1",
+                "FREQ:TIM:AUTO ON",
+            ],
+            payload["scpi_commands"],
+        )
 
     def test_start_json_alias_sets_jsonl_status_format(self):
         parser = build_parser()

@@ -67,12 +67,15 @@ being measured:
 - `current-dc`: DC current.
 - `voltage-ac`: AC voltage.
 - `current-ac`: AC current.
+- `frequency`: signal frequency in Hz.
+- `period`: signal period in seconds.
 - `resistance-2w`: 2-wire resistance.
 - `resistance-4w`: 4-wire resistance.
 
 Confirm the input terminals before measuring current or 4-wire resistance.
-For AC modes, run a low-risk smoke test and compare the CSV value with the
-front-panel reading before using the setup for longer captures.
+For AC, Frequency, and Period modes, run a low-risk smoke test and compare the
+CSV value with the front-panel reading before using the setup for longer
+captures.
 
 ## Choosing A Trigger Mode
 
@@ -115,15 +118,21 @@ unless the measurement setup requires a fixed range.
 that safely covers the expected signal.
 
 `--nplc` controls integration time for DC and resistance measurements. Higher
-values are slower and can be more stable. AC modes accept only the neutral
-default because they do not write NPLC SCPI.
+values are slower and can be more stable. AC, Frequency, and Period modes
+accept only the neutral default because they do not write NPLC SCPI.
 
 `--auto-zero` controls offset handling for DC and resistance measurements.
-It can improve accuracy but may slow readings. AC modes do not write Auto Zero
-SCPI.
+It can improve accuracy but may slow readings. AC, Frequency, and Period modes
+do not write Auto Zero SCPI.
 
-`--ac-bandwidth-hz` applies to AC voltage and AC current. Use the bandwidth that
-matches the measurement setup.
+`--ac-bandwidth-hz` applies to AC voltage, AC current, Frequency, and Period.
+Frequency and Period default to `20` Hz.
+
+`--gate-time-s` applies only to Frequency and Period. Choose `0.01`, `0.1`, or
+`1` second; the default is `0.1` second.
+
+`--freq-period-timeout` applies only to Frequency and Period. Keep the default
+`auto` unless the measurement procedure requires the `1s` behavior.
 
 `--current-terminal` applies to current measurements. Match it to the physical
 current terminal used on the instrument.

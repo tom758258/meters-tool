@@ -7,7 +7,15 @@ import math
 from typing import List
 
 from .instrument_backend import InstrumentBackend
-from .models import AcquisitionConfig, MeasurementSample, TriggerEvent, TriggerSource
+from .models import (
+    AcquisitionConfig,
+    KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ,
+    KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S,
+    KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT,
+    MeasurementSample,
+    TriggerEvent,
+    TriggerSource,
+)
 
 
 def _vm_comp_slope_command(slope: str) -> str:
@@ -159,6 +167,18 @@ VOLTAGE_AC_DEFINITION = MeasurementDefinition(
     canonical_name="voltage-ac",
     internal_type="voltage_ac",
     unit="V",
+    range_label="volts",
+)
+FREQUENCY_DEFINITION = MeasurementDefinition(
+    canonical_name="frequency",
+    internal_type="frequency",
+    unit="Hz",
+    range_label="volts",
+)
+PERIOD_DEFINITION = MeasurementDefinition(
+    canonical_name="period",
+    internal_type="period",
+    unit="s",
     range_label="volts",
 )
 RESISTANCE_2W_DEFINITION = MeasurementDefinition(
@@ -489,6 +509,48 @@ class VoltageAcMeasurement(ScalarDmmMeasurement):
         self._configured = True
 
 
+class _FrequencyPeriodMeasurement(ScalarDmmMeasurement):
+    def __init__(self, definition: MeasurementDefinition, scpi_prefix: str) -> None:
+        super().__init__(definition)
+        self._scpi_prefix = scpi_prefix
+
+    def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
+        prefix = self._scpi_prefix
+        ac_bandwidth_hz = (
+            config.ac_bandwidth_hz
+            if config.ac_bandwidth_hz is not None
+            else KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ
+        )
+        gate_time_s = (
+            config.gate_time_s
+            if config.gate_time_s is not None
+            else KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S
+        )
+        timeout = str(
+            config.freq_period_timeout or KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT
+        ).strip().lower()
+
+        instrument.write(f"CONF:{prefix}")
+        if config.auto_range:
+            instrument.write(f"{prefix}:VOLT:RANG:AUTO ON")
+        elif config.measurement_range is not None:
+            instrument.write(f"{prefix}:VOLT:RANG {config.measurement_range:g}")
+        instrument.write(f"{prefix}:RANG:LOW {ac_bandwidth_hz:g}")
+        instrument.write(f"{prefix}:APER {gate_time_s:g}")
+        instrument.write(f"{prefix}:TIM:AUTO {'ON' if timeout == 'auto' else 'OFF'}")
+        self._configured = True
+
+
+class FrequencyMeasurement(_FrequencyPeriodMeasurement):
+    def __init__(self) -> None:
+        super().__init__(FREQUENCY_DEFINITION, "FREQ")
+
+
+class PeriodMeasurement(_FrequencyPeriodMeasurement):
+    def __init__(self) -> None:
+        super().__init__(PERIOD_DEFINITION, "PER")
+
+
 class Resistance2wMeasurement(ScalarDmmMeasurement):
     def __init__(self) -> None:
         super().__init__(RESISTANCE_2W_DEFINITION)
@@ -532,6 +594,8 @@ _MEASUREMENT_DEFINITIONS = {
     VOLTAGE_DC_RATIO_DEFINITION.internal_type: VOLTAGE_DC_RATIO_DEFINITION,
     CURRENT_AC_DEFINITION.internal_type: CURRENT_AC_DEFINITION,
     VOLTAGE_AC_DEFINITION.internal_type: VOLTAGE_AC_DEFINITION,
+    FREQUENCY_DEFINITION.internal_type: FREQUENCY_DEFINITION,
+    PERIOD_DEFINITION.internal_type: PERIOD_DEFINITION,
     RESISTANCE_2W_DEFINITION.internal_type: RESISTANCE_2W_DEFINITION,
     RESISTANCE_4W_DEFINITION.internal_type: RESISTANCE_4W_DEFINITION,
 }
@@ -541,6 +605,8 @@ _MEASUREMENT_PLUGIN_TYPES: dict[str, type[MeasurementPlugin]] = {
     VOLTAGE_DC_RATIO_DEFINITION.internal_type: VoltageDcRatioMeasurement,
     CURRENT_AC_DEFINITION.internal_type: CurrentAcMeasurement,
     VOLTAGE_AC_DEFINITION.internal_type: VoltageAcMeasurement,
+    FREQUENCY_DEFINITION.internal_type: FrequencyMeasurement,
+    PERIOD_DEFINITION.internal_type: PeriodMeasurement,
     RESISTANCE_2W_DEFINITION.internal_type: Resistance2wMeasurement,
     RESISTANCE_4W_DEFINITION.internal_type: Resistance4wMeasurement,
 }

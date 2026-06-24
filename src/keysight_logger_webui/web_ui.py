@@ -104,6 +104,8 @@ class RunStartRequest(BaseModel):
     dcv_input_impedance: str = "default"
     vm_comp_slope: Optional[str] = None
     ac_bandwidth_hz: Optional[float] = None
+    gate_time_s: Optional[float] = None
+    freq_period_timeout: Optional[str] = None
     current_terminal: Optional[int] = None
 
 
@@ -280,6 +282,10 @@ class WebRunManager:
             definition = get_measurement_definition(measurement_type)
             options = profile.get_measurement_options(measurement_type)
             ac_bandwidth_hz_options = list(getattr(options, "ac_bandwidth_hz_options", ()))
+            gate_time_s_options = list(getattr(options, "gate_time_s_options", ()))
+            freq_period_timeout_options = list(
+                getattr(options, "freq_period_timeout_options", ())
+            )
             current_terminal_options = list(getattr(options, "current_terminal_options", ()))
             measurements.append(
                 {
@@ -295,9 +301,19 @@ class WebRunManager:
                     "supports_nplc": bool(options.nplc_options),
                     "accepts_current_range_alias": definition.accepts_current_range_alias,
                     "ac_bandwidth_hz_options": ac_bandwidth_hz_options,
+                    "gate_time_s_options": gate_time_s_options,
+                    "freq_period_timeout_options": freq_period_timeout_options,
                     "current_terminal_options": current_terminal_options,
                     "supports_ac_bandwidth": bool(ac_bandwidth_hz_options),
+                    "supports_gate_time": bool(gate_time_s_options),
+                    "supports_freq_period_timeout": bool(freq_period_timeout_options),
                     "supports_current_terminal": bool(current_terminal_options),
+                    "defaults": {
+                        "auto_range": options.default_auto_range,
+                        "ac_bandwidth_hz": options.default_ac_bandwidth_hz,
+                        "gate_time_s": options.default_gate_time_s,
+                        "freq_period_timeout": options.default_freq_period_timeout,
+                    },
                 }
             )
         return {
@@ -343,6 +359,8 @@ class WebRunManager:
                 "hw_trigger_slope": "neg",
                 "hw_trigger_delay_s": 0.0,
                 "ac_bandwidth_hz": None,
+                "gate_time_s": None,
+                "freq_period_timeout": None,
                 "current_terminal": None,
             },
         }

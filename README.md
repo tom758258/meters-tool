@@ -9,9 +9,9 @@ Keysight 34461A digital multimeter. It provides one installable distribution,
 `keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
 
 The project supports DC and AC current, DC and AC voltage, DC voltage ratio,
-and 2-wire or 4-wire resistance measurements over VISA. Each captured sample is
-written as one CSV row with timestamp, measurement type, unit, trigger source,
-and related metadata.
+frequency, period, and 2-wire or 4-wire resistance measurements over VISA. Each
+captured sample is written as one CSV row with timestamp, measurement type,
+unit, trigger source, and related metadata.
 
 ## Features
 

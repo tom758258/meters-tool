@@ -58,6 +58,8 @@ def _acquisition_config_from_request(
         measurement_range=resolve_measurement_range(request),
         current_range=request.current_range,
         ac_bandwidth_hz=request.ac_bandwidth_hz,
+        gate_time_s=request.gate_time_s,
+        freq_period_timeout=request.freq_period_timeout,
         current_terminal=request.current_terminal,
         dcv_input_impedance=request.dcv_input_impedance,
         hw_trigger_delay_s=request.hw_trigger_delay_s,

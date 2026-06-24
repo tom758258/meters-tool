@@ -71,6 +71,8 @@ def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
         "measurement_range": None,
         "current_range": None,
         "ac_bandwidth_hz": None,
+        "gate_time_s": None,
+        "freq_period_timeout": None,
         "current_terminal": None,
         "dcv_input_impedance": "default",
         "vm_comp_slope": None,
@@ -253,7 +255,7 @@ class CoreValidationTests(unittest.TestCase):
         self.assert_invalid(
             make_start_request(measurement="capacitance"),
             "--measurement must be one of: current-dc, voltage-dc, voltage-dc-ratio, "
-            "current-ac, voltage-ac, resistance-2w, resistance-4w",
+            "current-ac, voltage-ac, frequency, period, resistance-2w, resistance-4w",
         )
         self.assert_invalid(
             make_start_request(measurement="voltage-dc"),
@@ -268,6 +270,8 @@ class CoreValidationTests(unittest.TestCase):
             ("voltage-dc-ratio", 10.0),
             ("current-ac", 0.1),
             ("voltage-ac", 10.0),
+            ("frequency", 10.0),
+            ("period", 10.0),
             ("resistance-2w", 1000.0),
             ("resistance-4w", 1000.0),
         ]
@@ -381,8 +385,13 @@ class CoreValidationTests(unittest.TestCase):
             "--auto-zero must be one of: on, off, once",
         )
 
-    def test_ac_bandwidth_hz_is_ac_only_and_profile_owned(self):
-        for measurement, bandwidth in [("current-ac", 3.0), ("voltage-ac", 200.0)]:
+    def test_ac_bandwidth_hz_is_profile_owned(self):
+        for measurement, bandwidth in [
+            ("current-ac", 3.0),
+            ("voltage-ac", 200.0),
+            ("frequency", 20.0),
+            ("period", 3.0),
+        ]:
             with self.subTest(measurement=measurement):
                 self.assert_valid(make_start_request(measurement=measurement, ac_bandwidth_hz=bandwidth))
         self.assert_invalid(
@@ -391,13 +400,57 @@ class CoreValidationTests(unittest.TestCase):
         )
         self.assert_invalid(
             make_start_request(measurement="current-dc", ac_bandwidth_hz=3.0),
-            "--ac-bandwidth-hz can only be used with --measurement current-ac or voltage-ac",
+            "--ac-bandwidth-hz can only be used with --measurement current-ac, voltage-ac, "
+            "frequency, or period",
         )
         self.assert_invalid(
             make_start_request(measurement="current-dc", ac_bandwidth_hz=3.0),
             "--ac-bandwidth-hz can only be used",
             profile=FAKE_CURRENT_ONLY_PROFILE,
         )
+
+    def test_frequency_period_options_and_scope(self):
+        for measurement in ("frequency", "period"):
+            with self.subTest(measurement=measurement):
+                self.assert_valid(
+                    make_start_request(
+                        measurement=measurement,
+                        gate_time_s=0.1,
+                        freq_period_timeout="auto",
+                    )
+                )
+                self.assert_valid(
+                    make_start_request(
+                        measurement=measurement,
+                        gate_time_s=1.0,
+                        freq_period_timeout="1s",
+                    )
+                )
+        self.assert_invalid(
+            make_start_request(measurement="frequency", gate_time_s=0.5),
+            "Allowed gate time values in s: 0.01, 0.1, 1",
+        )
+        self.assert_invalid(
+            make_start_request(measurement="period", freq_period_timeout="2s"),
+            "Allowed values: auto, 1s",
+        )
+        self.assert_invalid(
+            make_start_request(measurement="voltage-dc", gate_time_s=0.1),
+            "--gate-time-s can only be used with --measurement frequency or period",
+        )
+        self.assert_invalid(
+            make_start_request(measurement="voltage-ac", freq_period_timeout="auto"),
+            "--freq-period-timeout can only be used with --measurement frequency or period",
+        )
+
+    def test_frequency_period_use_neutral_nplc(self):
+        for measurement in ("frequency", "period"):
+            with self.subTest(measurement=measurement):
+                self.assert_valid(make_start_request(measurement=measurement, nplc=1.0))
+                self.assert_invalid(
+                    make_start_request(measurement=measurement, nplc=0.2),
+                    "Frequency and Period do not support NPLC SCPI",
+                )
 
     def test_current_terminal_scope_and_10a_range_rules(self):
         self.assert_valid(make_start_request(measurement="current-dc", current_terminal=3))
@@ -608,6 +661,8 @@ class CoreValidationTests(unittest.TestCase):
         for tokens in (
             ("NPLC", "DC", "resistance", "0.02", "0.2", "1", "10", "100"),
             ("AC bandwidth", "current", "voltage", "3", "20", "200", "Hz"),
+            ("Frequency/Period gate time", "0.01", "0.1", "1", "default"),
+            ("Frequency/Period timeout", "auto", "1s", "default"),
             ("current terminal", "current", "3", "10"),
             ("current-dc", "0.0001", "0.001", "0.01", "0.1", "1", "3", "10", "A"),
             ("voltage-dc-ratio", "0.1", "1", "10", "100", "1000", "V"),

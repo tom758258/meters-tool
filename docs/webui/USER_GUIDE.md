@@ -124,8 +124,8 @@ Run count and sample limit fields control how long a run can continue. Keep new
 setups bounded while checking wiring, measurement type, and trigger behavior.
 
 `Measurement type` selects what the 34461A measures: DC or AC voltage, DC or AC
-current, DC voltage ratio, or 2-wire or 4-wire resistance. Match this to the
-instrument wiring before starting a run.
+current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
+Match this to the instrument wiring before starting a run.
 
 `Auto Range` lets the instrument choose the measurement range. Keep it enabled
 for first runs unless the measurement procedure requires a fixed range.
@@ -134,15 +134,24 @@ Manual range fields are used when Auto Range is disabled. Choose a range that
 safely covers the expected signal.
 
 `NPLC` controls integration time for DC and resistance measurements. Higher
-values are slower and can be more stable. AC modes use their AC bandwidth
-setting instead.
+values are slower and can be more stable. AC, Frequency, and Period modes use
+their AC filter setting instead.
 
 `Auto Zero` controls offset handling for DC and resistance measurements. It can
 improve accuracy but may slow readings. Leave it at the normal setup value
 unless the measurement procedure calls for a change.
 
-`AC bandwidth` applies to AC voltage and AC current. Choose the bandwidth that
-matches the signal and measurement procedure.
+`AC filter` applies to AC voltage, AC current, Frequency, and Period. Frequency
+and Period default to `20 Hz`; the summary may show this as `>20 Hz`.
+
+`Gate time` applies only to Frequency and Period. The default is `0.1 s`;
+available choices are `0.01`, `0.1`, and `1 s`.
+
+`Timeout` in the Measurement options applies only to Frequency and Period.
+Keep `Auto` unless the procedure requires `1 s`.
+
+Frequency values are shown and stored in `Hz`. Period values are shown and
+stored in `s`; the WebUI does not automatically rescale these units.
 
 `Current terminal` applies to current measurements. Confirm the physical lead is
 connected to the matching current terminal before starting the run.

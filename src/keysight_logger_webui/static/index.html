@@ -111,12 +111,25 @@
               <select id="nplc" name="nplc" form="run-form"></select>
             </label>
             <label id="ac-bandwidth-container" class="is-hidden">
-              AC bandwidth <span class="optional-mark">(Optional)</span>
-              <select id="ac-bandwidth" name="ac_bandwidth_hz" form="run-form"></select>
+              AC filter <span class="optional-mark">(Optional)</span>
+              <select id="ac-bandwidth" name="ac_bandwidth_hz" form="run-form" disabled></select>
+            </label>
+            <label id="gate-time-container" class="is-hidden">
+              Gate time
+              <select id="gate-time" name="gate_time_s" form="run-form" disabled></select>
+            </label>
+            <label id="freq-period-timeout-container" class="is-hidden">
+              Timeout
+              <select
+                id="freq-period-timeout"
+                name="freq_period_timeout"
+                form="run-form"
+                disabled
+              ></select>
             </label>
             <label id="current-terminal-container" class="is-hidden">
               Current terminal <span class="optional-mark">(Optional)</span>
-              <select id="current-terminal" name="current_terminal" form="run-form"></select>
+              <select id="current-terminal" name="current_terminal" form="run-form" disabled></select>
             </label>
             <label data-measurement-scope="voltage-dc,voltage-dc-ratio">
               DCV input Z

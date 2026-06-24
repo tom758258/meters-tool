@@ -1,4 +1,4 @@
-﻿# Keysight 34461A CLI Logger
+# Keysight 34461A CLI Logger
 
 ## Documentation Set
 
@@ -13,7 +13,7 @@
 - [Meters Worker Contract](../contracts/meters-worker-contract.md) - Meters worker control plane, JSONL, and artifact contract for agents and orchestrators.
 
 CLI-first Python logger for Keysight 34461A DC/AC current, DC/AC voltage,
-DCV ratio, and 2-wire or 4-wire resistance measurements over VISA.
+DCV ratio, frequency, period, and 2-wire or 4-wire resistance measurements over VISA.
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
@@ -26,8 +26,9 @@ contracts, examples, and maintainer-facing CLI behavior in one place.
 package, console command, JSON/JSONL contracts, wrapper scripts, and tests
 while sharing that one version number with Core and WebUI. It
 continues to expose Core measurement fields through the CLI:
-`voltage-dc-ratio`,
-`--auto-zero once`, `--ac-bandwidth-hz`, and `--current-terminal`. Core start
+`voltage-dc-ratio`, `frequency`, `period`, `--auto-zero once`,
+`--ac-bandwidth-hz`, `--gate-time-s`, `--freq-period-timeout`, and
+`--current-terminal`. Core start
 validation, dry-run planning, runtime orchestration, public integration exports,
 and measurement naming remain separated from adapter-only CLI concerns. This
 baseline also keeps the legacy root-level import cleanup, CLI contract
@@ -44,8 +45,8 @@ supported.
 Implemented:
 
 - VISA resource listing for USB and LAN resources discovered by PyVISA.
-- DC current, DC voltage, DCV ratio, AC current, AC voltage, and 2-wire or
-  4-wire resistance measurement logging.
+- DC current, DC voltage, DCV ratio, AC current, AC voltage, frequency, period,
+  and 2-wire or 4-wire resistance measurement logging.
 - Software trigger mode through a local HTTP endpoint.
 - Local worker status endpoint through `GET /status`.
 - Software timer capture as part of software trigger mode.
@@ -58,23 +59,24 @@ Implemented:
 - Optional resource verification with `list-resources --verify`.
 - Optional live-resource filtering with `list-resources --live-only`.
 - Optional measurement controls: measurement type, Auto Range, manual range,
-  DCV input impedance, Auto Zero including `once`, NPLC, AC bandwidth,
-  current terminal selection, hardware trigger delay, hardware trigger slope,
-  and VM Comp slope.
+  DCV input impedance, Auto Zero including `once`, NPLC, AC bandwidth/filter,
+  Frequency/Period gate time and timeout, current terminal selection, hardware
+  trigger delay, hardware trigger slope, and VM Comp slope.
 - Immediate CSV flush after every captured sample.
 
 Important limitations:
 
-- This project is currently focused on Keysight 34461A current, voltage,
-  DCV ratio, and 2-wire or 4-wire resistance logging.
-- AC modes expose the 34461A `3`, `20`, and `200` Hz bandwidth settings through
+- This project is currently focused on Keysight 34461A current, voltage, DCV
+  ratio, frequency, period, and 2-wire or 4-wire resistance logging.
+- AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz
+  bandwidth/filter settings through
   `--ac-bandwidth-hz`. Before production use, run a low-risk live-resource
   smoke test with an operator-provided VISA resource and compare the CLI row to
   the 34461A front-panel reading.
-- `--nplc` and `--auto-zero` are DC/resistance controls. AC current and AC
-  voltage accept only the neutral default `--nplc 1.0`; any other NPLC value is
-  rejected because AC modes do not write NPLC SCPI. AC modes also do not write
-  Auto Zero SCPI commands.
+- `--nplc` and `--auto-zero` are DC/resistance controls. AC current, AC
+  voltage, Frequency, and Period accept only the neutral default `--nplc 1.0`;
+  any other NPLC value is rejected because these modes do not write NPLC SCPI.
+  They also do not write Auto Zero SCPI commands.
 - Mixed software and hardware capture in the same run is not supported.
 - Plain `list-resources` calls VISA discovery directly and may show stale
   resources cached by the VISA runtime. Use `list-resources --verify` to open
@@ -403,13 +405,15 @@ after that many successful timer CSV rows.
 | `--allow-buffer-overflow-risk` | No | Off | Allow custom modes to request more readings than the 34461A 10,000-reading memory limit. This depends on draining readings fast enough and may lose data or produce SCPI errors. |
 | `--hw-trigger-slope pos\|neg` | No | `neg` | External trigger edge polarity. |
 | `--hw-trigger-delay-s SECONDS` | No | `0.0` | Hardware trigger delay, mapped to `TRIG:DEL`. Supported range: `0` to `3600` seconds. |
-| `--measurement current-dc\|voltage-dc\|voltage-dc-ratio\|current-ac\|voltage-ac\|resistance-2w\|resistance-4w` | No | `current-dc` | Measurement type. |
-| `--nplc VALUE` | No | `1.0` | Integration time in power-line cycles for DC current, DC voltage, DCV ratio, and resistance. Allowed values for DC/resistance/ratio: `0.02`, `0.2`, `1`, `10`, `100`. AC current and AC voltage accept only the neutral default `1.0`; omit `--nplc` for AC modes unless you intentionally pass `1.0`. |
+| `--measurement current-dc\|voltage-dc\|voltage-dc-ratio\|current-ac\|voltage-ac\|frequency\|period\|resistance-2w\|resistance-4w` | No | `current-dc` | Measurement type. |
+| `--nplc VALUE` | No | `1.0` | Integration time in power-line cycles for DC current, DC voltage, DCV ratio, and resistance. Allowed values for DC/resistance/ratio: `0.02`, `0.2`, `1`, `10`, `100`. AC current, AC voltage, Frequency, and Period accept only the neutral default `1.0`. |
 | `--auto-zero on\|off\|once` | No | `on` | Auto Zero for supported measurements. `once` is valid with DC current, DC voltage, and 2-wire resistance. DCV ratio accepts only the default/on behavior and writes no Auto Zero SCPI; 4-wire resistance and AC measurements leave Auto Zero to the instrument. |
 | `--auto-range on\|off` | No | `on` | Enable or disable Auto Range. |
-| `--range VALUE` | Required when `--auto-range off` | None | Manual range for the selected measurement. Amps for current, volts for voltage, ohms for resistance. |
+| `--range VALUE` | Required when `--auto-range off` | None | Manual range for the selected measurement. Amps for current, volts for voltage, volts for Frequency/Period input range, and ohms for resistance. |
 | `--current-range VALUE` | Current DC only | None | Compatibility alias for `--range` with `current-dc`. Do not combine with `--range`; invalid with AC current, voltage, and resistance measurements. |
-| `--ac-bandwidth-hz 3\|20\|200` | AC only | None | AC bandwidth/filter setting for AC current and AC voltage. Omit to leave the instrument default/current setting unchanged. |
+| `--ac-bandwidth-hz 3\|20\|200` | AC/Frequency/Period only | Measurement-specific | AC bandwidth/filter setting. AC current/voltage leave it unchanged when omitted; Frequency/Period default to `20` Hz. |
+| `--gate-time-s 0.01\|0.1\|1` | Frequency/Period only | `0.1` | Frequency/Period aperture or gate time in seconds. |
+| `--freq-period-timeout auto\|1s` | Frequency/Period only | `auto` | Use automatic Frequency/Period timeout or disable auto timeout for the fixed 1-second behavior. |
 | `--current-terminal 3\|10` | Current only | `3` | Current input terminal. The 10 A range requires `--current-terminal 10`; `--current-terminal 10` is valid only with the 10 A range. |
 | `--dcv-input-impedance default\|10m\|auto` | DC Voltage or DCV Ratio only | `default` | DC voltage input impedance. `default` writes no impedance command; `10m` forces 10 MOhm; `auto` enables the instrument Auto mode, which may show HighZ on low DC voltage ranges. |
 | `--vm-comp-slope pos\|neg` | No | None | Configure rear-panel VM Comp output pulse slope. Omit to leave VM Comp unchanged. |
@@ -417,8 +421,9 @@ after that many successful timer CSV rows.
 `--measurement` defaults to `current-dc`, so existing current logging commands do
 not need to specify it. New commands should prefer `--range`; `--current-range`
 continues to work for existing DC current scripts. Use `--range` for
-`current-ac`, `voltage-dc`, `voltage-dc-ratio`, `voltage-ac`, `resistance-2w`, and
-`resistance-4w`; `--current-range` is rejected with those measurements.
+`current-ac`, `voltage-dc`, `voltage-dc-ratio`, `voltage-ac`, `frequency`,
+`period`, `resistance-2w`, and `resistance-4w`; `--current-range` is rejected
+with those measurements.
 `--dcv-input-impedance` is valid only with `--measurement voltage-dc` or
 `--measurement voltage-dc-ratio`. Use `default` to leave the instrument's
 current Input Z setting unchanged, `10m` to force 10 MOhm, or `auto` to enable
@@ -569,10 +574,12 @@ ranges fail fast with a clear error.
 
 | Argument | Accepted values |
 | --- | --- |
-| `--measurement` | `current-dc`, `voltage-dc`, `voltage-dc-ratio`, `current-ac`, `voltage-ac`, `resistance-2w`, `resistance-4w` |
+| `--measurement` | `current-dc`, `voltage-dc`, `voltage-dc-ratio`, `current-ac`, `voltage-ac`, `frequency`, `period`, `resistance-2w`, `resistance-4w` |
 | `--auto-zero` | `on`, `off`, or `once`, with measurement-specific limits |
 | `--auto-range` | `on` or `off` |
-| `--ac-bandwidth-hz` | `3`, `20`, or `200`, AC current/voltage only |
+| `--ac-bandwidth-hz` | `3`, `20`, or `200`, AC current/voltage and Frequency/Period only |
+| `--gate-time-s` | `0.01`, `0.1`, or `1`, Frequency/Period only |
+| `--freq-period-timeout` | `auto` or `1s`, Frequency/Period only |
 | `--current-terminal` | `3` or `10`, current measurements only |
 | `--status-format` | `text` or `jsonl` |
 | `--timeout-ms` | `100` to `600000` |
@@ -621,6 +628,8 @@ Manual range values are whitelisted per measurement type:
 | `voltage-dc` | `0.1`, `1`, `10`, `100`, `1000` V |
 | `voltage-dc-ratio` | `0.1`, `1`, `10`, `100`, `1000` V |
 | `voltage-ac` | `0.1`, `1`, `10`, `100`, `750` V |
+| `frequency` | `0.1`, `1`, `10`, `100`, `750` V input range |
+| `period` | `0.1`, `1`, `10`, `100`, `750` V input range |
 | `resistance-2w` | `100`, `1000`, `10000`, `100000`, `1000000`, `10000000`, `100000000` Ohm |
 | `resistance-4w` | `100`, `1000`, `10000`, `100000`, `1000000`, `10000000`, `100000000` Ohm |
 
@@ -635,12 +644,15 @@ Additional validation rules:
   `--measurement voltage-dc` or `--measurement voltage-dc-ratio`.
 - DC, DCV ratio, and resistance measurements accept only these NPLC values:
   `0.02`, `0.2`, `1`, `10`, `100`.
-- AC current and AC voltage reject non-default NPLC values. Omit `--nplc` or
-  pass `--nplc 1.0`.
+- AC current, AC voltage, Frequency, and Period reject non-default NPLC values.
+  Omit `--nplc` or pass `--nplc 1.0`.
 - `--auto-zero once` is valid only with `current-dc`, `voltage-dc`, and
   `resistance-2w`.
 - `voltage-dc-ratio` accepts only default/on Auto Zero behavior.
-- `--ac-bandwidth-hz` is valid only with `current-ac` or `voltage-ac`.
+- `--ac-bandwidth-hz` is valid only with `current-ac`, `voltage-ac`,
+  `frequency`, or `period`.
+- `--gate-time-s` and `--freq-period-timeout` are valid only with `frequency`
+  or `period`.
 - `--current-terminal` is valid only with current measurements. The 10 A range
   requires `--current-terminal 10`, and `--current-terminal 10` requires the
   10 A range.
@@ -760,7 +772,7 @@ Use this order when checking a setup:
 1. Run `list-resources --live-only` and choose a live resource. Use
    `list-resources --verify` instead when you need to diagnose stale VISA cache
    entries.
-2. Run a one-sample current, voltage, or resistance smoke test with
+2. Run a one-sample current, voltage, frequency, period, or resistance smoke test with
    `--trigger-mode immediate` and `--max-samples 1`.
 3. Run the specific trigger mode needed for the experiment: software, timer,
    external, immediate, or custom/buffered.
@@ -771,8 +783,9 @@ Use this order when checking a setup:
 Before relying on unattended acquisition, validate the workflow with an
 operator-provided Keysight 34461A VISA resource. Start with immediate mode, Auto
 Range on, and `--max-samples 1`, then expand to the intended measurement,
-trigger mode, and buffered mode. For AC current and AC voltage, compare the CLI
-CSV row to the 34461A front-panel reading during the smoke test.
+trigger mode, and buffered mode. For AC current, AC voltage, Frequency, and
+Period, compare the CLI CSV row to the 34461A front-panel reading during the
+smoke test.
 
 ### Current DC Smoke Test
 
@@ -1108,6 +1121,38 @@ For AC rows, expect `measurement_type=voltage_ac` with `unit=V`, or
 the CLI CSV row to the 34461A front-panel reading before relying on longer
 acquisitions.
 
+### Frequency And Period Smoke Tests
+
+Frequency and Period share the scalar `READ?`, hardware-triggered `FETC?`, and
+buffered capture paths. Their effective defaults are Auto Range, `20` Hz AC
+filter, `0.1` s gate time, and automatic timeout.
+
+Preview each setup before live I/O:
+
+```powershell
+.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "<VISA_RESOURCE>" `
+  --measurement frequency `
+  --trigger-mode immediate `
+  --max-samples 1 `
+  --dry-run `
+  --status-format jsonl
+
+.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --resource "<VISA_RESOURCE>" `
+  --measurement period `
+  --trigger-mode immediate `
+  --max-samples 1 `
+  --dry-run `
+  --status-format jsonl
+```
+
+After reviewing the plans, a bounded Auto Range live smoke run uses the same
+commands without `--dry-run` and with an explicit `--csv` path. Run Frequency
+and Period separately, one sample each, and compare the CSV value to the front
+panel. Frequency rows use `measurement_type=frequency`, `unit=Hz`; Period rows
+use `measurement_type=period`, `unit=s`.
+
 ### Validated Resistance 2-Wire Smoke Tests
 
 These two resistance commands were reported OK on a real 34461A: Auto Range,
@@ -1378,8 +1423,8 @@ for diagnosis.
 
 `--nplc 10.0` with `--auto-zero on` is slow for DC/resistance measurements. For
 faster external trigger pacing, consider lower NPLC and Auto Zero off, for
-example `--nplc 1.0 --auto-zero off`. AC measurements do not use Auto Zero and
-accept only neutral `--nplc 1.0`.
+example `--nplc 1.0 --auto-zero off`. AC, Frequency, and Period measurements
+do not use Auto Zero and accept only neutral `--nplc 1.0`.
 
 ### VM Comp Slope
 
@@ -1457,8 +1502,8 @@ Successful captures print the count and latest display value, for example:
 
 Display prefixes such as `mA`, `mV`, `kOhm`, and `MOhm` are console-only. CSV
 rows continue to store the raw value in the measurement base unit (`A`, `V`,
-`ratio`, or `Ohm`). Custom/buffered modes may drain multiple readings at once;
-the console status shows the last sample in that drain batch.
+`ratio`, `Hz`, `s`, or `Ohm`). Custom/buffered modes may drain multiple
+readings at once; the console status shows the last sample in that drain batch.
 
 ## CSV Output
 
@@ -1471,9 +1516,9 @@ CSV fields:
 | Field | Description |
 | --- | --- |
 | `timestamp_utc_plus_8` | UTC+8 timestamp when the sample was read, serialized as ISO 8601 with a `+08:00` offset. |
-| `measurement_type` | Selected measurement type, such as `current_dc`, `voltage_dc`, `voltage_dc_ratio`, `current_ac`, `voltage_ac`, `resistance_2w`, or `resistance_4w`. |
+| `measurement_type` | Selected measurement type, such as `current_dc`, `voltage_dc`, `voltage_dc_ratio`, `current_ac`, `voltage_ac`, `frequency`, `period`, `resistance_2w`, or `resistance_4w`. |
 | `value` | Measured value. |
-| `unit` | Unit, `A` for current, `V` for voltage, `ratio` for DCV Ratio, and `Ohm` for resistance. |
+| `unit` | Unit, `A` for current, `V` for voltage, `ratio` for DCV Ratio, `Hz` for Frequency, `s` for Period, and `Ohm` for resistance. |
 | `trigger_id` | UUID assigned to the trigger event. |
 | `trigger_source` | `software`, `timer`, `hardware`, `immediate`, `immediate-custom`, `software-custom`, or `external-custom`. |
 | `trigger_metadata` | JSON object string from `send-command --arguments-json`, or `{}`. |

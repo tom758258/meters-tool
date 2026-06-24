@@ -1,4 +1,4 @@
-﻿# Core Integration
+# Core Integration
 
 This document is the Core package public contract for downstream adapters. It
 defines the stable package-root API, request boundary, validation flow, dry-run
@@ -67,7 +67,8 @@ Before constructing `StartRequest`, adapters should:
 - Convert toggles to booleans.
 - Normalize adapter-only aliases.
 - Map adapter-owned display labels to Core-owned request values such as
-  `auto_zero`, `ac_bandwidth_hz`, and `current_terminal`.
+  `auto_zero`, `ac_bandwidth_hz`, `gate_time_s`, `freq_period_timeout`, and
+  `current_terminal`.
 - Keep display labels, localized strings, terminal output options, websocket
   payloads, wrapper compatibility fields, and other adapter schema outside
   Core.
@@ -77,10 +78,14 @@ dry-run planning, or runtime orchestration.
 
 Core request fields use stable numeric or semantic values: `auto_zero` accepts
 `True`, `False`, `"on"`, `"off"`, or `"once"`; `ac_bandwidth_hz` accepts
-`3`, `20`, or `200` for AC measurements; `current_terminal` accepts `3` or
+`3`, `20`, or `200` for AC, Frequency, and Period measurements;
+`gate_time_s` accepts `0.01`, `0.1`, or `1.0` for Frequency and Period;
+`freq_period_timeout` accepts `auto` or `1s`; `current_terminal` accepts `3` or
 `10` for current measurements; and `dcv_input_impedance` accepts `default`,
-`10m`, or `auto` for DCV measurements. Adapter labels, menu text, and UI
-grouping remain adapter-owned.
+`10m`, or `auto` for DCV measurements. Frequency and Period apply effective
+defaults of Auto Range, `20` Hz AC filter, `0.1` s gate time, and `auto`
+timeout when their optional request fields are unset. Adapter labels, menu
+text, and UI grouping remain adapter-owned.
 
 Adapters that expose DCV Ratio as a `voltage-dc` option should translate that
 adapter-owned selection into Core `measurement="voltage-dc-ratio"` before
@@ -104,7 +109,8 @@ for measurement in capabilities.measurements:
 `get_core_capabilities()` derives its values from the active
 `InstrumentProfile` and Core measurement definitions. It reports adapter-facing
 measurement names such as `current-dc` while keeping internal normalized
-measurement types such as `current_dc`.
+measurement types such as `current_dc`. Per-measurement capabilities include
+Frequency/Period gate-time and timeout choices plus their effective defaults.
 
 ## Validation Flow
 

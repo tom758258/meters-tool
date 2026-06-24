@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import unittest
 
@@ -6,6 +6,8 @@ from keysight_logger_core.measurement import (
     CurrentAcMeasurement,
     CurrentDcMeasurement,
     CurrentMeasurement,
+    FrequencyMeasurement,
+    PeriodMeasurement,
     Resistance2wMeasurement,
     Resistance4wMeasurement,
     ScalarDmmMeasurement,
@@ -889,6 +891,84 @@ class Resistance4wMeasurementTests(unittest.TestCase):
         self.assertIn("OUTP:TRIG:SLOP POS", inst.commands)
 
 
+class FrequencyPeriodMeasurementTests(unittest.TestCase):
+    def test_frequency_default_configuration_writes_complete_scpi_in_order(self):
+        inst = FakeInstrument()
+        measurement = FrequencyMeasurement()
+
+        measurement.configure(inst, AcquisitionConfig())
+
+        self.assertEqual(
+            [
+                "CONF:FREQ",
+                "FREQ:VOLT:RANG:AUTO ON",
+                "FREQ:RANG:LOW 20",
+                "FREQ:APER 0.1",
+                "FREQ:TIM:AUTO ON",
+            ],
+            inst.commands,
+        )
+
+    def test_period_manual_configuration_writes_complete_scpi_in_order(self):
+        inst = FakeInstrument()
+        measurement = PeriodMeasurement()
+
+        measurement.configure(
+            inst,
+            AcquisitionConfig(
+                auto_range=False,
+                measurement_range=100.0,
+                ac_bandwidth_hz=3.0,
+                gate_time_s=1.0,
+                freq_period_timeout="1s",
+            ),
+        )
+
+        self.assertEqual(
+            [
+                "CONF:PER",
+                "PER:VOLT:RANG 100",
+                "PER:RANG:LOW 3",
+                "PER:APER 1",
+                "PER:TIM:AUTO OFF",
+            ],
+            inst.commands,
+        )
+
+    def test_frequency_and_period_use_scalar_read_paths_and_units(self):
+        cases = [
+            (FrequencyMeasurement(), TriggerSource.SOFTWARE, "READ?", "frequency", "Hz"),
+            (PeriodMeasurement(), TriggerSource.HARDWARE, "FETC?", "period", "s"),
+        ]
+        for measurement, source, command, measurement_type, unit in cases:
+            with self.subTest(measurement_type=measurement_type, source=source):
+                inst = FakeInstrument()
+                measurement.configure(inst, AcquisitionConfig())
+
+                sample = measurement.read_sample(inst, TriggerEvent.new(source))
+
+                self.assertEqual(command, inst.commands[-1])
+                self.assertEqual(measurement_type, sample.measurement_type)
+                self.assertEqual(unit, sample.unit)
+
+    def test_frequency_buffered_samples_preserve_hz_unit(self):
+        inst = FakeInstrument()
+        inst.responses["DATA:REMove? 1"] = "123.4"
+        measurement = FrequencyMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        samples = measurement.read_buffered_samples(
+            inst,
+            TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+            count=1,
+            first_sample_index=0,
+        )
+
+        self.assertEqual("frequency", samples[0].measurement_type)
+        self.assertEqual("Hz", samples[0].unit)
+        self.assertEqual(123.4, samples[0].value)
+
+
 class MeasurementFactoryTests(unittest.TestCase):
     def test_create_current_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("current-dc"), CurrentMeasurement)
@@ -907,6 +987,10 @@ class MeasurementFactoryTests(unittest.TestCase):
 
     def test_create_voltage_ac_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("voltage-ac"), VoltageAcMeasurement)
+
+    def test_create_frequency_and_period_measurement_plugins(self):
+        self.assertIsInstance(create_measurement_plugin("frequency"), FrequencyMeasurement)
+        self.assertIsInstance(create_measurement_plugin("period"), PeriodMeasurement)
 
     def test_create_resistance_2w_measurement_plugin(self):
         self.assertIsInstance(create_measurement_plugin("resistance-2w"), Resistance2wMeasurement)
@@ -928,6 +1012,8 @@ class MeasurementFactoryTests(unittest.TestCase):
                 "voltage_dc_ratio",
                 "current_ac",
                 "voltage_ac",
+                "frequency",
+                "period",
                 "resistance_2w",
                 "resistance_4w",
             ),
@@ -938,12 +1024,16 @@ class MeasurementFactoryTests(unittest.TestCase):
         self.assertEqual("voltage-dc-ratio", format_measurement_type("voltage_dc_ratio"))
         self.assertEqual("current-ac", format_measurement_type("current_ac"))
         self.assertEqual("voltage-ac", format_measurement_type("voltage_ac"))
+        self.assertEqual("frequency", format_measurement_type("frequency"))
+        self.assertEqual("period", format_measurement_type("period"))
         self.assertEqual("resistance-2w", format_measurement_type("resistance_2w"))
         self.assertEqual("resistance-4w", format_measurement_type("resistance_4w"))
         self.assertEqual("current-dc", get_measurement_definition("current-dc").canonical_name)
         self.assertEqual("A", get_measurement_definition("current-dc").unit)
         self.assertEqual("A", get_measurement_definition("current-ac").unit)
         self.assertEqual("V", get_measurement_definition("voltage-ac").unit)
+        self.assertEqual("Hz", get_measurement_definition("frequency").unit)
+        self.assertEqual("s", get_measurement_definition("period").unit)
         self.assertEqual("ratio", get_measurement_definition("voltage-dc-ratio").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-2w").unit)
         self.assertEqual("Ohm", get_measurement_definition("resistance-4w").unit)

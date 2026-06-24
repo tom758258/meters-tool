@@ -119,6 +119,10 @@ def _option_summary(request: StartRequest) -> dict[str, object]:
         summary["measurement_range"] = measurement_range
     if request.ac_bandwidth_hz is not None:
         summary["ac_bandwidth_hz"] = request.ac_bandwidth_hz
+    if request.gate_time_s is not None:
+        summary["gate_time_s"] = request.gate_time_s
+    if request.freq_period_timeout is not None:
+        summary["freq_period_timeout"] = request.freq_period_timeout
     if request.current_terminal is not None:
         summary["current_terminal"] = request.current_terminal
     if request.buffer_drain_size is not None:
@@ -155,6 +159,8 @@ def build_start_plan(
         measurement_range=resolve_measurement_range(args),
         current_range=args.current_range,
         ac_bandwidth_hz=args.ac_bandwidth_hz,
+        gate_time_s=args.gate_time_s,
+        freq_period_timeout=args.freq_period_timeout,
         current_terminal=args.current_terminal,
         dcv_input_impedance=args.dcv_input_impedance,
         hw_trigger_delay_s=args.hw_trigger_delay_s,

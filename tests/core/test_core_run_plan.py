@@ -50,6 +50,8 @@ def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
         "measurement_range": None,
         "current_range": None,
         "ac_bandwidth_hz": None,
+        "gate_time_s": None,
+        "freq_period_timeout": None,
         "current_terminal": None,
         "dcv_input_impedance": "default",
         "vm_comp_slope": None,
@@ -342,6 +344,70 @@ class CoreRunPlanTests(unittest.TestCase):
             plan.notes,
             ("voltage-dc-ratio", "DATA:REMove?", "1", "DATA2?"),
         )
+
+    def test_frequency_and_period_plans_use_defaults_and_scalar_read_paths(self):
+        frequency = self.build_plan(
+            "software",
+            make_start_request(measurement="frequency"),
+        )
+        period = self.build_plan(
+            "external",
+            make_start_request(
+                measurement="period",
+                trigger_mode="external",
+                max_samples=1,
+            ),
+        )
+
+        self.assertEqual("Hz", frequency.measurement_unit)
+        self.assertEqual("READ?", frequency.read_path)
+        self.assertEqual(
+            [
+                "CONF:FREQ",
+                "FREQ:VOLT:RANG:AUTO ON",
+                "FREQ:RANG:LOW 20",
+                "FREQ:APER 0.1",
+                "FREQ:TIM:AUTO ON",
+            ],
+            frequency.scpi_commands,
+        )
+        self.assertEqual("s", period.measurement_unit)
+        self.assertEqual("FETC?", period.read_path)
+        self.assertEqual("CONF:PER", period.scpi_commands[0])
+
+    def test_frequency_custom_plan_uses_buffered_read_path_and_explicit_options(self):
+        plan = self.build_plan(
+            "immediate-custom",
+            make_start_request(
+                measurement="frequency",
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=2,
+                auto_range=False,
+                measurement_range=750.0,
+                ac_bandwidth_hz=200.0,
+                gate_time_s=1.0,
+                freq_period_timeout="1s",
+            ),
+        )
+
+        self.assertEqual("DATA:POINts? / DATA:REMove?", plan.read_path)
+        self.assertEqual(
+            [
+                "CONF:FREQ",
+                "FREQ:VOLT:RANG 750",
+                "FREQ:RANG:LOW 200",
+                "FREQ:APER 1",
+                "FREQ:TIM:AUTO OFF",
+                "TRIG:SOUR IMM",
+                "TRIG:COUNT 1",
+                "SAMP:COUNT 2",
+                "INIT",
+            ],
+            plan.scpi_commands,
+        )
+        self.assertEqual(1.0, plan.option_summary["gate_time_s"])
+        self.assertEqual("1s", plan.option_summary["freq_period_timeout"])
 
 
 if __name__ == "__main__":

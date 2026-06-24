@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import unittest
 
@@ -8,6 +8,9 @@ from keysight_logger_core.models import (
     KEYSIGHT_34461A_CAPABILITIES,
     KEYSIGHT_34461A_CURRENT_RANGES,
     KEYSIGHT_34461A_DCV_RANGES,
+    KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
+    KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
+    KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES,
     KEYSIGHT_34461A_NPLC_OPTIONS,
     KEYSIGHT_34461A_RESISTANCE_RANGES,
     KEYSIGHT_34461A_PROFILE,
@@ -35,6 +38,8 @@ class CapabilitiesTests(unittest.TestCase):
                 "voltage_dc_ratio",
                 "current_ac",
                 "voltage_ac",
+                "frequency",
+                "period",
                 "resistance_2w",
                 "resistance_4w",
             ),
@@ -86,6 +91,23 @@ class CapabilitiesTests(unittest.TestCase):
         )
         self.assertEqual((), profile.get_measurement_options("current-ac").nplc_options)
         self.assertEqual((), profile.get_measurement_options("voltage-ac").nplc_options)
+        for measurement in ("frequency", "period"):
+            with self.subTest(measurement=measurement):
+                options = profile.get_measurement_options(measurement)
+                self.assertEqual(KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES, options.range_options)
+                self.assertEqual((3.0, 20.0, 200.0), options.ac_bandwidth_hz_options)
+                self.assertEqual(
+                    KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
+                    options.gate_time_s_options,
+                )
+                self.assertEqual(
+                    KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
+                    options.freq_period_timeout_options,
+                )
+                self.assertTrue(options.default_auto_range)
+                self.assertEqual(20.0, options.default_ac_bandwidth_hz)
+                self.assertEqual(0.1, options.default_gate_time_s)
+                self.assertEqual("auto", options.default_freq_period_timeout)
 
     def test_profile_lookup_defaults_to_34461a(self):
         self.assertIs(get_default_instrument_profile(), KEYSIGHT_34461A_PROFILE)

@@ -21,9 +21,15 @@ class MeasurementCapability:
     range_values: tuple[float, ...]
     nplc_values: tuple[float, ...]
     ac_bandwidth_hz_values: tuple[float, ...]
+    gate_time_s_values: tuple[float, ...]
+    freq_period_timeout_values: tuple[str, ...]
     current_terminal_values: tuple[int, ...]
     dcv_input_impedance_values: tuple[str, ...]
     auto_zero_values: tuple[str, ...]
+    default_auto_range: bool
+    default_ac_bandwidth_hz: float | None
+    default_gate_time_s: float | None
+    default_freq_period_timeout: str | None
 
 
 @dataclass(frozen=True)
@@ -80,9 +86,15 @@ def get_core_capabilities(profile: InstrumentProfile | None = None) -> CoreCapab
                 range_values=tuple(value for _label, value in options.range_options),
                 nplc_values=options.nplc_options,
                 ac_bandwidth_hz_values=options.ac_bandwidth_hz_options,
+                gate_time_s_values=options.gate_time_s_options,
+                freq_period_timeout_values=options.freq_period_timeout_options,
                 current_terminal_values=current_terminal_values,
                 dcv_input_impedance_values=_dcv_input_impedance_values(measurement_type),
                 auto_zero_values=_auto_zero_values(measurement_type),
+                default_auto_range=options.default_auto_range,
+                default_ac_bandwidth_hz=options.default_ac_bandwidth_hz,
+                default_gate_time_s=options.default_gate_time_s,
+                default_freq_period_timeout=options.default_freq_period_timeout,
             )
         )
     return CoreCapabilities(
