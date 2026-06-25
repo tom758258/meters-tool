@@ -53,7 +53,11 @@ if ($LASTEXITCODE -ne 0) {
 Copy-Item -LiteralPath (Join-Path $RepoRoot "dist\keysight_logger-$Version-py3-none-any.whl") -Destination $versionDir -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot "dist\keysight_logger-$Version.tar.gz") -Destination $versionDir -Force
 
-$checksums = foreach ($artifact in Get-ChildItem -LiteralPath $versionDir -File | Sort-Object Name) {
+$checksums = foreach (
+    $artifact in Get-ChildItem -LiteralPath $versionDir -File |
+        Where-Object { $_.Name -ne "checksums.txt" } |
+        Sort-Object Name
+) {
     $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.FullName
     "$($hash.Hash.ToLowerInvariant())  $($artifact.Name)"
 }

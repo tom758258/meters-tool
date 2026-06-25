@@ -93,6 +93,19 @@ def assert_command_artifacts(commands: list[dict], output_dir: Path) -> None:
         assert output_dir == stderr or output_dir in stderr.parents
 
 
+def test_release_check_rejects_mismatched_package_version():
+    result = run_wrapper(
+        "scripts/release-cli-check.ps1",
+        "-Release",
+        "1.4.0",
+    )
+
+    assert result.returncode != 0
+    assert "Release 1.4.0 does not match package version 1.5.0" in (
+        result.stdout + result.stderr
+    )
+
+
 def test_preflight_report_contract():
     output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"preflight_{uuid4().hex}"
     result = run_wrapper(

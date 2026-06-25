@@ -1,5 +1,22 @@
 # Changelog
 
+## v1.5.0
+
+- Added `frequency` and `period` measurement definitions, profile capabilities,
+  validation, run-plan fields, simulator support, units, and acquisition
+  configuration.
+- Added Frequency/Period voltage range, AC filter, gate-time, default-value,
+  and Frequency timeout capability metadata.
+- Preserved Frequency timeout SCPI while rejecting explicit Period timeout
+  requests before VISA I/O and omitting unsupported Period timeout SCPI.
+- Shared StartRequest-to-AcquisitionConfig mapping and split start validation
+  into focused internal helpers without changing the public request model or
+  validation behavior.
+- Simplified measurement SCPI helpers and extracted software-trigger HTTP
+  transport handling while preserving command ordering, endpoints, response
+  envelopes, queue semantics, and cleanup behavior.
+- Centralized the distribution fallback version used by Core, CLI, and WebUI.
+
 ## v1.4.0
 
 - Core now ships inside the single root `keysight-logger` distribution while

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 DISTRIBUTION_NAME = "keysight-logger"
-FALLBACK_PACKAGE_VERSION = "1.4.0"
+FALLBACK_PACKAGE_VERSION = "1.5.0"
 
 
 def read_project_version(pyproject_path: Path | None = None) -> str:

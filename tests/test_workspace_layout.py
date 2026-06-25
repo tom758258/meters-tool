@@ -48,7 +48,7 @@ def test_root_pyproject_defines_single_distribution():
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'name = "keysight-logger"' in text
-    assert 'version = "1.4.0"' in text
+    assert 'version = "1.5.0"' in text
     assert 'keysight-logger = "keysight_logger_cli.cli:main"' in text
     assert 'keysight-logger-webui = "keysight_logger_webui.web_ui:main"' in text
     assert "[tool.pytest.ini_options]" in text
@@ -183,6 +183,22 @@ def test_public_package_versions_match_package_metadata():
     assert "`[project].version`" in architecture
     assert "| Distribution | `keysight-logger` | `<version>` |" in architecture
     assert "distribution version" in architecture
+
+
+def test_current_version_is_latest_release_in_all_changelogs():
+    version = read_project_version()
+    changelogs = (
+        REPO_ROOT / "CHANGELOG.md",
+        REPO_ROOT / "docs" / "core" / "CHANGELOG.md",
+        REPO_ROOT / "docs" / "cli" / "CHANGELOG.md",
+        REPO_ROOT / "docs" / "webui" / "CHANGELOG.md",
+    )
+
+    for changelog in changelogs:
+        text = changelog.read_text(encoding="utf-8")
+        headings = re.findall(r"^## (v\d+\.\d+\.\d+)$", text, re.MULTILINE)
+        assert headings, changelog
+        assert headings[0] == f"v{version}", changelog
 
 
 def test_readme_markdown_links_point_to_existing_local_targets():

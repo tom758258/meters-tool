@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 
 import keysight_logger_core._version as package_version
@@ -82,3 +84,17 @@ def test_cli_version_uses_fallback_when_metadata_and_pyproject_are_unavailable(m
     monkeypatch.setattr(package_version, "read_project_version", missing_project)
 
     assert get_cli_version() == FALLBACK_CLI_VERSION
+
+
+def test_cli_script_entry_point_supports_direct_execution():
+    cli_path = Path(__file__).resolve().parents[2] / "src" / "keysight_logger_cli" / "cli.py"
+
+    result = subprocess.run(
+        [sys.executable, str(cli_path), "--version"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == f"keysight-logger {FALLBACK_CLI_VERSION}"

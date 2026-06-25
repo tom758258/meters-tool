@@ -160,6 +160,8 @@ class _SoftwareTriggerRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):  # type: ignore[override]
         adapter = self._adapter()
+        content_len = int(self.headers.get("Content-Length", "0"))
+        request_body = self.rfile.read(content_len) if content_len else b""
         if self.path == "/stop":
             adapter._publish_stop()
             self.send_response(202)
@@ -170,8 +172,7 @@ class _SoftwareTriggerRequestHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
             return
-        content_len = int(self.headers.get("Content-Length", "0"))
-        payload = self.rfile.read(content_len).decode("utf-8") if content_len else "{}"
+        payload = request_body.decode("utf-8") if request_body else "{}"
         status_code, response = adapter._handle_command(payload)
         self._send_json(status_code, response)
 

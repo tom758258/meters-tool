@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.5.0
+
+- Added Frequency and Period measurement controls driven by Core capabilities,
+  including AC filter, gate time, Frequency timeout, defaults, payload fields,
+  and raw `Hz` or `s` live-data units.
+- Hid and disabled timeout for Period so the WebUI does not submit unsupported
+  Period timeout requests.
+- Split the frontend into native JavaScript modules for DOM, API, form,
+  live-data, and status responsibilities while keeping `app.js` as the workflow
+  entry point.
+- Added aggregate JavaScript content hashing to the versioned static cachebuster
+  so changes to any frontend module invalidate the browser cache.
+- Moved SSE event generation into the run manager while preserving event names,
+  IDs, payloads, keepalives, polling fallback, and API endpoints.
+
 ## v1.4.0
 
 - WebUI now ships inside the single root `keysight-logger` distribution while

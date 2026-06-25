@@ -2,7 +2,7 @@ param(
     [ValidateSet("keysight-34461a")]
     [string]$Target = "keysight-34461a",
 
-    [string]$Release = "1.4.0",
+    [string]$Release,
 
     [string]$Resource = "SIM::34461A",
 
@@ -19,6 +19,13 @@ $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 
 if (-not (Test-Path -LiteralPath $Python)) {
     throw "Python executable not found: $Python"
+}
+
+$packageVersion = Get-PackageVersion -Required
+if ([string]::IsNullOrWhiteSpace($Release)) {
+    $Release = $packageVersion
+} elseif ($Release -ne $packageVersion) {
+    throw "Release $Release does not match package version $packageVersion"
 }
 
 Add-RepoSrcToPythonPath -RepoRoot $RepoRoot
@@ -63,13 +70,17 @@ $commandSpecs = @(
             "tests/core/test_core_public_api.py",
             "tests/cli/test_cli_docs_ownership.py",
             "-q", "-p", "no:cacheprovider",
-            "--basetemp", ".tmp_tests\pytest_tmp"
+            "--basetemp", (Join-Path $runDir "pytest_metadata_docs")
         )
     },
     [pscustomobject]@{
         name = "pytest_full"
         file = $Python
-        args = @("-m", "pytest", "tests", "-q", "-p", "no:cacheprovider", "--basetemp", ".tmp_tests\pytest_tmp")
+        args = @(
+            "-m", "pytest", "tests",
+            "-q", "-p", "no:cacheprovider",
+            "--basetemp", (Join-Path $runDir "pytest_full")
+        )
     },
     [pscustomobject]@{
         name = "preflight_cli"
@@ -97,7 +108,7 @@ $status = if ($failedCommands.Count -eq 0) { "passed" } else { "failed" }
 $report = [ordered]@{
     schema_version = 1
     target_release = $Release
-    package_version = Get-PackageVersion
+    package_version = $packageVersion
     target = $Target
     resource = $Resource
     generated_at = (Get-Date).ToUniversalTime().ToString("o")

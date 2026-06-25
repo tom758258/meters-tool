@@ -282,9 +282,9 @@
 
         <h2 id="trigger-modes">選擇觸發模式</h2>
         <p>最簡單的工作流程請使用<strong>立即模式 (immediate mode)</strong>。作業一啟動，儀器就會立即讀取數據。</p>
-        
+
         <p>當作業需要等待操作人員在 WebUI 執行動作時，請使用<strong>軟體觸發模式 (software trigger mode)</strong>。作業啟動後，點擊 <code>Trigger</code> (觸發) 來發送每次的軟體觸發訊號。</p>
-        
+
         <p>只有在已連接物理觸發訊號並為儀器完成設定時，才使用<strong>外部 (external)</strong> 或<strong>硬體 (hardware)</strong> 觸發模式。硬體觸發超時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並不自動代表測量失敗。</p>
 
         <p>除非測量設定有此需求，且操作人員了解對儀器造成的影響，否則請勿更改觸發時序 (trigger timing)、觸發延遲 (trigger delay)、NPLC、自動換檔 (Auto Range)、自動歸零 (Auto Zero)、電壓測量補償 (VM Comp) 或電流端子 (current terminal) 的設定。</p>
@@ -393,7 +393,7 @@
             // 自動產生 TOC 側邊導航欄
             const toc = document.getElementById("toc");
             const headers = document.querySelectorAll("h2");
-            
+
             headers.forEach(h2 => {
                 if (!h2.id) {
                     h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
@@ -410,10 +410,10 @@
                 const btn = document.createElement("button");
                 btn.innerText = "複製";
                 btn.className = "copy-btn";
-                
+
                 // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
                 pre.parentElement.appendChild(btn);
-                
+
                 btn.onclick = () => {
                     const code = pre.querySelector("code").innerText;
                     navigator.clipboard.writeText(code).then(() => {

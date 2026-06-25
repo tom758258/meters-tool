@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.5.0
+
+- Added `frequency` and `period` CLI measurements with voltage range, AC filter,
+  gate-time, and Frequency timeout arguments plus dry-run, simulator, CSV, and
+  JSONL support.
+- Added the `frequency-period` live suite, per-command SCPI diagnostics, and
+  Frequency/Period coverage in the `full` live suite.
+- Kept Frequency timeout control while rejecting Period timeout arguments
+  before VISA I/O.
+- Split parser construction and worker client commands into focused internal
+  modules while preserving the `keysight-logger` entry point, arguments,
+  output contracts, and exit-code behavior.
+- Preserved direct `cli.py` execution for PyInstaller standalone builds after
+  the internal module split.
+- Shared PowerShell validation helpers across preflight, live, release, and
+  release-build scripts without changing report schemas or artifact locations.
+- Updated the release check to derive its default target from package metadata
+  and reject an explicitly mismatched release version.
+
 ## v1.4.0
 
 - CLI now ships inside the single root `keysight-logger` distribution while
