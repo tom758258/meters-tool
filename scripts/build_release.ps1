@@ -8,35 +8,14 @@ $ErrorActionPreference = "Stop"
 
 $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+. (Join-Path $PSScriptRoot "_validation_helpers.ps1")
 
 if (-not (Test-Path -LiteralPath $Python)) {
     throw "Python executable not found: $Python"
 }
 
-function Get-ProjectVersion {
-    $pyproject = Join-Path $RepoRoot "pyproject.toml"
-    $match = Select-String -LiteralPath $pyproject -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
-    if ($null -eq $match) {
-        throw "Could not read project version from $pyproject"
-    }
-    return $match.Matches[0].Groups[1].Value
-}
-
-function Write-Utf8NoBomLines {
-    param(
-        [Parameter(Mandatory = $true)][string]$LiteralPath,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines
-    )
-
-    [System.IO.File]::WriteAllLines(
-        $LiteralPath,
-        $Lines,
-        [System.Text.UTF8Encoding]::new($false)
-    )
-}
-
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = Get-ProjectVersion
+    $Version = Get-PackageVersion -Required
 }
 
 if ([System.IO.Path]::IsPathRooted($ReleaseRoot)) {

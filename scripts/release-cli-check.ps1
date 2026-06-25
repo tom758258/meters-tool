@@ -15,38 +15,20 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
+. (Join-Path $PSScriptRoot "_validation_helpers.ps1")
 
 if (-not (Test-Path -LiteralPath $Python)) {
     throw "Python executable not found: $Python"
 }
 
-$PackageSrcRoots = @(
-    (Join-Path $RepoRoot "src")
-)
-$ExistingPythonPath = [Environment]::GetEnvironmentVariable("PYTHONPATH", "Process")
-if ([string]::IsNullOrWhiteSpace($ExistingPythonPath)) {
-    [Environment]::SetEnvironmentVariable("PYTHONPATH", ($PackageSrcRoots -join [System.IO.Path]::PathSeparator), "Process")
-} else {
-    [Environment]::SetEnvironmentVariable(
-        "PYTHONPATH",
-        (($PackageSrcRoots + $ExistingPythonPath) -join [System.IO.Path]::PathSeparator),
-        "Process"
-    )
-}
-
-function Get-FullPath {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    return [System.IO.Path]::GetFullPath($Path)
-}
+Add-RepoSrcToPythonPath -RepoRoot $RepoRoot
 
 function Assert-UnderTmpRoot {
     param([Parameter(Mandatory = $true)][string]$Path)
-    $tmpFull = Get-FullPath $TmpRoot
-    $pathFull = Get-FullPath $Path
-    $comparison = [System.StringComparison]::OrdinalIgnoreCase
-    if (-not $pathFull.StartsWith($tmpFull + [System.IO.Path]::DirectorySeparatorChar, $comparison)) {
-        throw "Only paths under .tmp_tests are allowed for release output: $pathFull"
-    }
+    Assert-PathUnderRoot `
+        -RootPath $TmpRoot `
+        -Path $Path `
+        -Message "Only paths under .tmp_tests are allowed for release output: {0}"
 }
 
 function Resolve-OutputRoot {
@@ -58,129 +40,6 @@ function Resolve-OutputRoot {
     }
     Assert-UnderTmpRoot -Path $resolved
     return $resolved
-}
-
-function ConvertTo-ProcessArgument {
-    param([Parameter(Mandatory = $true)][AllowEmptyString()][string]$Argument)
-    if ($Argument -notmatch '[\s"]' -and $Argument.Length -gt 0) {
-        return $Argument
-    }
-
-    $builder = [System.Text.StringBuilder]::new()
-    [void]$builder.Append('"')
-    $backslashes = 0
-    foreach ($char in $Argument.ToCharArray()) {
-        if ($char -eq '\') {
-            $backslashes += 1
-            continue
-        }
-        if ($char -eq '"') {
-            [void]$builder.Append(('\' * ($backslashes * 2 + 1)))
-            [void]$builder.Append('"')
-            $backslashes = 0
-            continue
-        }
-        if ($backslashes -gt 0) {
-            [void]$builder.Append(('\' * $backslashes))
-            $backslashes = 0
-        }
-        [void]$builder.Append($char)
-    }
-    if ($backslashes -gt 0) {
-        [void]$builder.Append(('\' * ($backslashes * 2)))
-    }
-    [void]$builder.Append('"')
-    return $builder.ToString()
-}
-
-function Join-ProcessArguments {
-    param([Parameter(Mandatory = $true)][string[]]$Arguments)
-    return (($Arguments | ForEach-Object { ConvertTo-ProcessArgument -Argument $_ }) -join " ")
-}
-
-function Get-PackageVersion {
-    $pyproject = Join-Path $RepoRoot "pyproject.toml"
-    $match = Select-String -LiteralPath $pyproject -Pattern '^version\s*=\s*"([^"]+)"' | Select-Object -First 1
-    if ($null -eq $match) {
-        return $null
-    }
-    return $match.Matches[0].Groups[1].Value
-}
-
-function Get-GitHead {
-    try {
-        $head = & git -C $RepoRoot rev-parse HEAD 2>$null
-        if ($LASTEXITCODE -eq 0) {
-            return $head.Trim()
-        }
-    } catch {
-    }
-    return $null
-}
-
-function Write-Utf8NoBomText {
-    param(
-        [Parameter(Mandatory = $true)][string]$LiteralPath,
-        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
-    )
-
-    [System.IO.File]::WriteAllText(
-        $LiteralPath,
-        $Text,
-        [System.Text.UTF8Encoding]::new($false)
-    )
-}
-
-function Write-Utf8NoBomLines {
-    param(
-        [Parameter(Mandatory = $true)][string]$LiteralPath,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines
-    )
-
-    [System.IO.File]::WriteAllLines(
-        $LiteralPath,
-        $Lines,
-        [System.Text.UTF8Encoding]::new($false)
-    )
-}
-
-function Invoke-CapturedCommand {
-    param(
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][string]$FilePath,
-        [Parameter(Mandatory = $true)][string[]]$Arguments,
-        [Parameter(Mandatory = $true)][string]$StdOutPath,
-        [Parameter(Mandatory = $true)][string]$StdErrPath
-    )
-
-    $psi = [System.Diagnostics.ProcessStartInfo]::new()
-    $psi.FileName = $FilePath
-    $psi.WorkingDirectory = $RepoRoot
-    $psi.UseShellExecute = $false
-    $psi.RedirectStandardOutput = $true
-    $psi.RedirectStandardError = $true
-    $psi.Arguments = Join-ProcessArguments -Arguments $Arguments
-
-    $startedAt = Get-Date
-    $process = [System.Diagnostics.Process]::Start($psi)
-    $stdout = $process.StandardOutput.ReadToEnd()
-    $stderr = $process.StandardError.ReadToEnd()
-    $process.WaitForExit()
-    $finishedAt = Get-Date
-
-    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
-    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
-
-    return [ordered]@{
-        name = $Name
-        command = $FilePath
-        arguments = $Arguments
-        exit_code = $process.ExitCode
-        duration_seconds = [math]::Round(($finishedAt - $startedAt).TotalSeconds, 3)
-        stdout = $StdOutPath
-        stderr = $StdErrPath
-        success = ($process.ExitCode -eq 0)
-    }
 }
 
 $releaseRoot = Resolve-OutputRoot -Path $OutputRoot
@@ -253,7 +112,7 @@ $report = [ordered]@{
     status = $status
     commands = $commandItems
 }
-Write-Utf8NoBomText -LiteralPath $reportPath -Text ($report | ConvertTo-Json -Depth 12)
+Write-JsonReport -LiteralPath $reportPath -Report $report -Depth 12
 
 $summaryLines = @(
     "# CLI Release Check Summary",
