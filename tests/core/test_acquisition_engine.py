@@ -3,17 +3,30 @@ from __future__ import annotations
 import threading
 import time
 import unittest
-from datetime import datetime, timezone
 
 from keysight_logger_core.acquisition import TriggerAcquisitionEngine
 from keysight_logger_core.models import (
     AcquisitionConfig,
     InstrumentProfile,
-    MeasurementSample,
     TriggerEvent,
     TriggerSource,
 )
 from keysight_logger_core.trigger import TriggerRouter
+
+from core_test_helpers import (
+    BufferedAvailableFailingMeasurement,
+    BufferedReadFailingMeasurement,
+    CaptureFailingMeasurement,
+    CapturingStorage,
+    FakeBufferedMeasurement,
+    FakeInstrument,
+    FailingMeasurement,
+    FakeMeasurement,
+    FakeStorage,
+    PermissionDeniedStorage,
+    RecordingInstrument,
+    make_acquisition_engine,
+)
 
 
 FAKE_NO_BUFFER_PROFILE = InstrumentProfile(
@@ -39,130 +52,6 @@ FAKE_SMALL_BUFFER_PROFILE = InstrumentProfile(
     supports_external_trigger=True,
     supports_sample_timer=False,
 )
-
-
-class FakeInstrument:
-    resource_id = "FAKE::INSTR"
-
-    def __init__(self) -> None:
-        self.abort_count = 0
-
-    def write(self, command: str) -> None:  # noqa: ARG002
-        return
-
-    def abort_measurement(self) -> bool:
-        self.abort_count += 1
-        return True
-
-
-class RecordingInstrument(FakeInstrument):
-    def __init__(self) -> None:
-        super().__init__()
-        self.commands: list[str] = []
-
-    def write(self, command: str) -> None:
-        self.commands.append(command)
-
-
-class FakeMeasurement:
-    def __init__(
-        self,
-        value: float = 1.23,
-        unit: str = "A",
-        measurement_type: str = "current_dc",
-    ) -> None:
-        self.value = value
-        self.unit = unit
-        self.measurement_type = measurement_type
-
-    def configure(self, instrument, config):  # noqa: ANN001, ARG002
-        return
-
-    def read_sample(self, instrument, trigger):  # noqa: ANN001
-        return MeasurementSample(
-            timestamp_utc=datetime.now(timezone.utc),
-            measurement_type=self.measurement_type,
-            value=self.value,
-            unit=self.unit,
-            status="ok",
-            resource_id=instrument.resource_id,
-            trigger_id=trigger.id,
-            trigger_source=trigger.source.value,
-        )
-
-
-class FailingMeasurement(FakeMeasurement):
-    def read_sample(self, instrument, trigger):  # noqa: ANN001
-        raise AssertionError("software trigger should not be captured")
-
-
-class CaptureFailingMeasurement(FakeMeasurement):
-    def read_sample(self, instrument, trigger):  # noqa: ANN001, ARG002
-        raise RuntimeError("read failed")
-
-
-class FakeBufferedMeasurement(FakeMeasurement):
-    def __init__(self) -> None:
-        self.sample_count = 0
-        self.sample_count_per_trigger = 0
-        self.started = False
-        self.read_counts: list[int] = []
-        self.bus_triggers_sent = 0
-
-    def configure_immediate_custom(self, instrument, config, trigger_count, sample_count):  # noqa: ANN001, ARG002
-        self.sample_count = trigger_count * sample_count
-        instrument.write("TRIG:SOUR IMM")
-        instrument.write(f"TRIG:COUNT {trigger_count}")
-        instrument.write(f"SAMP:COUNT {sample_count}")
-
-    def configure_software_custom(self, instrument, config, trigger_count, sample_count):  # noqa: ANN001, ARG002
-        self.sample_count = 0
-        self.sample_count_per_trigger = sample_count
-        instrument.write("TRIG:SOUR BUS")
-        instrument.write(f"TRIG:COUNT {trigger_count}")
-        instrument.write(f"SAMP:COUNT {sample_count}")
-
-    def configure_external_custom(self, instrument, config, trigger_count, sample_count, slope, delay_s):  # noqa: ANN001, ARG002
-        self.sample_count = trigger_count * sample_count
-        slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
-        instrument.write("TRIG:SOUR EXT")
-        instrument.write(f"TRIG:SLOP {slope_cmd}")
-        instrument.write(f"TRIG:COUNT {trigger_count}")
-        instrument.write(f"SAMP:COUNT {sample_count}")
-        instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
-
-    def send_bus_trigger(self, instrument):  # noqa: ANN001
-        self.bus_triggers_sent += 1
-        self.sample_count += self.sample_count_per_trigger
-        instrument.write("*TRG")
-
-    def start_buffered_capture(self, instrument):  # noqa: ANN001
-        self.started = True
-        instrument.write("INIT")
-
-    def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
-        return max(0, self.sample_count)
-
-    def read_buffered_samples(self, instrument, trigger, count, first_sample_index):  # noqa: ANN001, ARG002
-        self.read_counts.append(count)
-        self.sample_count -= count
-        return [
-            MeasurementSample(
-                timestamp_utc=datetime.now(timezone.utc),
-                measurement_type="current_dc",
-                value=float(first_sample_index + offset),
-                unit="A",
-                status="ok",
-                resource_id=instrument.resource_id,
-                trigger_id=trigger.id,
-                trigger_source=trigger.source.value,
-                trigger_metadata={
-                    "buffer_index": str(first_sample_index + offset),
-                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
-                },
-            )
-            for offset in range(count)
-        ]
 
 
 class AlwaysTimeoutHardwareInstrument(FakeInstrument):
@@ -201,48 +90,10 @@ class WaitingExternalBufferedMeasurement(FakeBufferedMeasurement):
         instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
 
 
-class BufferedReadFailingMeasurement(FakeBufferedMeasurement):
-    def read_buffered_samples(self, instrument, trigger, count, first_sample_index):  # noqa: ANN001, ARG002
-        raise RuntimeError("buffer read failed")
-
-
-class BufferedAvailableFailingMeasurement(FakeBufferedMeasurement):
-    def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
-        raise RuntimeError("points query failed")
-
-
-class FakeStorage:
-    def open(self) -> None:
-        return
-
-    def close(self) -> None:
-        return
-
-    def write(self, sample) -> None:  # noqa: ANN001, ARG002
-        return
-
-
-class CapturingStorage(FakeStorage):
-    def __init__(self) -> None:
-        self.samples = []
-
-    def write(self, sample) -> None:  # noqa: ANN001
-        self.samples.append(sample)
-
-
-class PermissionDeniedStorage(FakeStorage):
-    def open(self) -> None:
-        raise PermissionError(13, "Permission denied", "data\\locked.csv")
-
-
 class AcquisitionEngineTests(unittest.TestCase):
     def test_storage_open_permission_error_sets_fatal_error(self):
-        engine = TriggerAcquisitionEngine(
-            instrument=FakeInstrument(),  # type: ignore[arg-type]
-            measurement=FakeMeasurement(),  # type: ignore[arg-type]
+        engine = make_acquisition_engine(
             storage=PermissionDeniedStorage(),  # type: ignore[arg-type]
-            config=AcquisitionConfig(trigger_timeout_ms=50),
-            router=TriggerRouter(),
         )
 
         engine.run()
@@ -254,12 +105,10 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertIn("file may be open in Excel", engine.fatal_error)
 
     def test_custom_mode_uses_profile_buffer_support(self):
-        engine = TriggerAcquisitionEngine(
+        engine = make_acquisition_engine(
             instrument=RecordingInstrument(),  # type: ignore[arg-type]
             measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
-            storage=FakeStorage(),  # type: ignore[arg-type]
             config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=1),
-            router=TriggerRouter(),
             instrument_profile=FAKE_NO_BUFFER_PROFILE,
         )
 
@@ -267,12 +116,10 @@ class AcquisitionEngineTests(unittest.TestCase):
             engine.run(trigger_mode="immediate-custom")
 
     def test_custom_mode_uses_profile_memory_limit(self):
-        engine = TriggerAcquisitionEngine(
+        engine = make_acquisition_engine(
             instrument=RecordingInstrument(),  # type: ignore[arg-type]
             measurement=FakeBufferedMeasurement(),  # type: ignore[arg-type]
-            storage=FakeStorage(),  # type: ignore[arg-type]
             config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=3, sample_count=2),
-            router=TriggerRouter(),
             instrument_profile=FAKE_SMALL_BUFFER_PROFILE,
         )
 
@@ -281,11 +128,7 @@ class AcquisitionEngineTests(unittest.TestCase):
 
     def test_trigger_engine_captures_only_on_trigger(self):
         router = TriggerRouter()
-        engine = TriggerAcquisitionEngine(
-            instrument=FakeInstrument(),  # type: ignore[arg-type]
-            measurement=FakeMeasurement(),  # type: ignore[arg-type]
-            storage=FakeStorage(),  # type: ignore[arg-type]
-            config=AcquisitionConfig(trigger_timeout_ms=50),
+        engine = make_acquisition_engine(
             router=router,
         )
         worker = threading.Thread(target=engine.run)
@@ -300,12 +143,7 @@ class AcquisitionEngineTests(unittest.TestCase):
 
     def test_waiting_trigger_status_is_emitted_once_while_idle(self):
         statuses: list[str] = []
-        engine = TriggerAcquisitionEngine(
-            instrument=FakeInstrument(),  # type: ignore[arg-type]
-            measurement=FakeMeasurement(),  # type: ignore[arg-type]
-            storage=FakeStorage(),  # type: ignore[arg-type]
-            config=AcquisitionConfig(trigger_timeout_ms=50),
-            router=TriggerRouter(),
+        engine = make_acquisition_engine(
             status_cb=statuses.append,
         )
 

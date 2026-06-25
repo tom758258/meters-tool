@@ -22,26 +22,7 @@ from keysight_logger_core.measurement import (
 )
 from keysight_logger_core.models import AcquisitionConfig, TriggerEvent, TriggerSource
 
-
-class FakeInstrument:
-    def __init__(self) -> None:
-        self.resource_id = "USB::FAKE"
-        self.commands: list[str] = []
-        self.responses: dict[str, object] = {}
-
-    def write(self, command: str) -> None:
-        self.commands.append(command)
-
-    def query_ascii_float(self, command: str) -> float:
-        self.commands.append(command)
-        return 1.23
-
-    def query(self, command: str) -> str:
-        self.commands.append(command)
-        response = self.responses[command]
-        if isinstance(response, list):
-            return response.pop(0)
-        return str(response)
+from core_test_helpers import CommandRecordingInstrument as FakeInstrument
 
 
 class CurrentMeasurementTests(unittest.TestCase):
