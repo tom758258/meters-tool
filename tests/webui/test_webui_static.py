@@ -6,6 +6,9 @@ import unittest
 from webui_test_helpers import assert_tag_with_attrs, load_static_ui
 
 
+APP_JS_CACHEBUSTER_TOKEN = "__KEYSIGHT_LOGGER_APP_JS_CACHEBUSTER__"
+
+
 class WebUiStaticTests(unittest.TestCase):
     def test_static_ui_omits_cli_compat_only_controls(self):
         index, app_js = load_static_ui()
@@ -198,8 +201,11 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('id="freq-period-timeout"', index)
         self.assertIn('id="current-terminal-container"', index)
         self.assertIn('id="current-terminal"', index)
-        self.assertIn('/static/app.js?v=1.4.0-ac-filter', index)
-        self.assertNotIn('/static/app.js?v=1.4.0"', index)
+        self.assertIn(
+            f'/static/app.js?v={APP_JS_CACHEBUSTER_TOKEN}',
+            index,
+        )
+        self.assertNotIn("1.4.0-ac-filter", index)
 
         self.assertIn("auto_zero", app_js)
         self.assertIn("ac_bandwidth_hz", app_js)

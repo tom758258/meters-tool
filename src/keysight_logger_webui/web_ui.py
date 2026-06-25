@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime
-import importlib.metadata
+import hashlib
 import json
 import os
 import subprocess
@@ -14,7 +14,7 @@ from uuid import uuid4
 
 try:
     from fastapi import Body, FastAPI, HTTPException, Request
-    from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+    from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
     from fastapi.staticfiles import StaticFiles
     from pydantic import BaseModel
 except ImportError as exc:  # pragma: no cover - exercised only without web deps
@@ -33,6 +33,11 @@ from keysight_logger_core import (
     resolve_trigger_mode,
     run_start_session,
     validate_start_request,
+)
+from keysight_logger_core._version import (
+    DISTRIBUTION_NAME,
+    FALLBACK_PACKAGE_VERSION,
+    get_distribution_version,
 )
 from keysight_logger_core.constants import UTC_PLUS_8
 from keysight_logger_core.command import (
@@ -72,11 +77,11 @@ TRIGGER_MODES = (
     "external-custom",
 )
 PACKAGE_NAME = "keysight-logger-webui"
-DISTRIBUTION_NAME = "keysight-logger"
-FALLBACK_WEBUI_VERSION = "1.4.0"
+FALLBACK_WEBUI_VERSION = FALLBACK_PACKAGE_VERSION
 LIVE_SAMPLE_CAPACITY = 5000
 SSE_EVENT_NAME = "run-status"
 SSE_KEEPALIVE_INTERVAL_S = 5.0
+APP_JS_CACHEBUSTER_TOKEN = "__KEYSIGHT_LOGGER_APP_JS_CACHEBUSTER__"
 
 
 class RunStartRequest(BaseModel):
@@ -807,13 +812,14 @@ def _format_keepalive_event() -> str:
 
 def create_app(manager: WebRunManager | None = None) -> FastAPI:
     static_dir = Path(__file__).with_name("static")
+    index_html = _render_index_html(static_dir)
     app = FastAPI(title="Keysight Logger Web UI")
     app.state.manager = manager or WebRunManager()
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     @app.get("/")
-    def index() -> FileResponse:
-        return FileResponse(static_dir / "index.html")
+    def index() -> HTMLResponse:
+        return HTMLResponse(index_html)
 
     @app.get("/api/capabilities")
     def api_capabilities() -> dict[str, Any]:
@@ -888,15 +894,19 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
 
 
 def get_webui_version() -> str:
-    try:
-        return importlib.metadata.version(DISTRIBUTION_NAME)
-    except importlib.metadata.PackageNotFoundError:
-        pass
+    return get_distribution_version(
+        distribution_name=DISTRIBUTION_NAME,
+        fallback=FALLBACK_WEBUI_VERSION,
+    )
 
-    try:
-        return _read_project_version()
-    except (OSError, KeyError, RuntimeError, ValueError):
-        return FALLBACK_WEBUI_VERSION
+
+def _render_index_html(static_dir: Path) -> str:
+    template = (static_dir / "index.html").read_text(encoding="utf-8")
+    if APP_JS_CACHEBUSTER_TOKEN not in template:
+        raise RuntimeError("WebUI index template is missing the app.js cachebuster token")
+    app_js_digest = hashlib.sha256((static_dir / "app.js").read_bytes()).hexdigest()[:12]
+    cachebuster = f"{get_webui_version()}-{app_js_digest}"
+    return template.replace(APP_JS_CACHEBUSTER_TOKEN, cachebuster)
 
 
 def _uvicorn_log_config() -> dict[str, Any]:
@@ -1038,30 +1048,6 @@ def _json_safe_value(value: Any) -> Any:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return str(value)
-
-
-def _read_project_version() -> str:
-    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
-    try:
-        import tomllib
-    except ModuleNotFoundError:
-        tomllib = None
-    if tomllib is not None:
-        with pyproject_path.open("rb") as fh:
-            data = tomllib.load(fh)
-        return str(data["project"]["version"])
-
-    in_project = False
-    for raw_line in pyproject_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("[") and line.endswith("]"):
-            in_project = line == "[project]"
-            continue
-        if in_project and line.startswith("version") and "=" in line:
-            return line.split("=", 1)[1].strip().strip('"')
-    raise RuntimeError(f"Could not read project version from {pyproject_path}")
 
 
 def _range_limit(value_range: tuple[float, float] | tuple[int, int]) -> dict[str, float | int]:

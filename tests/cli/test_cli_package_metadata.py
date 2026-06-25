@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import keysight_logger_core._version as package_version
 from keysight_logger_cli.cli import FALLBACK_CLI_VERSION, get_cli_version, main
 
 
@@ -78,6 +79,6 @@ def test_cli_version_uses_fallback_when_metadata_and_pyproject_are_unavailable(m
         raise FileNotFoundError("pyproject.toml")
 
     monkeypatch.setattr(importlib.metadata, "version", missing_metadata)
-    monkeypatch.setattr("keysight_logger_cli.cli._read_project_version", missing_project)
+    monkeypatch.setattr(package_version, "read_project_version", missing_project)
 
     assert get_cli_version() == FALLBACK_CLI_VERSION

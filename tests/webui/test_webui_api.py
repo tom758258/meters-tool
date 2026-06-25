@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import importlib.metadata
 import logging.config
@@ -19,6 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
 
 if TestClient is not None:
     from keysight_logger_webui.web_ui import (
+        APP_JS_CACHEBUSTER_TOKEN,
         CsvFolderSelectionUnavailable,
         FALLBACK_WEBUI_VERSION,
         RunAlreadyActive,
@@ -154,24 +156,43 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIsNone(defaults["current_terminal"])
 
     def test_capabilities_use_fallback_version_when_package_metadata_is_unavailable(self):
-        client, _csv_path = self.make_client()
-
         with (
             patch(
-                "keysight_logger_webui.web_ui.importlib.metadata.version",
+                "keysight_logger_core._version.importlib.metadata.version",
                 side_effect=importlib.metadata.PackageNotFoundError,
             ),
             patch(
-                "keysight_logger_webui.web_ui._read_project_version",
+                "keysight_logger_core._version.read_project_version",
                 side_effect=FileNotFoundError("pyproject.toml"),
             ),
         ):
+            client, _csv_path = self.make_client()
             response = client.get("/api/capabilities")
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(
             {"name": "keysight-logger-webui", "version": FALLBACK_WEBUI_VERSION},
             response.json()["app"],
+        )
+
+    def test_index_uses_versioned_app_js_content_cachebuster(self):
+        client, _csv_path = self.make_client()
+        app_js_path = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "keysight_logger_webui"
+            / "static"
+            / "app.js"
+        )
+        digest = hashlib.sha256(app_js_path.read_bytes()).hexdigest()[:12]
+
+        response = client.get("/")
+
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn(APP_JS_CACHEBUSTER_TOKEN, response.text)
+        self.assertIn(
+            f'/static/app.js?v={get_webui_version()}-{digest}',
+            response.text,
         )
 
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
@@ -569,11 +590,11 @@ class WebUiApiTests(unittest.TestCase):
     def test_webui_version_uses_fallback_when_metadata_and_project_are_unavailable(self):
         with (
             patch(
-                "keysight_logger_webui.web_ui.importlib.metadata.version",
+                "keysight_logger_core._version.importlib.metadata.version",
                 side_effect=importlib.metadata.PackageNotFoundError,
             ),
             patch(
-                "keysight_logger_webui.web_ui._read_project_version",
+                "keysight_logger_core._version.read_project_version",
                 side_effect=FileNotFoundError("pyproject.toml"),
             ),
         ):

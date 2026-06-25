@@ -2,13 +2,16 @@ from __future__ import annotations
 
 import argparse
 import ctypes
-import importlib.metadata
 import json
 import signal
 import sys
 from datetime import datetime, timezone
-from pathlib import Path
 
+from keysight_logger_core._version import (
+    DISTRIBUTION_NAME,
+    FALLBACK_PACKAGE_VERSION,
+    get_distribution_version,
+)
 from keysight_logger_core.instrument import VisaInstrument
 from keysight_logger_core.models import StartRequest, get_default_instrument_profile
 from keysight_logger_core.runner import StopController, run_start_session
@@ -39,40 +42,15 @@ from ._parser import (
 )
 
 CLI_EVENT_SCHEMA_VERSION = 1
-DISTRIBUTION_NAME = "keysight-logger"
-FALLBACK_CLI_VERSION = "1.4.0"
+FALLBACK_CLI_VERSION = FALLBACK_PACKAGE_VERSION
 
-def _read_project_version() -> str:
-    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
-    try:
-        import tomllib
-    except ModuleNotFoundError:
-        tomllib = None
-    if tomllib is not None:
-        with pyproject_path.open("rb") as fh:
-            data = tomllib.load(fh)
-        return str(data["project"]["version"])
-
-    in_project = False
-    for raw_line in pyproject_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("[") and line.endswith("]"):
-            in_project = line == "[project]"
-            continue
-        if in_project and line.startswith("version") and "=" in line:
-            return line.split("=", 1)[1].strip().strip('"')
-    raise RuntimeError(f"Could not read project version from {pyproject_path}")
 
 def get_cli_version() -> str:
-    try:
-        return importlib.metadata.version(DISTRIBUTION_NAME)
-    except importlib.metadata.PackageNotFoundError:
-        try:
-            return _read_project_version()
-        except (OSError, KeyError, RuntimeError, ValueError):
-            return FALLBACK_CLI_VERSION
+    return get_distribution_version(
+        distribution_name=DISTRIBUTION_NAME,
+        fallback=FALLBACK_CLI_VERSION,
+    )
+
 
 class WindowsConsoleStopHandler:
     _CTRL_C_EVENT = 0
