@@ -50,7 +50,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(2, rc)
         self.assertIn("arguments-json must be valid JSON", stderr.getvalue())
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_trigger_posts_json_payload(self, mock_urlopen):
         class FakeResponse:
             status = 202
@@ -96,7 +96,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
     def test_soft_trigger_dry_run_prints_preview_without_request(self):
         stdout = io.StringIO()
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_send_command(8765, '{"metadata":{"operator": "tom"}}', dry_run=True)
 
         self.assertEqual(0, rc)
@@ -106,7 +106,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
     def test_soft_trigger_dry_run_json_emits_preview_object(self):
         stdout = io.StringIO()
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_send_command(
                 8765,
                 '{"metadata":{"operator": "tom"}}',
@@ -164,7 +164,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(2, rc)
         self.assertIn("--timeout-ms 99 is outside the supported range 100-600000", stderr.getvalue())
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_trigger_uses_configured_timeout(self, mock_urlopen):
         class FakeResponse:
             status = 202
@@ -185,7 +185,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertEqual(2.0, mock_urlopen.call_args.kwargs["timeout"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_soft_command_url_error_returns_3(self, _mock_urlopen):
         stderr = io.StringIO()
 
@@ -204,7 +204,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(2, rc)
         self.assertIn("--port 65536 is outside the supported range 1-65535", stderr.getvalue())
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_stop_posts_stop_request(self, mock_urlopen):
         class FakeResponse:
             status = 204
@@ -244,7 +244,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
     def test_soft_stop_dry_run_prints_preview_without_request(self):
         stdout = io.StringIO()
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_stop(8765, dry_run=True)
 
         self.assertEqual(0, rc)
@@ -254,7 +254,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
     def test_soft_stop_dry_run_json_emits_preview_object(self):
         stdout = io.StringIO()
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_stop(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
@@ -274,7 +274,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(21, rc)
         mock_cmd.assert_called_once_with(8765, "json", True, 3000)
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_stop_uses_configured_timeout(self, mock_urlopen):
         class FakeResponse:
             status = 204
@@ -292,7 +292,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertEqual(2.0, mock_urlopen.call_args.kwargs["timeout"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_soft_stop_non_connection_refused_url_error_returns_3(self, _mock_urlopen):
         stderr = io.StringIO()
 
@@ -348,7 +348,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(2, rc)
         self.assertIn("--timeout-ms 99 is outside the supported range 100-600000", stderr.getvalue())
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_status_gets_status_and_emits_normalized_json(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status())
         stdout = io.StringIO()
@@ -370,7 +370,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(1, event["worker_schema_version"])
         self.assertEqual("2026-05-31T00:00:00+00:00", event["worker_timestamp_utc"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_status_text_mode_prints_summary(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status())
         stdout = io.StringIO()
@@ -384,7 +384,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
     def test_soft_status_dry_run_json_emits_get_preview(self):
         stdout = io.StringIO()
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_status(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
@@ -396,7 +396,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertFalse(event["send_request"])
         mock_urlopen.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_soft_status_unreachable_json_emits_status_error(self, _mock_urlopen):
         stdout = io.StringIO()
 
@@ -410,7 +410,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertFalse(event["reachable"])
         self.assertEqual(3, event["exit_code"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_status_fatal_error_exits_0_with_ok_false(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status(fatal_error="boom"))
         stdout = io.StringIO()
@@ -424,7 +424,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertTrue(event["reachable"])
         self.assertEqual("boom", event["fatal_error"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_wait_ready_succeeds_on_first_successful_status(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status())
         stdout = io.StringIO()
@@ -439,8 +439,8 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(10000, event["timeout_ms"])
         self.assertTrue(event["reachable"])
 
-    @patch("keysight_logger_cli.cli.time.sleep")
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.time.sleep")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_wait_ready_retries_after_transient_url_error(self, mock_urlopen, mock_sleep):
         mock_urlopen.side_effect = [
             URLError("offline"),
@@ -456,8 +456,8 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(2, event["attempts"])
         mock_sleep.assert_called()
 
-    @patch("keysight_logger_cli.cli.time.sleep")
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.time.sleep")
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_wait_ready_timeout_emits_json_error(self, _mock_urlopen, _mock_sleep):
         stdout = io.StringIO()
 
@@ -473,7 +473,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertIn("timed out waiting for status endpoint after 100 ms", event["message"])
 
     @patch(
-        "keysight_logger_cli.cli.request.urlopen",
+        "keysight_logger_cli._client_commands.request.urlopen",
         side_effect=URLError(ConnectionRefusedError(10061, "refused")),
     )
     def test_soft_stop_connection_refused_returns_0(self, _mock_urlopen):
@@ -481,7 +481,7 @@ class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, rc)
 
     @patch(
-        "keysight_logger_cli.cli.request.urlopen",
+        "keysight_logger_cli._client_commands.request.urlopen",
         side_effect=URLError(ConnectionRefusedError(10061, "refused")),
     )
     def test_soft_stop_connection_refused_json_returns_formatted_json(self, _mock_urlopen):
@@ -589,7 +589,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
             exit_code=2,
         )
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_trigger_success_json_returns_accepted_event(self, mock_urlopen):
         class FakeResponse:
             status = 202
@@ -631,7 +631,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
 
     def test_soft_trigger_rejects_non_object_metadata_before_request(self):
         stdout = io.StringIO()
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_send_command(8765, '{"metadata":[]}', output_format="json")
 
         self.assertEqual(2, rc)
@@ -641,7 +641,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("software_trigger", event["command"])
         mock_urlopen.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_trigger_http_400_merges_worker_response_and_returns_2(self, mock_urlopen):
         body = io.BytesIO(
             b'{"status":"error","command":"software_trigger","job_id":"job-1",'
@@ -665,7 +665,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("job-1", event["job_id"])
         self.assertEqual("validation_error", event["error"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_trigger_empty_success_response_returns_3(self, mock_urlopen):
         class FakeResponse:
             status = 202
@@ -689,7 +689,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(202, event["http_status"])
         self.assertIn("empty response", event["message"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_trigger_mismatched_success_identity_returns_3(self, mock_urlopen):
         class FakeResponse:
             status = 202
@@ -712,7 +712,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         event = json.loads(stdout.getvalue())
         self.assertIn("mismatched command identity", event["message"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_soft_command_url_error_json_returns_error_event(self, _mock_urlopen):
         stdout = io.StringIO()
         with redirect_stdout(stdout):
@@ -729,7 +729,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
             exit_code=3,
         )
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_stop_success_json_returns_accepted_event(self, mock_urlopen):
         class FakeResponse:
             status = 204
@@ -759,7 +759,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         self.assertTrue(events[0]["reachable"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_soft_stop_url_error_json_returns_error_event(self, _mock_urlopen):
         stdout = io.StringIO()
 
@@ -780,7 +780,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         )
 
     @patch(
-        "keysight_logger_cli.cli.request.urlopen",
+        "keysight_logger_cli._client_commands.request.urlopen",
         side_effect=URLError(ConnectionRefusedError(10061, "refused")),
     )
     def test_soft_stop_already_stopped_json_contract(self, _mock_urlopen):
@@ -804,7 +804,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
     def test_soft_trigger_dry_run_json_contract(self):
         stdout = io.StringIO()
 
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_send_command(
                 8765,
                 '{"metadata":{"source":"contract"}}',
@@ -828,7 +828,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
     def test_soft_stop_dry_run_json_contract(self):
         stdout = io.StringIO()
 
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_stop(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
@@ -844,7 +844,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertFalse(event["send_request"])
         mock_urlopen.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_status_success_json_contract(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status())
         stdout = io.StringIO()
@@ -865,7 +865,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertTrue(event["reachable"])
         self.assertEqual(200, event["http_status"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_status_fatal_json_contract(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status(fatal_error="boom"))
         stdout = io.StringIO()
@@ -885,7 +885,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertTrue(event["reachable"])
         self.assertEqual("boom", event["fatal_error"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_soft_status_unreachable_json_contract(self, _mock_urlopen):
         stdout = io.StringIO()
 
@@ -905,7 +905,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(3, event["exit_code"])
         self.assertFalse(event["reachable"])
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_soft_status_invalid_json_includes_http_status(self, mock_urlopen):
         class BadJsonResponse:
             status = 200
@@ -940,7 +940,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
     def test_soft_status_dry_run_json_contract(self):
         stdout = io.StringIO()
 
-        with redirect_stdout(stdout), patch("keysight_logger_cli.cli.request.urlopen") as mock_urlopen:
+        with redirect_stdout(stdout), patch("keysight_logger_cli._client_commands.request.urlopen") as mock_urlopen:
             rc = cmd_status(8765, output_format="json", dry_run=True)
 
         self.assertEqual(0, rc)
@@ -956,7 +956,7 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertFalse(event["send_request"])
         mock_urlopen.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_wait_ready_success_json_contract(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status())
         stdout = io.StringIO()
@@ -976,8 +976,8 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(1, event["attempts"])
         self.assertEqual(10000, event["timeout_ms"])
 
-    @patch("keysight_logger_cli.cli.time.sleep")
-    @patch("keysight_logger_cli.cli.request.urlopen")
+    @patch("keysight_logger_cli._client_commands.time.sleep")
+    @patch("keysight_logger_cli._client_commands.request.urlopen")
     def test_wait_ready_retry_json_contract(self, mock_urlopen, _mock_sleep):
         mock_urlopen.side_effect = [
             URLError("offline"),
@@ -999,8 +999,8 @@ class CliClientCommandJsonTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         self.assertEqual(2, event["attempts"])
 
-    @patch("keysight_logger_cli.cli.time.sleep")
-    @patch("keysight_logger_cli.cli.request.urlopen", side_effect=URLError("offline"))
+    @patch("keysight_logger_cli._client_commands.time.sleep")
+    @patch("keysight_logger_cli._client_commands.request.urlopen", side_effect=URLError("offline"))
     def test_wait_ready_timeout_json_contract(self, _mock_urlopen, _mock_sleep):
         stdout = io.StringIO()
 
