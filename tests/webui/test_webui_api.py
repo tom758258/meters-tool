@@ -175,16 +175,21 @@ class WebUiApiTests(unittest.TestCase):
             response.json()["app"],
         )
 
-    def test_index_uses_versioned_app_js_content_cachebuster(self):
+    def test_index_uses_versioned_static_js_content_cachebuster(self):
         client, _csv_path = self.make_client()
-        app_js_path = (
+        static_dir = (
             Path(__file__).resolve().parents[2]
             / "src"
             / "keysight_logger_webui"
             / "static"
-            / "app.js"
         )
-        digest = hashlib.sha256(app_js_path.read_bytes()).hexdigest()[:12]
+        hasher = hashlib.sha256()
+        for path in sorted(static_dir.glob("*.js"), key=lambda item: item.name):
+            hasher.update(path.name.encode("utf-8"))
+            hasher.update(b"\0")
+            hasher.update(path.read_bytes())
+            hasher.update(b"\0")
+        digest = hasher.hexdigest()[:12]
 
         response = client.get("/")
 

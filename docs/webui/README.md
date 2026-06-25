@@ -139,7 +139,8 @@ Main areas:
   statistics, recent sample table, and selected-sample metadata.
 
 The UI intentionally has no frontend build step, Node package manager, external
-CDN, or framework runtime. Static assets are plain HTML, CSS, and JavaScript.
+CDN, or framework runtime. Static assets are plain HTML, CSS, and native
+JavaScript modules.
 
 ## Basic Workflow
 
@@ -494,7 +495,7 @@ Preferred WebUI frontend files:
 
 - `src/keysight_logger_webui/static/index.html`
 - `src/keysight_logger_webui/static/styles.css`
-- `src/keysight_logger_webui/static/app.js`
+- `src/keysight_logger_webui/static/*.js`
 
 Backend adapter file:
 
@@ -518,10 +519,11 @@ boundary decisions.
 
 Run the narrowest relevant checks first.
 
-For JavaScript syntax after editing `app.js`:
+For JavaScript syntax after editing frontend modules:
 
 ```powershell
-node --check src\keysight_logger_webui\static\app.js
+Get-ChildItem src\keysight_logger_webui\static\*.js |
+  ForEach-Object { node --check $_.FullName }
 ```
 
 Focused WebUI/Core no-hardware validation:

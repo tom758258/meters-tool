@@ -904,9 +904,19 @@ def _render_index_html(static_dir: Path) -> str:
     template = (static_dir / "index.html").read_text(encoding="utf-8")
     if APP_JS_CACHEBUSTER_TOKEN not in template:
         raise RuntimeError("WebUI index template is missing the app.js cachebuster token")
-    app_js_digest = hashlib.sha256((static_dir / "app.js").read_bytes()).hexdigest()[:12]
+    app_js_digest = _static_js_digest(static_dir)
     cachebuster = f"{get_webui_version()}-{app_js_digest}"
     return template.replace(APP_JS_CACHEBUSTER_TOKEN, cachebuster)
+
+
+def _static_js_digest(static_dir: Path) -> str:
+    digest = hashlib.sha256()
+    for path in sorted(static_dir.glob("*.js"), key=lambda item: item.name):
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()[:12]
 
 
 def _uvicorn_log_config() -> dict[str, Any]:

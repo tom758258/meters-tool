@@ -28,7 +28,7 @@ Preferred editable files:
 
 - `src/keysight_logger_webui/static/index.html`
 - `src/keysight_logger_webui/static/styles.css`
-- `src/keysight_logger_webui/static/app.js`
+- `src/keysight_logger_webui/static/*.js`
 
 Optional, only when a stable UI contract changes or a new public behavior needs
 contract coverage:
@@ -360,10 +360,11 @@ Run the narrowest relevant checks first:
 .\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_api.py tests/webui/test_webui_static.py -q -p no:cacheprovider
 ```
 
-If `app.js` changed, also run:
+If any JavaScript module changed, also run:
 
 ```powershell
-node --check src\keysight_logger_webui\static\app.js
+Get-ChildItem src\keysight_logger_webui\static\*.js |
+  ForEach-Object { node --check $_.FullName }
 ```
 
 When practical, run broader smoke tests:

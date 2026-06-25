@@ -8,9 +8,13 @@ STATIC_DIR = Path(__file__).parents[2] / "src" / "keysight_logger_webui" / "stat
 
 
 def load_static_ui():
+    javascript = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(STATIC_DIR.glob("*.js"))
+    )
     return (
         (STATIC_DIR / "index.html").read_text(encoding="utf-8"),
-        (STATIC_DIR / "app.js").read_text(encoding="utf-8"),
+        javascript,
     )
 
 

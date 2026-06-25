@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 import unittest
+from pathlib import Path
 
-from webui_test_helpers import assert_tag_with_attrs, load_static_ui
+from webui_test_helpers import STATIC_DIR, assert_tag_with_attrs, load_static_ui
 
 
 APP_JS_CACHEBUSTER_TOKEN = "__KEYSIGHT_LOGGER_APP_JS_CACHEBUSTER__"
@@ -205,6 +206,11 @@ class WebUiStaticTests(unittest.TestCase):
             f'/static/app.js?v={APP_JS_CACHEBUSTER_TOKEN}',
             index,
         )
+        self.assertRegex(
+            index,
+            rf'<script[\s\S]*?type="module"[\s\S]*?'
+            rf'src="/static/app\.js\?v={APP_JS_CACHEBUSTER_TOKEN}"',
+        )
         self.assertNotIn("1.4.0-ac-filter", index)
 
         self.assertIn("auto_zero", app_js)
@@ -238,6 +244,48 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('typeof EventSource === "undefined"', app_js)
         self.assertIn('api("/api/runs/current")', app_js)
         self.assertNotIn("\nwindow.setInterval(pollStatus, 1000)", app_js)
+
+    def test_static_js_module_imports_are_local_and_exist(self):
+        import_pattern = re.compile(r'from\s+"([^"]+)"')
+        named_import_pattern = re.compile(
+            r'import\s+\{([\s\S]*?)\}\s+from\s+"([^"]+)"'
+        )
+        export_pattern = re.compile(
+            r"export\s+(?:async\s+)?(?:const|function|class)\s+([A-Za-z_$][\w$]*)"
+        )
+        imports = []
+
+        for path in sorted(STATIC_DIR.glob("*.js")):
+            source = path.read_text(encoding="utf-8")
+            for target in import_pattern.findall(source):
+                imports.append((path, target))
+
+        self.assertTrue(imports)
+        for source_path, target in imports:
+            with self.subTest(source=source_path.name, target=target):
+                self.assertTrue(target.startswith("./"))
+                self.assertTrue(target.endswith(".js"))
+                imported_path = (source_path.parent / Path(target)).resolve()
+                self.assertEqual(STATIC_DIR.resolve(), imported_path.parent)
+                self.assertTrue(imported_path.is_file())
+
+        for source_path in sorted(STATIC_DIR.glob("*.js")):
+            source = source_path.read_text(encoding="utf-8")
+            for raw_names, target in named_import_pattern.findall(source):
+                imported_path = (source_path.parent / Path(target)).resolve()
+                exported_names = set(
+                    export_pattern.findall(imported_path.read_text(encoding="utf-8"))
+                )
+                for raw_name in raw_names.split(","):
+                    imported_name = raw_name.strip().split(" as ", 1)[0]
+                    if not imported_name:
+                        continue
+                    with self.subTest(
+                        source=source_path.name,
+                        target=target,
+                        imported_name=imported_name,
+                    ):
+                        self.assertIn(imported_name, exported_names)
 
 
 
