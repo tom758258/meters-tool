@@ -5,13 +5,19 @@ from datetime import datetime
 from pathlib import Path
 
 from .measurement import (
+    MeasurementDefinition,
     format_measurement_type,
     get_measurement_definition,
     normalize_measurement_type,
     registered_measurement_types,
 )
 from .constants import UTC_PLUS_8
-from .models import InstrumentProfile, StartRequest, get_default_instrument_profile
+from .models import (
+    InstrumentProfile,
+    MeasurementOptions,
+    StartRequest,
+    get_default_instrument_profile,
+)
 
 
 TIMER_INTERVAL_S_RANGE = (0.5, 86400.0)
@@ -40,6 +46,17 @@ class CoreWarning:
     message: str
     severity: str
     fields: dict[str, object]
+
+
+@dataclass(frozen=True)
+class _StartValidationContext:
+    request: StartRequest
+    trigger_mode: str
+    custom_mode: bool
+    profile: InstrumentProfile
+    measurement_type: str
+    definition: MeasurementDefinition
+    options: MeasurementOptions
 
 
 def resolve_csv_path(csv_path: str | None, now: datetime | None = None) -> Path:
@@ -185,44 +202,78 @@ def validate_start_request(
     trigger_mode: str,
     instrument_profile: InstrumentProfile | None = None,
 ) -> None:
-    args = request
-    if args.dry_run and args.simulate:
+    _validate_basic_mode_conflicts(request)
+    context = _resolve_start_validation_context(request, trigger_mode, instrument_profile)
+    _validate_measurement_preconditions(context)
+    _validate_common_runtime_limits(context.request)
+    measurement_range = _validate_measurement_option_values(context)
+    _validate_hw_trigger_delay(context.request)
+    _validate_manual_range_requirement(context, measurement_range)
+    _validate_count_limits(context.request)
+    _validate_timer_interval(context)
+    _validate_buffer_drain_size(context)
+    _validate_custom_mode_contract(context)
+
+
+def _validate_basic_mode_conflicts(request: StartRequest) -> None:
+    if request.dry_run and request.simulate:
         raise ValueError("--dry-run and --simulate cannot be used together")
-    custom_mode = trigger_mode.endswith("-custom")
+
+
+def _resolve_start_validation_context(
+    request: StartRequest,
+    trigger_mode: str,
+    instrument_profile: InstrumentProfile | None,
+) -> _StartValidationContext:
     profile = instrument_profile or get_default_instrument_profile()
-    measurement_type = normalize_measurement_type(args.measurement)
+    measurement_type = normalize_measurement_type(request.measurement)
     supported_measurements = supported_measurement_types(profile)
     if measurement_type not in supported_measurements:
         choices = ", ".join(format_measurement_type(value) for value in supported_measurements)
         raise ValueError(f"--measurement must be one of: {choices}")
     definition = get_measurement_definition(measurement_type)
-    options = profile.get_measurement_options(measurement_type)
-    if not definition.accepts_current_range_alias and args.current_range is not None:
+    return _StartValidationContext(
+        request=request,
+        trigger_mode=trigger_mode,
+        custom_mode=trigger_mode.endswith("-custom"),
+        profile=profile,
+        measurement_type=measurement_type,
+        definition=definition,
+        options=profile.get_measurement_options(measurement_type),
+    )
+
+
+def _validate_measurement_preconditions(context: _StartValidationContext) -> None:
+    args = context.request
+    if not context.definition.accepts_current_range_alias and args.current_range is not None:
         raise ValueError("--current-range can only be used with --measurement current-dc")
     dcv_input_impedance = str(args.dcv_input_impedance).strip().lower()
     if dcv_input_impedance not in DCV_INPUT_IMPEDANCE_OPTIONS:
         raise ValueError("--dcv-input-impedance must be one of: default, 10m, auto")
     if (
         dcv_input_impedance != "default"
-        and measurement_type not in DCV_INPUT_IMPEDANCE_MEASUREMENTS
+        and context.measurement_type not in DCV_INPUT_IMPEDANCE_MEASUREMENTS
     ):
         raise ValueError(
             "--dcv-input-impedance can only be used with --measurement "
             "voltage-dc or voltage-dc-ratio"
         )
     auto_zero = normalize_auto_zero(args.auto_zero)
-    if measurement_type == "voltage_dc_ratio" and auto_zero != "on":
+    if context.measurement_type == "voltage_dc_ratio" and auto_zero != "on":
         raise ValueError(
             "--auto-zero for --measurement voltage-dc-ratio must be on/default; "
             "off and once are not supported"
         )
-    if auto_zero == "once" and measurement_type not in AUTO_ZERO_MEASUREMENTS:
+    if auto_zero == "once" and context.measurement_type not in AUTO_ZERO_MEASUREMENTS:
         raise ValueError(
             "--auto-zero once can only be used with --measurement current-dc, voltage-dc, "
             "or resistance-2w"
         )
     if args.measurement_range is not None and args.current_range is not None:
         raise ValueError("--range and --current-range cannot be used together")
+
+
+def _validate_common_runtime_limits(args: StartRequest) -> None:
     validate_int_range("--timeout-ms", args.timeout_ms, *TIMEOUT_MS_RANGE, "supported")
     validate_int_range(
         "--trigger-timeout-ms",
@@ -245,6 +296,12 @@ def validate_start_request(
             "Use 0 to disable throttling, or use a value from 50 to 600000 ms."
         )
     validate_int_range("--sw-queue-max", args.sw_queue_max, *SW_QUEUE_MAX_RANGE, "supported")
+
+
+def _validate_measurement_option_values(context: _StartValidationContext) -> float | None:
+    args = context.request
+    definition = context.definition
+    options = context.options
     if args.measurement_range is not None:
         allowed_ranges = tuple(value for _label, value in options.range_options)
         if not value_in_options(args.measurement_range, allowed_ranges):
@@ -311,14 +368,7 @@ def validate_start_request(
                 f"--measurement {definition.canonical_name}. Allowed current terminals: "
                 f"{', '.join(str(value) for value in options.current_terminal_options)}."
             )
-    if measurement_type in CURRENT_MEASUREMENTS and measurement_range is not None:
-        is_10a_range = value_in_options(measurement_range, (10.0,))
-        if args.current_terminal == 3 and is_10a_range:
-            raise ValueError("--current-terminal 3 cannot be used with the 10 A current range")
-        if is_10a_range and args.current_terminal != 10:
-            raise ValueError("10 A current range requires --current-terminal 10")
-        if args.current_terminal == 10 and not is_10a_range:
-            raise ValueError("--current-terminal 10 requires the 10 A current range")
+    _validate_current_terminal_range_pairing(context, measurement_range)
     if options.nplc_options:
         if not value_in_options(args.nplc, options.nplc_options):
             raise ValueError(
@@ -327,7 +377,7 @@ def validate_start_request(
                 f"{format_values(options.nplc_options)}. Use one of the listed values."
             )
     elif args.nplc != NEUTRAL_AC_NPLC:
-        if measurement_type in FREQUENCY_PERIOD_MEASUREMENTS:
+        if context.measurement_type in FREQUENCY_PERIOD_MEASUREMENTS:
             raise ValueError(
                 f"--nplc {format_number(args.nplc)} is not valid for "
                 f"--measurement {definition.canonical_name}. Frequency and Period do not "
@@ -338,16 +388,46 @@ def validate_start_request(
             f"--measurement {definition.canonical_name}. AC measurements do not support NPLC SCPI. "
             "Omit --nplc or use the neutral default value 1.0."
         )
+    return measurement_range
+
+
+def _validate_current_terminal_range_pairing(
+    context: _StartValidationContext,
+    measurement_range: float | None,
+) -> None:
+    args = context.request
+    if context.measurement_type not in CURRENT_MEASUREMENTS or measurement_range is None:
+        return
+    is_10a_range = value_in_options(measurement_range, (10.0,))
+    if args.current_terminal == 3 and is_10a_range:
+        raise ValueError("--current-terminal 3 cannot be used with the 10 A current range")
+    if is_10a_range and args.current_terminal != 10:
+        raise ValueError("10 A current range requires --current-terminal 10")
+    if args.current_terminal == 10 and not is_10a_range:
+        raise ValueError("--current-terminal 10 requires the 10 A current range")
+
+
+def _validate_hw_trigger_delay(args: StartRequest) -> None:
     validate_float_range(
         "--hw-trigger-delay-s",
         args.hw_trigger_delay_s,
         *HW_TRIGGER_DELAY_S_RANGE,
         "s",
     )
-    if not args.auto_range and measurement_range is None and measurement_type == "current_dc":
+
+
+def _validate_manual_range_requirement(
+    context: _StartValidationContext,
+    measurement_range: float | None,
+) -> None:
+    args = context.request
+    if not args.auto_range and measurement_range is None and context.measurement_type == "current_dc":
         raise ValueError("--range or --current-range is required when --auto-range off")
     if not args.auto_range and measurement_range is None:
         raise ValueError("--range is required when --auto-range off")
+
+
+def _validate_count_limits(args: StartRequest) -> None:
     if args.max_samples is not None:
         validate_int_range("--max-samples", args.max_samples, *MAX_SAMPLES_RANGE, "supported")
     if args.trigger_count is not None:
@@ -364,6 +444,10 @@ def validate_start_request(
             *SAMPLE_COUNT_RANGE,
             "34461A supported",
         )
+
+
+def _validate_timer_interval(context: _StartValidationContext) -> None:
+    args = context.request
     if args.timer_interval_s is not None:
         if args.timer_interval_s < TIMER_INTERVAL_S_RANGE[0]:
             raise ValueError(
@@ -376,34 +460,45 @@ def validate_start_request(
                 f"--timer-interval-s {format_number(args.timer_interval_s)} is outside "
                 "the supported range 0.5-86400 s. Use a value from 0.5 to 86400 s."
             )
-        if trigger_mode != "software":
+        if context.trigger_mode != "software":
             raise ValueError("--timer-interval-s requires --trigger-mode software")
+
+
+def _validate_buffer_drain_size(context: _StartValidationContext) -> None:
+    args = context.request
     if args.buffer_drain_size is not None:
-        max_buffer_drain_size = min(BUFFER_DRAIN_SIZE_RANGE[1], profile.reading_memory_limit)
+        max_buffer_drain_size = min(
+            BUFFER_DRAIN_SIZE_RANGE[1],
+            context.profile.reading_memory_limit,
+        )
         validate_int_range(
             "--buffer-drain-size",
             args.buffer_drain_size,
             BUFFER_DRAIN_SIZE_RANGE[0],
             max_buffer_drain_size,
-            f"{profile.model} reading-memory",
+            f"{context.profile.model} reading-memory",
         )
-        if not custom_mode:
+        if not context.custom_mode:
             raise ValueError("--buffer-drain-size requires a custom trigger mode")
-    if args.allow_buffer_overflow_risk and not custom_mode:
+
+
+def _validate_custom_mode_contract(context: _StartValidationContext) -> None:
+    args = context.request
+    if args.allow_buffer_overflow_risk and not context.custom_mode:
         raise ValueError("--allow-buffer-overflow-risk requires a custom trigger mode")
-    if custom_mode:
+    if context.custom_mode:
         if args.max_samples is not None:
             raise ValueError("--max-samples cannot be used with custom trigger modes")
         if args.trigger_count is None:
             raise ValueError("--trigger-count is required with custom trigger modes")
         if args.sample_count is None:
             raise ValueError("--sample-count is required with custom trigger modes")
-        memory_limit = profile.reading_memory_limit
+        memory_limit = context.profile.reading_memory_limit
         expected_readings = args.trigger_count * args.sample_count
         if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
             raise ValueError(
                 f"custom mode expected readings {expected_readings} exceed "
-                f"{profile.model} reading memory {memory_limit}; "
+                f"{context.profile.model} reading memory {memory_limit}; "
                 "add --allow-buffer-overflow-risk to proceed."
             )
     else:
