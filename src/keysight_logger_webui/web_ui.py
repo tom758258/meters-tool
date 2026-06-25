@@ -9,7 +9,7 @@ import subprocess
 import threading
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Iterator, Optional
 from uuid import uuid4
 
 try:
@@ -75,6 +75,8 @@ PACKAGE_NAME = "keysight-logger-webui"
 DISTRIBUTION_NAME = "keysight-logger"
 FALLBACK_WEBUI_VERSION = "1.4.0"
 LIVE_SAMPLE_CAPACITY = 5000
+SSE_EVENT_NAME = "run-status"
+SSE_KEEPALIVE_INTERVAL_S = 5.0
 
 
 class RunStartRequest(BaseModel):
@@ -271,6 +273,40 @@ class WebRunManager:
         with self._lock:
             self._close_event_streams = True
             self._status_cv.notify_all()
+
+    def iter_status_events(self) -> Iterator[str]:
+        with self._lock:
+            last_version = self._status_version
+            current_status = dict(self._last_status)
+
+        yield _format_status_event(last_version, current_status)
+
+        while True:
+            with self._lock:
+                if self._close_event_streams:
+                    break
+                while (
+                    self._status_version == last_version
+                    and not self._close_event_streams
+                ):
+                    signaled = self._status_cv.wait(timeout=SSE_KEEPALIVE_INTERVAL_S)
+                    if not signaled:
+                        break
+
+                if self._close_event_streams:
+                    break
+
+                if self._status_version > last_version:
+                    last_version = self._status_version
+                    current_status = dict(self._last_status)
+                    should_send_status = True
+                else:
+                    should_send_status = False
+
+            if should_send_status:
+                yield _format_status_event(last_version, current_status)
+            else:
+                yield _format_keepalive_event()
 
     def capabilities(self) -> dict[str, Any]:
         profile = get_default_instrument_profile()
@@ -757,6 +793,18 @@ class WebRunManager:
         }
 
 
+def _format_status_event(version: int, status: dict[str, Any]) -> str:
+    return (
+        f"event: {SSE_EVENT_NAME}\n"
+        f"id: {version}\n"
+        f"data: {json.dumps(status, separators=(',', ':'))}\n\n"
+    )
+
+
+def _format_keepalive_event() -> str:
+    return ": keepalive\n\n"
+
+
 def create_app(manager: WebRunManager | None = None) -> FastAPI:
     static_dir = Path(__file__).with_name("static")
     app = FastAPI(title="Keysight Logger Web UI")
@@ -793,52 +841,8 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
 
     @app.get("/api/runs/current/events")
     def api_current_run_events() -> StreamingResponse:
-        manager = app.state.manager
-
-        def event_generator():
-            with manager._lock:
-                last_version = manager._status_version
-                current_status = dict(manager._last_status)
-
-            yield (
-                "event: run-status\n"
-                f"id: {last_version}\n"
-                f"data: {json.dumps(current_status, separators=(',', ':'))}\n\n"
-            )
-
-            while True:
-                with manager._lock:
-                    if manager._close_event_streams:
-                        break
-                    while (
-                        manager._status_version == last_version
-                        and not manager._close_event_streams
-                    ):
-                        signaled = manager._status_cv.wait(timeout=5.0)
-                        if not signaled:
-                            break
-
-                    if manager._close_event_streams:
-                        break
-
-                    if manager._status_version > last_version:
-                        last_version = manager._status_version
-                        current_status = dict(manager._last_status)
-                        should_send_status = True
-                    else:
-                        should_send_status = False
-
-                if should_send_status:
-                    yield (
-                        "event: run-status\n"
-                        f"id: {last_version}\n"
-                        f"data: {json.dumps(current_status, separators=(',', ':'))}\n\n"
-                    )
-                else:
-                    yield ": keepalive\n\n"
-
         return StreamingResponse(
-            event_generator(),
+            app.state.manager.iter_status_events(),
             media_type="text/event-stream",
         )
 

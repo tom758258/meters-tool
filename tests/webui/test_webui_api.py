@@ -846,6 +846,34 @@ class WebUiApiTests(unittest.TestCase):
         manager.close_event_streams()
         self.assertIsNone(asyncio.run(get_next(response.body_iterator)))
 
+    def test_status_event_stream_yields_published_status_updates(self):
+        manager = WebRunManager()
+        events = manager.iter_status_events()
+
+        first_event = next(events)
+        self.assertTrue(first_event.startswith("event: run-status"))
+        self.assertIn("id: 0", first_event)
+        self.assertIn('"state":"idle"', first_event)
+
+        next_status = {
+            **manager.status(),
+            "state": "running",
+            "active": True,
+            "latest_status": "ready",
+        }
+        with manager._lock:
+            manager._publish_status_locked(next_status)
+
+        second_event = next(events)
+        self.assertTrue(second_event.startswith("event: run-status"))
+        self.assertIn("id: 1", second_event)
+        self.assertIn('"state":"running"', second_event)
+        self.assertIn('"latest_status":"ready"', second_event)
+
+        manager.close_event_streams()
+        with self.assertRaises(StopIteration):
+            next(events)
+
 
 
 if __name__ == "__main__":
