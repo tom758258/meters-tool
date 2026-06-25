@@ -300,17 +300,21 @@
 
         <p><strong>執行次數 (Run count)</strong> 與<strong>樣本限制 (sample limit)</strong> 欄位用來限制作業的持續時間。在驗證接線、測量類型與觸發行為時，請為新的設定保持上限限制。</p>
 
-        <p><code>Measurement type</code> (測量類型) 用來選擇 34461A 要測量的項目：直流或交流電壓、直流或交流電流、直流電壓比 (DC voltage ratio)、或是 2 線/4 線電阻。在啟動作業前，請確保這與儀器的實體接線相符。</p>
+        <p><code>Measurement type</code> (測量類型) 用來選擇 34461A 要測量的項目：直流或交流電壓、直流或交流電流、直流電壓比 (DC voltage ratio)、頻率、週期，或是 2 線/4 線電阻。在啟動作業前，請確保這與儀器的實體接線相符。</p>
 
         <p><code>Auto Range</code> (自動換檔) 讓儀器自行選擇測量範圍。除非測量程序要求固定範圍，否則首次執行時請保持啟用。</p>
 
         <p>當 Auto Range 停用時會使用<strong>手動範圍 (Manual range)</strong> 欄位。請選擇一個能安全涵蓋預期訊號的範圍。</p>
 
-        <p><code>NPLC</code> 控制直流與電阻測量的積分時間。較高的數值速度較慢，但可能更穩定。交流模式則會使用它們專屬的交流頻寬 (AC bandwidth) 設定。</p>
+        <p><code>NPLC</code> 控制直流與電阻測量的積分時間。較高的數值速度較慢，但可能更穩定。交流、頻率與週期模式則會使用 AC filter 設定。</p>
 
         <p><code>Auto Zero</code> (自動歸零) 控制直流與電阻測量的偏移處理。它可以提高精確度，但可能會減慢讀取速度。除非測量程序要求更改，否則請保持在正常的設定值。</p>
 
-        <p><code>AC bandwidth</code> (交流頻寬) 適用於交流電壓與交流電流。請選擇符合訊號與測量程序的頻寬。</p>
+        <p><code>AC filter</code> 適用於交流電壓、交流電流、頻率與週期。交流電壓與交流電流選擇 <code>Keep current setting</code> 時，不會改變儀器目前的 filter 設定；頻率與週期預設選取 <code>20 Hz</code>。</p>
+
+        <p><code>Gate time</code> 僅適用於頻率與週期，預設為 <code>0.1 s</code>。</p>
+
+        <p>量測選項中的 <code>Timeout</code> 僅適用於頻率，預設為 <code>Auto</code>。週期會隱藏此控制項，且不會送出 timeout 指令。</p>
 
         <p><code>Current terminal</code> (電流端子) 適用於電流測量。啟動作業前，請確認實體導線已連接至相符的電流端子。</p>
 

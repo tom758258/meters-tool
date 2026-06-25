@@ -203,8 +203,11 @@ Measurement-specific UI behavior:
 - AC, Frequency, and Period measurements do not show NPLC.
 - AC filter appears for AC current, AC voltage, Frequency, and Period where
   supported.
-- Gate Time and Timeout appear only for Frequency and Period. Their effective
-  defaults are `0.1` s and `auto`; AC Filter defaults to `20` Hz.
+- AC current and AC voltage offer `Keep current setting`, which omits the AC
+  filter payload. Frequency and Period select their `20 Hz` default directly.
+- Gate Time appears only for Frequency and Period, with an effective default of
+  `0.1` s. Timeout appears only for Frequency and defaults to `auto`; Period
+  hides it and sends no timeout payload.
 - Current terminal selection appears only for current measurements where
   supported.
 - DCV Input Z appears only for `voltage-dc`.

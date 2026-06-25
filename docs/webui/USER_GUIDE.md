@@ -141,14 +141,17 @@ their AC filter setting instead.
 improve accuracy but may slow readings. Leave it at the normal setup value
 unless the measurement procedure calls for a change.
 
-`AC filter` applies to AC voltage, AC current, Frequency, and Period. Frequency
-and Period default to `20 Hz`; the summary may show this as `>20 Hz`.
+`AC filter` applies to AC voltage, AC current, Frequency, and Period. For AC
+voltage and AC current, `Keep current setting` leaves the instrument's current
+filter unchanged. Frequency and Period select `20 Hz` by default; the summary
+may show this as `>20 Hz`.
 
 `Gate time` applies only to Frequency and Period. The default is `0.1 s`;
 available choices are `0.01`, `0.1`, and `1 s`.
 
-`Timeout` in the Measurement options applies only to Frequency and Period.
-Keep `Auto` unless the procedure requires `1 s`.
+`Timeout` in the Measurement options applies only to Frequency. Keep `Auto`
+unless the procedure requires `1 s`. Period hides this control and does not send
+a timeout command.
 
 Frequency values are shown and stored in `Hz`. Period values are shown and
 stored in `s`; the WebUI does not automatically rescale these units.

@@ -179,6 +179,8 @@ GET /api/capabilities
 - NPLC 僅出現在支援的量測中。
 - AC、頻率和週期量測不顯示 NPLC。
 - AC 頻寬/濾波器會在支援的 AC 電流、AC 電壓、頻率和週期中顯示。
+- AC 電流和 AC 電壓可選擇 `Keep current setting`，此選項不會送出 AC
+  filter payload；頻率和週期則直接選取預設的 `20 Hz`。
 - 頻率和週期會顯示閘門時間；只有頻率會顯示 Timeout。
 - 週期的 timeout capability 為空，因此 UI 會隱藏並停用 Timeout，也不會送出該 payload。
 - 電流端子選擇僅在支援的電流量測中顯示。

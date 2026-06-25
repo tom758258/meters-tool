@@ -273,14 +273,14 @@
         </ul>
         <p>適用於 Keysight 34461A 的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率以及 2 線式或 4 線式電阻量測。它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。</p>
         <p>對於標準操作人員的工作流程，請從 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。</p>
-        <p><code>keysight-logger</code> 是目前的單一 distribution 基準。其套件版本是 root <code>pyproject.toml</code> 內的 <code>[project].version</code>。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
+        <p><code>keysight-logger</code> 是目前的單一 distribution 基準。其套件版本是 root <code>pyproject.toml</code> 內的 <code>[project].version</code>。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>frequency</code>、<code>period</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code>、<code>--gate-time-s</code>、<code>--freq-period-timeout</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
         <p>Python 整合應從 <code>keysight_logger_core</code> 或 <code>keysight_logger_core.*</code> 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 <code>keysight_logger.measurement</code> 和 <code>keysight_logger.instrument</code>。</p>
 
         <h2 id="current-scope">目前範圍</h2>
         <h3>已實現：</h3>
         <ul>
             <li>透過 PyVISA 偵測到的 USB 和 LAN 資源的 VISA 資源列表。</li>
-            <li>DC 電流、DC 電壓、DCV 比率、AC 電流、AC 電壓以及 2 線或 4 線電阻量測記錄。</li>
+            <li>DC 電流、DC 電壓、DCV 比率、AC 電流、AC 電壓、頻率、週期以及 2 線或 4 線電阻量測記錄。</li>
             <li>透過本機 HTTP 端點實現的軟體觸發模式。</li>
             <li>透過 <code>GET /status</code> 實現的本機工作器狀態端點。</li>
             <li>軟體計時器擷取（作為軟體觸發模式的一部分）。</li>
@@ -292,12 +292,12 @@
             <li>當省略 <code>--csv</code> 時，選用的 UTC+8 時間戳記 CSV 輸出路徑。</li>
             <li>透過 <code>list-resources --verify</code> 進行選用的資源驗證。</li>
             <li>透過 <code>list-resources --live-only</code> 進行選用的作用中資源篩選。</li>
-            <li>選用的量測控制項：量測類型、自動範圍、手動範圍、DCV 輸入阻抗、包含 <code>once</code> 在內的自動歸零（Auto Zero）、NPLC、AC 頻寬、電流端子選擇、硬體觸發延遲、硬體觸發斜率與 VM Comp 斜率。</li>
+            <li>選用的量測控制項：量測類型、自動範圍、手動範圍、DCV 輸入阻抗、包含 <code>once</code> 在內的自動歸零（Auto Zero）、NPLC、AC 頻寬/濾波器、頻率/週期閘門時間、僅限頻率的 timeout、電流端子選擇、硬體觸發延遲、硬體觸發斜率與 VM Comp 斜率。</li>
             <li>每筆擷取樣本後立即排空（flush）CSV。</li>
         </ul>
         <h3>重要限制：</h3>
         <ul>
-            <li>本專案目前專注於 Keysight 34461A 的電流、電壓、DCV 比率以及 2 線或 4 線電阻記錄。</li>
+            <li>本專案目前專注於 Keysight 34461A 的電流、電壓、DCV 比率、頻率、週期以及 2 線或 4 線電阻記錄。</li>
             <li>AC 模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬設定。在實際投入生產使用前，請使用操作者提供的 VISA 資源執行低風險的實際資源基本功能驗證（即快速健檢），並將 CLI 資料列與 34461A 前面板讀數進行對比。</li>
             <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流和 AC 電壓僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為 AC 模式不會寫入 NPLC SCPI。AC 模式也不會寫入 Auto Zero SCPI 指令。</li>
             <li>不支援在同一次執行中混合使用軟體和硬體擷取。</li>
@@ -612,20 +612,22 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr><td><code>--allow-buffer-overflow-risk</code></td><td>否</td><td>關閉</td><td>允許自訂模式請求超過 34461A 的 10,000 個讀數記憶體限制。這取決於排空讀數的速度是否夠快，可能會遺失數據或產生 SCPI 錯誤。</td></tr>
                     <tr><td><code>--hw-trigger-slope pos|neg</code></td><td>否</td><td><code>neg</code></td><td>外接觸發邊緣極性。</td></tr>
                     <tr><td><code>--hw-trigger-delay-s SECONDS</code></td><td>否</td><td><code>0.0</code></td><td>硬體觸發延遲，對應到 <code>TRIG:DEL</code>。支援範圍：<code>0</code> 到 <code>3600</code> 秒。</td></tr>
-                    <tr><td><code>--measurement current-dc|voltage-dc|voltage-dc-ratio|current-ac|voltage-ac|resistance-2w|resistance-4w</code></td><td>否</td><td><code>current-dc</code></td><td>量測類型。</td></tr>
-                    <tr><td><code>--nplc VALUE</code></td><td>否</td><td><code>1.0</code></td><td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC 電流和 AC 電壓僅接受中性預設值 <code>1.0</code>；除非您刻意傳送 <code>1.0</code>，否則 AC 模式請省略 <code>--nplc</code>。</td></tr>
-                    <tr><td><code>--auto-zero on|off|once</code></td><td>否</td><td><code>on</code></td><td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻和 AC 量測則將 Auto Zero 交給儀器處理。</td></tr>
+                    <tr><td><code>--measurement current-dc|voltage-dc|voltage-dc-ratio|current-ac|voltage-ac|frequency|period|resistance-2w|resistance-4w</code></td><td>否</td><td><code>current-dc</code></td><td>量測類型。</td></tr>
+                    <tr><td><code>--nplc VALUE</code></td><td>否</td><td><code>1.0</code></td><td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC、頻率和週期僅接受中性預設值 <code>1.0</code>；這些模式不會寫入 NPLC SCPI。</td></tr>
+                    <tr><td><code>--auto-zero on|off|once</code></td><td>否</td><td><code>on</code></td><td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻、AC、頻率和週期量測則將 Auto Zero 交給儀器處理。</td></tr>
                     <tr><td><code>--auto-range on|off</code></td><td>否</td><td><code>on</code></td><td>啟用或停用自動範圍（Auto Range）。</td></tr>
-                    <tr><td><code>--range VALUE</code></td><td>當 <code>--auto-range off</code> 時必要</td><td>無</td><td>所選量測的手動範圍。電流為安培，電壓為伏特，電阻為歐姆。</td></tr>
-                    <tr><td><code>--current-range VALUE</code></td><td>僅限 DC 電流</td><td>無</td><td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在 AC 電流、電壓和電阻量測下無效。</td></tr>
-                    <tr><td><code>--ac-bandwidth-hz 3|20|200</code></td><td>僅限 AC</td><td>無</td><td>用於 AC 電流和 AC 電壓的 AC 頻寬/濾波器設定。省略以保持儀器預設/目前設定不變。</td></tr>
+                    <tr><td><code>--range VALUE</code></td><td>當 <code>--auto-range off</code> 時必要</td><td>無</td><td>所選量測的手動範圍。電流為安培；電壓、頻率和週期輸入範圍為伏特；電阻為歐姆。</td></tr>
+                    <tr><td><code>--current-range VALUE</code></td><td>僅限 DC 電流</td><td>無</td><td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在其他量測下無效。</td></tr>
+                    <tr><td><code>--ac-bandwidth-hz 3|20|200</code></td><td>僅限 AC/頻率/週期</td><td>依量測而定</td><td>AC 頻寬/濾波器設定。AC 電流/電壓省略時保持目前設定；頻率和週期省略時預設為 <code>20</code> Hz。</td></tr>
+                    <tr><td><code>--gate-time-s 0.01|0.1|1</code></td><td>僅限頻率/週期</td><td><code>0.1</code></td><td>頻率/週期 aperture 或閘門時間，單位為秒。</td></tr>
+                    <tr><td><code>--freq-period-timeout auto|1s</code></td><td>僅限頻率</td><td><code>auto</code></td><td>使用自動頻率 timeout，或停用自動 timeout 以使用固定 1 秒行為。週期不支援此選項，也不會送出 timeout SCPI。</td></tr>
                     <tr><td><code>--current-terminal 3|10</code></td><td>僅限電流</td><td><code>3</code></td><td>電流輸入端子。10 A 範圍需要 <code>--current-terminal 10</code>；<code>--current-terminal 10</code> 僅在 10 A 範圍下有效。</td></tr>
                     <tr><td><code>--dcv-input-impedance default|10m|auto</code></td><td>僅限 DC 電壓或 DCV 比率</td><td><code>default</code></td><td>DC 電壓輸入阻抗。<code>default</code> 不寫入阻抗指令；<code>10m</code> 強制為 10 MOhm；<code>auto</code> 啟用儀器自動（Auto）模式（在較低的 DC 電壓範圍下可能會顯示 HighZ）。</td></tr>
                     <tr><td><code>--vm-comp-slope pos|neg</code></td><td>否</td><td>無</td><td>設定後面板 VM Comp 輸出脈衝斜率。省略以保持 VM Comp 不變。</td></tr>
                 </tbody>
             </table>
         </div>
-        <p><code>--measurement</code> 預設為 <code>current-dc</code>，因此現有的電流量測記錄指令不需要特別指定。新指令應偏好使用 <code>--range</code>；<code>--current-range</code> 繼續適用於現有的 DC 電流腳本。對於 <code>current-ac</code>、<code>voltage-dc</code>、<code>voltage-dc-ratio</code>、<code>voltage-ac</code>、<code>resistance-2w</code> 和 <code>resistance-4w</code> 請使用 <code>--range</code>；<code>--current-range</code> 在這些量測下會被拒絕。
+        <p><code>--measurement</code> 預設為 <code>current-dc</code>，因此現有的電流量測記錄指令不需要特別指定。新指令應偏好使用 <code>--range</code>；<code>--current-range</code> 繼續適用於現有的 DC 電流腳本。對於 <code>current-ac</code>、<code>voltage-dc</code>、<code>voltage-dc-ratio</code>、<code>voltage-ac</code>、<code>frequency</code>、<code>period</code>、<code>resistance-2w</code> 和 <code>resistance-4w</code> 請使用 <code>--range</code>；<code>--current-range</code> 在這些量測下會被拒絕。
         <code>--dcv-input-impedance</code> 僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 時有效。使用 <code>default</code> 以保持儀器目前的 Input Z設定不變，<code>10m</code> 強制為 10 MOhm，或 <code>auto</code> 啟用 34461A 的 Auto Input Z 行為。當 Auto 作用於較低 DC 電壓範圍時，儀器可能會顯示 HighZ。</p>
 
         <h2 id="agent-friendly-workflow">友善 Agent 的 CLI 工作流程</h2>
@@ -709,10 +711,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr><th>引數</th><th>接受值</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><code>--measurement</code></td><td><code>current-dc</code>, <code>voltage-dc</code>, <code>voltage-dc-ratio</code>, <code>current-ac</code>, <code>voltage-ac</code>, <code>resistance-2w</code>, <code>resistance-4w</code></td></tr>
+                    <tr><td><code>--measurement</code></td><td><code>current-dc</code>, <code>voltage-dc</code>, <code>voltage-dc-ratio</code>, <code>current-ac</code>, <code>voltage-ac</code>, <code>frequency</code>, <code>period</code>, <code>resistance-2w</code>, <code>resistance-4w</code></td></tr>
                     <tr><td><code>--auto-zero</code></td><td><code>on</code>, <code>off</code> 或 <code>once</code>（依量測而有不同限制）</td></tr>
                     <tr><td><code>--auto-range</code></td><td><code>on</code> 或 <code>off</code></td></tr>
-                    <tr><td><code>--ac-bandwidth-hz</code></td><td><code>3</code>, <code>20</code> 或 <code>200</code>（僅限 AC 電流/電壓）</td></tr>
+                    <tr><td><code>--ac-bandwidth-hz</code></td><td><code>3</code>, <code>20</code> 或 <code>200</code>（僅限 AC 電流/電壓、頻率、週期）</td></tr>
+                    <tr><td><code>--gate-time-s</code></td><td><code>0.01</code>, <code>0.1</code> 或 <code>1</code>（僅限頻率/週期）</td></tr>
+                    <tr><td><code>--freq-period-timeout</code></td><td><code>auto</code> 或 <code>1s</code>（僅限頻率）</td></tr>
                     <tr><td><code>--current-terminal</code></td><td><code>3</code> 或 <code>10</code>（僅限電流量測）</td></tr>
                     <tr><td><code>--status-format</code></td><td><code>text</code> 或 <code>jsonl</code></td></tr>
                     <tr><td><code>--timeout-ms</code></td><td><code>100</code> 到 <code>600000</code></td></tr>
@@ -747,6 +751,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr><td><code>voltage-dc</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td></tr>
                     <tr><td><code>voltage-dc-ratio</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td></tr>
                     <tr><td><code>voltage-ac</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V</td></tr>
+                    <tr><td><code>frequency</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V</td></tr>
+                    <tr><td><code>period</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V</td></tr>
                     <tr><td><code>resistance-2w</code></td><td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td></tr>
                     <tr><td><code>resistance-4w</code></td><td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td></tr>
                 </tbody>
@@ -760,10 +766,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
             <li><code>--current-range</code> 僅在 <code>--measurement current-dc</code> 下有效。</li>
             <li>除了 <code>default</code> 之外的 <code>--dcv-input-impedance</code> 值僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 下有效。</li>
             <li>DC、DCV 比率和電阻量測僅接受以下 NPLC 值：<code>0.02</code>, <code>0.2</code>, <code>1</code>, <code>10</code>, <code>100</code>。</li>
-            <li>AC 電流和 AC 電壓拒絕非預設的 NPLC 值。請省略 <code>--nplc</code> 或傳送 <code>--nplc 1.0</code>。</li>
+            <li>AC 電流、AC 電壓、頻率和週期拒絕非預設的 NPLC 值。請省略 <code>--nplc</code> 或傳送 <code>--nplc 1.0</code>。</li>
             <li><code>--auto-zero once</code> 僅在 <code>current-dc</code>, <code>voltage-dc</code> 和 <code>resistance-2w</code> 下有效。</li>
             <li><code>voltage-dc-ratio</code> 僅接受預設/啟用（on）的 Auto Zero 行為。</li>
-            <li><code>--ac-bandwidth-hz</code> 僅在 <code>current-ac</code> 或 <code>voltage-ac</code> 下有效。</li>
+            <li><code>--ac-bandwidth-hz</code> 僅在 <code>current-ac</code>、<code>voltage-ac</code>、<code>frequency</code> 或 <code>period</code> 下有效。</li>
+            <li><code>--gate-time-s</code> 僅在 <code>frequency</code> 或 <code>period</code> 下有效。</li>
+            <li><code>--freq-period-timeout</code> 僅在 <code>frequency</code> 下有效；週期明確指定此選項時會在開啟 VISA 前被拒絕。</li>
             <li><code>--current-terminal</code> 僅在電流量測下有效。10 A 範圍需要 <code>--current-terminal 10</code>，而 <code>--current-terminal 10</code> 需要 10 A 範圍。</li>
             <li>自訂模式需要同時提供 <code>--trigger-count</code> 和 <code>--sample-count</code>；簡單模式會拒絕這兩個選項。</li>
             <li>自訂模式拒絕 <code>--max-samples</code>；簡單模式使用 <code>--max-samples</code> 進行有限的執行。</li>

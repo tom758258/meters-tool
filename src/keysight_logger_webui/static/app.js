@@ -467,12 +467,13 @@ function updateMeasurementUi() {
     const existingAcBandwidth = acBandwidthSelect.value;
     const bandwidthOptions = measurement?.ac_bandwidth_hz_options || [];
     const defaultAcBandwidth = measurement?.defaults?.ac_bandwidth_hz;
-    acBandwidthSelect.replaceChildren(
-      optionElement("", "Auto (Default)"),
-      ...bandwidthOptions.map((value) =>
-        optionElement(value, `${formatNumberLabel(value)} Hz`)
-      )
+    const bandwidthOptionElements = bandwidthOptions.map((value) =>
+      optionElement(value, `${formatNumberLabel(value)} Hz`)
     );
+    if (defaultAcBandwidth === null || defaultAcBandwidth === undefined) {
+      bandwidthOptionElements.unshift(optionElement("", "Keep current setting"));
+    }
+    acBandwidthSelect.replaceChildren(...bandwidthOptionElements);
     if (defaultAcBandwidth !== null && defaultAcBandwidth !== undefined) {
       acBandwidthSelect.value = String(defaultAcBandwidth);
     } else if (bandwidthOptions.map(String).includes(String(existingAcBandwidth))) {

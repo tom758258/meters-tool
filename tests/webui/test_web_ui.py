@@ -836,6 +836,8 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn('id="freq-period-timeout"', index)
         self.assertIn('id="current-terminal-container"', index)
         self.assertIn('id="current-terminal"', index)
+        self.assertIn('/static/app.js?v=1.4.0-ac-filter', index)
+        self.assertNotIn('/static/app.js?v=1.4.0"', index)
 
         self.assertIn("auto_zero", app_js)
         self.assertIn("ac_bandwidth_hz", app_js)
@@ -847,6 +849,12 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("payload.freq_period_timeout", app_js)
         self.assertIn("payload.current_terminal", app_js)
         self.assertIn("AC Filter >", app_js)
+        self.assertIn('optionElement("", "Keep current setting")', app_js)
+        self.assertNotIn("Auto (Default)", app_js)
+        self.assertIn(
+            "if (defaultAcBandwidth === null || defaultAcBandwidth === undefined)",
+            app_js,
+        )
 
         self.assertRegex(index, r'<select[^>]*id="gate-time"[^>]*disabled[^>]*>')
         self.assertRegex(

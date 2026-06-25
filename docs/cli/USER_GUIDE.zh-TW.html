@@ -278,7 +278,11 @@
         
         <p><code>--auto-zero</code> (自動歸零) 控制直流與電阻測量的偏移處理。它可以提高精確度，但可能會減慢讀取速度。交流模式不會寫入 Auto Zero 的 SCPI 指令。</p>
         
-        <p><code>--ac-bandwidth-hz</code> (交流頻寬) 適用於交流電壓與交流電流。請使用與測量設定相符的頻寬。</p>
+        <p><code>--ac-bandwidth-hz</code> (交流頻寬/濾波器) 適用於交流電壓、交流電流、頻率與週期。頻率與週期省略此選項時預設為 <code>20</code> Hz。</p>
+
+        <p><code>--gate-time-s</code> 適用於頻率與週期。可選 <code>0.01</code>、<code>0.1</code> 或 <code>1</code> 秒，預設為 <code>0.1</code> 秒。</p>
+
+        <p><code>--freq-period-timeout</code> 僅適用於頻率，可選 <code>auto</code> 或 <code>1s</code>，預設為 <code>auto</code>。週期不會送出 timeout SCPI；若搭配週期明確指定此選項，CLI 會在開啟 VISA 前拒絕。</p>
         
         <p><code>--current-terminal</code> (電流端子) 適用於電流測量。請與儀器上實際使用的電流端子保持一致。</p>
         
