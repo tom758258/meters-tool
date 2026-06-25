@@ -1,4 +1,4 @@
-﻿# CLI Integration
+# CLI Integration
 
 This document is for maintainers of the CLI adapter. Shared Core contracts live
 in `docs/core/integration.md`; user-facing command usage lives in

@@ -1,4 +1,4 @@
-﻿import unittest
+import unittest
 import threading
 from types import SimpleNamespace
 from unittest.mock import patch

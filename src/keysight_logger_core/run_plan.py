@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ._request_config import acquisition_config_from_start_request
 from .measurement import (
     create_measurement_plugin,
     get_measurement_definition,
     normalize_measurement_type,
 )
-from .models import AcquisitionConfig, InstrumentProfile, StartRequest
+from .models import InstrumentProfile, StartRequest
 from .trigger import HardwareTriggerAdapter
 from .validation import resolve_csv_path, resolve_measurement_range
 
@@ -144,28 +145,7 @@ def build_start_plan(
     measurement_type = normalize_measurement_type(args.measurement)
     measurement_def = get_measurement_definition(measurement_type)
     csv_path = str(resolve_csv_path(args.csv))
-    config = AcquisitionConfig(
-        measurement_type=measurement_type,
-        trigger_timeout_ms=args.trigger_timeout_ms,
-        max_samples=args.max_samples,
-        trigger_count=args.trigger_count,
-        sample_count=args.sample_count,
-        timer_interval_s=args.timer_interval_s,
-        buffer_drain_size=args.buffer_drain_size,
-        allow_buffer_overflow_risk=args.allow_buffer_overflow_risk,
-        nplc=args.nplc,
-        auto_zero=args.auto_zero,
-        auto_range=args.auto_range,
-        measurement_range=resolve_measurement_range(args),
-        current_range=args.current_range,
-        ac_bandwidth_hz=args.ac_bandwidth_hz,
-        gate_time_s=args.gate_time_s,
-        freq_period_timeout=args.freq_period_timeout,
-        current_terminal=args.current_terminal,
-        dcv_input_impedance=args.dcv_input_impedance,
-        hw_trigger_delay_s=args.hw_trigger_delay_s,
-        vm_comp_slope=args.vm_comp_slope,
-    )
+    config = acquisition_config_from_start_request(args, measurement_type)
     measurement = create_measurement_plugin(measurement_type)
     recorder = _PlanRecorder()
     measurement.configure(recorder, config)

@@ -133,6 +133,32 @@ function Join-ProcessArguments {
     return (($Arguments | ForEach-Object { ConvertTo-ProcessArgument -Argument $_ }) -join " ")
 }
 
+function Write-Utf8NoBomText {
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
+    )
+
+    [System.IO.File]::WriteAllText(
+        $LiteralPath,
+        $Text,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Write-Utf8NoBomLines {
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines
+    )
+
+    [System.IO.File]::WriteAllLines(
+        $LiteralPath,
+        $Lines,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 function Invoke-CapturedCommand {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -157,8 +183,8 @@ function Invoke-CapturedCommand {
     $process.WaitForExit()
     $finishedAt = Get-Date
 
-    Set-Content -LiteralPath $StdOutPath -Value $stdout -Encoding UTF8
-    Set-Content -LiteralPath $StdErrPath -Value $stderr -Encoding UTF8
+    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
+    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
 
     return [ordered]@{
         name = $Name
@@ -254,8 +280,8 @@ function Invoke-CapturedStartProcess {
     $finishedAt = Get-Date
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    Set-Content -LiteralPath $StdOutPath -Value $stdout -Encoding UTF8
-    Set-Content -LiteralPath $StdErrPath -Value $stderr -Encoding UTF8
+    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
+    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
 
     return [ordered]@{
         name = $Name
@@ -866,7 +892,7 @@ function Write-LiveArtifacts {
         scpi_diagnostics = @($ScpiDiagnosticItems)
         commands = @($CommandItems)
     }
-    $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $reportPath -Encoding UTF8
+    Write-Utf8NoBomText -LiteralPath $reportPath -Text ($report | ConvertTo-Json -Depth 12)
 
     $summaryLines = @(
         "# Live CLI Check Summary",
@@ -944,7 +970,7 @@ function Write-LiveArtifacts {
             $summaryLines += $line
         }
     }
-    Set-Content -LiteralPath $summaryPath -Value $summaryLines -Encoding UTF8
+    Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines
 }
 
 if ([string]::IsNullOrWhiteSpace($Resource)) {

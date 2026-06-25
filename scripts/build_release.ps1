@@ -22,6 +22,19 @@ function Get-ProjectVersion {
     return $match.Matches[0].Groups[1].Value
 }
 
+function Write-Utf8NoBomLines {
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines
+    )
+
+    [System.IO.File]::WriteAllLines(
+        $LiteralPath,
+        $Lines,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $Version = Get-ProjectVersion
 }
@@ -65,6 +78,6 @@ $checksums = foreach ($artifact in Get-ChildItem -LiteralPath $versionDir -File 
     $hash = Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.FullName
     "$($hash.Hash.ToLowerInvariant())  $($artifact.Name)"
 }
-Set-Content -LiteralPath (Join-Path $versionDir "checksums.txt") -Value $checksums -Encoding UTF8
+Write-Utf8NoBomLines -LiteralPath (Join-Path $versionDir "checksums.txt") -Lines $checksums
 
 Write-Host "release artifacts: $versionDir"

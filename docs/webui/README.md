@@ -503,7 +503,8 @@ Backend adapter file:
 
 Tests:
 
-- `tests/webui/test_web_ui.py`
+- `tests/webui/test_webui_api.py`
+- `tests/webui/test_webui_static.py`
 - `tests/webui/test_launcher.py`
 - Core contract and package boundary tests listed in the validation commands
   below.
@@ -526,7 +527,7 @@ node --check src\keysight_logger_webui\static\app.js
 Focused WebUI/Core no-hardware validation:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_package_metadata.py tests/webui/test_web_ui.py tests/webui/test_launcher.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_package_metadata.py tests/webui/test_webui_api.py tests/webui/test_webui_static.py tests/webui/test_launcher.py -q -p no:cacheprovider
 ```
 
 Build the optional local launcher exe with PyInstaller from an environment that
@@ -644,4 +645,3 @@ Live panel has no samples:
 - [WebUI Change Rules](web-ui-change-rules.md): maintainer and agent-facing
   rules for UI changes.
 - [WebUI Changelog](CHANGELOG.md): package release notes.
-

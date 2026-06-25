@@ -5,11 +5,12 @@ import threading
 import time
 from typing import Any, Callable
 
+from ._request_config import acquisition_config_from_start_request
 from .acquisition import TriggerAcquisitionEngine
 from .instrument import InstrumentError
 from .instrument_backend import create_instrument_backend
 from .measurement import create_measurement_plugin, normalize_measurement_type
-from .models import AcquisitionConfig, InstrumentConfig, InstrumentProfile, StartRequest
+from .models import InstrumentConfig, InstrumentProfile, StartRequest
 from .session import (
     NoOpStartRunControls,
     SoftwareTriggerControlPlane,
@@ -24,7 +25,7 @@ from .session import (
 )
 from .storage import CsvWriter
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
-from .validation import resolve_csv_path, resolve_measurement_range
+from .validation import resolve_csv_path
 
 
 @dataclass(frozen=True)
@@ -37,34 +38,6 @@ class StartRunnerDependencies:
     server_factory: Callable[..., Any] = field(default_factory=lambda: SoftwareTriggerAdapter)
     thread_factory: Callable[..., threading.Thread] = field(default_factory=lambda: threading.Thread)
     sleep: Callable[[float], None] = field(default_factory=lambda: time.sleep)
-
-
-def _acquisition_config_from_request(
-    request: StartRequest,
-    measurement_type: str,
-) -> AcquisitionConfig:
-    return AcquisitionConfig(
-        measurement_type=measurement_type,
-        trigger_timeout_ms=request.trigger_timeout_ms,
-        max_samples=request.max_samples,
-        trigger_count=request.trigger_count,
-        sample_count=request.sample_count,
-        timer_interval_s=request.timer_interval_s,
-        buffer_drain_size=request.buffer_drain_size,
-        allow_buffer_overflow_risk=request.allow_buffer_overflow_risk,
-        nplc=request.nplc,
-        auto_zero=request.auto_zero,
-        auto_range=request.auto_range,
-        measurement_range=resolve_measurement_range(request),
-        current_range=request.current_range,
-        ac_bandwidth_hz=request.ac_bandwidth_hz,
-        gate_time_s=request.gate_time_s,
-        freq_period_timeout=request.freq_period_timeout,
-        current_terminal=request.current_terminal,
-        dcv_input_impedance=request.dcv_input_impedance,
-        hw_trigger_delay_s=request.hw_trigger_delay_s,
-        vm_comp_slope=request.vm_comp_slope,
-    )
 
 
 def run_start_session(
@@ -86,7 +59,7 @@ def run_start_session(
     if request.csv is None:
         event_sink.emit(StartRunEvent.message_event(active_run_id, f"csv output path: {csv_path}"))
     iconfig = InstrumentConfig(resource_string=request.resource, timeout_ms=request.timeout_ms)
-    aconfig = _acquisition_config_from_request(request, measurement_type)
+    aconfig = acquisition_config_from_start_request(request, measurement_type)
     instrument = deps.instrument_backend_factory(
         iconfig,
         simulate=request.simulate,

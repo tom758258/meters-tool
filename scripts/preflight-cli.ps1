@@ -144,6 +144,32 @@ function Join-ProcessArguments {
     return (($Arguments | ForEach-Object { ConvertTo-ProcessArgument -Argument $_ }) -join " ")
 }
 
+function Write-Utf8NoBomText {
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Text
+    )
+
+    [System.IO.File]::WriteAllText(
+        $LiteralPath,
+        $Text,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
+function Write-Utf8NoBomLines {
+    param(
+        [Parameter(Mandatory = $true)][string]$LiteralPath,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][AllowEmptyString()][string[]]$Lines
+    )
+
+    [System.IO.File]::WriteAllLines(
+        $LiteralPath,
+        $Lines,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+}
+
 function Invoke-CapturedCommand {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
@@ -168,8 +194,8 @@ function Invoke-CapturedCommand {
     $process.WaitForExit()
     $finishedAt = Get-Date
 
-    Set-Content -LiteralPath $StdOutPath -Value $stdout -Encoding UTF8
-    Set-Content -LiteralPath $StdErrPath -Value $stderr -Encoding UTF8
+    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
+    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
 
     return [ordered]@{
         name = $Name
@@ -265,8 +291,8 @@ function Invoke-CapturedStartProcess {
     $finishedAt = Get-Date
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    Set-Content -LiteralPath $StdOutPath -Value $stdout -Encoding UTF8
-    Set-Content -LiteralPath $StdErrPath -Value $stderr -Encoding UTF8
+    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
+    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
 
     return [ordered]@{
         name = $Name
@@ -756,7 +782,7 @@ function Invoke-TargetPreflight {
         -FilePath $Python `
         -Arguments @(
             "-m", "pytest",
-            "tests/cli/test_cli_args.py",
+            "tests/cli/test_cli_list_resources_command.py",
             "-q", "-p", "no:cacheprovider",
             "--basetemp", ".tmp_tests\pytest_tmp",
             "-k", "list_resources"
@@ -799,7 +825,7 @@ function Invoke-TargetPreflight {
         commands = $commandItems
         checks = $checkItems
     }
-    $report | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $reportPath -Encoding UTF8
+    Write-Utf8NoBomText -LiteralPath $reportPath -Text ($report | ConvertTo-Json -Depth 10)
 
     $summaryLines = @(
         "# CLI Preflight Summary",
@@ -825,7 +851,7 @@ function Invoke-TargetPreflight {
         "- Mocked list-resources coverage: passed",
         "- Report: $reportPath"
     )
-    Set-Content -LiteralPath $summaryPath -Value $summaryLines -Encoding UTF8
+    Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines
 
     Write-Host "preflight passed: $ResolvedTarget"
     Write-Host "summary: $summaryPath"

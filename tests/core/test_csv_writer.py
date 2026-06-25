@@ -1,4 +1,4 @@
-﻿import csv
+import csv
 from datetime import datetime, timezone
 
 from keysight_logger_core.models import MeasurementSample

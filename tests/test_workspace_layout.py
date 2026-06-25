@@ -2,11 +2,25 @@ from __future__ import annotations
 
 import importlib.util
 import re
+import subprocess
 from pathlib import Path
 from urllib.parse import unquote
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+TEXT_FILE_SUFFIXES = {
+    ".css",
+    ".html",
+    ".js",
+    ".json",
+    ".md",
+    ".ps1",
+    ".py",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
 
 
 def read_project_version() -> str:
@@ -126,6 +140,27 @@ def test_public_markdown_avoids_local_private_context():
                 violations.append(f"{relative}:{line_number}: {label}: {match.group(0)!r}")
 
     assert not violations, "\n".join(violations)
+
+
+def test_tracked_text_files_are_utf8_without_bom():
+    result = subprocess.run(
+        ["git", "ls-files"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    violations = []
+    for relative in result.stdout.splitlines():
+        path = REPO_ROOT / relative
+        if not path.exists():
+            continue
+        if path.suffix.lower() not in TEXT_FILE_SUFFIXES:
+            continue
+        if path.read_bytes().startswith(b"\xef\xbb\xbf"):
+            violations.append(relative)
+
+    assert not violations, "UTF-8 BOM found in tracked text files:\n" + "\n".join(violations)
 
 
 def test_public_package_versions_match_package_metadata():

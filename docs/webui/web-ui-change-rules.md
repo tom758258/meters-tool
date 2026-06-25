@@ -33,7 +33,8 @@ Preferred editable files:
 Optional, only when a stable UI contract changes or a new public behavior needs
 contract coverage:
 
-- `tests/webui/test_web_ui.py`
+- `tests/webui/test_webui_api.py`
+- `tests/webui/test_webui_static.py`
 
 Optional documentation updates:
 
@@ -356,7 +357,7 @@ ask.
 Run the narrowest relevant checks first:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/webui/test_web_ui.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_api.py tests/webui/test_webui_static.py -q -p no:cacheprovider
 ```
 
 If `app.js` changed, also run:
@@ -368,7 +369,7 @@ node --check src\keysight_logger_webui\static\app.js
 When practical, run broader smoke tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/webui/test_web_ui.py tests/core/test_capabilities.py tests/core/test_measurement.py -q -p no:cacheprovider
+.\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_api.py tests/webui/test_webui_static.py tests/core/test_capabilities.py tests/core/test_measurement.py -q -p no:cacheprovider
 ```
 
 If the local environment lacks dependencies, say exactly what could not run and
