@@ -410,29 +410,23 @@ class CoreValidationTests(unittest.TestCase):
         )
 
     def test_frequency_period_options_and_scope(self):
-        for measurement in ("frequency", "period"):
-            with self.subTest(measurement=measurement):
+        for timeout in ("auto", "1s"):
+            with self.subTest(timeout=timeout):
                 self.assert_valid(
                     make_start_request(
-                        measurement=measurement,
+                        measurement="frequency",
                         gate_time_s=0.1,
-                        freq_period_timeout="auto",
+                        freq_period_timeout=timeout,
                     )
                 )
-                self.assert_valid(
-                    make_start_request(
-                        measurement=measurement,
-                        gate_time_s=1.0,
-                        freq_period_timeout="1s",
-                    )
-                )
+        self.assert_valid(make_start_request(measurement="period", gate_time_s=1.0))
         self.assert_invalid(
             make_start_request(measurement="frequency", gate_time_s=0.5),
             "Allowed gate time values in s: 0.01, 0.1, 1",
         )
         self.assert_invalid(
-            make_start_request(measurement="period", freq_period_timeout="2s"),
-            "Allowed values: auto, 1s",
+            make_start_request(measurement="period", freq_period_timeout="auto"),
+            "--freq-period-timeout is not supported for --measurement period",
         )
         self.assert_invalid(
             make_start_request(measurement="voltage-dc", gate_time_s=0.1),
@@ -440,7 +434,7 @@ class CoreValidationTests(unittest.TestCase):
         )
         self.assert_invalid(
             make_start_request(measurement="voltage-ac", freq_period_timeout="auto"),
-            "--freq-period-timeout can only be used with --measurement frequency or period",
+            "--freq-period-timeout is not supported for --measurement voltage-ac",
         )
 
     def test_frequency_period_use_neutral_nplc(self):
@@ -662,7 +656,7 @@ class CoreValidationTests(unittest.TestCase):
             ("NPLC", "DC", "resistance", "0.02", "0.2", "1", "10", "100"),
             ("AC bandwidth", "current", "voltage", "3", "20", "200", "Hz"),
             ("Frequency/Period gate time", "0.01", "0.1", "1", "default"),
-            ("Frequency/Period timeout", "auto", "1s", "default"),
+            ("Frequency timeout", "auto", "1s", "default", "Period", "unsupported"),
             ("current terminal", "current", "3", "10"),
             ("current-dc", "0.0001", "0.001", "0.01", "0.1", "1", "3", "10", "A"),
             ("voltage-dc-ratio", "0.1", "1", "10", "100", "1000", "V"),

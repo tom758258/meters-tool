@@ -80,12 +80,14 @@ Core request fields use stable numeric or semantic values: `auto_zero` accepts
 `True`, `False`, `"on"`, `"off"`, or `"once"`; `ac_bandwidth_hz` accepts
 `3`, `20`, or `200` for AC, Frequency, and Period measurements;
 `gate_time_s` accepts `0.01`, `0.1`, or `1.0` for Frequency and Period;
-`freq_period_timeout` accepts `auto` or `1s`; `current_terminal` accepts `3` or
+`freq_period_timeout` accepts `auto` or `1s` for Frequency only;
+`current_terminal` accepts `3` or
 `10` for current measurements; and `dcv_input_impedance` accepts `default`,
 `10m`, or `auto` for DCV measurements. Frequency and Period apply effective
-defaults of Auto Range, `20` Hz AC filter, `0.1` s gate time, and `auto`
-timeout when their optional request fields are unset. Adapter labels, menu
-text, and UI grouping remain adapter-owned.
+defaults of Auto Range, `20` Hz AC filter, and `0.1` s gate time. Frequency
+also defaults its timeout to `auto`. Period exposes no timeout choices, sends
+no timeout SCPI, and rejects an explicitly supplied `freq_period_timeout`.
+Adapter labels, menu text, and UI grouping remain adapter-owned.
 
 Adapters that expose DCV Ratio as a `voltage-dc` option should translate that
 adapter-owned selection into Core `measurement="voltage-dc-ratio"` before
@@ -110,7 +112,8 @@ for measurement in capabilities.measurements:
 `InstrumentProfile` and Core measurement definitions. It reports adapter-facing
 measurement names such as `current-dc` while keeping internal normalized
 measurement types such as `current_dc`. Per-measurement capabilities include
-Frequency/Period gate-time and timeout choices plus their effective defaults.
+Frequency/Period gate-time choices and Frequency-only timeout choices plus
+their effective defaults.
 
 ## Validation Flow
 

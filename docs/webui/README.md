@@ -194,7 +194,7 @@ Currently surfaced measurement modes include:
 
 The frontend must not invent measurement options. It should populate choices,
 defaults, ranges, NPLC options, AC bandwidth/filter options, Frequency/Period
-gate-time and timeout options, current terminal options, and
+gate-time options, Frequency timeout options, current terminal options, and
 measurement-specific controls from `/api/capabilities`.
 
 Measurement-specific UI behavior:
@@ -564,8 +564,8 @@ For no-hardware UI smoke:
 - Measurement changes update range unit, range choices, and NPLC visibility.
 - `voltage-dc` shows DCV Input Z; other measurements hide it.
 - AC measurements show AC filter where supported and hide NPLC.
-- Frequency and Period show AC Filter, Gate Time, and Timeout; hidden controls
-  are disabled for every other measurement.
+- Frequency and Period show AC Filter and Gate Time. Frequency also shows
+  Timeout; Period and other measurements hide and disable it.
 - Current measurements show current terminal where supported.
 - Trigger mode changes show and hide only relevant fields.
 - Trigger button appears only for manual software-triggered modes.

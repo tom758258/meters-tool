@@ -139,21 +139,23 @@ class WebUiApiTests(unittest.TestCase):
                 )
                 self.assertEqual([3.0, 20.0, 200.0], measurement["ac_bandwidth_hz_options"])
                 self.assertEqual([0.01, 0.1, 1.0], measurement["gate_time_s_options"])
-                self.assertEqual(
-                    ["auto", "1s"],
-                    measurement["freq_period_timeout_options"],
-                )
                 self.assertTrue(measurement["supports_gate_time"])
-                self.assertTrue(measurement["supports_freq_period_timeout"])
                 self.assertEqual(
                     {
                         "auto_range": True,
                         "ac_bandwidth_hz": 20.0,
                         "gate_time_s": 0.1,
-                        "freq_period_timeout": "auto",
+                        "freq_period_timeout": "auto" if name == "frequency" else None,
                     },
                     measurement["defaults"],
                 )
+        self.assertEqual(
+            ["auto", "1s"],
+            measurements["frequency"]["freq_period_timeout_options"],
+        )
+        self.assertTrue(measurements["frequency"]["supports_freq_period_timeout"])
+        self.assertEqual([], measurements["period"]["freq_period_timeout_options"])
+        self.assertFalse(measurements["period"]["supports_freq_period_timeout"])
 
         limits = payload["limits"]
         self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
@@ -872,6 +874,26 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         client.post("/api/runs/current/stop")
         self.wait_until_inactive(client)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "measurement": "period",
+                "freq_period_timeout": "auto",
+                "trigger_mode": "software-custom",
+                "trigger_timeout_ms": 500,
+                "trigger_count": 1,
+                "sample_count": 1,
+            },
+        )
+        self.assertEqual(422, response.status_code)
+        self.assertIn(
+            "--freq-period-timeout is not supported for --measurement period",
+            response.json()["detail"],
+        )
 
         response = client.post(
             "/api/runs",

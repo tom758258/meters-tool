@@ -276,6 +276,8 @@ Live `report.json` fields:
 - `live_executed`: `true` only after the wrapper starts live acquisition cases.
 - `cases`: live case result objects.
 - `dry_runs`: dry-run plan records for each selected live case.
+- `scpi_diagnostics`: Frequency/Period probe records. This is empty for
+  `-PlanOnly` and suites without Frequency/Period cases.
 - `commands`: captured command result objects.
 
 Interactive live and `-PlanOnly` wrapper runs execute preflight before case
@@ -317,12 +319,34 @@ Live case result objects include:
 - `csv`
 - `failure_reasons`
 - `command`
+- `live_command_skipped`: `true` when a failed SCPI probe prevents the
+  duplicate formal CLI acquisition run.
+- `scpi_probe_command`: captured private probe command, or `null`.
+- `scpi_diagnostic_path`: probe JSON artifact path, or `null`.
+- `scpi_diagnostic`: the associated probe record, or `null`.
 
 The live wrapper supports `minimal`, `basic`, `frequency-period`, `external`,
 and `full` suites. `frequency-period` runs one immediate Auto Range Frequency
 sample and one immediate Auto Range Period sample with a `20` Hz AC filter,
-`0.1` second gate time, and automatic Frequency/Period timeout. `full` includes
-the basic, Frequency/Period, and external cases.
+`0.1` second gate time, automatic Frequency timeout, and no Period timeout
+command. `full` includes the basic, Frequency/Period, and external cases.
+
+Before each live Frequency/Period CLI case, the wrapper runs a private probe
+against the explicit `-Resource`. The probe records `*IDN?`, firmware revision,
+the `READ?` response, and up to 10 `SYST:ERR?` responses immediately after each
+planned SCPI command. A case passes only when the probe reports zero for every
+SCPI error response and the formal CLI sample/CSV checks also pass. A failed
+probe skips the duplicate formal CLI run but does not prevent the other
+Frequency/Period measurement from being diagnosed.
+
+The probe sends only the runtime's planned SCPI commands; it does not search
+for alternate timeout syntax. Probe cleanup records the order `abort`,
+`release_to_local`, and `close`. Live validation on a 34461A with firmware
+A.03.03 found no SCPI errors for the Frequency or Period probe after the Period
+timeout command was removed, and both formal cases produced one sample and CSV
+row. This behavior resolves ambiguity in the
+[Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf)
+without recording a real VISA resource or serial number.
 
 `summary.md` is not a schema source of truth. Orchestrators should read
 `report.json` for pass/fail decisions and use `summary.md` only for operator

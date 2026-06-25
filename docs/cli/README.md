@@ -60,7 +60,7 @@ Implemented:
 - Optional live-resource filtering with `list-resources --live-only`.
 - Optional measurement controls: measurement type, Auto Range, manual range,
   DCV input impedance, Auto Zero including `once`, NPLC, AC bandwidth/filter,
-  Frequency/Period gate time and timeout, current terminal selection, hardware
+  Frequency/Period gate time, Frequency timeout, current terminal selection, hardware
   trigger delay, hardware trigger slope, and VM Comp slope.
 - Immediate CSV flush after every captured sample.
 
@@ -266,8 +266,20 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check
 
 After reviewing the plans, remove `-PlanOnly` to run the two bounded live
 cases. The suite uses Auto Range, a `20` Hz AC filter, a `0.1` second gate
-time, automatic Frequency/Period timeout, and one sample per measurement.
-Compare the reported value and CSV row with the 34461A front panel.
+time, automatic Frequency timeout, no Period timeout command, and one sample
+per measurement.
+Before each formal CLI case, a private diagnostic session sends the planned
+SCPI commands and checks `SYST:ERR?` after every command and after `READ?`.
+The report includes the IDN, firmware revision, per-command error responses,
+and the diagnostic JSON path. A probe error fails that case and skips its
+duplicate formal run while allowing the other measurement to be diagnosed.
+Compare the reported value and CSV row with the 34461A front panel. On a
+34461A with firmware A.03.03, both probes completed without SCPI errors and
+each formal case produced one sample and CSV row after the Period timeout
+command was omitted. The
+[Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf),
+Edition 10, May 2024, contains ambiguous timeout syntax; observed instrument
+behavior is authoritative for the unsupported Period header.
 
 If stdin is redirected and `-PlanOnly` is not set, `live-cli-check.ps1` refuses
 live acquisition and writes a `confirmation_required` report. This is expected:
@@ -280,7 +292,7 @@ The CLI package has three wrapper scripts:
 | Script | Hardware use | Purpose |
 | --- | --- | --- |
 | `scripts\preflight-cli.ps1` | No hardware | Runs dry-run, simulator, client dry-run, mocked `list-resources`, and wrapper contract checks. Use this before live work. |
-| `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs live-wrapper plans and, with interactive confirmation, bounded live smoke cases against the explicit `-Resource`. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`. |
+| `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs live-wrapper plans and, with interactive confirmation, bounded live smoke cases against the explicit `-Resource`. Frequency/Period cases first run per-command SCPI error diagnostics. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`. |
 | `scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
 
 ## Basic Workflow
@@ -431,7 +443,7 @@ after that many successful timer CSV rows.
 | `--current-range VALUE` | Current DC only | None | Compatibility alias for `--range` with `current-dc`. Do not combine with `--range`; invalid with AC current, voltage, and resistance measurements. |
 | `--ac-bandwidth-hz 3\|20\|200` | AC/Frequency/Period only | Measurement-specific | AC bandwidth/filter setting. AC current/voltage leave it unchanged when omitted; Frequency/Period default to `20` Hz. |
 | `--gate-time-s 0.01\|0.1\|1` | Frequency/Period only | `0.1` | Frequency/Period aperture or gate time in seconds. |
-| `--freq-period-timeout auto\|1s` | Frequency/Period only | `auto` | Use automatic Frequency/Period timeout or disable auto timeout for the fixed 1-second behavior. |
+| `--freq-period-timeout auto\|1s` | Frequency only | `auto` | Use automatic Frequency timeout or disable auto timeout for the fixed 1-second behavior. Period rejects this option and sends no timeout SCPI. |
 | `--current-terminal 3\|10` | Current only | `3` | Current input terminal. The 10 A range requires `--current-terminal 10`; `--current-terminal 10` is valid only with the 10 A range. |
 | `--dcv-input-impedance default\|10m\|auto` | DC Voltage or DCV Ratio only | `default` | DC voltage input impedance. `default` writes no impedance command; `10m` forces 10 MOhm; `auto` enables the instrument Auto mode, which may show HighZ on low DC voltage ranges. |
 | `--vm-comp-slope pos\|neg` | No | None | Configure rear-panel VM Comp output pulse slope. Omit to leave VM Comp unchanged. |
@@ -597,7 +609,7 @@ ranges fail fast with a clear error.
 | `--auto-range` | `on` or `off` |
 | `--ac-bandwidth-hz` | `3`, `20`, or `200`, AC current/voltage and Frequency/Period only |
 | `--gate-time-s` | `0.01`, `0.1`, or `1`, Frequency/Period only |
-| `--freq-period-timeout` | `auto` or `1s`, Frequency/Period only |
+| `--freq-period-timeout` | `auto` or `1s`, Frequency only |
 | `--current-terminal` | `3` or `10`, current measurements only |
 | `--status-format` | `text` or `jsonl` |
 | `--timeout-ms` | `100` to `600000` |
@@ -669,8 +681,8 @@ Additional validation rules:
 - `voltage-dc-ratio` accepts only default/on Auto Zero behavior.
 - `--ac-bandwidth-hz` is valid only with `current-ac`, `voltage-ac`,
   `frequency`, or `period`.
-- `--gate-time-s` and `--freq-period-timeout` are valid only with `frequency`
-  or `period`.
+- `--gate-time-s` is valid only with `frequency` or `period`.
+- `--freq-period-timeout` is valid only with `frequency`.
 - `--current-terminal` is valid only with current measurements. The 10 A range
   requires `--current-terminal 10`, and `--current-terminal 10` requires the
   10 A range.
@@ -1143,7 +1155,9 @@ acquisitions.
 
 Frequency and Period share the scalar `READ?`, hardware-triggered `FETC?`, and
 buffered capture paths. Their effective defaults are Auto Range, `20` Hz AC
-filter, `0.1` s gate time, and automatic timeout.
+filter, and `0.1` s gate time. Frequency defaults to automatic timeout. Period
+sends no timeout SCPI and leaves the instrument's existing Period timeout state
+unchanged.
 
 Preview each setup before live I/O:
 
@@ -1174,8 +1188,10 @@ use `measurement_type=period`, `unit=s`.
 The same pair of checks is available through
 `scripts\live-cli-check.ps1 -Suite frequency-period`. The wrapper performs
 preflight and dry-run planning first, requires interactive confirmation before
-live I/O, and records each measured value and unit in `report.json` and
-`summary.md`.
+live I/O, checks the SCPI error queue after each planned Frequency/Period
+command, and records the diagnostics plus each measured value and unit in
+`report.json` and `summary.md`. `-PlanOnly` remains no-hardware and does not run
+the SCPI probe.
 
 ### Validated Resistance 2-Wire Smoke Tests
 

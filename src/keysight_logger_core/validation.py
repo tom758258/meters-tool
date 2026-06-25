@@ -149,7 +149,7 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         "omit --nplc or use 1.0\n"
         "  AC bandwidth choices for AC current/voltage and Frequency/Period: 3, 20, 200 Hz\n"
         "  Frequency/Period gate time choices: 0.01, 0.1, 1 s; default: 0.1 s\n"
-        "  Frequency/Period timeout choices: auto, 1s; default: auto\n"
+        "  Frequency timeout choices: auto, 1s; default: auto; Period unsupported\n"
         "  current terminal choices for current measurements: 3, 10\n"
         "  range choices by measurement:\n"
         + "\n".join(range_lines)
@@ -291,7 +291,8 @@ def validate_start_request(
         normalized_freq_period_timeout = str(args.freq_period_timeout).strip().lower()
         if not options.freq_period_timeout_options:
             raise ValueError(
-                "--freq-period-timeout can only be used with --measurement frequency or period"
+                f"--freq-period-timeout is not supported for --measurement "
+                f"{definition.canonical_name}"
             )
         if normalized_freq_period_timeout not in options.freq_period_timeout_options:
             raise ValueError(

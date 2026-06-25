@@ -572,14 +572,13 @@ function Invoke-TargetPreflight {
         },
         [pscustomobject]@{
             name = "period"
-            mode_args = @("--ac-bandwidth-hz", "20", "--gate-time-s", "0.1", "--freq-period-timeout", "auto")
+            mode_args = @("--ac-bandwidth-hz", "20", "--gate-time-s", "0.1")
             unit = "s"
             scpi_commands = @(
                 "CONF:PER",
                 "PER:VOLT:RANG:AUTO ON",
                 "PER:RANG:LOW 20",
-                "PER:APER 0.1",
-                "PER:TIM:AUTO ON"
+                "PER:APER 0.1"
             )
         },
         [pscustomobject]@{ name = "resistance-2w"; mode_args = @(); unit = $null; scpi_commands = @() },

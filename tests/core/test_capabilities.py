@@ -100,14 +100,20 @@ class CapabilitiesTests(unittest.TestCase):
                     KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
                     options.gate_time_s_options,
                 )
-                self.assertEqual(
-                    KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
-                    options.freq_period_timeout_options,
-                )
                 self.assertTrue(options.default_auto_range)
                 self.assertEqual(20.0, options.default_ac_bandwidth_hz)
                 self.assertEqual(0.1, options.default_gate_time_s)
-                self.assertEqual("auto", options.default_freq_period_timeout)
+
+        frequency = profile.get_measurement_options("frequency")
+        self.assertEqual(
+            KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
+            frequency.freq_period_timeout_options,
+        )
+        self.assertEqual("auto", frequency.default_freq_period_timeout)
+
+        period = profile.get_measurement_options("period")
+        self.assertEqual((), period.freq_period_timeout_options)
+        self.assertIsNone(period.default_freq_period_timeout)
 
     def test_profile_lookup_defaults_to_34461a(self):
         self.assertIs(get_default_instrument_profile(), KEYSIGHT_34461A_PROFILE)

@@ -167,16 +167,20 @@ GET /api/capabilities
 - `voltage-dc-ratio`
 - `current-ac`
 - `voltage-ac`
+- `frequency`
+- `period`
 - `resistance-2w`
 - `resistance-4w`
 
-前端絕不可自行虛構量測選項。它應該從 `/api/capabilities` 填入選項、預設值、範圍、NPLC 選項、AC 頻寬選項、電流端子選項以及量測特有的控制項。
+前端絕不可自行虛構量測選項。它應該從 `/api/capabilities` 填入選項、預設值、範圍、NPLC 選項、AC 頻寬/濾波器選項、頻率/週期閘門時間、僅限頻率的 timeout 選項、電流端子選項以及量測特有的控制項。
 
 量測特有的 UI 行為：
 
 - NPLC 僅出現在支援的量測中。
-- AC 量測不顯示 NPLC。
-- AC 頻寬僅在支援的 AC 電流和 AC 電壓中顯示。
+- AC、頻率和週期量測不顯示 NPLC。
+- AC 頻寬/濾波器會在支援的 AC 電流、AC 電壓、頻率和週期中顯示。
+- 頻率和週期會顯示閘門時間；只有頻率會顯示 Timeout。
+- 週期的 timeout capability 為空，因此 UI 會隱藏並停用 Timeout，也不會送出該 payload。
 - 電流端子選擇僅在支援的電流量測中顯示。
 - DCV Input Z（輸入阻抗）僅在 `voltage-dc` 中顯示。
 - 在 Core 支援的情況下，VM Comp 仍會作為量測選項。

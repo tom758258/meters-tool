@@ -30,12 +30,12 @@ The 34461A profile supports these measurement names, in profile order:
 - `resistance-4w`
 
 Profile data owns per-measurement range, NPLC, AC bandwidth/filter, gate time,
-Frequency/Period timeout, current terminal, DCV input impedance, and Auto Zero
+Frequency timeout, current terminal, DCV input impedance, and Auto Zero
 validation where applicable.
 Adapters can retrieve the same Core-owned facts through
 `get_core_capabilities()` instead of reading profile internals.
 
-| Measurement | Range choices | NPLC choices | AC filter | Gate time | Freq/Period timeout | Current terminal | DCV input Z | Auto Zero |
+| Measurement | Range choices | NPLC choices | AC filter | Gate time | Frequency timeout | Current terminal | DCV input Z | Auto Zero |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `current-dc` | 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A | 0.02, 0.2, 1, 10, 100 | none | none | none | 3, 10 | none | on, off, once |
 | `voltage-dc` | 0.1, 1, 10, 100, 1000 V | 0.02, 0.2, 1, 10, 100 | none | none | none | none | default, 10m, auto | on, off, once |
@@ -43,7 +43,7 @@ Adapters can retrieve the same Core-owned facts through
 | `current-ac` | 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A | none | 3, 20, 200 Hz | none | none | 3, 10 | none | none |
 | `voltage-ac` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz | none | none | none | none | none |
 | `frequency` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | auto, 1s; default auto | none | none | none |
-| `period` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | auto, 1s; default auto | none | none | none |
+| `period` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | none | none | none | none |
 | `resistance-2w` | 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 Ohm | 0.02, 0.2, 1, 10, 100 | none | none | none | none | none | on, off, once |
 | `resistance-4w` | 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 Ohm | 0.02, 0.2, 1, 10, 100 | none | none | none | none | none | none |
 
@@ -76,9 +76,17 @@ default `20` Hz filter.
 
 Frequency and Period use voltage range choices of `0.1`, `1`, `10`, `100`, and
 `750` V. Auto Range is the default. `gate_time_s` accepts `0.01`, `0.1`, or
-`1.0` seconds and defaults to `0.1`. `freq_period_timeout` accepts `auto` or
-`1s` and defaults to `auto`. These fields are rejected for other measurement
-types. Frequency samples use unit `Hz`; Period samples use unit `s`.
+`1.0` seconds and defaults to `0.1`. For Frequency,
+`freq_period_timeout` accepts `auto` or `1s` and defaults to `auto`. Period
+does not expose a timeout option and sends no timeout SCPI, leaving the
+instrument's Period timeout state unchanged. Explicit Period timeout values are
+rejected before instrument I/O. Frequency samples use unit `Hz`; Period samples
+use unit `s`.
+
+This Period behavior was validated on a 34461A with firmware A.03.03. The
+[Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf)
+contains ambiguous timeout syntax; the implementation follows observed
+instrument behavior and does not send the unsupported Period header.
 
 Current terminal selection is available for `current-dc` and `current-ac`
 through `current_terminal`. Allowed values are `3` and `10`. Selecting the

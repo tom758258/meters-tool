@@ -199,7 +199,6 @@ def test_preflight_report_contract():
         "PER:VOLT:RANG:AUTO ON",
         "PER:RANG:LOW 20",
         "PER:APER 0.1",
-        "PER:TIM:AUTO ON",
     ]
 
     summary = summary_path.read_text(encoding="utf-8")
@@ -255,6 +254,7 @@ def test_live_plan_only_minimal_report_contract():
     assert report["suite"] == "minimal"
     assert report["resource"] == "SIM::34461A"
     assert report["cases"] == []
+    assert report["scpi_diagnostics"] == []
     assert_under_tmp_tests(report["output_dir"])
 
     assert {dry_run["name"] for dry_run in report["dry_runs"]} == {
@@ -296,6 +296,7 @@ def test_live_plan_only_full_report_contract():
     assert report["plan_only"] is True
     assert report["live_executed"] is False
     assert report["cases"] == []
+    assert report["scpi_diagnostics"] == []
     assert_under_tmp_tests(report["output_dir"])
 
     expected_names = [
@@ -363,6 +364,10 @@ def test_live_plan_only_frequency_period_report_contract():
     assert report["plan_only"] is True
     assert report["live_executed"] is False
     assert report["cases"] == []
+    assert report["scpi_diagnostics"] == []
+    assert not any(
+        command["name"].endswith("_scpi_probe") for command in report["commands"]
+    )
 
     plans = {item["name"]: item["plan"] for item in report["dry_runs"]}
     assert set(plans) == {
@@ -383,7 +388,6 @@ def test_live_plan_only_frequency_period_report_contract():
         "PER:VOLT:RANG:AUTO ON",
         "PER:RANG:LOW 20",
         "PER:APER 0.1",
-        "PER:TIM:AUTO ON",
     ]
     assert all(plan["read_path"] == "READ?" for plan in plans.values())
 

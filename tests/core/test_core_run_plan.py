@@ -373,7 +373,20 @@ class CoreRunPlanTests(unittest.TestCase):
         )
         self.assertEqual("s", period.measurement_unit)
         self.assertEqual("FETC?", period.read_path)
-        self.assertEqual("CONF:PER", period.scpi_commands[0])
+        self.assertEqual(
+            [
+                "CONF:PER",
+                "PER:VOLT:RANG:AUTO ON",
+                "PER:RANG:LOW 20",
+                "PER:APER 0.1",
+                "TRIG:SOUR EXT",
+                "TRIG:SLOP NEG",
+                "TRIG:COUNT 1",
+                "SAMP:COUNT 1",
+                "TRIG:DEL 0.0",
+            ],
+            period.scpi_commands,
+        )
 
     def test_frequency_custom_plan_uses_buffered_read_path_and_explicit_options(self):
         plan = self.build_plan(

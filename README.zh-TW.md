@@ -4,7 +4,7 @@
 
 Keysight Logger 是給 Keysight 34461A 數位萬用電表使用的 Python 資料擷取與紀錄工具。此專案現在只發布一個 distribution：`keysight-logger`，其套件版本由 root `pyproject.toml` 定義，但仍保留三個既有 Python import package：`keysight_logger_core`、`keysight_logger_cli`、`keysight_logger_webui`。
 
-它支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DC 電壓比，以及 2 線式或 4 線式電阻量測。每筆樣本都會寫入 CSV，包含時間戳、量測類型、單位、觸發來源與相關 metadata。
+它支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。每筆樣本都會寫入 CSV，包含時間戳、量測類型、單位、觸發來源與相關 metadata。
 
 ## 功能
 

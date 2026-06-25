@@ -154,6 +154,10 @@ class CorePublicApiTests(unittest.TestCase):
         self.assertEqual(0.1, frequency.default_gate_time_s)
         self.assertEqual("auto", frequency.default_freq_period_timeout)
 
+        period = measurements["period"]
+        self.assertEqual((), period.freq_period_timeout_values)
+        self.assertIsNone(period.default_freq_period_timeout)
+
     def test_public_api_exposes_structured_warnings(self):
         request = StartRequest(
             resource="USB::FAKE",

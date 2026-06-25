@@ -909,31 +909,40 @@ class FrequencyPeriodMeasurementTests(unittest.TestCase):
             inst.commands,
         )
 
-    def test_period_manual_configuration_writes_complete_scpi_in_order(self):
+    def test_frequency_1s_configuration_disables_auto_timeout(self):
         inst = FakeInstrument()
-        measurement = PeriodMeasurement()
+        measurement = FrequencyMeasurement()
 
-        measurement.configure(
-            inst,
-            AcquisitionConfig(
-                auto_range=False,
-                measurement_range=100.0,
-                ac_bandwidth_hz=3.0,
-                gate_time_s=1.0,
-                freq_period_timeout="1s",
-            ),
-        )
+        measurement.configure(inst, AcquisitionConfig(freq_period_timeout="1s"))
 
-        self.assertEqual(
-            [
-                "CONF:PER",
-                "PER:VOLT:RANG 100",
-                "PER:RANG:LOW 3",
-                "PER:APER 1",
-                "PER:TIM:AUTO OFF",
-            ],
-            inst.commands,
-        )
+        self.assertIn("FREQ:TIM:AUTO OFF", inst.commands)
+
+    def test_period_configuration_never_writes_timeout_scpi(self):
+        for timeout in (None, "auto", "1s"):
+            with self.subTest(timeout=timeout):
+                inst = FakeInstrument()
+                measurement = PeriodMeasurement()
+
+                measurement.configure(
+                    inst,
+                    AcquisitionConfig(
+                        auto_range=False,
+                        measurement_range=100.0,
+                        ac_bandwidth_hz=3.0,
+                        gate_time_s=1.0,
+                        freq_period_timeout=timeout,
+                    ),
+                )
+
+                self.assertEqual(
+                    [
+                        "CONF:PER",
+                        "PER:VOLT:RANG 100",
+                        "PER:RANG:LOW 3",
+                        "PER:APER 1",
+                    ],
+                    inst.commands,
+                )
 
     def test_frequency_and_period_use_scalar_read_paths_and_units(self):
         cases = [

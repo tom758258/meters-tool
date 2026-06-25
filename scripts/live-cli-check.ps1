@@ -21,6 +21,7 @@ $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 $LiveRoot = Join-Path $TmpRoot "cli_live"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 $PreflightScript = Join-Path $PSScriptRoot "preflight-cli.ps1"
+$ScpiProbeScript = Join-Path $PSScriptRoot "_frequency_period_scpi_probe.py"
 
 if (-not (Test-Path -LiteralPath $Python)) {
     throw "Python executable not found: $Python"
@@ -494,7 +495,6 @@ function Get-LiveCases {
             "--measurement", "period",
             "--ac-bandwidth-hz", "20",
             "--gate-time-s", "0.1",
-            "--freq-period-timeout", "auto",
             "--max-samples", "1"
         ) `
         -ExpectedCaptured 1 `
@@ -504,8 +504,7 @@ function Get-LiveCases {
             "CONF:PER",
             "PER:VOLT:RANG:AUTO ON",
             "PER:RANG:LOW 20",
-            "PER:APER 0.1",
-            "PER:TIM:AUTO ON"
+            "PER:APER 0.1"
         )
 
     $external = @()
@@ -593,12 +592,120 @@ function Invoke-LiveDryRun {
     }
 }
 
+function Format-ScpiErrorResponses {
+    param([AllowNull()][object[]]$Responses)
+    if ($null -eq $Responses -or @($Responses).Count -eq 0) {
+        return "none"
+    }
+    return (
+        @(
+            $Responses | ForEach-Object {
+                "code=$($_.code) raw=$($_.raw)"
+            }
+        ) -join " | "
+    )
+}
+
+function Invoke-FrequencyPeriodScpiProbe {
+    param(
+        [Parameter(Mandatory = $true)][object]$CaseInfo
+    )
+
+    $measurement = [string]$CaseInfo.plan.measurement_cli_name
+    $json = Join-Path $CaseInfo.case_dir "scpi_probe.json"
+    $stderr = Join-Path $CaseInfo.case_dir "scpi_probe.stderr.txt"
+    $args = @(
+        $ScpiProbeScript,
+        "--resource", $Resource,
+        "--measurement", $measurement,
+        "--timeout-ms", "5000"
+    )
+    foreach ($scpiCommand in @($CaseInfo.plan.scpi_commands)) {
+        $args += @("--command", [string]$scpiCommand)
+    }
+
+    $commandResult = Invoke-CapturedCommand `
+        -Name "$($CaseInfo.name)_scpi_probe" `
+        -FilePath $Python `
+        -Arguments $args `
+        -StdOutPath $json `
+        -StdErrPath $stderr
+
+    try {
+        $diagnostic = Get-Content -LiteralPath $json -Raw | ConvertFrom-Json -ErrorAction Stop
+    } catch {
+        $diagnostic = [pscustomobject]@{
+            schema_version = 1
+            resource = $Resource
+            measurement = $measurement
+            status = "failed"
+            all_scpi_error_responses_zero = $false
+            idn = $null
+            firmware_revision = $null
+            identity_system_errors = $null
+            commands = @()
+            read = $null
+            failure_reasons = @("probe did not emit valid JSON: $($_.Exception.Message)")
+            cleanup = $null
+        }
+    }
+    $diagnostic | Add-Member -NotePropertyName artifact_path -NotePropertyValue $json -Force
+    $diagnostic | Add-Member -NotePropertyName stderr_path -NotePropertyValue $stderr -Force
+
+    return [pscustomobject]@{
+        success = (
+            $commandResult.success -and
+            $diagnostic.status -eq "passed" -and
+            [bool]$diagnostic.all_scpi_error_responses_zero
+        )
+        command = [pscustomobject]$commandResult
+        diagnostic = $diagnostic
+    }
+}
+
+function New-ScpiProbeFailureCaseResult {
+    param(
+        [Parameter(Mandatory = $true)][object]$Case,
+        [Parameter(Mandatory = $true)][object]$CaseInfo,
+        [Parameter(Mandatory = $true)][object]$Probe
+    )
+
+    $failureReasons = @("SCPI probe failed; formal live CLI run skipped")
+    $failureReasons += @($Probe.diagnostic.failure_reasons)
+    return [pscustomobject]@{
+        command = $Probe.command
+        name = $Case.name
+        status = "failed"
+        failure_reasons = $failureReasons
+        run_id = $null
+        expected_captured = $Case.expected_captured
+        captured_count = $null
+        captured = $null
+        errors = $null
+        ready_events = 0
+        csv_row_count = 0
+        csv_rows = 0
+        measurement_type = $Case.expected_measurement_type
+        unit = $Case.expected_unit
+        value = $null
+        csv = $CaseInfo.csv
+        jsonl = $null
+        stderr = $Probe.diagnostic.stderr_path
+        live_command_skipped = $true
+        scpi_probe_command = $Probe.command
+        scpi_diagnostic_path = $Probe.diagnostic.artifact_path
+        scpi_diagnostic = $Probe.diagnostic
+    }
+}
+
 function Invoke-LiveCase {
     param(
         [Parameter(Mandatory = $true)][object]$Case,
         [Parameter(Mandatory = $true)][string]$CaseDir,
         [Parameter(Mandatory = $true)][int]$Port,
-        [Parameter(Mandatory = $true)][string]$CsvPath
+        [Parameter(Mandatory = $true)][string]$CsvPath,
+        [AllowNull()][object]$ScpiProbeCommand,
+        [AllowNull()][object]$ScpiDiagnostic
     )
 
     if ($Case.external_edges -gt 0) {
@@ -690,6 +797,12 @@ function Invoke-LiveCase {
             $failureReasons.Add("CSV unit mismatch: expected=$($Case.expected_unit) actual=$unit") | Out-Null
         }
     }
+    if (
+        $null -ne $ScpiDiagnostic -and
+        -not [bool]$ScpiDiagnostic.all_scpi_error_responses_zero
+    ) {
+        $failureReasons.Add("SCPI diagnostic contains a non-zero error response") | Out-Null
+    }
     $caseStatus = if ($failureReasons.Count -eq 0) { "passed" } else { "failed" }
 
     return [pscustomobject]@{
@@ -711,6 +824,10 @@ function Invoke-LiveCase {
         csv = $CsvPath
         jsonl = $jsonl
         stderr = $stderr
+        live_command_skipped = $false
+        scpi_probe_command = $ScpiProbeCommand
+        scpi_diagnostic_path = if ($null -eq $ScpiDiagnostic) { $null } else { $ScpiDiagnostic.artifact_path }
+        scpi_diagnostic = $ScpiDiagnostic
     }
 }
 
@@ -721,6 +838,7 @@ function Write-LiveArtifacts {
         [Parameter(Mandatory = $true)][bool]$LiveExecuted,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CaseItems,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$DryRunItems,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$ScpiDiagnosticItems,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CommandItems
     )
 
@@ -745,6 +863,7 @@ function Write-LiveArtifacts {
         live_executed = $LiveExecuted
         cases = @($CaseItems)
         dry_runs = @($DryRunItems)
+        scpi_diagnostics = @($ScpiDiagnosticItems)
         commands = @($CommandItems)
     }
     $report | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $reportPath -Encoding UTF8
@@ -772,6 +891,41 @@ function Write-LiveArtifacts {
     } else {
         foreach ($dryRun in $DryRunItems) {
             $summaryLines += "- $($dryRun.name): measurement=$($dryRun.plan.measurement_cli_name) trigger=$($dryRun.plan.trigger_mode) read_path=$($dryRun.plan.read_path) csv=$($dryRun.csv)"
+        }
+    }
+
+    $summaryLines += @(
+        "",
+        "## SCPI Diagnostics"
+    )
+    if ($ScpiDiagnosticItems.Count -eq 0) {
+        $summaryLines += "- No SCPI probes executed."
+    } else {
+        foreach ($diagnostic in $ScpiDiagnosticItems) {
+            $summaryLines += "- measurement=$($diagnostic.measurement) status=$($diagnostic.status) idn=$($diagnostic.idn) firmware=$($diagnostic.firmware_revision) artifact=$($diagnostic.artifact_path)"
+            if ($null -ne $diagnostic.identity_system_errors) {
+                $summaryLines += "  - *IDN? SYST:ERR?: $(Format-ScpiErrorResponses -Responses @($diagnostic.identity_system_errors.responses))"
+            }
+            foreach ($record in @($diagnostic.commands)) {
+                $detail = Format-ScpiErrorResponses -Responses @($record.system_error_responses)
+                if (-not [string]::IsNullOrWhiteSpace($record.transport_error)) {
+                    $detail += " transport_error=$($record.transport_error)"
+                }
+                if (-not [string]::IsNullOrWhiteSpace($record.system_error_query_error)) {
+                    $detail += " SYST:ERR?_error=$($record.system_error_query_error)"
+                }
+                $summaryLines += "  - $($record.command): $detail"
+            }
+            if ($null -ne $diagnostic.read) {
+                $readDetail = Format-ScpiErrorResponses -Responses @($diagnostic.read.system_error_responses)
+                if (-not [string]::IsNullOrWhiteSpace($diagnostic.read.transport_error)) {
+                    $readDetail += " transport_error=$($diagnostic.read.transport_error)"
+                }
+                if (-not [string]::IsNullOrWhiteSpace($diagnostic.read.system_error_query_error)) {
+                    $readDetail += " SYST:ERR?_error=$($diagnostic.read.system_error_query_error)"
+                }
+                $summaryLines += "  - READ? response=$($diagnostic.read.response): $readDetail"
+            }
         }
     }
 
@@ -809,6 +963,7 @@ New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 $commands = [System.Collections.Generic.List[object]]::new()
 $caseResults = [System.Collections.Generic.List[object]]::new()
 $dryRunResults = [System.Collections.Generic.List[object]]::new()
+$scpiDiagnostics = [System.Collections.Generic.List[object]]::new()
 $reportPath = Join-Path $runDir "report.json"
 $summaryPath = Join-Path $runDir "summary.md"
 $stdinRedirected = [Console]::IsInputRedirected
@@ -842,6 +997,7 @@ if (-not ($stdinRedirected -and (-not $PlanOnly))) {
             -LiveExecuted $false `
             -CaseItems @() `
             -DryRunItems @() `
+            -ScpiDiagnosticItems @() `
             -CommandItems @($commands.ToArray())
         throw "Preflight failed. See $preflightOut and $preflightErr"
     }
@@ -862,6 +1018,7 @@ if ($PlanOnly) {
 } else {
     Write-Host "Possible state changes:"
     Write-Host "  Connects to the explicit VISA resource and validates 34461A identity."
+    Write-Host "  Frequency/Period cases run isolated SCPI diagnostic sessions before the formal CLI run."
     Write-Host "  Sends the existing CLI clear/reset and measurement setup sequence for each case."
     Write-Host "  Uses best-effort release/local cleanup; no initial state snapshot/restore is available."
 }
@@ -891,6 +1048,7 @@ if ($PlanOnly) {
         -LiveExecuted $false `
         -CaseItems @() `
         -DryRunItems @($dryRunResults.ToArray()) `
+        -ScpiDiagnosticItems @() `
         -CommandItems @($commands.ToArray())
     Write-Host "live CLI plan generated: $Suite"
     Write-Host "summary: $summaryPath"
@@ -904,6 +1062,7 @@ if ($stdinRedirected) {
         -LiveExecuted $false `
         -CaseItems @() `
         -DryRunItems @($dryRunResults.ToArray()) `
+        -ScpiDiagnosticItems @() `
         -CommandItems @($commands.ToArray())
     Write-Host "summary: $summaryPath"
     throw "Live suite requires interactive Enter confirmation; stdin is redirected."
@@ -916,11 +1075,33 @@ $suiteStatus = "passed"
 $liveExecuted = $true
 foreach ($caseInfo in @($dryRunResults.ToArray())) {
     $case = @($cases | Where-Object { $_.name -eq $caseInfo.name } | Select-Object -First 1)[0]
+    $scpiProbeCommand = $null
+    $scpiDiagnostic = $null
+    if ($caseInfo.plan.measurement_cli_name -in @("frequency", "period")) {
+        $probe = Invoke-FrequencyPeriodScpiProbe -CaseInfo $caseInfo
+        $commands.Add($probe.command) | Out-Null
+        $scpiDiagnostics.Add($probe.diagnostic) | Out-Null
+        $scpiProbeCommand = $probe.command
+        $scpiDiagnostic = $probe.diagnostic
+        if (-not $probe.success) {
+            $probeFailure = New-ScpiProbeFailureCaseResult `
+                -Case $case `
+                -CaseInfo $caseInfo `
+                -Probe $probe
+            $caseResults.Add($probeFailure) | Out-Null
+            $suiteStatus = "failed"
+            Write-Host "SCPI probe failed: $($case.name)"
+            Write-Host "failure reasons: $($probeFailure.failure_reasons -join '; ')"
+            continue
+        }
+    }
     $liveResult = Invoke-LiveCase `
         -Case $case `
         -CaseDir $caseInfo.case_dir `
         -Port $caseInfo.port `
-        -CsvPath $caseInfo.csv
+        -CsvPath $caseInfo.csv `
+        -ScpiProbeCommand $scpiProbeCommand `
+        -ScpiDiagnostic $scpiDiagnostic
     $caseResults.Add($liveResult) | Out-Null
     $commands.Add($liveResult.command) | Out-Null
     if ($liveResult.status -eq "passed") {
@@ -939,6 +1120,7 @@ Write-LiveArtifacts `
     -LiveExecuted $liveExecuted `
     -CaseItems @($caseResults.ToArray()) `
     -DryRunItems @($dryRunResults.ToArray()) `
+    -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
     -CommandItems @($commands.ToArray())
 
 if ($suiteStatus -ne "passed") {

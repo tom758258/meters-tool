@@ -91,7 +91,11 @@ keysight-logger-<version>.exe
 
 `--auto-zero` (自動歸零) 控制直流與電阻測量的偏移處理。它可以提高精確度，但可能會減慢讀取速度。交流模式不會寫入 Auto Zero 的 SCPI 指令。
 
-`--ac-bandwidth-hz` (交流頻寬) 適用於交流電壓與交流電流。請使用與測量設定相符的頻寬。
+`--ac-bandwidth-hz` (交流頻寬/濾波器) 適用於交流電壓、交流電流、頻率與週期。頻率與週期省略此選項時預設為 `20` Hz。
+
+`--gate-time-s` 適用於頻率與週期。可選 `0.01`、`0.1` 或 `1` 秒，預設為 `0.1` 秒。
+
+`--freq-period-timeout` 僅適用於頻率，可選 `auto` 或 `1s`，預設為 `auto`。週期不會送出 timeout SCPI；若搭配週期明確指定此選項，CLI 會在開啟 VISA 前拒絕。
 
 `--current-terminal` (電流端子) 適用於電流測量。請與儀器上實際使用的電流端子保持一致。
 

@@ -831,7 +831,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--freq-period-timeout",
         choices=["auto", "1s"],
         default=None,
-        help="Frequency/Period timeout behavior; default: auto",
+        help="Frequency timeout behavior; default: auto; unsupported for Period",
     )
     start.add_argument(
         "--current-terminal",

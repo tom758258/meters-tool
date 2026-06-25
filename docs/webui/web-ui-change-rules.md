@@ -268,9 +268,9 @@ The UI may look different, but these behaviors must remain true:
 - DCV Input Z appears only for `voltage-dc`.
 - AC, Frequency, and Period measurements do not show NPLC.
 - AC measurements show AC filter where supported.
-- Frequency and Period show AC Filter, Gate Time, and Timeout from
-  `/api/capabilities`; these controls are hidden and disabled for other
-  measurements.
+- Frequency and Period show AC Filter and Gate Time from `/api/capabilities`.
+  Frequency also shows Timeout. Period and other measurements hide and disable
+  Timeout.
 - Current measurements show current terminal where supported.
 - Non-custom trigger modes show `max_samples`.
 - `software` mode shows `timer_interval_s` only when Timer trigger is checked.
@@ -383,8 +383,9 @@ If you can run the app locally, verify:
 - Scan Device updates the live resource selector or shows no live resources.
 - Changing measurement updates range unit, range options, and NPLC visibility.
 - `voltage-dc` shows DCV Input Z; other measurements hide it.
-- Frequency and Period show AC Filter, Gate Time, and Timeout with defaults
-  `20 Hz`, `0.1 s`, and `Auto`.
+- Frequency shows AC Filter, Gate Time, and Timeout with defaults `20 Hz`,
+  `0.1 s`, and `Auto`. Period shows the same filter and gate time defaults but
+  hides Timeout.
 - Trigger mode changes show and hide only the relevant fields.
 - Trigger button visibility matches manual software-triggered modes.
 - Status log appends messages without layout breakage, and Show Details toggles

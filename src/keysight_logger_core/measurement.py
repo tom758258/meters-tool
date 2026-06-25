@@ -510,9 +510,16 @@ class VoltageAcMeasurement(ScalarDmmMeasurement):
 
 
 class _FrequencyPeriodMeasurement(ScalarDmmMeasurement):
-    def __init__(self, definition: MeasurementDefinition, scpi_prefix: str) -> None:
+    def __init__(
+        self,
+        definition: MeasurementDefinition,
+        scpi_prefix: str,
+        *,
+        supports_timeout: bool,
+    ) -> None:
         super().__init__(definition)
         self._scpi_prefix = scpi_prefix
+        self._supports_timeout = supports_timeout
 
     def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
         prefix = self._scpi_prefix
@@ -526,10 +533,6 @@ class _FrequencyPeriodMeasurement(ScalarDmmMeasurement):
             if config.gate_time_s is not None
             else KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S
         )
-        timeout = str(
-            config.freq_period_timeout or KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT
-        ).strip().lower()
-
         instrument.write(f"CONF:{prefix}")
         if config.auto_range:
             instrument.write(f"{prefix}:VOLT:RANG:AUTO ON")
@@ -537,18 +540,22 @@ class _FrequencyPeriodMeasurement(ScalarDmmMeasurement):
             instrument.write(f"{prefix}:VOLT:RANG {config.measurement_range:g}")
         instrument.write(f"{prefix}:RANG:LOW {ac_bandwidth_hz:g}")
         instrument.write(f"{prefix}:APER {gate_time_s:g}")
-        instrument.write(f"{prefix}:TIM:AUTO {'ON' if timeout == 'auto' else 'OFF'}")
+        if self._supports_timeout:
+            timeout = str(
+                config.freq_period_timeout or KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT
+            ).strip().lower()
+            instrument.write(f"{prefix}:TIM:AUTO {'ON' if timeout == 'auto' else 'OFF'}")
         self._configured = True
 
 
 class FrequencyMeasurement(_FrequencyPeriodMeasurement):
     def __init__(self) -> None:
-        super().__init__(FREQUENCY_DEFINITION, "FREQ")
+        super().__init__(FREQUENCY_DEFINITION, "FREQ", supports_timeout=True)
 
 
 class PeriodMeasurement(_FrequencyPeriodMeasurement):
     def __init__(self) -> None:
-        super().__init__(PERIOD_DEFINITION, "PER")
+        super().__init__(PERIOD_DEFINITION, "PER", supports_timeout=False)
 
 
 class Resistance2wMeasurement(ScalarDmmMeasurement):

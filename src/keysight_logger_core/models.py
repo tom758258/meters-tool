@@ -196,10 +196,8 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
             range_options=KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES,
             ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
             gate_time_s_options=KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
-            freq_period_timeout_options=KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
             default_ac_bandwidth_hz=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ,
             default_gate_time_s=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S,
-            default_freq_period_timeout=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT,
         ),
         MeasurementOptions(
             measurement_type="resistance_2w",

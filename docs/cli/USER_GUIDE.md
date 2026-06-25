@@ -131,8 +131,9 @@ Frequency and Period default to `20` Hz.
 `--gate-time-s` applies only to Frequency and Period. Choose `0.01`, `0.1`, or
 `1` second; the default is `0.1` second.
 
-`--freq-period-timeout` applies only to Frequency and Period. Keep the default
-`auto` unless the measurement procedure requires the `1s` behavior.
+`--freq-period-timeout` applies only to Frequency. Keep the default `auto`
+unless the measurement procedure requires the `1s` behavior. Period does not
+send a timeout command; specifying this option with Period is rejected.
 
 `--current-terminal` applies to current measurements. Match it to the physical
 current terminal used on the instrument.

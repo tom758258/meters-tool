@@ -1335,6 +1335,35 @@ class CliCommandTests(unittest.TestCase):
             payload["scpi_commands"],
         )
 
+    def test_period_dry_run_rejects_explicit_frequency_timeout_before_visa(self):
+        stderr = io.StringIO()
+
+        with (
+            patch(
+                "keysight_logger_core.instrument.VisaInstrument.connect"
+            ) as mock_connect,
+            redirect_stderr(stderr),
+        ):
+            rc = main(
+                [
+                    "start-trigger-record",
+                    "--resource",
+                    "USB::FAKE",
+                    "--measurement",
+                    "period",
+                    "--freq-period-timeout",
+                    "auto",
+                    "--dry-run",
+                ]
+            )
+
+        self.assertEqual(2, rc)
+        self.assertIn(
+            "--freq-period-timeout is not supported for --measurement period",
+            stderr.getvalue(),
+        )
+        mock_connect.assert_not_called()
+
     def test_start_json_alias_sets_jsonl_status_format(self):
         parser = build_parser()
         args = parser.parse_args(["start-trigger-record", "--resource", "USB::FAKE", "--json"])
