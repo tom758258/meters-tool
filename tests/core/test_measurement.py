@@ -133,8 +133,15 @@ class CurrentMeasurementTests(unittest.TestCase):
             ),
         )
 
-        self.assertIn("CURR:DC:TERM 10", inst.commands)
-        self.assertNotIn("CURR:DC:RANG 10.0", inst.commands)
+        self.assertEqual(
+            [
+                "CONF:CURR:DC AUTO",
+                "CURR:DC:TERM 10",
+                "CURR:DC:NPLC 1.0",
+                "ZERO:AUTO ON",
+            ],
+            inst.commands,
+        )
 
     def test_immediate_trigger_reads_with_read_query(self):
         inst = FakeInstrument()
@@ -289,6 +296,7 @@ class CurrentMeasurementTests(unittest.TestCase):
         measurement.configure(inst, AcquisitionConfig(vm_comp_slope="pos"))
 
         self.assertIn("OUTP:TRIG:SLOP POS", inst.commands)
+        self.assertEqual("OUTP:TRIG:SLOP POS", inst.commands[-1])
 
     def test_invalid_vm_comp_slope_is_rejected(self):
         inst = FakeInstrument()
@@ -600,8 +608,13 @@ class CurrentAcMeasurementTests(unittest.TestCase):
             ),
         )
 
-        self.assertIn("CURR:AC:TERM 10", inst.commands)
-        self.assertNotIn("CURR:AC:RANG 10.0", inst.commands)
+        self.assertEqual(
+            [
+                "CONF:CURR:AC AUTO",
+                "CURR:AC:TERM 10",
+            ],
+            inst.commands,
+        )
 
     def test_read_sample_uses_current_ac_metadata_and_fetch_for_hardware(self):
         inst = FakeInstrument()
