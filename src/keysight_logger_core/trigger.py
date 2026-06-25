@@ -6,7 +6,7 @@ import time
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from queue import Empty, Full, Queue
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, cast
 
 from .command import CommandValidationError, command_response, parse_command_envelope_json
 from .instrument import is_pyvisa_timeout_error
@@ -125,6 +125,60 @@ class HardwareTriggerAdapter:
             pass
 
 
+class _SoftwareTriggerHttpServer(ThreadingHTTPServer):
+    adapter: SoftwareTriggerAdapter
+
+
+class _SoftwareTriggerRequestHandler(BaseHTTPRequestHandler):
+    def _adapter(self) -> SoftwareTriggerAdapter:
+        return cast(_SoftwareTriggerHttpServer, self.server).adapter
+
+    def _send_json(
+        self,
+        status_code: int,
+        payload: dict[str, object],
+        *,
+        sort_keys: bool = False,
+    ) -> None:
+        body = json.dumps(
+            payload,
+            separators=None if sort_keys else (",", ":"),
+            sort_keys=sort_keys,
+        ).encode("utf-8")
+        self.send_response(status_code)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def do_GET(self):  # type: ignore[override]
+        if self.path != "/status":
+            self.send_response(404)
+            self.end_headers()
+            return
+        self._send_json(200, self._adapter()._status_payload(), sort_keys=True)
+
+    def do_POST(self):  # type: ignore[override]
+        adapter = self._adapter()
+        if self.path == "/stop":
+            adapter._publish_stop()
+            self.send_response(202)
+            self.end_headers()
+            adapter._start_stop_callback()
+            return
+        if self.path != "/command":
+            self.send_response(404)
+            self.end_headers()
+            return
+        content_len = int(self.headers.get("Content-Length", "0"))
+        payload = self.rfile.read(content_len).decode("utf-8") if content_len else "{}"
+        status_code, response = adapter._handle_command(payload)
+        self._send_json(status_code, response)
+
+    def log_message(self, format, *args):  # noqa: A003
+        return
+
+
 class SoftwareTriggerAdapter:
     def __init__(
         self,
@@ -145,109 +199,77 @@ class SoftwareTriggerAdapter:
         self._status_provider = status_provider
         self._last_accepted_monotonic = 0.0
         self._guard = threading.Lock()
-        self._server: Optional[ThreadingHTTPServer] = None
+        self._server: Optional[_SoftwareTriggerHttpServer] = None
         self._thread: Optional[threading.Thread] = None
 
     def start(self) -> Tuple[str, int]:
-        router = self._router
-
-        class Handler(BaseHTTPRequestHandler):
-            def _send_json(self, status_code: int, payload: dict[str, object]) -> None:
-                body = json.dumps(payload, separators=(",", ":")).encode("utf-8")
-                self.send_response(status_code)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def do_GET(self):  # type: ignore[override]
-                if self.path != "/status":
-                    self.send_response(404)
-                    self.end_headers()
-                    return
-                payload = self.server.adapter._status_payload()  # type: ignore[attr-defined]
-                body = json.dumps(payload, sort_keys=True).encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-
-            def do_POST(self):  # type: ignore[override]
-                if self.path == "/stop":
-                    router.publish(
-                        TriggerEvent.new(
-                            TriggerSource.SOFTWARE,
-                            metadata={"control": "stop"},
-                        )
-                    )
-                    self.send_response(202)
-                    self.end_headers()
-                    stop_cb = self.server.adapter._stop_cb  # type: ignore[attr-defined]
-                    if stop_cb is not None:
-                        threading.Thread(target=stop_cb, daemon=True).start()
-                    return
-                if self.path != "/command":
-                    self.send_response(404)
-                    self.end_headers()
-                    return
-                content_len = int(self.headers.get("Content-Length", "0"))
-                payload = self.rfile.read(content_len).decode("utf-8") if content_len else "{}"
-                try:
-                    command = parse_command_envelope_json(payload)
-                except CommandValidationError as exc:
-                    self._send_json(
-                        400,
-                        command_response(
-                            "error",
-                            command=exc.command,
-                            job_id=exc.job_id,
-                            error="validation_error",
-                            message=str(exc),
-                        ),
-                    )
-                    return
-                accepted, reason = self.server.adapter._try_accept_trigger()  # type: ignore[attr-defined]
-                if not accepted:
-                    self._send_json(
-                        429,
-                        command_response(
-                            "rejected",
-                            command="software_trigger",
-                            job_id=command.job_id,
-                            reason=reason,
-                        ),
-                    )
-                    return
-                if not router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, metadata=command.metadata)):
-                    self._send_json(
-                        429,
-                        command_response(
-                            "rejected",
-                            command="software_trigger",
-                            job_id=command.job_id,
-                            reason="queue_full",
-                        ),
-                    )
-                    return
-                self._send_json(
-                    202,
-                    command_response(
-                        "accepted",
-                        command="software_trigger",
-                        job_id=command.job_id,
-                    ),
-                )
-
-            def log_message(self, format, *args):  # noqa: A003
-                return
-
-        self._server = ThreadingHTTPServer((self._host, self._port), Handler)
-        self._server.adapter = self  # type: ignore[attr-defined]
+        self._server = _SoftwareTriggerHttpServer(
+            (self._host, self._port),
+            _SoftwareTriggerRequestHandler,
+        )
+        self._server.adapter = self
         self._port = int(self._server.server_address[1])
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
         return self._host, self._port
+
+    def _handle_command(self, payload: str) -> tuple[int, dict[str, object]]:
+        try:
+            command = parse_command_envelope_json(payload)
+        except CommandValidationError as exc:
+            return (
+                400,
+                command_response(
+                    "error",
+                    command=exc.command,
+                    job_id=exc.job_id,
+                    error="validation_error",
+                    message=str(exc),
+                ),
+            )
+        accepted, reason = self._try_accept_trigger()
+        if not accepted:
+            return (
+                429,
+                command_response(
+                    "rejected",
+                    command="software_trigger",
+                    job_id=command.job_id,
+                    reason=reason,
+                ),
+            )
+        if not self._router.publish(
+            TriggerEvent.new(TriggerSource.SOFTWARE, metadata=command.metadata)
+        ):
+            return (
+                429,
+                command_response(
+                    "rejected",
+                    command="software_trigger",
+                    job_id=command.job_id,
+                    reason="queue_full",
+                ),
+            )
+        return (
+            202,
+            command_response(
+                "accepted",
+                command="software_trigger",
+                job_id=command.job_id,
+            ),
+        )
+
+    def _publish_stop(self) -> None:
+        self._router.publish(
+            TriggerEvent.new(
+                TriggerSource.SOFTWARE,
+                metadata={"control": "stop"},
+            )
+        )
+
+    def _start_stop_callback(self) -> None:
+        if self._stop_cb is not None:
+            threading.Thread(target=self._stop_cb, daemon=True).start()
 
     def _try_accept_trigger(self) -> tuple[bool, str]:
         with self._guard:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 import time
 import unittest
 from urllib import request
@@ -284,6 +285,36 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         try:
             status = self._post_stop(port)
             self.assertEqual(202, status)
+            event = router.wait(timeout_s=0.1)
+            self.assertIsNotNone(event)
+            assert event is not None
+            self.assertEqual("stop", event.metadata.get("control"))
+        finally:
+            server.stop()
+
+    def test_stop_endpoint_runs_callback_on_background_thread(self):
+        router = TriggerRouter()
+        callback_called = threading.Event()
+        callback_thread_ids = []
+
+        def stop_callback() -> None:
+            callback_thread_ids.append(threading.get_ident())
+            callback_called.set()
+
+        server = SoftwareTriggerAdapter(
+            router,
+            port=0,
+            min_interval_ms=0,
+            queue_max=0,
+            stop_cb=stop_callback,
+        )
+        _, port = server.start()
+        request_thread_id = threading.get_ident()
+        try:
+            self.assertEqual(202, self._post_stop(port))
+            self.assertTrue(callback_called.wait(timeout=1.0))
+            self.assertNotEqual(request_thread_id, callback_thread_ids[0])
+
             event = router.wait(timeout_s=0.1)
             self.assertIsNotNone(event)
             assert event is not None
