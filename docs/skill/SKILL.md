@@ -82,6 +82,37 @@ Relevant contracts:
   the instrument-specific contract says otherwise.
 - Consumers must ignore unknown JSON fields under schema version `1`.
 
+## Executable orchestration rules
+
+Apply these rules before running or preparing executable Meters workflows such as
+`start-trigger-record`, `wait-ready`, `status`, `send-command`, or `stop`:
+
+- Read `common-orchestrator-workflows.md` and
+  `meters-orchestrator-workflows.md` before choosing CLI flags, simulator
+  resource strings, process-launch patterns, or software-trigger sequencing.
+- Use the CLI spellings and simulator resource strings shown in the contracts as
+  the source of truth. Do not invent flags such as `--function` or
+  `--trigger-source`, SCPI-form measurement values such as `CURR:DC`, or
+  simulator aliases such as `SIMULATOR` unless the repository contracts or CLI
+  help explicitly support them.
+- Use CLI help only to confirm behavior not covered by the contracts, or to
+  diagnose a mismatch between the installed CLI and the documented contract.
+- For software-trigger workflows, treat `start-trigger-record` as a worker
+  subprocess. Do not run it as a blocking foreground command and wait for it to
+  finish before sending the trigger. Stream stdout JSONL until `ready`, send the
+  documented `software_trigger` command through the client or endpoint, continue
+  reading JSONL until `summary`, then check artifacts and exit code.
+- Prefer Python `subprocess.Popen` or the repository-documented orchestrator
+  pattern for software-trigger worker orchestration so stdout JSONL, `run_id`,
+  process exit code, and cleanup remain observable.
+- Do not use detached shell-specific launch mechanisms such as PowerShell
+  `Start-Process` or `cmd /c start /B` unless the repository explicitly
+  documents that pattern. Detached shell launch can hide stdout JSONL, exit
+  codes, cleanup state, and `run_id` correlation.
+- If a required CLI spelling, resource string, or launch pattern is unclear,
+  stop and re-read the source-of-truth contracts before running. Do not probe by
+  inventing flags and treating CLI rejection as the normal discovery path.
+
 ## Work pattern
 
 1. Identify whether the task touches the CLI/worker contract surface.
