@@ -15,6 +15,16 @@
 
 如果您還在決定要量測什麼，或想先理解 workflow 的嚴謹程度，請使用引導型範例。如果您想測試 agent 是否能遵循合約，並用較少來回執行安全的無硬體路徑，請使用執行型範例。只有當您已準備好讓 agent 在 dry-run 與 simulator validation 後操作真實儀器時，才使用明確授權的實機執行範例。
 
+## 執行範例前 (Before running executable examples)
+
+對於會執行或準備 `start-trigger-record` 的範例，在選擇 CLI 旗標、resource 字串或 process-launch 行為前，請先讀取 orchestrator workflow contracts。請將 `common-orchestrator-workflows.md` 與 `meters-orchestrator-workflows.md` 視為 measurement names、trigger mode 拼法、simulator resource strings、JSONL mode、software-trigger sequencing 與 subprocess orchestration 的 source of truth。
+
+對於 software-trigger workflows，不要把 worker 當成 blocking foreground command 執行後等待它自己結束，再送 trigger。應將它作為可觀測的 subprocess 啟動，stream stdout JSONL 直到 `ready`，再透過文件化的 client 或 endpoint 送出剛好一個 `software_trigger` command，接著繼續讀取 JSONL 直到 `summary`，最後檢查 CSV、適用時的 `report.json`、`run_id` 與 exit code。
+
+優先使用 Python `subprocess.Popen` 或 repository 已文件化的 orchestrator pattern。不要使用 PowerShell `Start-Process` 或 `cmd /c start /B` 這類 detached shell launch，除非 repository 明確文件化這種 pattern，因為 detached launch 可能隱藏 stdout JSONL、exit code、cleanup state 與 `run_id` correlation。
+
+不要自行發明 CLI flags、measurement values、simulator resource aliases 或 worker launch patterns。CLI help 僅用於確認合約未涵蓋的行為，或診斷 installed CLI 與 documented contract 之間的不一致。
+
 ## 引導型範例 (Guided examples)
 
 ### 引導型範例 1：模擬器 software-trigger 工作流程
@@ -33,19 +43,26 @@ Plan and run a simulator software-trigger workflow that captures exactly one
 sample. Use dry-run first, then simulate with a finite bound. Wait for ready,
 send one software trigger, verify run_id correlation, and report which JSONL
 events and artifacts should be checked.
+
+Before choosing CLI flags or launch behavior, read the common and Meters
+orchestrator workflow contracts. Use their documented subprocess orchestration
+pattern for the software-trigger worker instead of detached shell launch.
 ```
 
 #### 預期 agent 行為
 
 Codex 應該：
 
-- 在規劃工作流程前，先讀取 Skill 與相關 Meters 合約。
+- 在規劃工作流程前，先讀取 Skill 與相關 Meters 合約，包含 common 與 Meters orchestrator workflow contracts。
 - 避免實機硬體，並避免 VISA 資源探索。
+- 使用文件化的 CLI 拼法與 simulator resource strings，而不是自行發明 flags 或 aliases。
 - 先以 `start-trigger-record --dry-run --status-format jsonl` 建立計畫。
 - 使用模擬器模式，例如 `--resource SIM::34461A --simulate`。
 - 使用明確結束條件，例如 `--max-samples 1`，讓工作流程可以結束。
+- 對於 software-trigger simulate runs，將 worker 作為可觀測的 subprocess 啟動，stream stdout JSONL 直到 `ready`，然後才送 trigger。
 - 在送出命令前，等待 `ready` JSONL event，或使用 `wait-ready --json`。
 - 透過 `send-command --json` 或 `POST /command` 送出一個 `software_trigger` 命令。
+- 避免使用 PowerShell `Start-Process` 或 `cmd /c start /B` 這類 detached shell launch，除非 repository 明確文件化。
 - 驗證 stdout JSONL、status response 與產生 artifacts 之間的 `run_id` 一致。
 - 將 `summary.ok: true`、預期 captured count、零 errors，以及 process exit code 為零視為成功完成訊號。
 - 在適用時提到 CSV 與 `report.json` 或 wrapper artifacts。
@@ -72,16 +89,22 @@ Prepare a live one-sample voltage_dc measurement workflow for my Keysight
 provide the explicit --resource before any live command. Use dry-run and
 simulator validation first, then show the exact live command that would be run
 after I confirm the resource.
+
+Before choosing CLI flags or launch behavior, read the common and Meters
+orchestrator workflow contracts. Use their documented subprocess orchestration
+pattern for any software-trigger worker instead of detached shell launch.
 ```
 
 #### 預期 agent 行為
 
 Codex 應該：
 
-- 在規劃 live 工作前，先讀取 Skill 與相關 Meters 合約。
+- 在規劃 live 工作前，先讀取 Skill 與相關 Meters 合約，包含 common 與 Meters orchestrator workflow contracts。
 - 拒絕在 acquisition workflow 內猜測、掃描、輪換或替換實機 VISA 資源。
+- 使用文件化的 CLI 拼法與 resource strings，而不是自行發明 flags、SCPI-form measurement values 或 simulator aliases。
 - 如果使用者尚未提供，要求使用者提供明確的 `--resource`。
 - 在任何 live command 前，先規劃 dry-run 與 simulator validation。
+- 對於 software-trigger validation，使用 repository 已文件化的 subprocess orchestration，而不是 detached shell launch。
 - 將 `ready` 與 `wait-ready` 視為 control-plane readiness，而不是 measurement completion。
 - 僅在使用者確認且明確 resource 可用後，才把 live command 作為可執行命令展示。
 - 說明 live run 後應檢查的結構化輸出：JSONL events、`run_id`、status responses、CSV、`report.json`、final summary 與 process exit code。
@@ -155,22 +178,30 @@ different spelling:
 
 Steps:
 
-1. Read the skill and the relevant common and Meters-specific contracts.
-2. Confirm the exact CLI flag spelling from the contracts or CLI help.
+1. Read the skill and the relevant common and Meters-specific contracts,
+   including common-orchestrator-workflows.md and
+   meters-orchestrator-workflows.md.
+2. Confirm the exact CLI flag spelling from the contracts before using CLI help.
 3. Run dry-run first.
-4. Run simulator mode with a finite bound.
-5. Wait for the ready JSONL event or use wait-ready --json.
-6. Send exactly one software_trigger command after readiness.
-7. Check run_id correlation across stdout JSONL, status response, CSV, and
+4. Run simulator mode with a finite bound using the documented software-trigger
+   subprocess orchestration pattern.
+5. Start the worker as an observable subprocess, stream stdout JSONL until the
+   ready event, and do not use detached shell launch such as PowerShell
+   Start-Process or cmd /c start /B unless the repository documents it.
+6. Wait for the ready JSONL event or use wait-ready --json.
+7. Send exactly one software_trigger command after readiness.
+8. Check run_id correlation across stdout JSONL, status response, CSV, and
    report.json if present.
-8. Report the JSONL events, artifacts, exit codes, summary.ok, captured count,
-   errors, and any contract mismatch.
+9. Continue reading worker JSONL until summary, then report the JSONL events,
+   artifacts, exit codes, summary.ok, captured count, errors, and any contract
+   mismatch.
 
 Do not ask for a live VISA resource. Do not ask for confirmation before running
-dry-run or simulator commands. Only stop to ask me a question if the CLI cannot
-be invoked, dependencies are missing, the contracts and CLI help disagree, the
-current-dc measurement cannot be expressed safely, or the command would touch
-live hardware.
+dry-run or simulator commands. Do not invent CLI flags, measurement values,
+simulator resource aliases, or worker launch patterns. Only stop to ask me a
+question if the CLI cannot be invoked, dependencies are missing, the contracts
+and CLI help disagree, the current-dc measurement cannot be expressed safely, or
+the command would touch live hardware.
 ```
 
 #### 預期 agent 行為
@@ -179,8 +210,9 @@ Codex 應該：
 
 - 直接進行 dry-run 與 simulator validation，而不是詢問是否要執行。
 - 使用固定的無硬體預設值，除非 repository 內容與其矛盾。
-- 在做出合約敏感決策前先讀取合約。
+- 在做出合約敏感決策前先讀取合約，包含在選擇 flags 或 launch behavior 前讀取 orchestrator workflow contracts。
 - 從 repository 確認真正的 CLI 拼法，而不是自行發明旗標。
+- 對於 software-trigger runs，使用 repository 已文件化的 subprocess orchestration，而不是 detached shell launch。
 - 因為 workflow 已明確指定無硬體，所以避免詢問 live VISA resource。
 - 只有在環境、dependency、contract、CLI 或 live-hardware safety 出現阻礙時才停下詢問。
 
@@ -212,6 +244,12 @@ Use these defaults for no-hardware validation before preparing the live command:
 - worker observation output: JSONL
 - client command output: JSON
 
+For any dry-run or simulator command, read common-orchestrator-workflows.md and
+meters-orchestrator-workflows.md before choosing CLI flags or launch behavior.
+Use the documented software-trigger subprocess orchestration pattern. Do not use
+detached shell launch such as PowerShell Start-Process or cmd /c start /B unless
+the repository documents it.
+
 After dry-run and simulator validation are planned or run, prepare the live
 command as a template that uses this placeholder resource:
 
@@ -239,6 +277,7 @@ Codex 應該：
 - 透過 placeholder resource 保留 live safety boundary。
 - 因為此 prompt 沒有要求 live execution，所以避免詢問實際 live resource。
 - 避免掃描或猜測 VISA resources。
+- 使用文件化的 CLI 拼法、simulator resource strings 與 subprocess orchestration，而不是自行發明 flags 或使用 detached shell launch。
 - 明確說明 live execution 需要 explicit user-selected resource 與另一個使用者要求。
 
 #### 預期結果
@@ -323,23 +362,31 @@ different spelling:
 
 Steps:
 
-1. Read the skill and the relevant common and Meters-specific contracts.
-2. Confirm the exact CLI flag spelling from the contracts or CLI help.
+1. Read the skill and the relevant common and Meters-specific contracts,
+   including common-orchestrator-workflows.md and
+   meters-orchestrator-workflows.md.
+2. Confirm the exact CLI flag spelling from the contracts before using CLI help.
 3. Run dry-run first.
-4. Run simulator validation with SIM::34461A and a finite bound.
-5. Only after dry-run and simulator validation pass, run live using exactly the
+4. Run simulator validation with SIM::34461A and a finite bound using the
+   documented software-trigger subprocess orchestration pattern.
+5. Start the worker as an observable subprocess, stream stdout JSONL until the
+   ready event, and do not use detached shell launch such as PowerShell
+   Start-Process or cmd /c start /B unless the repository documents it.
+6. Only after dry-run and simulator validation pass, run live using exactly the
    VISA resource provided above.
-6. Wait for the ready JSONL event or use wait-ready --json.
-7. Send exactly one software_trigger command after readiness.
-8. Check run_id correlation across stdout JSONL, status response, CSV, and
+7. Wait for the ready JSONL event or use wait-ready --json.
+8. Send exactly one software_trigger command after readiness.
+9. Check run_id correlation across stdout JSONL, status response, CSV, and
    report.json if present.
-9. Report the JSONL events, artifacts, exit codes, summary.ok, captured count,
-   errors, and any contract mismatch.
+10. Continue reading worker JSONL until summary, then report the JSONL events,
+    artifacts, exit codes, summary.ok, captured count, errors, and any contract
+    mismatch.
 
 Do not scan, guess, rotate, brute-force, or substitute VISA resources. Do not
-use any live resource other than the one explicitly provided above. If the
-resource is missing, ambiguous, unavailable, or does not match the intended
-Keysight 34461A, fail closed and do not run live.
+use any live resource other than the one explicitly provided above. Do not invent
+CLI flags, measurement values, simulator resource aliases, or worker launch
+patterns. If the resource is missing, ambiguous, unavailable, or does not match
+the intended Keysight 34461A, fail closed and do not run live.
 ```
 
 #### 預期 agent 行為
@@ -348,6 +395,7 @@ Codex 應該：
 
 - 只有在使用者明確授權 live execution，並提供由操作人員替換的具體 resource placeholder 後，才把這視為 real-instrument workflow。
 - 在任何 live command 前，先執行或嘗試執行 dry-run 與 simulator validation。
+- 使用文件化的 CLI 拼法、simulator resource strings 與 subprocess orchestration，而不是自行發明 flags 或使用 detached shell launch。
 - 只使用提供的 live resource，絕不 scan、guess、rotate 或 substitute 其他 resource。
 - 若 resource 缺失、模糊、不可用，或不符合預期的 Keysight 34461A，應在 live execution 前 fail closed。
 - 將 `ready` 與 `wait-ready` 視為 control-plane readiness，而不是 measurement completion。

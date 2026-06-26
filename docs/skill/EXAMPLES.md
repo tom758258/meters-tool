@@ -33,6 +33,33 @@ agent can follow the contract and execute the safe no-hardware path with minimal
 back-and-forth. Use explicit live execution examples only when you are ready for
 an agent to operate the real instrument after dry-run and simulator validation.
 
+## Before running executable examples
+
+For examples that run or prepare `start-trigger-record`, read the orchestrator
+workflow contracts before choosing CLI flags, resource strings, or process-launch
+behavior. Treat `common-orchestrator-workflows.md` and
+`meters-orchestrator-workflows.md` as the source of truth for measurement names,
+trigger mode spelling, simulator resource strings, JSONL mode, software-trigger
+sequencing, and subprocess orchestration.
+
+For software-trigger workflows, do not run the worker as a blocking foreground
+command and wait for it to finish before sending the trigger. Start it as an
+observable subprocess, stream stdout JSONL until `ready`, send exactly one
+`software_trigger` command through the documented client or endpoint, continue
+reading JSONL until `summary`, then check CSV, `report.json` when present,
+`run_id`, and exit code.
+
+Prefer Python `subprocess.Popen` or the repository-documented orchestrator
+pattern. Do not use detached shell launch such as PowerShell `Start-Process` or
+`cmd /c start /B` unless the repository explicitly documents that pattern,
+because detached launch can hide stdout JSONL, exit code, cleanup state, and
+`run_id` correlation.
+
+Do not invent CLI flags, measurement values, simulator resource aliases, or
+worker launch patterns. Use CLI help only to confirm behavior not covered by the
+contracts or to diagnose a mismatch between the installed CLI and the documented
+contract.
+
 ## Guided examples
 
 ### Guided Example 1: Simulator software-trigger workflow
@@ -53,21 +80,32 @@ Plan and run a simulator software-trigger workflow that captures exactly one
 sample. Use dry-run first, then simulate with a finite bound. Wait for ready,
 send one software trigger, verify run_id correlation, and report which JSONL
 events and artifacts should be checked.
+
+Before choosing CLI flags or launch behavior, read the common and Meters
+orchestrator workflow contracts. Use their documented subprocess orchestration
+pattern for the software-trigger worker instead of detached shell launch.
 ```
 
 #### Expected agent behavior
 
 Codex should:
 
-- Read the skill and the relevant Meters contracts before planning the workflow.
+- Read the skill and the relevant Meters contracts before planning the workflow,
+  including the common and Meters orchestrator workflow contracts.
 - Avoid live hardware and avoid VISA resource discovery.
+- Use the documented CLI spellings and simulator resource strings instead of
+  inventing flags or aliases.
 - Start with a `start-trigger-record --dry-run --status-format jsonl` plan.
 - Use simulator mode, such as `--resource SIM::34461A --simulate`.
 - Use a finite bound, such as `--max-samples 1`, so the workflow terminates.
+- For software-trigger simulate runs, start the worker as an observable
+  subprocess, stream stdout JSONL until `ready`, and only then send the trigger.
 - Wait for the `ready` JSONL event or use `wait-ready --json` before sending a
   command.
 - Send one `software_trigger` command through `send-command --json` or
   `POST /command`.
+- Avoid detached shell launch such as PowerShell `Start-Process` or
+  `cmd /c start /B` unless the repository explicitly documents it.
 - Verify that `run_id` values match across stdout JSONL, status responses, and
   generated artifacts.
 - Treat `summary.ok: true`, the expected captured count, zero errors, and a
@@ -102,17 +140,26 @@ Prepare a live one-sample voltage_dc measurement workflow for my Keysight
 provide the explicit --resource before any live command. Use dry-run and
 simulator validation first, then show the exact live command that would be run
 after I confirm the resource.
+
+Before choosing CLI flags or launch behavior, read the common and Meters
+orchestrator workflow contracts. Use their documented subprocess orchestration
+pattern for any software-trigger worker instead of detached shell launch.
 ```
 
 #### Expected agent behavior
 
 Codex should:
 
-- Read the skill and the relevant Meters contracts before planning live work.
+- Read the skill and the relevant Meters contracts before planning live work,
+  including the common and Meters orchestrator workflow contracts.
 - Refuse to guess, scan, rotate, or substitute live VISA resources inside the
   acquisition workflow.
+- Use documented CLI spellings and resource strings instead of inventing flags,
+  SCPI-form measurement values, or simulator aliases.
 - Ask the user for the explicit `--resource` if it was not provided.
 - Plan dry-run and simulator validation before any live command.
+- Use repository-documented subprocess orchestration for software-trigger
+  validation instead of detached shell launch.
 - Treat `ready` and `wait-ready` as control-plane readiness only, not
   measurement completion.
 - Show the live command only as a command to run after user confirmation and an
@@ -201,22 +248,30 @@ different spelling:
 
 Steps:
 
-1. Read the skill and the relevant common and Meters-specific contracts.
-2. Confirm the exact CLI flag spelling from the contracts or CLI help.
+1. Read the skill and the relevant common and Meters-specific contracts,
+   including common-orchestrator-workflows.md and
+   meters-orchestrator-workflows.md.
+2. Confirm the exact CLI flag spelling from the contracts before using CLI help.
 3. Run dry-run first.
-4. Run simulator mode with a finite bound.
-5. Wait for the ready JSONL event or use wait-ready --json.
-6. Send exactly one software_trigger command after readiness.
-7. Check run_id correlation across stdout JSONL, status response, CSV, and
+4. Run simulator mode with a finite bound using the documented software-trigger
+   subprocess orchestration pattern.
+5. Start the worker as an observable subprocess, stream stdout JSONL until the
+   ready event, and do not use detached shell launch such as PowerShell
+   Start-Process or cmd /c start /B unless the repository documents it.
+6. Wait for the ready JSONL event or use wait-ready --json.
+7. Send exactly one software_trigger command after readiness.
+8. Check run_id correlation across stdout JSONL, status response, CSV, and
    report.json if present.
-8. Report the JSONL events, artifacts, exit codes, summary.ok, captured count,
-   errors, and any contract mismatch.
+9. Continue reading worker JSONL until summary, then report the JSONL events,
+   artifacts, exit codes, summary.ok, captured count, errors, and any contract
+   mismatch.
 
 Do not ask for a live VISA resource. Do not ask for confirmation before running
-dry-run or simulator commands. Only stop to ask me a question if the CLI cannot
-be invoked, dependencies are missing, the contracts and CLI help disagree, the
-current-dc measurement cannot be expressed safely, or the command would touch
-live hardware.
+dry-run or simulator commands. Do not invent CLI flags, measurement values,
+simulator resource aliases, or worker launch patterns. Only stop to ask me a
+question if the CLI cannot be invoked, dependencies are missing, the contracts
+and CLI help disagree, the current-dc measurement cannot be expressed safely, or
+the command would touch live hardware.
 ```
 
 #### Expected agent behavior
@@ -226,8 +281,11 @@ Codex should:
 - Proceed with dry-run and simulator validation instead of asking whether to
   run.
 - Use the fixed no-hardware defaults unless the repository contradicts them.
-- Read contracts before making contract-sensitive decisions.
+- Read contracts before making contract-sensitive decisions, including the
+  orchestrator workflow contracts before choosing flags or launch behavior.
 - Confirm real CLI spelling from the repository rather than inventing flags.
+- Use repository-documented subprocess orchestration for software-trigger runs
+  instead of detached shell launch.
 - Avoid live VISA resource questions because the workflow is explicitly
   no-hardware.
 - Stop only for environment, dependency, contract, CLI, or live-hardware safety
@@ -265,6 +323,12 @@ Use these defaults for no-hardware validation before preparing the live command:
 - worker observation output: JSONL
 - client command output: JSON
 
+For any dry-run or simulator command, read common-orchestrator-workflows.md and
+meters-orchestrator-workflows.md before choosing CLI flags or launch behavior.
+Use the documented software-trigger subprocess orchestration pattern. Do not use
+detached shell launch such as PowerShell Start-Process or cmd /c start /B unless
+the repository documents it.
+
 After dry-run and simulator validation are planned or run, prepare the live
 command as a template that uses this placeholder resource:
 
@@ -293,6 +357,8 @@ Codex should:
 - Avoid asking for the actual live resource because this prompt does not request
   live execution.
 - Avoid scanning or guessing VISA resources.
+- Use documented CLI spellings, simulator resource strings, and subprocess
+  orchestration instead of invented flags or detached shell launch.
 - Make clear that live execution requires an explicit user-selected resource and
   a separate user request.
 
@@ -389,23 +455,31 @@ different spelling:
 
 Steps:
 
-1. Read the skill and the relevant common and Meters-specific contracts.
-2. Confirm the exact CLI flag spelling from the contracts or CLI help.
+1. Read the skill and the relevant common and Meters-specific contracts,
+   including common-orchestrator-workflows.md and
+   meters-orchestrator-workflows.md.
+2. Confirm the exact CLI flag spelling from the contracts before using CLI help.
 3. Run dry-run first.
-4. Run simulator validation with SIM::34461A and a finite bound.
-5. Only after dry-run and simulator validation pass, run live using exactly the
+4. Run simulator validation with SIM::34461A and a finite bound using the
+   documented software-trigger subprocess orchestration pattern.
+5. Start the worker as an observable subprocess, stream stdout JSONL until the
+   ready event, and do not use detached shell launch such as PowerShell
+   Start-Process or cmd /c start /B unless the repository documents it.
+6. Only after dry-run and simulator validation pass, run live using exactly the
    VISA resource provided above.
-6. Wait for the ready JSONL event or use wait-ready --json.
-7. Send exactly one software_trigger command after readiness.
-8. Check run_id correlation across stdout JSONL, status response, CSV, and
+7. Wait for the ready JSONL event or use wait-ready --json.
+8. Send exactly one software_trigger command after readiness.
+9. Check run_id correlation across stdout JSONL, status response, CSV, and
    report.json if present.
-9. Report the JSONL events, artifacts, exit codes, summary.ok, captured count,
-   errors, and any contract mismatch.
+10. Continue reading worker JSONL until summary, then report the JSONL events,
+    artifacts, exit codes, summary.ok, captured count, errors, and any contract
+    mismatch.
 
 Do not scan, guess, rotate, brute-force, or substitute VISA resources. Do not
-use any live resource other than the one explicitly provided above. If the
-resource is missing, ambiguous, unavailable, or does not match the intended
-Keysight 34461A, fail closed and do not run live.
+use any live resource other than the one explicitly provided above. Do not invent
+CLI flags, measurement values, simulator resource aliases, or worker launch
+patterns. If the resource is missing, ambiguous, unavailable, or does not match
+the intended Keysight 34461A, fail closed and do not run live.
 ```
 
 #### Expected agent behavior
@@ -416,6 +490,8 @@ Codex should:
   authorized live execution and supplied a concrete resource placeholder to be
   replaced by the operator.
 - Run or attempt dry-run and simulator validation before any live command.
+- Use documented CLI spellings, simulator resource strings, and subprocess
+  orchestration instead of invented flags or detached shell launch.
 - Use exactly the provided live resource and never scan, guess, rotate, or
   substitute another resource.
 - Fail closed before live execution if the resource is missing, ambiguous,
