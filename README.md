@@ -197,6 +197,13 @@ repository-local temporary directory:
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp
 ```
 
+## Codex / Agent Skill
+
+This project provides an optional Codex skill template for users who want to ask
+Codex or other agents to follow the Meters CLI/worker contracts safely. See
+[Codex Skill Template](docs/skill/README.md) for installation and usage
+guidance.
+
 ## Documentation
 
 * [Core README](docs/core/README.md)
@@ -206,6 +213,7 @@ repository-local temporary directory:
 * [WebUI User Guide](docs/webui/USER_GUIDE.md)
 * [Monorepo Architecture](docs/architecture/monorepo-layout.md)
 * [Testing Guidelines](docs/testing-guidelines.md)
+* [Codex Skill Template](docs/skill/README.md)
 * [Public Contracts](docs/contracts)
 * [Meters CLI JSONL Contract](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker Contract](docs/contracts/meters-worker-contract.md)

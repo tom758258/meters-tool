@@ -181,6 +181,12 @@ release\<version>\checksums.txt
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --basetemp .tmp_tests\pytest_tmp
 ```
 
+## Codex / Agent Skill
+
+本專案提供選用的 Codex Skill 範本，供想要要求 Codex 或其他 agents
+安全遵循 Meters CLI/worker 合約的使用者使用。安裝與使用方式請參考
+[Codex Skill 範本](docs/skill/README.zh-TW.md)。
+
 ## 文件
 
 * [Core README](docs/core/README.zh-TW.md)
@@ -190,6 +196,7 @@ release\<version>\checksums.txt
 * [WebUI 使用者指南](docs/webui/USER_GUIDE.zh-TW.md)
 * [Monorepo 架構](docs/architecture/monorepo-layout.md)
 * [測試指南](docs/testing-guidelines.md)
+* [Codex Skill 範本](docs/skill/README.zh-TW.md)
 * [Public Contracts](docs/contracts)
 * [Meters CLI JSONL Contract](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker Contract](docs/contracts/meters-worker-contract.md)
