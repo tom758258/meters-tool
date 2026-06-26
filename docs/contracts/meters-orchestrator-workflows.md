@@ -10,6 +10,22 @@ fields are defined in
 worker endpoints are defined in
 [Meters Worker Contract](meters-worker-contract.md).
 
+## Invocation Forms
+
+The Meters contracts define CLI/worker subprocess behavior, not a required
+binary packaging format. A conforming worker may be launched through any
+equivalent subprocess command, including:
+
+- `keysight-logger ...` from an installed Python package.
+- `keysight-logger.exe ...` from a packaged Windows executable.
+- `python -m keysight_logger_cli ...` in a development checkout.
+
+The invocation form is valid only when it preserves the documented stdout
+JSON/JSONL behavior, local control endpoints, process exit codes, artifacts,
+and `run_id` correlation rules. Direct in-process Python API calls, such as
+importing core runner functions, are outside this CLI/worker subprocess
+contract unless a separate Python API contract defines them.
+
 ## Simulator Software Trigger Workflow
 
 Use a simulator-only worker for automated orchestration tests. The worker emits

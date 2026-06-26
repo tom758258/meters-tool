@@ -21,6 +21,18 @@ codes, and artifacts. Meters-specific trigger behavior, measurement fields,
 CSV columns, and instrument setup belong to this document, not the common
 protocol.
 
+## CLI/Worker Subprocess Boundary
+
+This contract is defined at the CLI/worker subprocess boundary, not at a
+specific packaging boundary. `keysight-logger`, `keysight-logger.exe`, and
+`python -m keysight_logger_cli` are equivalent invocation forms only when they
+preserve the documented stdout JSON/JSONL behavior, local control HTTP
+endpoints, process exit codes, artifacts, and `run_id` correlation semantics.
+
+Direct in-process Python API calls, such as importing core runner functions,
+are outside this CLI/worker subprocess contract unless a separate Python API
+contract defines them.
+
 ## Worker Modes
 
 `start-trigger-record --dry-run` validates arguments and emits a planned
