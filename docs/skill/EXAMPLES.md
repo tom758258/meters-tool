@@ -33,6 +33,29 @@ agent can follow the contract and execute the safe no-hardware path with minimal
 back-and-forth. Use explicit live execution examples only when you are ready for
 an agent to operate the real instrument after dry-run and simulator validation.
 
+## Prompt length and safety boundaries
+
+Each example includes both a **short prompt** and a **strict prompt**.
+
+- **Short prompts** are for everyday use. They state the task, the task-specific
+  parameters, and the structured outputs you expect in the report. They rely on
+  the installed Skill and contracts to supply the permanent orchestration rules.
+- **Strict prompts** are defensive prompts for testing an agent, using a less
+  reliable model, or reducing the chance of shortcut behavior. They deliberately
+  repeat important Skill and contract rules inside the prompt.
+
+For no-hardware and simulator work, a short prompt should normally be enough if
+the agent correctly follows the Skill and contracts. The contract-level outcome
+should be the same for the short and strict prompts: dry-run and simulator steps
+remain separate, JSON/JSONL and artifacts drive pass/fail decisions, `run_id`
+correlation is checked, and live hardware is not touched.
+
+For live work, even the short prompt must stay explicit. A live prompt must
+include an exact operator-selected VISA resource and explicit live execution
+authorization for that resource. Do not shorten live prompts by removing the
+resource, the authorization, or the prohibition against scanning, guessing,
+rotating, or substituting resources.
+
 ## Before running executable examples
 
 For examples that run or prepare `start-trigger-record`, read the orchestrator
@@ -70,7 +93,25 @@ Validate the Meters CLI orchestration flow without live hardware. This example
 asks Codex to use the documented no-hardware path first, then run a bounded
 simulator workflow that captures exactly one software-triggered sample.
 
-#### User prompt
+#### Short prompt
+
+Use this for normal planning or validation when you trust the installed Skill and
+contracts to supply the detailed orchestration rules.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+I want to validate the Meters CLI orchestration flow without hardware.
+Plan and run a simulator software-trigger workflow that captures exactly one
+current-dc sample using SIM::34461A. Use dry-run first, then a separate
+simulator run with a finite bound. Report the JSONL event sequence, run_id
+correlation, CSV/artifacts, summary, and exit code.
+```
+
+#### Strict prompt
+
+Use this when testing the agent, when the model may skip contract details, or
+when you want the prompt itself to restate the most important safety rules.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -86,6 +127,17 @@ orchestrator workflow contracts. Use their documented subprocess orchestration
 pattern for the software-trigger worker instead of detached shell launch.
 ```
 
+#### Short vs strict prompt differences
+
+- The short prompt relies on the Skill and contracts for details such as exact
+  CLI spellings, launch behavior, readiness, and command sequencing.
+- The strict prompt repeats the contract-first and no-detached-launch guidance
+  inside the prompt.
+- If the agent follows the Skill correctly, both prompts should produce the same
+  contract-level result: a no-hardware dry-run followed by a bounded simulator
+  workflow, one software-triggered sample, consistent `run_id`, structured
+  artifact checks, and no live hardware access.
+
 #### Expected agent behavior
 
 Codex should:
@@ -95,8 +147,10 @@ Codex should:
 - Avoid live hardware and avoid VISA resource discovery.
 - Use the documented CLI spellings and simulator resource strings instead of
   inventing flags or aliases.
-- Start with a `start-trigger-record --dry-run --status-format jsonl` plan.
-- Use simulator mode, such as `--resource SIM::34461A --simulate`.
+- Start with a separate `start-trigger-record --dry-run --status-format jsonl`
+  plan.
+- Use a separate simulator mode invocation, such as
+  `--resource SIM::34461A --simulate`.
 - Use a finite bound, such as `--max-samples 1`, so the workflow terminates.
 - For software-trigger simulate runs, start the worker as an observable
   subprocess, stream stdout JSONL until `ready`, and only then send the trigger.
@@ -130,7 +184,25 @@ Prepare a safe live measurement workflow without letting the agent guess or scan
 live VISA resources. This example asks Codex to plan the live path but to stop
 before any live command until the user provides an explicit `--resource`.
 
-#### User prompt
+#### Short prompt
+
+Use this when you want a live workflow plan, but you have not yet supplied the
+real VISA resource and do not want live execution.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+Prepare a live one-sample voltage-dc workflow for my Keysight 34461A, but do not
+run any live command yet. Do not guess, scan, rotate, or substitute VISA
+resources. Ask me for the exact --resource before any live execution. Plan the
+dry-run and simulator validation first, then show the live command template and
+the structured outputs to check after a future live run.
+```
+
+#### Strict prompt
+
+Use this when you want the prompt itself to reinforce the live-resource safety
+boundary and the subprocess orchestration rules.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -145,6 +217,15 @@ Before choosing CLI flags or launch behavior, read the common and Meters
 orchestrator workflow contracts. Use their documented subprocess orchestration
 pattern for any software-trigger worker instead of detached shell launch.
 ```
+
+#### Short vs strict prompt differences
+
+- The short prompt is enough for normal planning because the live resource is not
+  provided and live execution is explicitly excluded.
+- The strict prompt repeats the no-guess/no-scan rule and the contract-first
+  orchestration rule to reduce the chance of resource or launch-pattern drift.
+- Both prompts should stop before live hardware execution and should prepare a
+  safe template that requires an explicit operator-selected resource later.
 
 #### Expected agent behavior
 
@@ -184,7 +265,23 @@ while still helping the user prepare a practical live measurement workflow.
 Review an orchestrator or wrapper change for contract compatibility without
 running hardware.
 
-#### User prompt
+#### Short prompt
+
+Use this for routine contract review when the change is already available in the
+workspace.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+Review the current orchestrator or wrapper change against the Meters CLI/worker
+contracts. Focus on JSONL parsing, ready/status handling, POST /command,
+cooperative stop, run_id correlation, summary handling, exit codes, artifacts,
+and live VISA resource safety. Do not run live hardware.
+```
+
+#### Strict prompt
+
+Use this when you want the review scope spelled out more defensively.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -194,6 +291,15 @@ on JSONL parsing, ready/status handling, POST /command behavior, cooperative
 stop, run_id correlation, final summary handling, exit codes, and whether the
 change avoids guessing live VISA resources.
 ```
+
+#### Short vs strict prompt differences
+
+- The short prompt is a compact review request and relies on the Skill to decide
+  which contracts to read.
+- The strict prompt spells out the same review focus in a slightly more
+  constrained form.
+- Both prompts should produce a contract-focused review and should not run live
+  hardware.
 
 #### Expected agent behavior
 
@@ -226,7 +332,24 @@ Run a safe, no-hardware validation workflow with fixed defaults. This prompt is
 intended to reduce back-and-forth when you want to test whether an agent can
 follow the contracts and execute the dry-run plus simulator path.
 
-#### User prompt
+#### Short prompt
+
+Use this for normal no-hardware validation when you expect the Skill to supply
+the detailed safety and orchestration rules.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+Run the no-hardware simulator software-trigger validation workflow now using
+current-dc, SIM::34461A, software trigger, and exactly one sample. Use dry-run
+first, then a separate bounded simulator run. Report JSONL events, run_id
+correlation, CSV/artifacts, summary.ok, captured count, errors, and exit codes.
+```
+
+#### Strict prompt
+
+Use this when you are testing whether the agent can follow the full contract or
+when you want maximum prompt-level guardrails.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -252,9 +375,10 @@ Steps:
    including common-orchestrator-workflows.md and
    meters-orchestrator-workflows.md.
 2. Confirm the exact CLI flag spelling from the contracts before using CLI help.
-3. Run dry-run first.
-4. Run simulator mode with a finite bound using the documented software-trigger
-   subprocess orchestration pattern.
+3. Run dry-run first as its own start-trigger-record invocation.
+4. Run simulator mode as a separate start-trigger-record invocation with a
+   finite bound using the documented software-trigger subprocess orchestration
+   pattern.
 5. Start the worker as an observable subprocess, stream stdout JSONL until the
    ready event, and do not use detached shell launch such as PowerShell
    Start-Process or cmd /c start /B unless the repository documents it.
@@ -273,6 +397,16 @@ question if the CLI cannot be invoked, dependencies are missing, the contracts
 and CLI help disagree, the current-dc measurement cannot be expressed safely, or
 the command would touch live hardware.
 ```
+
+#### Short vs strict prompt differences
+
+- The short prompt is the preferred daily version for a correctly installed
+  Skill.
+- The strict prompt restates the exact defaults, separate dry-run/simulate
+  invocations, no-detached-launch rule, and blocker conditions.
+- The expected contract-level result is the same for both: no live hardware,
+  one dry-run plan, one bounded simulator run, one software-triggered sample,
+  consistent `run_id`, valid CSV/artifacts, successful summary, and zero exit.
 
 #### Expected agent behavior
 
@@ -302,10 +436,29 @@ the exact blocker rather than asking for optional preferences.
 #### Goal
 
 Prepare a live workflow using safe defaults, but do not execute live hardware
-commands. This prompt is useful when you want the agent to prepare the live
-path while still preserving the explicit-resource safety boundary.
+commands. This prompt is useful when you want the agent to prepare the live path
+while still preserving the explicit-resource safety boundary.
 
-#### User prompt
+#### Short prompt
+
+Use this when you want a live command template and no-hardware validation, but
+no actual live execution yet.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+Prepare a safe live one-sample voltage-dc workflow, but do not execute live
+hardware. First run or plan no-hardware validation using SIM::34461A, software
+trigger, and exactly one sample. Then prepare a live command template using
+<USER_SELECTED_VISA_RESOURCE>. Do not ask for the real resource in this prompt,
+do not scan or guess resources, and report the required explicit confirmation
+for future live execution.
+```
+
+#### Strict prompt
+
+Use this when you want stronger prompt-level protection around the no-live
+boundary.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -348,6 +501,15 @@ Report:
 4. The explicit user confirmation required before live execution.
 ```
 
+#### Short vs strict prompt differences
+
+- The short prompt gives the desired no-hardware validation and live-template
+  outcome without listing every orchestration detail.
+- The strict prompt repeats the exact defaults, contract lookup, subprocess
+  orchestration, placeholder resource, and stop conditions.
+- Both prompts should produce a live command template only. Neither should touch
+  live hardware or ask for the actual resource during this prompt.
+
 #### Expected agent behavior
 
 Codex should:
@@ -374,7 +536,22 @@ command template, while confirming that no live hardware command was executed.
 Review the current repository changes against the Meters contracts without
 requiring another confirmation step.
 
-#### User prompt
+#### Short prompt
+
+Use this for normal changed-file or diff review.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+Review the current repository changes against the Meters CLI/worker contracts
+now. Focus on machine-output handling, lifecycle ordering, run_id correlation,
+artifacts, exit codes, and live resource safety. Do not run live hardware.
+```
+
+#### Strict prompt
+
+Use this when you want the prompt to spell out exact diff sources, blocker
+conditions, and report shape.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -398,6 +575,14 @@ Return concrete findings, affected contract boundaries, severity, and whether
 the change is safe for no-hardware validation, simulator validation, or live
 execution.
 ```
+
+#### Short vs strict prompt differences
+
+- The short prompt is enough for routine contract review.
+- The strict prompt constrains where the agent should get the diff, when it may
+  stop, and the exact report fields to return.
+- Both prompts should read contracts, avoid live hardware, and produce a
+  contract-focused review.
 
 #### Expected agent behavior
 
@@ -432,7 +617,30 @@ Run the full dry-run, simulator, and live validation sequence for exactly one
 sample on a real Keysight 34461A, using only the explicitly provided VISA
 resource.
 
-#### User prompt
+#### Short prompt
+
+This is the shortest safe live prompt. Do not remove the exact resource,
+explicit authorization, or resource-substitution prohibition.
+
+```text
+Use $keysight-meters-cli-orchestration.
+
+Run an explicit-resource live one-sample validation workflow. I authorize live
+execution only for this exact VISA resource:
+
+<PASTE_EXPLICIT_VISA_RESOURCE_HERE>
+
+Use voltage-dc, software trigger, and exactly one sample. Run dry-run first,
+then simulator validation with SIM::34461A, and only after those pass run live
+using the exact resource above. Do not scan, guess, rotate, or substitute VISA
+resources. Report JSONL events, run_id correlation, CSV/artifacts, summary.ok,
+captured count, errors, and exit codes.
+```
+
+#### Strict prompt
+
+Use this when actually operating live hardware and you want maximum prompt-level
+safety reinforcement.
 
 ```text
 Use $keysight-meters-cli-orchestration.
@@ -459,9 +667,10 @@ Steps:
    including common-orchestrator-workflows.md and
    meters-orchestrator-workflows.md.
 2. Confirm the exact CLI flag spelling from the contracts before using CLI help.
-3. Run dry-run first.
-4. Run simulator validation with SIM::34461A and a finite bound using the
-   documented software-trigger subprocess orchestration pattern.
+3. Run dry-run first as its own start-trigger-record invocation.
+4. Run simulator validation with SIM::34461A as a separate start-trigger-record
+   invocation with a finite bound using the documented software-trigger
+   subprocess orchestration pattern.
 5. Start the worker as an observable subprocess, stream stdout JSONL until the
    ready event, and do not use detached shell launch such as PowerShell
    Start-Process or cmd /c start /B unless the repository documents it.
@@ -481,6 +690,16 @@ CLI flags, measurement values, simulator resource aliases, or worker launch
 patterns. If the resource is missing, ambiguous, unavailable, or does not match
 the intended Keysight 34461A, fail closed and do not run live.
 ```
+
+#### Short vs strict prompt differences
+
+- The short prompt is short, but it is still explicit about authorization,
+  resource identity, no resource substitution, and dry-run/simulator-before-live.
+- The strict prompt repeats full defaults, contract lookup, separate
+  dry-run/simulator invocations, software-trigger orchestration, and fail-closed
+  behavior.
+- Both prompts can touch live hardware. Use either only when the exact VISA
+  resource has been selected by the operator and live execution is intentional.
 
 #### Expected agent behavior
 

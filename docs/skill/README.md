@@ -71,15 +71,18 @@ Keysight_Meters_Logger/
           meters-worker-contract.md
           meters-cli-jsonl-contract.md
           meters-orchestrator-workflows.md
+        scripts/
+          run_meter_sim_workflow.mjs
 ```
 
 PowerShell from the repository root:
 
 ```powershell
 $skill = ".agents\skills\keysight-meters-cli-orchestration"
-New-Item -ItemType Directory -Force "$skill\references" | Out-Null
+New-Item -ItemType Directory -Force "$skill\references", "$skill\scripts" | Out-Null
 
 Copy-Item "docs\skill\SKILL.md" "$skill\SKILL.md"
+Copy-Item "docs\skill\scripts\run_meter_sim_workflow.mjs" "$skill\scripts\"
 Copy-Item "docs\contracts\common-worker-protocol.md" "$skill\references\"
 Copy-Item "docs\contracts\common-cli-jsonl-contract.md" "$skill\references\"
 Copy-Item "docs\contracts\common-orchestrator-workflows.md" "$skill\references\"
@@ -92,9 +95,10 @@ Bash from the repository root:
 
 ```bash
 skill=".agents/skills/keysight-meters-cli-orchestration"
-mkdir -p "$skill/references"
+mkdir -p "$skill/references" "$skill/scripts"
 
 cp docs/skill/SKILL.md "$skill/SKILL.md"
+cp docs/skill/scripts/run_meter_sim_workflow.mjs "$skill/scripts/"
 cp docs/contracts/common-worker-protocol.md "$skill/references/"
 cp docs/contracts/common-cli-jsonl-contract.md "$skill/references/"
 cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
@@ -127,15 +131,18 @@ Expected installed layout:
         meters-worker-contract.md
         meters-cli-jsonl-contract.md
         meters-orchestrator-workflows.md
+      scripts/
+        run_meter_sim_workflow.mjs
 ```
 
 PowerShell from a Keysight_Meters_Logger checkout:
 
 ```powershell
 $skill = Join-Path $HOME ".agents\skills\keysight-meters-cli-orchestration"
-New-Item -ItemType Directory -Force (Join-Path $skill "references") | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $skill "references"), (Join-Path $skill "scripts") | Out-Null
 
 Copy-Item "docs\skill\SKILL.md" (Join-Path $skill "SKILL.md")
+Copy-Item "docs\skill\scripts\run_meter_sim_workflow.mjs" (Join-Path $skill "scripts")
 Copy-Item "docs\contracts\common-worker-protocol.md" (Join-Path $skill "references")
 Copy-Item "docs\contracts\common-cli-jsonl-contract.md" (Join-Path $skill "references")
 Copy-Item "docs\contracts\common-orchestrator-workflows.md" (Join-Path $skill "references")
@@ -148,9 +155,10 @@ Bash from a Keysight_Meters_Logger checkout:
 
 ```bash
 skill="$HOME/.agents/skills/keysight-meters-cli-orchestration"
-mkdir -p "$skill/references"
+mkdir -p "$skill/references" "$skill/scripts"
 
 cp docs/skill/SKILL.md "$skill/SKILL.md"
+cp docs/skill/scripts/run_meter_sim_workflow.mjs "$skill/scripts/"
 cp docs/contracts/common-worker-protocol.md "$skill/references/"
 cp docs/contracts/common-cli-jsonl-contract.md "$skill/references/"
 cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
@@ -161,6 +169,36 @@ cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 
 For user-level installation, keep the `references/` files synchronized with the
 upstream `docs/contracts/` files in the Keysight_Meters_Logger repository.
+
+## Bundled simulator helper
+
+The skill also ships `scripts/run_meter_sim_workflow.mjs` for no-hardware
+simulator smoke validation when Node.js is available. The helper runs a dry-run
+and a separate simulator `start-trigger-record` software-trigger workflow,
+then writes machine-readable artifacts and exits non-zero when the evidence
+contract is not satisfied. Do not use this helper for live resources; changing
+`--resource` to a live VISA address such as `USB0::...` does not make it a live
+validation path.
+
+Example from a workspace that contains a `keysight-logger*.exe` executable:
+
+```powershell
+node .agents\skills\keysight-meters-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
+  --exe .\keysight-logger-1.5.0.exe `
+  --out .tmp_tests\meter_sim_software_trigger `
+  --resource SIM::34461A `
+  --measurement current-dc `
+  --max-samples 1 `
+  --port 18765
+```
+
+The helper writes `dry_run.jsonl`, `sim_worker_stdout.jsonl`,
+`sim_worker_stderr.txt`, `sim_samples.csv`, and `sim_report.json` under the
+selected output directory. A successful run requires dry-run safety fields,
+`wait-ready --json` control-plane readiness when needed, one accepted software
+trigger, matching `run_id` values across JSONL/client responses/artifacts, one
+CSV row, `summary.ok: true`, the expected captured count, zero errors, and
+worker exit code `0`.
 
 ## Usage examples
 

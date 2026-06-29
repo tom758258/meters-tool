@@ -53,15 +53,18 @@ Keysight_Meters_Logger/
           meters-worker-contract.md
           meters-cli-jsonl-contract.md
           meters-orchestrator-workflows.md
+        scripts/
+          run_meter_sim_workflow.mjs
 ```
 
 從儲存庫根目錄執行 PowerShell：
 
 ```powershell
 $skill = ".agents\skills\keysight-meters-cli-orchestration"
-New-Item -ItemType Directory -Force "$skill\references" | Out-Null
+New-Item -ItemType Directory -Force "$skill\references", "$skill\scripts" | Out-Null
 
 Copy-Item "docs\skill\SKILL.md" "$skill\SKILL.md"
+Copy-Item "docs\skill\scripts\run_meter_sim_workflow.mjs" "$skill\scripts\"
 Copy-Item "docs\contracts\common-worker-protocol.md" "$skill\references\"
 Copy-Item "docs\contracts\common-cli-jsonl-contract.md" "$skill\references\"
 Copy-Item "docs\contracts\common-orchestrator-workflows.md" "$skill\references\"
@@ -74,9 +77,10 @@ Copy-Item "docs\contracts\meters-orchestrator-workflows.md" "$skill\references\"
 
 ```bash
 skill=".agents/skills/keysight-meters-cli-orchestration"
-mkdir -p "$skill/references"
+mkdir -p "$skill/references" "$skill/scripts"
 
 cp docs/skill/SKILL.md "$skill/SKILL.md"
+cp docs/skill/scripts/run_meter_sim_workflow.mjs "$skill/scripts/"
 cp docs/contracts/common-worker-protocol.md "$skill/references/"
 cp docs/contracts/common-cli-jsonl-contract.md "$skill/references/"
 cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
@@ -105,15 +109,18 @@ cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
         meters-worker-contract.md
         meters-cli-jsonl-contract.md
         meters-orchestrator-workflows.md
+      scripts/
+        run_meter_sim_workflow.mjs
 ```
 
 從 Keysight_Meters_Logger checkout 目錄執行 PowerShell：
 
 ```powershell
 $skill = Join-Path $HOME ".agents\skills\keysight-meters-cli-orchestration"
-New-Item -ItemType Directory -Force (Join-Path $skill "references") | Out-Null
+New-Item -ItemType Directory -Force (Join-Path $skill "references"), (Join-Path $skill "scripts") | Out-Null
 
 Copy-Item "docs\skill\SKILL.md" (Join-Path $skill "SKILL.md")
+Copy-Item "docs\skill\scripts\run_meter_sim_workflow.mjs" (Join-Path $skill "scripts")
 Copy-Item "docs\contracts\common-worker-protocol.md" (Join-Path $skill "references")
 Copy-Item "docs\contracts\common-cli-jsonl-contract.md" (Join-Path $skill "references")
 Copy-Item "docs\contracts\common-orchestrator-workflows.md" (Join-Path $skill "references")
@@ -126,9 +133,10 @@ Copy-Item "docs\contracts\meters-orchestrator-workflows.md" (Join-Path $skill "r
 
 ```bash
 skill="$HOME/.agents/skills/keysight-meters-cli-orchestration"
-mkdir -p "$skill/references"
+mkdir -p "$skill/references" "$skill/scripts"
 
 cp docs/skill/SKILL.md "$skill/SKILL.md"
+cp docs/skill/scripts/run_meter_sim_workflow.mjs "$skill/scripts/"
 cp docs/contracts/common-worker-protocol.md "$skill/references/"
 cp docs/contracts/common-cli-jsonl-contract.md "$skill/references/"
 cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
@@ -138,6 +146,24 @@ cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 ```
 
 對於使用者層級安裝，請保持 `references/` 檔案與 Keysight_Meters_Logger 儲存庫中上游的 `docs/contracts/` 檔案同步。
+
+## 內建模擬器 helper (Bundled simulator helper)
+
+此 Skill 也提供 `scripts/run_meter_sim_workflow.mjs`，可在有 Node.js 的環境中進行不需硬體的模擬器 smoke validation。此 helper 會執行一次 dry-run，並另外啟動一次模擬器 `start-trigger-record` 軟體觸發流程，接著輸出可由機器判讀的 artifacts；若證據不符合合約，會以非零結束代碼失敗。請勿將此 helper 用於 live resources；把 `--resource` 改成 `USB0::...` 這類 live VISA address，並不會讓它成為 live validation path。
+
+以下範例適用於包含 `keysight-logger*.exe` 執行檔的工作區：
+
+```powershell
+node .agents\skills\keysight-meters-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
+  --exe .\keysight-logger-1.5.0.exe `
+  --out .tmp_tests\meter_sim_software_trigger `
+  --resource SIM::34461A `
+  --measurement current-dc `
+  --max-samples 1 `
+  --port 18765
+```
+
+helper 會在指定輸出目錄中寫入 `dry_run.jsonl`、`sim_worker_stdout.jsonl`、`sim_worker_stderr.txt`、`sim_samples.csv` 與 `sim_report.json`。成功執行需要 dry-run 安全欄位、必要時透過 `wait-ready --json` 確認控制平面就緒、一次 accepted software trigger、JSONL/client responses/artifacts 之間的 `run_id` 相符、一筆 CSV row、`summary.ok: true`、符合預期的 captured count、零 errors，以及 worker exit code `0`。
 
 ## 使用範例 (Usage examples)
 
