@@ -2,7 +2,7 @@
 
 This guide is for operators who receive the built CLI executable or an
 already-installed `keysight-logger` command and use it to record measurements
-from a Keysight 34461A. It focuses on the normal measurement workflow and
+from a supported Keysight Truevolt DMM. It focuses on the normal measurement workflow and
 common settings. For developer setup, validation scripts, JSON/JSONL output,
 and automation contracts, see the [CLI README](README.md).
 
@@ -30,18 +30,19 @@ commands.
 Use this flow when checking a new computer, VISA runtime, connection, or
 instrument setup.
 
-1. Turn on the Keysight 34461A and connect it to the computer.
+1. Turn on the Keysight 34460A or 34461A and connect it to the computer.
 2. List resources that currently answer `*IDN?`:
 
 ```powershell
 .\keysight-logger.exe list-resources --live-only
 ```
 
-3. Copy the resource string for the 34461A.
+3. Copy the resource string for the instrument.
 4. Run one bounded immediate-mode sample:
 
 ```powershell
 .\keysight-logger.exe start-trigger-record `
+  --model 34461A `
   --resource "<VISA_RESOURCE>" `
   --measurement voltage-dc `
   --trigger-mode immediate `
@@ -56,6 +57,11 @@ instrument setup.
 
 Use an explicit resource string for live acquisition. Do not rely on a script
 or unattended workflow to guess which instrument should be used.
+
+The default model profile is 34461A. Add `--model 34460A` when using a 34460A.
+The 34460A profile blocks 10 A current range, current terminal selection, and
+base-profile external trigger modes, and uses a 1000-reading memory limit for
+custom modes.
 
 ## Choosing A Measurement
 

@@ -45,10 +45,10 @@ normal CSV/runtime output, and is intended for workflow validation without
 hardware. Simple simulate modes require a finite bound such as `--max-samples`.
 
 Live `start-trigger-record` is the default mode. It opens the explicit VISA
-resource, validates the 34461A identity, starts the local HTTP control server,
-runs acquisition, and performs the documented release/local cleanup. Live runs
-must keep using explicit resources; wrappers must not scan or guess live
-instrument resources.
+resource, validates the instrument identity against the selected model profile
+(default 34461A), starts the local HTTP control server, runs acquisition, and
+performs the documented release/local cleanup. Live runs must keep using
+explicit resources; wrappers must not scan or guess live instrument resources.
 
 ## Orchestrator Quickstart
 

@@ -1,4 +1,4 @@
-# Keysight 34461A CLI Logger
+# Keysight Truevolt CLI Logger
 
 ## Documentation Set
 
@@ -12,8 +12,8 @@
 - [Meters Orchestrator Workflows](../contracts/meters-orchestrator-workflows.md) - Meters subprocess examples for agents and automation.
 - [Meters Worker Contract](../contracts/meters-worker-contract.md) - Meters worker control plane, JSONL, and artifact contract for agents and orchestrators.
 
-CLI-first Python logger for Keysight 34461A DC/AC current, DC/AC voltage,
-DCV ratio, frequency, period, and 2-wire or 4-wire resistance measurements over VISA.
+CLI-first Python logger for Keysight 34460A and 34461A DC/AC current,
+DC/AC voltage, DCV ratio, frequency, period, and 2-wire or 4-wire resistance measurements over VISA.
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
@@ -66,8 +66,14 @@ Implemented:
 
 Important limitations:
 
-- This project is currently focused on Keysight 34461A current, voltage, DCV
-  ratio, frequency, period, and 2-wire or 4-wire resistance logging.
+- This project supports Keysight 34460A and 34461A Truevolt DMM logging. The
+  default model profile is 34461A for backward compatibility.
+- Select `--model 34460A` for 34460A limits: no 10 A current range or current
+  terminal selection, 1000 readings of memory, and no base-profile external
+  trigger modes.
+- Select `--model 34461A` or omit `--model` for the existing 34461A behavior.
+- The 34460A has a lower maximum reading rate than the 34461A, but the CLI does
+  not actively control high-speed reading rate in this release.
 - AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz
   bandwidth/filter settings through
   `--ac-bandwidth-hz`. Before production use, run a low-risk live-resource
@@ -90,7 +96,8 @@ Important limitations:
 
 - Python 3.10 or newer.
 - A VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
-- A Keysight 34461A visible to VISA over USB or LAN.
+- A supported Keysight Truevolt DMM visible to VISA. The 34460A base profile
+  does not assume optional LAN/LXI or external trigger support.
 
 ## Development
 
@@ -307,6 +314,38 @@ For a guided operator path with common setting explanations, use the
 5. Stop with `stop`, Ctrl+C, Ctrl+Break, `q`, or `--max-samples`.
 6. Inspect the CSV output.
 
+### 34460A Profile Examples
+
+Select the 34460A profile explicitly when using a 34460A:
+
+```powershell
+.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --model 34460A `
+  --resource "<RESOURCE>" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1
+```
+
+For 34460A custom modes, expected readings above its 1000-reading memory limit
+require `--allow-buffer-overflow-risk`:
+
+```powershell
+.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+  --model 34460A `
+  --resource "<RESOURCE>" `
+  --trigger-mode immediate-custom `
+  --measurement voltage-dc `
+  --trigger-count 2 `
+  --sample-count 1000 `
+  --allow-buffer-overflow-risk
+```
+
+This flag only accepts the risk of `trigger_count * sample_count` exceeding
+reading memory. It does not allow 10 A current range, `current_terminal=10`,
+unsupported trigger modes, or `--buffer-drain-size` above the selected profile
+reading memory.
+
 ## Command Reference
 
 Use the installed console script:
@@ -416,6 +455,7 @@ after that many successful timer CSV rows.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
+| `--model`, `--instrument-model` `34460A\|34461A` | No | 34461A | Select the instrument profile used for validation, capabilities, and live IDN matching. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
 | `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |
 | `--dry-run` | No | Off | Validate arguments and print the planned measurement, SCPI, read path, and cleanup contract without opening VISA, writing CSV, or starting the HTTP server. |
@@ -426,13 +466,13 @@ after that many successful timer CSV rows.
 | `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/command`, `/stop`, and `/status`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
 | `--sw-min-interval-ms N` | No | `0` | Minimum interval between accepted software triggers. Use `0` to disable rate limiting, or use `50` to `600000`. |
 | `--sw-queue-max N` | No | `0` | Maximum queued software triggers. Supported range: `0` to `10000`; `0` uses the default safety cap. |
-| `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | No | `software` | Select exactly one acquisition mode. |
+| `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | No | `software` | Select exactly one acquisition mode. Supported choices are profile-specific; 34460A base profile excludes `external` and `external-custom`. |
 | `--max-samples N` | Simple modes only | None | Stop simple modes automatically after N successful CSV samples. Supported range: `1` to `1000000`. Not valid with custom modes. |
 | `--trigger-count N` | Custom modes only | None | Instrument trigger count. Supported range: `1` to `1000000`. Required with custom modes; not valid with simple modes. |
 | `--sample-count N` | Custom modes only | None | Instrument sample count per trigger. Supported range: `1` to `1000000`. Required with custom modes; not valid with simple modes. |
 | `--timer-interval-s SECONDS` | No | None | Enable fixed-delay software timer capture. Supported range: `0.5` to `86400` seconds. Valid only with `--trigger-mode software`; also valid when `--trigger-mode` is omitted because software is the default. May be combined with `--max-samples` for bounded timer runs. |
 | `--buffer-drain-size N` | Custom modes only | None | Maximum readings to remove per buffer drain. Supported range: `1` to `10000`, capped by the instrument profile reading memory. Advanced option valid only with custom modes; does not change `TRIG:COUNT`, `SAMP:COUNT`, or instrument reading memory capacity. |
-| `--allow-buffer-overflow-risk` | No | Off | Allow custom modes to request more readings than the 34461A 10,000-reading memory limit. This depends on draining readings fast enough and may lose data or produce SCPI errors. |
+| `--allow-buffer-overflow-risk` | No | Off | Allow custom modes to request more readings than the selected profile reading memory. This depends on draining readings fast enough and may lose data or produce SCPI errors. It does not allow unsupported ranges, terminals, trigger modes, or `--buffer-drain-size` values above reading memory. |
 | `--hw-trigger-slope pos\|neg` | No | `neg` | External trigger edge polarity. |
 | `--hw-trigger-delay-s SECONDS` | No | `0.0` | Hardware trigger delay, mapped to `TRIG:DEL`. Supported range: `0` to `3600` seconds. |
 | `--measurement current-dc\|voltage-dc\|voltage-dc-ratio\|current-ac\|voltage-ac\|frequency\|period\|resistance-2w\|resistance-4w` | No | `current-dc` | Measurement type. |
@@ -444,7 +484,7 @@ after that many successful timer CSV rows.
 | `--ac-bandwidth-hz 3\|20\|200` | AC/Frequency/Period only | Measurement-specific | AC bandwidth/filter setting. AC current/voltage leave it unchanged when omitted; Frequency/Period default to `20` Hz. |
 | `--gate-time-s 0.01\|0.1\|1` | Frequency/Period only | `0.1` | Frequency/Period aperture or gate time in seconds. |
 | `--freq-period-timeout auto\|1s` | Frequency only | `auto` | Use automatic Frequency timeout or disable auto timeout for the fixed 1-second behavior. Period rejects this option and sends no timeout SCPI. |
-| `--current-terminal 3\|10` | Current only | `3` | Current input terminal. The 10 A range requires `--current-terminal 10`; `--current-terminal 10` is valid only with the 10 A range. |
+| `--current-terminal 3\|10` | Current only | None | Current input terminal for profiles that expose terminal selection. The 34461A 10 A range requires `--current-terminal 10`; `--current-terminal 10` is valid only with the 10 A range. The 34460A profile rejects current terminal selection. |
 | `--dcv-input-impedance default\|10m\|auto` | DC Voltage or DCV Ratio only | `default` | DC voltage input impedance. `default` writes no impedance command; `10m` forces 10 MOhm; `auto` enables the instrument Auto mode, which may show HighZ on low DC voltage ranges. |
 | `--vm-comp-slope pos\|neg` | No | None | Configure rear-panel VM Comp output pulse slope. Omit to leave VM Comp unchanged. |
 
@@ -653,8 +693,8 @@ Manual range values are whitelisted per measurement type:
 
 | Measurement | Allowed `--range` values |
 | --- | --- |
-| `current-dc` | `0.0001`, `0.001`, `0.01`, `0.1`, `1`, `3`, `10` A |
-| `current-ac` | `0.0001`, `0.001`, `0.01`, `0.1`, `1`, `3`, `10` A |
+| `current-dc` | 34461A: `0.0001`, `0.001`, `0.01`, `0.1`, `1`, `3`, `10` A; 34460A: up to `3` A |
+| `current-ac` | 34461A: `0.0001`, `0.001`, `0.01`, `0.1`, `1`, `3`, `10` A; 34460A: up to `3` A |
 | `voltage-dc` | `0.1`, `1`, `10`, `100`, `1000` V |
 | `voltage-dc-ratio` | `0.1`, `1`, `10`, `100`, `1000` V |
 | `voltage-ac` | `0.1`, `1`, `10`, `100`, `750` V |
@@ -683,17 +723,20 @@ Additional validation rules:
   `frequency`, or `period`.
 - `--gate-time-s` is valid only with `frequency` or `period`.
 - `--freq-period-timeout` is valid only with `frequency`.
-- `--current-terminal` is valid only with current measurements. The 10 A range
-  requires `--current-terminal 10`, and `--current-terminal 10` requires the
-  10 A range.
+- `--current-terminal` is valid only with current measurements on profiles that
+  expose terminal selection. The 34461A 10 A range requires
+  `--current-terminal 10`, and `--current-terminal 10` requires the 10 A range.
+  The 34460A profile rejects current terminal selection.
+- 34460A base profile rejects `external` and `external-custom` trigger modes.
 - Custom modes require both `--trigger-count` and `--sample-count`; simple modes
   reject both options.
 - Custom modes reject `--max-samples`; simple modes use `--max-samples` for
   bounded runs.
 - `--buffer-drain-size` and `--allow-buffer-overflow-risk` are valid only with
   custom modes.
-- Custom modes reject `trigger_count * sample_count > 10000` for the 34461A
-  unless `--allow-buffer-overflow-risk` is set.
+- Custom modes reject `trigger_count * sample_count` above the selected profile
+  reading memory unless `--allow-buffer-overflow-risk` is set. The limit is
+  10000 for 34461A and 1000 for 34460A.
 - `--timer-interval-s` requires software mode. It is valid with the default
   trigger mode because omitted `--trigger-mode` resolves to `software`. It may
   be combined with `--max-samples` to stop after a fixed number of timer rows.
@@ -1368,14 +1411,15 @@ Immediate mode does not wait for `send-command` or external trigger edges. Use
   --nplc 1.0
 ```
 
-This mode uses 34461A reading memory to reduce per-sample `READ?` communication
-overhead. It is not an instrument internal timer mode: sample cadence is still
+This mode uses the selected profile's reading memory to reduce per-sample
+`READ?` communication overhead. It is not an instrument internal timer mode:
+sample cadence is still
 set by measurement speed, DC/resistance NPLC and Auto Zero, Auto Range, range
 settling, and instrument trigger/sample behavior. CSV `trigger_metadata` marks
 custom rows with `time_basis=pc_data_remove_time_not_instrument_sample_time`.
 The expected row count is `trigger_count * sample_count`. Requests above the
-34461A 10,000-reading memory limit are rejected unless
-`--allow-buffer-overflow-risk` is set.
+selected profile reading memory are rejected unless `--allow-buffer-overflow-risk`
+is set.
 
 ### Software Custom Mode
 

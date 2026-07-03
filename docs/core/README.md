@@ -1,11 +1,11 @@
 # Keysight Logger Core
 
 Core contains the public API and acquisition runtime contract used by the CLI
-and WebUI components for Keysight 34461A integrations.
+and WebUI components for supported Keysight Truevolt DMM integrations.
 
 Core owns the shared request model, validation, dry-run planning, runtime
 session orchestration, event/result types, control-plane interfaces, profile
-metadata, and safety rules for the Keysight 34461A acquisition runtime. It is
+metadata, and safety rules for the Keysight 34460A/34461A acquisition runtime. It is
 shipped inside the single `keysight-logger` distribution while preserving the
 `keysight_logger_core` import boundary.
 

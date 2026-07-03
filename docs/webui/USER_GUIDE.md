@@ -1,7 +1,7 @@
 # Keysight Logger WebUI User Guide
 
 This guide is for operators who receive the built WebUI launcher and use it to
-record measurements from a Keysight 34461A. It avoids developer details and
+record measurements from a supported Keysight Truevolt DMM. It avoids developer details and
 focuses on the normal measurement workflow.
 
 ## What The WebUI Does
@@ -59,6 +59,8 @@ The WebUI is a local acquisition console. The main areas are:
 - `Live resource`: the instrument detected by a scan.
 - `Scan Device`: searches for connected live instruments.
 - `Run Setup`: CSV output path and run count settings.
+- `Instrument model`: selects the model profile used for validation. The
+  default is 34461A.
 - `Measurement`: measurement type and related options.
 - `Trigger`: trigger mode and trigger-related options.
 - `Status`: current run state, captured sample count, errors, CSV path, and log.
@@ -69,11 +71,12 @@ The WebUI is a local acquisition console. The main areas are:
 
 Use this flow for a basic immediate measurement:
 
-1. Turn on the Keysight 34461A and connect it to the computer.
+1. Turn on the Keysight 34460A or 34461A and connect it to the computer.
 2. Start the WebUI.
 3. Click `Scan Device`.
 4. Select or copy the detected VISA resource into `VISA resource`.
-5. Choose the measurement type, such as DC voltage or DC current.
+5. Choose the instrument model, then choose the measurement type, such as DC
+   voltage or DC current.
 6. In `Run Setup`, choose the CSV location. Use `Select` to pick a folder and
    generate a timestamped CSV path.
 7. Leave trigger mode on the immediate/default mode unless you specifically
@@ -123,8 +126,14 @@ before clicking `Start`.
 Run count and sample limit fields control how long a run can continue. Keep new
 setups bounded while checking wiring, measurement type, and trigger behavior.
 
-`Measurement type` selects what the 34461A measures: DC or AC voltage, DC or AC
-current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
+`Instrument model` selects the Core profile used for options and validation.
+Choose 34460A for a 34460A. With 34460A selected, the WebUI hides 10 A current
+ranges, current terminal selection, and external trigger modes; custom mode
+reading memory is 1000 readings. The selector changes validation and
+capabilities only; it does not change cleanup or trigger sequencing.
+
+`Measurement type` selects what the instrument measures: DC or AC voltage, DC
+or AC current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
 Match this to the instrument wiring before starting a run.
 
 `Auto Range` lets the instrument choose the measurement range. Keep it enabled

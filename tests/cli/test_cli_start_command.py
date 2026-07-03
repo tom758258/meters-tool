@@ -304,11 +304,121 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         mock_connect.assert_not_called()
 
+    def test_start_model_34460a_dry_run_uses_profile_limits(self):
+        cases = [
+            (
+                "current-dc-range-3",
+                [
+                    "--model",
+                    "34460A",
+                    "--measurement",
+                    "current-dc",
+                    "--auto-range",
+                    "off",
+                    "--range",
+                    "3",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                    "--dry-run",
+                ],
+                0,
+                "",
+            ),
+            (
+                "current-dc-range-10",
+                [
+                    "--model",
+                    "34460A",
+                    "--measurement",
+                    "current-dc",
+                    "--auto-range",
+                    "off",
+                    "--range",
+                    "10",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                    "--dry-run",
+                ],
+                2,
+                "--range 10 is not valid for --measurement current-dc",
+            ),
+            (
+                "overflow-without-allow",
+                [
+                    "--model",
+                    "34460A",
+                    "--measurement",
+                    "voltage-dc",
+                    "--trigger-mode",
+                    "immediate-custom",
+                    "--trigger-count",
+                    "1",
+                    "--sample-count",
+                    "1001",
+                    "--dry-run",
+                ],
+                2,
+                "custom mode expected readings 1001 exceed 34460A reading memory 1000",
+            ),
+            (
+                "overflow-with-allow",
+                [
+                    "--model",
+                    "34460A",
+                    "--measurement",
+                    "voltage-dc",
+                    "--trigger-mode",
+                    "immediate-custom",
+                    "--trigger-count",
+                    "1",
+                    "--sample-count",
+                    "1001",
+                    "--allow-buffer-overflow-risk",
+                    "--dry-run",
+                ],
+                0,
+                "",
+            ),
+        ]
+        for name, extra_args, expected_rc, expected_error in cases:
+            with self.subTest(name=name):
+                stdout = io.StringIO()
+                stderr = io.StringIO()
+                with redirect_stdout(stdout), redirect_stderr(stderr):
+                    rc = main(["start-trigger-record", "--resource", "USB::FAKE", *extra_args])
+
+                self.assertEqual(expected_rc, rc)
+                if expected_error:
+                    self.assertIn(expected_error, stderr.getvalue())
+
     def test_start_json_alias_sets_jsonl_status_format(self):
         parser = build_parser()
         args = parser.parse_args(["start-trigger-record", "--resource", "USB::FAKE", "--json"])
 
         self.assertEqual("jsonl", args.status_format)
+
+    def test_start_parser_accepts_instrument_model_aliases(self):
+        parser = build_parser()
+
+        model_args = parser.parse_args(
+            ["start-trigger-record", "--resource", "USB::FAKE", "--model", "34460A"]
+        )
+        instrument_model_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--instrument-model",
+                "34461A",
+            ]
+        )
+
+        self.assertEqual("34460A", model_args.instrument_model)
+        self.assertEqual("34461A", instrument_model_args.instrument_model)
 
     def test_start_json_alias_conflicts_with_text_status_format(self):
         parser = build_parser()
@@ -387,6 +497,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "SIM::34461A",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\delegate.csv",
                 "--trigger-mode",
@@ -430,6 +542,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         request_model, trigger_mode, _profile, event_sink, controls = mock_runner.call_args.args
         self.assertIsInstance(request_model, StartRequest)
         self.assertEqual("SIM::34461A", request_model.resource)
+        self.assertEqual("34461A", request_model.instrument_model)
         self.assertEqual("data\\delegate.csv", request_model.csv)
         self.assertTrue(request_model.simulate)
         self.assertEqual("current-ac", request_model.measurement)

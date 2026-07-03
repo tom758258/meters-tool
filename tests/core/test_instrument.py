@@ -275,6 +275,60 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         self.assertEqual(4321, session.timeout)
         self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
 
+    def test_connect_accepts_idn_matching_expected_model(self):
+        cases = [
+            ("34461A", "Keysight Technologies,34461A,MY123,1.0"),
+            ("34460A", "Keysight Technologies,34460A,MY123,1.0"),
+        ]
+        for expected_model, idn in cases:
+            with self.subTest(expected_model=expected_model):
+                session = FakeVisaSession()
+                session.idn_response = idn
+                rm = FakeResourceManager(session=session)
+                instrument = VisaInstrument(
+                    InstrumentConfig(
+                        resource_string="USB::FAKE",
+                        timeout_ms=4321,
+                        expected_model=expected_model,
+                    ),
+                    resource_manager_factory=lambda: rm,
+                )
+
+                with patch("keysight_logger_core.instrument.pyvisa", None):
+                    instrument.connect()
+
+                self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
+
+    def test_connect_rejects_idn_mismatching_expected_model(self):
+        cases = [
+            ("34461A", "Keysight Technologies,34460A,MY123,1.0"),
+            ("34460A", "Keysight Technologies,34461A,MY123,1.0"),
+        ]
+        for expected_model, idn in cases:
+            with self.subTest(expected_model=expected_model):
+                session = FakeVisaSession()
+                session.idn_response = idn
+                rm = FakeResourceManager(session=session)
+                instrument = VisaInstrument(
+                    InstrumentConfig(
+                        resource_string="USB::FAKE",
+                        timeout_ms=4321,
+                        expected_model=expected_model,
+                    ),
+                    resource_manager_factory=lambda: rm,
+                )
+
+                with patch("keysight_logger_core.instrument.pyvisa", None):
+                    with self.assertRaisesRegex(
+                        InstrumentError,
+                        f"expected Keysight/Agilent {expected_model}",
+                    ):
+                        instrument.connect()
+
+                self.assertEqual(["query:*IDN?"], session.writes)
+                self.assertTrue(session.closed)
+                self.assertTrue(rm.closed)
+
     def test_connect_uses_injected_resource_manager_factory(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)

@@ -70,6 +70,14 @@ class WebUiApiTests(unittest.TestCase):
             {"name": "keysight-logger-webui", "version": get_webui_version()},
             payload["app"],
         )
+        self.assertEqual("34461A", payload["instrument_profile"]["model"])
+        self.assertEqual(
+            [
+                {"model": "34461A", "vendor": "Keysight"},
+                {"model": "34460A", "vendor": "Keysight"},
+            ],
+            payload["available_profiles"],
+        )
         self.assertEqual(
             [
                 "current-dc",
@@ -149,11 +157,48 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual({"min": 0, "max": 10000}, limits["sw_queue_max"])
 
         defaults = payload["defaults"]
+        self.assertEqual("34461A", defaults["instrument_model"])
         self.assertEqual("on", defaults["auto_zero"])
         self.assertIsNone(defaults["ac_bandwidth_hz"])
         self.assertIsNone(defaults["gate_time_s"])
         self.assertIsNone(defaults["freq_period_timeout"])
         self.assertIsNone(defaults["current_terminal"])
+
+    def test_capabilities_model_query_returns_34460a_limits(self):
+        client, _csv_path = self.make_client()
+
+        response = client.get("/api/capabilities?model=34460A")
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("34460A", payload["instrument_profile"]["model"])
+        self.assertEqual(1000, payload["instrument_profile"]["reading_memory_limit"])
+        self.assertEqual(1000, payload["limits"]["buffer_drain_size"]["max"])
+        self.assertNotIn("external", payload["trigger_modes"])
+        self.assertNotIn("external-custom", payload["trigger_modes"])
+        self.assertIn("software-custom", payload["trigger_modes"])
+        measurements = {item["name"]: item for item in payload["measurements"]}
+        for name in ("current-dc", "current-ac"):
+            with self.subTest(name=name):
+                range_values = [item["value"] for item in measurements[name]["range_options"]]
+                self.assertNotIn(10.0, range_values)
+                self.assertEqual([], measurements[name]["current_terminal_options"])
+                self.assertFalse(measurements[name]["supports_current_terminal"])
+
+    def test_capabilities_model_query_preserves_34461a_limits(self):
+        client, _csv_path = self.make_client()
+
+        response = client.get("/api/capabilities?model=34461A")
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("34461A", payload["instrument_profile"]["model"])
+        self.assertEqual(10000, payload["instrument_profile"]["reading_memory_limit"])
+        self.assertIn("external", payload["trigger_modes"])
+        self.assertIn("external-custom", payload["trigger_modes"])
+        measurements = {item["name"]: item for item in payload["measurements"]}
+        self.assertIn(10.0, [item["value"] for item in measurements["current-dc"]["range_options"]])
+        self.assertEqual([3, 10], measurements["current-dc"]["current_terminal_options"])
 
     def test_capabilities_use_fallback_version_when_package_metadata_is_unavailable(self):
         with (
@@ -557,6 +602,59 @@ class WebUiApiTests(unittest.TestCase):
 
                 self.assertEqual(422, response.status_code)
                 self.assertIn(expected_detail, response.json()["detail"])
+
+    def test_start_validation_uses_selected_34460a_profile(self):
+        client, csv_path = self.make_client()
+
+        range_response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "instrument_model": "34460A",
+                "measurement": "current-dc",
+                "auto_range": False,
+                "measurement_range": 10.0,
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+        overflow_response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "instrument_model": "34460A",
+                "measurement": "voltage-dc",
+                "trigger_mode": "immediate-custom",
+                "trigger_count": 1,
+                "sample_count": 1001,
+            },
+        )
+        allowed_response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "instrument_model": "34460A",
+                "measurement": "voltage-dc",
+                "trigger_mode": "immediate-custom",
+                "trigger_count": 1,
+                "sample_count": 1001,
+                "allow_buffer_overflow_risk": True,
+            },
+        )
+
+        self.assertEqual(422, range_response.status_code)
+        self.assertIn("--range 10 is not valid", range_response.json()["detail"])
+        self.assertEqual(422, overflow_response.status_code)
+        self.assertIn("34460A reading memory 1000", overflow_response.json()["detail"])
+        self.assertEqual(200, allowed_response.status_code)
+        client.post("/api/runs/current/stop")
+        self.wait_until_inactive(client)
 
     def test_manager_can_build_default_request_model(self):
         request = RunStartRequest(resource="USB::FAKE")

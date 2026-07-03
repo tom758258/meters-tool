@@ -13,7 +13,7 @@ from keysight_logger_core._version import (
     get_distribution_version,
 )
 from keysight_logger_core.instrument import VisaInstrument
-from keysight_logger_core.models import StartRequest, get_default_instrument_profile
+from keysight_logger_core.models import StartRequest, resolve_instrument_profile
 from keysight_logger_core.runner import StopController, run_start_session
 from keysight_logger_core.run_plan import StartPlan, build_start_plan
 from keysight_logger_core.session import StartRunEvent, new_run_id
@@ -436,6 +436,7 @@ def _emit_start_plan(plan: StartPlan, emitter: CliEventEmitter) -> None:
 def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
     return StartRequest(
         resource=args.resource,
+        instrument_model=args.instrument_model,
         csv=args.csv,
         dry_run=args.dry_run,
         simulate=args.simulate,
@@ -586,11 +587,11 @@ def cmd_list_resources(
     return 0
 
 def cmd_start(args: argparse.Namespace) -> int:
-    instrument_profile = get_default_instrument_profile()
     emitter = CliEventEmitter(print_fn=print, output_format=args.status_format)
     request_model: StartRequest
     try:
         request_model = _start_request_from_args(args)
+        instrument_profile = resolve_instrument_profile(request_model.instrument_model)
         trigger_mode = resolve_trigger_mode(request_model)
         validate_start_request(request_model, trigger_mode, instrument_profile=instrument_profile)
     except ValueError as exc:

@@ -12,6 +12,7 @@ import {
   freqPeriodTimeoutSelect,
   gateTimeContainer,
   gateTimeSelect,
+  instrumentModelSelect,
   measurementRangeInput,
   measurementScopedControls,
   measurementSelect,
@@ -107,6 +108,7 @@ export function formPayload() {
 
   const payload = {
     resource,
+    instrument_model: textOrNull(data.get("instrument_model")),
     csv: textOrNull(data.get("csv")),
     timeout_ms: numberOrNull(data.get("timeout_ms")),
     trigger_timeout_ms: triggerTimeoutMs(data, triggerMode),
@@ -532,10 +534,26 @@ function applyAppMetadata(app) {
   subtitle.textContent = version ? `Unofficial Tool v${version}` : "Unofficial Tool";
 }
 
-export async function loadCapabilities() {
-  const capabilities = await api("/api/capabilities");
+export async function loadCapabilities(model = null) {
+  const selectedModel = textOrNull(model || instrumentModelSelect?.value);
+  const url = selectedModel
+    ? `/api/capabilities?model=${encodeURIComponent(selectedModel)}`
+    : "/api/capabilities";
+  const previousMeasurement = measurementSelect.value;
+  const previousTriggerMode = triggerModeSelect.value;
+  const capabilities = await api(url);
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
+  if (instrumentModelSelect) {
+    const profileOptions = capabilities.available_profiles || [];
+    instrumentModelSelect.replaceChildren(
+      ...profileOptions.map((profile) =>
+        optionElement(profile.model, profile.model)
+      )
+    );
+    instrumentModelSelect.value =
+      capabilities.instrument_profile?.model || capabilities.defaults?.instrument_model || "34461A";
+  }
   measurementsByName = new Map(
     capabilities.measurements.map((item) => [item.name, item])
   );
@@ -544,11 +562,17 @@ export async function loadCapabilities() {
       optionElement(item.name, `${capitalizeFirst(item.name)} (${item.unit})`)
     )
   );
+  if (measurementsByName.has(previousMeasurement)) {
+    measurementSelect.value = previousMeasurement;
+  }
   updateMeasurementUi();
   triggerModeSelect.replaceChildren(
     ...capabilities.trigger_modes.map((mode) =>
       optionElement(mode, capitalizeFirst(mode))
     )
   );
+  if (capabilities.trigger_modes.includes(previousTriggerMode)) {
+    triggerModeSelect.value = previousTriggerMode;
+  }
   updateTriggerModeUi();
 }

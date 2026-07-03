@@ -29,7 +29,7 @@ from keysight_logger_core import (
     StartRunResult,
     build_start_plan,
     generate_buffer_overflow_warnings,
-    get_default_instrument_profile,
+    resolve_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
     validate_start_request,
@@ -52,7 +52,7 @@ from keysight_logger_core.measurement import (
     get_measurement_definition,
     registered_measurement_types,
 )
-from keysight_logger_core.models import TriggerEvent, TriggerSource
+from keysight_logger_core.models import INSTRUMENT_PROFILES, TriggerEvent, TriggerSource
 from keysight_logger_core.runner import StartRunnerDependencies
 from keysight_logger_core.validation import (
     BUFFER_DRAIN_SIZE_RANGE,
@@ -65,17 +65,10 @@ from keysight_logger_core.validation import (
     TIMER_INTERVAL_S_RANGE,
     TRIGGER_COUNT_RANGE,
     TRIGGER_TIMEOUT_MS_RANGE,
+    supported_trigger_modes,
 )
 
 
-TRIGGER_MODES = (
-    "software",
-    "external",
-    "immediate",
-    "immediate-custom",
-    "software-custom",
-    "external-custom",
-)
 PACKAGE_NAME = "keysight-logger-webui"
 FALLBACK_WEBUI_VERSION = FALLBACK_PACKAGE_VERSION
 LIVE_SAMPLE_CAPACITY = 5000
@@ -86,6 +79,7 @@ APP_JS_CACHEBUSTER_TOKEN = "__KEYSIGHT_LOGGER_APP_JS_CACHEBUSTER__"
 
 class RunStartRequest(BaseModel):
     resource: str
+    instrument_model: Optional[str] = None
     csv: Optional[str] = None
     simulate: bool = False
     timeout_ms: int = 5000
@@ -313,8 +307,8 @@ class WebRunManager:
             else:
                 yield _format_keepalive_event()
 
-    def capabilities(self) -> dict[str, Any]:
-        profile = get_default_instrument_profile()
+    def capabilities(self, instrument_model: str | None = None) -> dict[str, Any]:
+        profile = resolve_instrument_profile(instrument_model)
         measurements = []
         registered = set(registered_measurement_types())
         for measurement_type in profile.supported_measurement_types:
@@ -371,8 +365,12 @@ class WebRunManager:
                 "supports_external_trigger": profile.supports_external_trigger,
                 "supports_sample_timer": profile.supports_sample_timer,
             },
+            "available_profiles": [
+                {"model": profile.model, "vendor": profile.vendor}
+                for profile in INSTRUMENT_PROFILES
+            ],
             "measurements": measurements,
-            "trigger_modes": list(TRIGGER_MODES),
+            "trigger_modes": list(supported_trigger_modes(profile)),
             "limits": {
                 "timeout_ms": _range_limit(TIMEOUT_MS_RANGE),
                 "trigger_timeout_ms": _range_limit(TRIGGER_TIMEOUT_MS_RANGE),
@@ -380,7 +378,12 @@ class WebRunManager:
                 "trigger_count": _range_limit(TRIGGER_COUNT_RANGE),
                 "sample_count": _range_limit(SAMPLE_COUNT_RANGE),
                 "timer_interval_s": _range_limit(TIMER_INTERVAL_S_RANGE),
-                "buffer_drain_size": _range_limit(BUFFER_DRAIN_SIZE_RANGE),
+                "buffer_drain_size": _range_limit(
+                    (
+                        BUFFER_DRAIN_SIZE_RANGE[0],
+                        min(BUFFER_DRAIN_SIZE_RANGE[1], profile.reading_memory_limit),
+                    )
+                ),
                 "hw_trigger_delay_s": _range_limit(HW_TRIGGER_DELAY_S_RANGE),
                 "sw_min_interval_ms": {
                     **_range_limit(SW_MIN_INTERVAL_MS_RANGE),
@@ -390,6 +393,7 @@ class WebRunManager:
             },
             "defaults": {
                 "measurement": "current-dc",
+                "instrument_model": profile.model,
                 "trigger_mode": "software",
                 "timeout_ms": 5000,
                 "trigger_timeout_ms": 10000,
@@ -441,7 +445,7 @@ class WebRunManager:
         handle: _RunHandle | None = None
         try:
             start_request = self._validate_request(request)
-            profile = get_default_instrument_profile()
+            profile = resolve_instrument_profile(start_request.instrument_model)
             trigger_mode = resolve_trigger_mode(start_request)
             warnings = generate_buffer_overflow_warnings(start_request, trigger_mode, profile)
             plan = build_start_plan(
@@ -607,12 +611,13 @@ class WebRunManager:
             raise RunValidationError("resource is required")
         if raw.get("csv") is not None:
             raw["csv"] = str(raw["csv"]).strip() or None
+        profile = resolve_instrument_profile(raw.get("instrument_model"))
         if raw.get("trigger_mode") is not None:
             raw["trigger_mode"] = str(raw["trigger_mode"]).strip().lower()
-            if raw["trigger_mode"] not in TRIGGER_MODES:
+            trigger_modes = supported_trigger_modes(profile)
+            if raw["trigger_mode"] not in trigger_modes:
                 raise RunValidationError(
-                    "trigger_mode must be software, external, immediate, "
-                    "immediate-custom, software-custom, or external-custom"
+                    f"trigger_mode must be one of: {', '.join(trigger_modes)}"
                 )
         raw["hw_trigger_slope"] = str(raw["hw_trigger_slope"]).strip().lower()
         if raw["hw_trigger_slope"] not in {"pos", "neg"}:
@@ -647,7 +652,7 @@ class WebRunManager:
         validate_start_request(
             start_request,
             trigger_mode,
-            instrument_profile=get_default_instrument_profile(),
+            instrument_profile=profile,
         )
         return start_request
 
@@ -822,8 +827,11 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
         return HTMLResponse(index_html)
 
     @app.get("/api/capabilities")
-    def api_capabilities() -> dict[str, Any]:
-        return app.state.manager.capabilities()
+    def api_capabilities(model: str | None = None) -> dict[str, Any]:
+        try:
+            return app.state.manager.capabilities(instrument_model=model)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/resources")
     def api_resources(verify: bool = False, live_only: bool = False) -> dict[str, Any]:

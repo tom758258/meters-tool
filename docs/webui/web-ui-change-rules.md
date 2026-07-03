@@ -131,6 +131,7 @@ must not trigger extra VISA reads.
 Important payload fields currently sent by the UI include:
 
 - `resource`
+- `instrument_model`
 - `csv`
 - `timeout_ms`
 - `trigger_timeout_ms`
@@ -200,6 +201,7 @@ Important IDs:
 - `raw-status`
 - `resource`
 - `resource-select`
+- `instrument-model`
 - `measurement`
 - `measurement-range`
 - `range-unit`
@@ -263,6 +265,8 @@ The UI may look different, but these behaviors must remain true:
 - Scan Device calls `/api/resources?verify=true&live_only=true`.
 - Selecting a live resource copies it into the VISA resource input.
 - Measurement options are populated from `/api/capabilities`.
+- The instrument model selector reloads `/api/capabilities?model=<model>` and
+  Start sends `instrument_model`.
 - Range choices are populated from the selected measurement definition.
 - NPLC choices are populated from the selected measurement definition.
 - NPLC is hidden/disabled when unsupported.

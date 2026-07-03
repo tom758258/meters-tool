@@ -131,6 +131,8 @@ Main areas:
 
 - Header: `Keysight Meters` and `Local acquisition console`.
 - Resource row: `VISA resource`, `Live resource`, and `Scan Device`.
+- Run Setup includes the instrument model selector. It defaults to 34461A and
+  can select 34460A for model-specific validation limits.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
 - Collapsible setup panels for run configuration, measurement settings,
@@ -147,7 +149,7 @@ JavaScript modules.
 1. Start the WebUI server.
 2. Open `http://127.0.0.1:8767/`.
 3. Enter a VISA resource manually or click `Scan Device`.
-4. Select measurement and trigger settings.
+4. Select the instrument model, then select measurement and trigger settings.
 5. Keep low-risk defaults for first contact with a real instrument:
    Auto Range on, immediate trigger, and a small `max_samples` value.
 6. Click `Start`.
@@ -179,7 +181,13 @@ Measurement options are loaded from Core through:
 
 ```text
 GET /api/capabilities
+GET /api/capabilities?model=34460A
+GET /api/capabilities?model=34461A
 ```
+
+When `model` is omitted, the WebUI uses the default 34461A profile. The browser
+model selector reloads capabilities with the selected model and sends
+`instrument_model` in the `POST /api/runs` payload.
 
 Currently surfaced measurement modes include:
 
@@ -211,6 +219,9 @@ Measurement-specific UI behavior:
   hides it and sends no timeout payload.
 - Current terminal selection appears only for current measurements where
   supported.
+- With the 34460A profile selected, current ranges exclude 10 A and current
+  terminal selection is hidden because the base 34460A profile has no 10 A
+  terminal/path.
 - DCV Input Z appears only for `voltage-dc`.
 - VM Comp remains a measurement option where supported by Core.
 - Auto Zero Once is available for supported DC/resistance measurements through
@@ -228,6 +239,10 @@ Currently surfaced trigger modes include:
 - `immediate-custom`
 - `software-custom`
 - `external-custom`
+
+The exact list is profile-specific. The 34460A base profile hides `external`
+and `external-custom` because LAN/LXI/external trigger capability is optional
+and not assumed.
 
 Simple immediate and software-triggered reads use Core's `READ?` path.
 Hardware-triggered simple reads use Core's `FETC?` path after the trigger
@@ -404,7 +419,8 @@ The browser-facing API surface is:
 
 - `GET /`: serves `index.html`.
 - `GET /api/capabilities`: returns Core-backed measurement and trigger
-  capabilities.
+  capabilities. Optional `model=34460A` or `model=34461A` selects the profile;
+  omitted model returns the default 34461A profile.
 - `GET /api/resources?verify=true&live_only=true`: scans VISA resources.
 - `POST /api/runs`: validates and starts a run.
 - `GET /api/runs/current`: returns current or latest run status.
@@ -430,6 +446,7 @@ do not embed the full run status.
 Important fields sent by the WebUI include:
 
 - `resource`
+- `instrument_model`
 - `csv`
 - `timeout_ms`
 - `trigger_timeout_ms`

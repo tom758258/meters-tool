@@ -123,6 +123,19 @@ def supported_measurement_types(profile: InstrumentProfile) -> tuple[str, ...]:
     return tuple(value for value in profile.supported_measurement_types if value in registered_measurements)
 
 
+def supported_trigger_modes(profile: InstrumentProfile) -> tuple[str, ...]:
+    modes = ["software", "immediate"]
+    if profile.supports_external_trigger:
+        modes.append("external")
+    if profile.supports_buffered_reading_memory:
+        modes.append("immediate-custom")
+        if profile.supports_bus_trigger:
+            modes.append("software-custom")
+        if profile.supports_external_trigger:
+            modes.append("external-custom")
+    return tuple(modes)
+
+
 def validate_int_range(name: str, value: int, minimum: int, maximum: int, detail: str) -> None:
     if value < minimum or value > maximum:
         raise ValueError(
@@ -152,14 +165,27 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         format_measurement_type(value) for value in supported_measurement_types(effective_profile)
     ]
     range_lines = []
+    current_terminal_values: list[str] = []
     for measurement_name in measurement_names:
         definition = get_measurement_definition(measurement_name)
         options = effective_profile.get_measurement_options(measurement_name)
+        for terminal in options.current_terminal_options:
+            terminal_text = str(terminal)
+            if terminal_text not in current_terminal_values:
+                current_terminal_values.append(terminal_text)
         range_lines.append(
             f"  {definition.canonical_name}: {format_range_options(options)} {range_unit(definition)}"
         )
+    current_terminal_line = (
+        "  current terminal choices for supported current measurements: "
+        + ", ".join(current_terminal_values)
+        if current_terminal_values
+        else "  current terminal selection is not supported by this profile"
+    )
     return (
         "Limits:\n"
+        f"  instrument profile default: {effective_profile.model}; "
+        "use --model 34460A or --model 34461A to select model-specific limits\n"
         f"  measurement choices: {', '.join(measurement_names)}\n"
         "  NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100\n"
         "  AC current/voltage and Frequency/Period do not support NPLC SCPI; "
@@ -167,7 +193,7 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         "  AC bandwidth choices for AC current/voltage and Frequency/Period: 3, 20, 200 Hz\n"
         "  Frequency/Period gate time choices: 0.01, 0.1, 1 s; default: 0.1 s\n"
         "  Frequency timeout choices: auto, 1s; default: auto; Period unsupported\n"
-        "  current terminal choices for current measurements: 3, 10\n"
+        f"{current_terminal_line}\n"
         "  range choices by measurement:\n"
         + "\n".join(range_lines)
         + "\n"
@@ -181,7 +207,8 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         "  --sw-min-interval-ms: 0 or 50-600000 ms\n"
         "  --sw-queue-max: 0-10000\n"
         "  --hw-trigger-delay-s: 0-3600 s\n"
-        "  custom trigger_count * sample_count > 10000 requires --allow-buffer-overflow-risk"
+        f"  custom trigger_count * sample_count > {effective_profile.reading_memory_limit} "
+        "requires --allow-buffer-overflow-risk for this profile"
     )
 
 
@@ -204,6 +231,7 @@ def validate_start_request(
 ) -> None:
     _validate_basic_mode_conflicts(request)
     context = _resolve_start_validation_context(request, trigger_mode, instrument_profile)
+    _validate_trigger_mode(context)
     _validate_measurement_preconditions(context)
     _validate_common_runtime_limits(context.request)
     measurement_range = _validate_measurement_option_values(context)
@@ -271,6 +299,15 @@ def _validate_measurement_preconditions(context: _StartValidationContext) -> Non
         )
     if args.measurement_range is not None and args.current_range is not None:
         raise ValueError("--range and --current-range cannot be used together")
+
+
+def _validate_trigger_mode(context: _StartValidationContext) -> None:
+    supported_modes = supported_trigger_modes(context.profile)
+    if context.trigger_mode not in supported_modes:
+        raise ValueError(
+            f"--trigger-mode {context.trigger_mode} is not supported by "
+            f"{context.profile.model}. Supported modes: {', '.join(supported_modes)}"
+        )
 
 
 def _validate_common_runtime_limits(args: StartRequest) -> None:

@@ -2,8 +2,8 @@
 
 # Keysight Logger
 
-Keysight Logger is a Python data acquisition and logging toolkit for the
-Keysight 34461A digital multimeter. It provides one installable distribution,
+Keysight Logger is a Python data acquisition and logging toolkit for
+Keysight 34460A and 34461A Truevolt digital multimeters. It provides one installable distribution,
 `keysight-logger`, with the package version defined by the root
 `pyproject.toml`, while preserving three import packages:
 `keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
@@ -15,7 +15,7 @@ unit, trigger source, and related metadata.
 
 ## Features
 
-* Control a Keysight 34461A over USB or LAN using VISA
+* Control supported Keysight Truevolt DMMs over VISA
 * Configure measurement range, NPLC, Auto Zero, AC bandwidth, current terminal,
   and DC voltage input impedance
 * Support software, timer, external hardware, immediate, and buffered trigger workflows
@@ -23,6 +23,11 @@ unit, trigger source, and related metadata.
 * Test workflows without hardware using the built-in simulator
 * Operate through either the CLI or local WebUI
 * Produce JSON and JSONL output for automation, agents, and orchestrators
+
+The default instrument profile is Keysight 34461A to preserve existing
+behavior. Select `--model 34460A` or the WebUI model selector for 34460A limits:
+no 10 A current terminal/path, 1000 readings of memory, and no base-profile
+external trigger support.
 
 ## Project Structure
 

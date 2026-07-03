@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Callable, List, Optional
 
-from .models import InstrumentConfig, Transport
+from .models import InstrumentConfig, Transport, resolve_instrument_profile
 
 import time
 
@@ -36,15 +36,6 @@ def is_pyvisa_timeout_error(exc: Exception) -> bool:
         timeout_code = status_code.error_timeout
 
     return error_code == timeout_code or error_code == _VISA_TIMEOUT_ERROR_CODE
-
-
-def _is_supported_34461a_idn(idn: str) -> bool:
-    parts = [part.strip().upper() for part in str(idn).split(",")]
-    if len(parts) < 2:
-        return False
-    manufacturer = parts[0]
-    model = parts[1]
-    return ("KEYSIGHT" in manufacturer or "AGILENT" in manufacturer) and model == "34461A"
 
 
 class VisaInstrument:
@@ -130,9 +121,11 @@ class VisaInstrument:
             self._inst = self._rm.open_resource(self._config.resource_string)
             self._inst.timeout = self._config.timeout_ms
             idn = str(self._inst.query("*IDN?")).strip()
-            if not _is_supported_34461a_idn(idn):
+            expected_profile = resolve_instrument_profile(self._config.expected_model)
+            if not expected_profile.matches_idn(idn):
                 raise InstrumentError(
-                    "unsupported instrument identity; expected Keysight/Agilent 34461A, "
+                    "unsupported instrument identity; expected "
+                    f"Keysight/Agilent {expected_profile.model}, "
                     f"got '{idn}'"
                 )
             self._inst.write("*CLS")

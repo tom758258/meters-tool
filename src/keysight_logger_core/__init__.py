@@ -1,7 +1,12 @@
 """Minimal public API for core start-request orchestration."""
 
 from .capabilities import CoreCapabilities, MeasurementCapability, get_core_capabilities
-from .models import InstrumentProfile, StartRequest, get_default_instrument_profile
+from .models import (
+    InstrumentProfile,
+    StartRequest,
+    get_default_instrument_profile,
+    resolve_instrument_profile,
+)
 from .run_plan import StartPlan, build_start_plan
 from .runner import run_start_session
 from .session import (
@@ -29,6 +34,7 @@ __all__ = [
     "InstrumentProfile",
     "StartRequest",
     "get_default_instrument_profile",
+    "resolve_instrument_profile",
     "StartPlan",
     "build_start_plan",
     "generate_buffer_overflow_warning_details",

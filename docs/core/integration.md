@@ -38,6 +38,7 @@ from keysight_logger_core import (
     generate_buffer_overflow_warnings,
     get_core_capabilities,
     get_default_instrument_profile,
+    resolve_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
     validate_start_request,
@@ -125,6 +126,14 @@ profile = get_default_instrument_profile()
 trigger_mode = resolve_trigger_mode(request)
 validate_start_request(request, trigger_mode, instrument_profile=profile)
 warnings = generate_buffer_overflow_warnings(request, trigger_mode, profile)
+```
+
+Adapters that expose model selection should resolve the profile once from
+`StartRequest.instrument_model` and reuse it for validation, warnings, planning,
+and runtime:
+
+```python
+profile = resolve_instrument_profile(request.instrument_model)
 ```
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer

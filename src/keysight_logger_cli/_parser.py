@@ -152,6 +152,14 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     )
     start.add_argument("--resource", required=True, help="VISA resource string")
     start.add_argument(
+        "--model",
+        "--instrument-model",
+        dest="instrument_model",
+        choices=["34460A", "34461A"],
+        default=None,
+        help="instrument model profile; default: 34461A",
+    )
+    start.add_argument(
         "--csv",
         default=None,
         help="CSV output path; default: data/YYYY-MM-DD-HH-MM-SS.csv in UTC+8",
@@ -242,8 +250,8 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         "--allow-buffer-overflow-risk",
         action="store_true",
         help=(
-            "allow custom modes to request more readings than "
-            f"{default_profile.model} reading memory"
+            "allow custom modes to request more readings than the selected "
+            "profile reading memory"
         ),
     )
     start.add_argument(

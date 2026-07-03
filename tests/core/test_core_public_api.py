@@ -23,10 +23,12 @@ from keysight_logger_core import (
     generate_buffer_overflow_warnings,
     get_core_capabilities,
     get_default_instrument_profile,
+    resolve_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
     validate_start_request,
 )
+from keysight_logger_core.models import KEYSIGHT_34460A_PROFILE
 
 
 EXPECTED_PUBLIC_API = {
@@ -37,6 +39,7 @@ EXPECTED_PUBLIC_API = {
     "InstrumentProfile",
     "StartRequest",
     "get_default_instrument_profile",
+    "resolve_instrument_profile",
     "StartPlan",
     "build_start_plan",
     "generate_buffer_overflow_warning_details",
@@ -64,6 +67,7 @@ class CorePublicApiTests(unittest.TestCase):
             "InstrumentProfile": InstrumentProfile,
             "StartRequest": StartRequest,
             "get_default_instrument_profile": get_default_instrument_profile,
+            "resolve_instrument_profile": resolve_instrument_profile,
             "StartPlan": StartPlan,
             "build_start_plan": build_start_plan,
             "generate_buffer_overflow_warning_details": generate_buffer_overflow_warning_details,
@@ -157,6 +161,34 @@ class CorePublicApiTests(unittest.TestCase):
         period = measurements["period"]
         self.assertEqual((), period.freq_period_timeout_values)
         self.assertIsNone(period.default_freq_period_timeout)
+
+    def test_public_api_exposes_34460a_capabilities_for_adapters(self):
+        capabilities = get_core_capabilities(KEYSIGHT_34460A_PROFILE)
+
+        self.assertEqual("34460A", capabilities.model)
+        self.assertEqual(1000, capabilities.reading_memory_limit)
+        self.assertEqual(
+            ("software", "immediate", "immediate-custom", "software-custom"),
+            capabilities.trigger_modes,
+        )
+        self.assertIn(
+            {"model": "34460A", "vendor": "Keysight"},
+            capabilities.available_profiles,
+        )
+        measurements = {
+            measurement.measurement_name: measurement
+            for measurement in capabilities.measurements
+        }
+        self.assertEqual(
+            (0.0001, 0.001, 0.01, 0.1, 1.0, 3.0),
+            measurements["current-dc"].range_values,
+        )
+        self.assertEqual((), measurements["current-dc"].current_terminal_values)
+        self.assertEqual(
+            (0.0001, 0.001, 0.01, 0.1, 1.0, 3.0),
+            measurements["current-ac"].range_values,
+        )
+        self.assertEqual((), measurements["current-ac"].current_terminal_values)
 
     def test_public_api_exposes_structured_warnings(self):
         request = StartRequest(

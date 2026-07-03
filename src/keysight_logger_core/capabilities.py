@@ -3,13 +3,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .measurement import get_measurement_definition
-from .models import InstrumentProfile, get_default_instrument_profile
+from .models import INSTRUMENT_PROFILES, InstrumentProfile, get_default_instrument_profile
 from .validation import (
     AUTO_ZERO_MEASUREMENTS,
     CURRENT_MEASUREMENTS,
     DCV_INPUT_IMPEDANCE_MEASUREMENTS,
     DCV_INPUT_IMPEDANCE_OPTIONS,
     supported_measurement_types,
+    supported_trigger_modes,
 )
 
 
@@ -40,6 +41,7 @@ class CoreCapabilities:
     reading_memory_limit: int
     trigger_modes: tuple[str, ...]
     measurements: tuple[MeasurementCapability, ...]
+    available_profiles: tuple[dict[str, str], ...]
 
 
 def _auto_zero_values(measurement_type: str) -> tuple[str, ...]:
@@ -54,19 +56,6 @@ def _dcv_input_impedance_values(measurement_type: str) -> tuple[str, ...]:
     if measurement_type in DCV_INPUT_IMPEDANCE_MEASUREMENTS:
         return DCV_INPUT_IMPEDANCE_OPTIONS
     return ()
-
-
-def _trigger_modes(profile: InstrumentProfile) -> tuple[str, ...]:
-    modes = ["software", "immediate"]
-    if profile.supports_external_trigger:
-        modes.append("external")
-    if profile.supports_buffered_reading_memory:
-        modes.append("immediate-custom")
-        if profile.supports_bus_trigger:
-            modes.append("software-custom")
-        if profile.supports_external_trigger:
-            modes.append("external-custom")
-    return tuple(modes)
 
 
 def get_core_capabilities(profile: InstrumentProfile | None = None) -> CoreCapabilities:
@@ -102,6 +91,10 @@ def get_core_capabilities(profile: InstrumentProfile | None = None) -> CoreCapab
         model=effective_profile.model,
         aliases=effective_profile.aliases,
         reading_memory_limit=effective_profile.reading_memory_limit,
-        trigger_modes=_trigger_modes(effective_profile),
+        trigger_modes=supported_trigger_modes(effective_profile),
         measurements=tuple(measurement_capabilities),
+        available_profiles=tuple(
+            {"model": profile.model, "vendor": profile.vendor}
+            for profile in INSTRUMENT_PROFILES
+        ),
     )

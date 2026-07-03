@@ -27,6 +27,7 @@ class InstrumentConfig:
     resource_string: str
     timeout_ms: int = 5000
     transport: Optional[Transport] = None
+    expected_model: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -111,6 +112,14 @@ KEYSIGHT_34461A_CURRENT_RANGES = (
     ("1 A", 1.0),
     ("3 A", 3.0),
     ("10 A (front 10A terminal)", 10.0),
+)
+KEYSIGHT_34460A_CURRENT_RANGES = (
+    ("100 uA", 0.0001),
+    ("1 mA", 0.001),
+    ("10 mA", 0.01),
+    ("100 mA", 0.1),
+    ("1 A", 1.0),
+    ("3 A", 3.0),
 )
 KEYSIGHT_34461A_DCV_RANGES = (
     ("100 mV", 0.1),
@@ -216,9 +225,84 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
     supports_sample_timer=False,
 )
 
-INSTRUMENT_PROFILES = (KEYSIGHT_34461A_PROFILE,)
+KEYSIGHT_34460A_PROFILE = InstrumentProfile(
+    vendor="Keysight",
+    model="34460A",
+    aliases=(
+        "KEYSIGHT TECHNOLOGIES,34460A",
+        "KEYSIGHT,34460A",
+        "AGILENT TECHNOLOGIES,34460A",
+        "AGILENT,34460A",
+        "34460A",
+    ),
+    reading_memory_limit=1000,
+    measurement_options=(
+        MeasurementOptions(
+            measurement_type="current_dc",
+            range_options=KEYSIGHT_34460A_CURRENT_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+            current_terminal_options=(),
+        ),
+        MeasurementOptions(
+            measurement_type="voltage_dc",
+            range_options=KEYSIGHT_34461A_DCV_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
+            measurement_type="voltage_dc_ratio",
+            range_options=KEYSIGHT_34461A_DCV_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
+            measurement_type="current_ac",
+            range_options=KEYSIGHT_34460A_CURRENT_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+            current_terminal_options=(),
+        ),
+        MeasurementOptions(
+            measurement_type="voltage_ac",
+            range_options=KEYSIGHT_34461A_ACV_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+        ),
+        MeasurementOptions(
+            measurement_type="frequency",
+            range_options=KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+            gate_time_s_options=KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
+            freq_period_timeout_options=KEYSIGHT_34461A_FREQ_PERIOD_TIMEOUT_OPTIONS,
+            default_ac_bandwidth_hz=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ,
+            default_gate_time_s=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S,
+            default_freq_period_timeout=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT,
+        ),
+        MeasurementOptions(
+            measurement_type="period",
+            range_options=KEYSIGHT_34461A_FREQ_PERIOD_VOLTAGE_RANGES,
+            ac_bandwidth_hz_options=(3.0, 20.0, 200.0),
+            gate_time_s_options=KEYSIGHT_34461A_FREQ_PERIOD_GATE_TIME_OPTIONS,
+            default_ac_bandwidth_hz=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_AC_BANDWIDTH_HZ,
+            default_gate_time_s=KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_GATE_TIME_S,
+        ),
+        MeasurementOptions(
+            measurement_type="resistance_2w",
+            range_options=KEYSIGHT_34461A_RESISTANCE_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+        MeasurementOptions(
+            measurement_type="resistance_4w",
+            range_options=KEYSIGHT_34461A_RESISTANCE_RANGES,
+            nplc_options=KEYSIGHT_34461A_NPLC_OPTIONS,
+        ),
+    ),
+    supports_buffered_reading_memory=True,
+    supports_bus_trigger=True,
+    supports_external_trigger=False,
+    supports_sample_timer=False,
+)
+
+INSTRUMENT_PROFILES = (KEYSIGHT_34461A_PROFILE, KEYSIGHT_34460A_PROFILE)
 DEFAULT_INSTRUMENT_PROFILE = KEYSIGHT_34461A_PROFILE
 KEYSIGHT_34461A_CAPABILITIES = KEYSIGHT_34461A_PROFILE
+KEYSIGHT_34460A_CAPABILITIES = KEYSIGHT_34460A_PROFILE
 
 
 def get_default_instrument_profile() -> InstrumentProfile:
@@ -233,6 +317,12 @@ def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
         ):
             return profile
     raise ValueError(f"Unsupported instrument model: {model}")
+
+
+def resolve_instrument_profile(model: str | None = None) -> InstrumentProfile:
+    if model is None:
+        return get_default_instrument_profile()
+    return find_instrument_profile_by_model(model)
 
 
 def find_instrument_profile_by_idn(idn: str) -> InstrumentProfile:
@@ -269,6 +359,7 @@ class AcquisitionConfig:
 @dataclass(frozen=True)
 class StartRequest:
     resource: str
+    instrument_model: Optional[str] = None
     csv: Optional[str] = None
     dry_run: bool = False
     simulate: bool = False

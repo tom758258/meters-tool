@@ -58,7 +58,11 @@ def run_start_session(
     csv_path = resolve_csv_path(request.csv)
     if request.csv is None:
         event_sink.emit(StartRunEvent.message_event(active_run_id, f"csv output path: {csv_path}"))
-    iconfig = InstrumentConfig(resource_string=request.resource, timeout_ms=request.timeout_ms)
+    iconfig = InstrumentConfig(
+        resource_string=request.resource,
+        timeout_ms=request.timeout_ms,
+        expected_model=profile.model,
+    )
     aconfig = acquisition_config_from_start_request(request, measurement_type)
     instrument = deps.instrument_backend_factory(
         iconfig,

@@ -8,6 +8,7 @@ import {
   form,
   freqPeriodTimeoutSelect,
   gateTimeSelect,
+  instrumentModelSelect,
   measurementSelect,
   nplcSelect,
   openCsvButton,
@@ -108,6 +109,14 @@ selectCsvFolderButton.addEventListener("click", async () => {
 });
 
 measurementSelect.addEventListener("change", updateMeasurementUi);
+instrumentModelSelect.addEventListener("change", async () => {
+  try {
+    await loadCapabilities(instrumentModelSelect.value);
+    updateRangeVisibility();
+  } catch (error) {
+    appendStatusLog(error.message);
+  }
+});
 triggerModeSelect.addEventListener("change", updateTriggerModeUi);
 timerIntervalInput.addEventListener("input", () => {
   updateTriggerButtonUi();

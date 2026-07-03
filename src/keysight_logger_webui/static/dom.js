@@ -40,6 +40,7 @@ export const selectCsvFolderButton = document.querySelector("#select-csv-folder"
 export const triggerRunButton = document.querySelector("#trigger-run");
 export const openCsvButton = document.querySelector("#open-csv");
 export const measurementSelect = document.querySelector("#measurement");
+export const instrumentModelSelect = document.querySelector("#instrument-model");
 export const measurementRangeInput = document.querySelector("#measurement-range");
 export const autoRangeCheckbox = document.querySelector("[name='auto_range']");
 export const autoZeroContainer = document.querySelector("#auto-zero-container");

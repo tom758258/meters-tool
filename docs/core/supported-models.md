@@ -4,20 +4,25 @@ This file is the Core profile and model capability reference. Update it when
 Core profile data, supported measurements, validation bounds, or live
 validation expectations change.
 
-## Current Profile
+## Model Profiles
 
-Core currently provides one default instrument profile:
+Core currently provides these instrument profiles:
 
-| Profile | Instrument | Live validation |
-| --- | --- | --- |
-| `keysight-34461a` | Keysight 34461A digital multimeter | USB or LAN through explicit VISA resource |
+| Profile | Instrument | Reading memory | Current max | External trigger | Live validation |
+| --- | --- | ---: | ---: | --- | --- |
+| `keysight-34461a` | Keysight 34461A | 10000 | 10 A with 10A terminal | supported | expected IDN must match selected 34461A profile |
+| `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | expected IDN must match selected 34460A profile; operator validation required |
+
+The default profile is `keysight-34461a` to preserve existing behavior. CLI and
+WebUI adapters can select the 34460A profile through their model selectors.
 
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource.
 
 ## Measurement Capability
 
-The 34461A profile supports these measurement names, in profile order:
+The 34460A and 34461A profiles currently expose the same measurement names, in
+profile order:
 
 - `current-dc`
 - `voltage-dc`
@@ -31,21 +36,20 @@ The 34461A profile supports these measurement names, in profile order:
 
 Profile data owns per-measurement range, NPLC, AC bandwidth/filter, gate time,
 Frequency timeout, current terminal, DCV input impedance, and Auto Zero
-validation where applicable.
-Adapters can retrieve the same Core-owned facts through
-`get_core_capabilities()` instead of reading profile internals.
+validation where applicable. Adapters can retrieve the same Core-owned facts
+through `get_core_capabilities()` instead of reading profile internals.
 
-| Measurement | Range choices | NPLC choices | AC filter | Gate time | Frequency timeout | Current terminal | DCV input Z | Auto Zero |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `current-dc` | 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A | 0.02, 0.2, 1, 10, 100 | none | none | none | 3, 10 | none | on, off, once |
-| `voltage-dc` | 0.1, 1, 10, 100, 1000 V | 0.02, 0.2, 1, 10, 100 | none | none | none | none | default, 10m, auto | on, off, once |
-| `voltage-dc-ratio` | 0.1, 1, 10, 100, 1000 V | 0.02, 0.2, 1, 10, 100 | none | none | none | none | default, 10m, auto | on/default only; no Auto Zero SCPI |
-| `current-ac` | 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A | none | 3, 20, 200 Hz | none | none | 3, 10 | none | none |
-| `voltage-ac` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz | none | none | none | none | none |
-| `frequency` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | auto, 1s; default auto | none | none | none |
-| `period` | 0.1, 1, 10, 100, 750 V | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | none | none | none | none |
-| `resistance-2w` | 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 Ohm | 0.02, 0.2, 1, 10, 100 | none | none | none | none | none | on, off, once |
-| `resistance-4w` | 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 Ohm | 0.02, 0.2, 1, 10, 100 | none | none | none | none | none | none |
+| Measurement | 34461A range choices | 34460A range choices | NPLC choices | AC filter | Gate time | Frequency timeout | Current terminal | DCV input Z | Auto Zero |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `current-dc` | 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A | 0.0001, 0.001, 0.01, 0.1, 1, 3 A | 0.02, 0.2, 1, 10, 100 | none | none | none | 34461A: 3, 10; 34460A: none | none | on, off, once |
+| `voltage-dc` | 0.1, 1, 10, 100, 1000 V | same as 34461A | 0.02, 0.2, 1, 10, 100 | none | none | none | none | default, 10m, auto | on, off, once |
+| `voltage-dc-ratio` | 0.1, 1, 10, 100, 1000 V | same as 34461A | 0.02, 0.2, 1, 10, 100 | none | none | none | none | default, 10m, auto | on/default only; no Auto Zero SCPI |
+| `current-ac` | 0.0001, 0.001, 0.01, 0.1, 1, 3, 10 A | 0.0001, 0.001, 0.01, 0.1, 1, 3 A | none | 3, 20, 200 Hz | none | none | 34461A: 3, 10; 34460A: none | none | none |
+| `voltage-ac` | 0.1, 1, 10, 100, 750 V | same as 34461A | none | 3, 20, 200 Hz | none | none | none | none | none |
+| `frequency` | 0.1, 1, 10, 100, 750 V | same as 34461A | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | auto, 1s; default auto | none | none | none |
+| `period` | 0.1, 1, 10, 100, 750 V | same as 34461A | none | 3, 20, 200 Hz; default 20 | 0.01, 0.1, 1 s; default 0.1 | none | none | none | none |
+| `resistance-2w` | 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 Ohm | same as 34461A | 0.02, 0.2, 1, 10, 100 | none | none | none | none | none | on, off, once |
+| `resistance-4w` | 100, 1000, 10000, 100000, 1000000, 10000000, 100000000 Ohm | same as 34461A | 0.02, 0.2, 1, 10, 100 | none | none | none | none | none | none |
 
 Auto Zero supports `on`, `off`, and `once` for `current-dc`, `voltage-dc`, and
 `resistance-2w`. `voltage-dc-ratio` accepts only the default/on Auto Zero
@@ -88,16 +92,21 @@ This Period behavior was validated on a 34461A with firmware A.03.03. The
 contains ambiguous timeout syntax; the implementation follows observed
 instrument behavior and does not send the unsupported Period header.
 
-Current terminal selection is available for `current-dc` and `current-ac`
-through `current_terminal`. Allowed values are `3` and `10`. Selecting the
-10 A current range requires `current_terminal=10`; selecting `current_terminal=10`
-requires the 10 A range when a manual range is supplied. When the 10 A terminal
-is explicit, Core writes `CURR:{DC|AC}:TERM 10` and does not write
-`CURR:{DC|AC}:RANG 10`.
+Current terminal selection is available only for the 34461A `current-dc` and
+`current-ac` profiles. Selecting the 10 A current range requires
+`current_terminal=10`; selecting `current_terminal=10` requires the 10 A range
+when a manual range is supplied. When the 10 A terminal is explicit, Core
+writes `CURR:{DC|AC}:TERM 10` and does not write `CURR:{DC|AC}:RANG 10`.
+
+The 34460A current profiles support up to 3 A only. They do not expose
+`current_terminal` because the 34460A does not have the 34461A-style 10 A
+terminal path.
 
 ## Trigger Capability
 
-Core validation and planning cover:
+Core validation and planning derive trigger modes from the selected profile.
+
+The 34461A profile supports:
 
 - `software`
 - software timer through `timer_interval_s`
@@ -107,15 +116,51 @@ Core validation and planning cover:
 - `software-custom`
 - `external-custom`
 
+The 34460A base profile supports:
+
+- `software`
+- software timer through `timer_interval_s`
+- `immediate`
+- `immediate-custom`
+- `software-custom`
+
 Simple software and immediate reads use `READ?`. Simple external-triggered
 reads use `FETC?` after the hardware trigger adapter arms and completes the
 measurement. Custom and buffered modes use the existing buffered acquisition
 path.
 
+The 34460A base profile does not enable external trigger modes because
+LAN/LXI/external trigger capability is optional on that model. Add a separate
+profile only after the option is confirmed and validated on hardware.
+
+## Reading Memory
+
+Custom modes compare `trigger_count * sample_count` with the selected
+profile's `reading_memory_limit`.
+
+- 34461A requests above 10000 readings require `--allow-buffer-overflow-risk`.
+- 34460A requests above 1000 readings require `--allow-buffer-overflow-risk`.
+- `--buffer-drain-size` remains capped at the profile reading memory and is not
+  relaxed by `--allow-buffer-overflow-risk`.
+
+## Hardware Validation Plan
+
+Minimal 34460A smoke plan:
+
+1. Identify the instrument and confirm IDN matches the selected 34460A profile.
+2. Run `voltage-dc` immediate with `max_samples=1`.
+3. Run `current-dc` immediate with Auto Range and `max_samples=1` after safe wiring.
+4. Confirm `current-dc` manual range 3 A dry-run is accepted.
+5. Confirm `current-dc` manual range 10 A dry-run is rejected before VISA I/O.
+6. Run `immediate-custom` with `trigger_count=1` and `sample_count=1`.
+7. Confirm expected readings 1001 without allow flag is rejected in dry-run.
+8. Confirm expected readings 1001 with allow flag is accepted in dry-run.
+9. Leave external trigger disabled until the specific 34460A has the required
+   LAN/external trigger option confirmed.
+
 ## Future Models
 
 Add new models by adding or extending Core profiles first. Add SCPI dialect
-behavior only when a second real model proves the shared command set is wrong
-for that model. Keep model validation changes paired with focused Core tests
-and an operator-approved hardware validation plan.
-
+behavior only when a real model proves the shared command set is wrong for that
+model. Keep model validation changes paired with focused Core tests and an
+operator-approved hardware validation plan.

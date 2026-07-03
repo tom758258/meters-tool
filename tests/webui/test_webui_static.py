@@ -32,6 +32,10 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertNotIn('name="nplc" form="run-form" type="number"', index)
         self.assertIn("measurement_range", app_js)
         self.assertIn("nplc", app_js)
+        self.assertIn('id="instrument-model"', index)
+        self.assertIn('name="instrument_model"', index)
+        self.assertIn("instrument_model", app_js)
+        self.assertIn("/api/capabilities?model=", app_js)
 
     def test_static_ui_uses_requested_layout_sections(self):
         index, app_js = load_static_ui()

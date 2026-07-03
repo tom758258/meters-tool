@@ -5,6 +5,9 @@ import unittest
 from keysight_logger_core.models import (
     DEFAULT_INSTRUMENT_PROFILE,
     INSTRUMENT_PROFILES,
+    KEYSIGHT_34460A_CAPABILITIES,
+    KEYSIGHT_34460A_CURRENT_RANGES,
+    KEYSIGHT_34460A_PROFILE,
     KEYSIGHT_34461A_CAPABILITIES,
     KEYSIGHT_34461A_CURRENT_RANGES,
     KEYSIGHT_34461A_DCV_RANGES,
@@ -17,6 +20,7 @@ from keysight_logger_core.models import (
     find_instrument_profile_by_idn,
     find_instrument_profile_by_model,
     get_default_instrument_profile,
+    resolve_instrument_profile,
 )
 
 
@@ -117,10 +121,47 @@ class CapabilitiesTests(unittest.TestCase):
 
     def test_profile_lookup_defaults_to_34461a(self):
         self.assertIs(get_default_instrument_profile(), KEYSIGHT_34461A_PROFILE)
+        self.assertIs(resolve_instrument_profile(), KEYSIGHT_34461A_PROFILE)
         self.assertIs(find_instrument_profile_by_model("34461A"), KEYSIGHT_34461A_PROFILE)
         self.assertIs(
             find_instrument_profile_by_idn("Keysight Technologies,34461A,MY123,1.0"),
             KEYSIGHT_34461A_PROFILE,
+        )
+
+    def test_34460a_capabilities_capture_profile_limits(self):
+        capabilities = KEYSIGHT_34460A_CAPABILITIES
+
+        self.assertIs(capabilities, KEYSIGHT_34460A_PROFILE)
+        self.assertIn(KEYSIGHT_34460A_PROFILE, INSTRUMENT_PROFILES)
+        self.assertEqual("Keysight", capabilities.vendor)
+        self.assertEqual("34460A", capabilities.model)
+        self.assertIn("34460A", capabilities.aliases)
+        self.assertEqual(1000, capabilities.reading_memory_limit)
+        self.assertEqual(
+            KEYSIGHT_34461A_PROFILE.supported_measurement_types,
+            capabilities.supported_measurement_types,
+        )
+        self.assertTrue(capabilities.supports_buffered_reading_memory)
+        self.assertTrue(capabilities.supports_bus_trigger)
+        self.assertFalse(capabilities.supports_external_trigger)
+        self.assertFalse(capabilities.supports_sample_timer)
+        for measurement in ("current-dc", "current-ac"):
+            with self.subTest(measurement=measurement):
+                options = capabilities.get_measurement_options(measurement)
+                self.assertEqual(KEYSIGHT_34460A_CURRENT_RANGES, options.range_options)
+                self.assertNotIn(10.0, tuple(value for _label, value in options.range_options))
+                self.assertEqual((), options.current_terminal_options)
+
+    def test_34460a_profile_lookup_accepts_model_and_idn_aliases(self):
+        self.assertIs(resolve_instrument_profile("34460A"), KEYSIGHT_34460A_PROFILE)
+        self.assertIs(find_instrument_profile_by_model("34460A"), KEYSIGHT_34460A_PROFILE)
+        self.assertIs(
+            find_instrument_profile_by_idn("Keysight Technologies,34460A,MY123,1.0"),
+            KEYSIGHT_34460A_PROFILE,
+        )
+        self.assertIs(
+            find_instrument_profile_by_idn("Agilent Technologies,34460A,MY123,1.0"),
+            KEYSIGHT_34460A_PROFILE,
         )
 
     def test_unknown_profile_lookup_is_rejected(self):

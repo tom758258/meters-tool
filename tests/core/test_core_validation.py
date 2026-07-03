@@ -7,7 +7,12 @@ from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 
-from keysight_logger_core.models import InstrumentProfile, MeasurementOptions, StartRequest
+from keysight_logger_core.models import (
+    KEYSIGHT_34460A_PROFILE,
+    InstrumentProfile,
+    MeasurementOptions,
+    StartRequest,
+)
 from keysight_logger_core.validation import (
     CoreWarning,
     generate_buffer_overflow_warning_details,
@@ -492,6 +497,44 @@ class CoreValidationTests(unittest.TestCase):
             )
         )
 
+    def test_34460a_current_range_and_terminal_limits(self):
+        self.assert_valid(
+            make_start_request(
+                measurement="current-dc",
+                auto_range=False,
+                measurement_range=3.0,
+            ),
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(
+                measurement="current-dc",
+                auto_range=False,
+                measurement_range=10.0,
+            ),
+            "--range 10 is not valid for --measurement current-dc",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(
+                measurement="current-ac",
+                auto_range=False,
+                measurement_range=10.0,
+            ),
+            "--range 10 is not valid for --measurement current-ac",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(measurement="current-dc", current_terminal=10),
+            "--current-terminal can only be used with --measurement current-dc or current-ac",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(measurement="current-dc", current_terminal=3),
+            "--current-terminal can only be used with --measurement current-dc or current-ac",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+
     def test_manual_range_is_required_when_auto_range_is_off(self):
         self.assert_invalid(
             make_start_request(auto_range=False),
@@ -595,6 +638,56 @@ class CoreValidationTests(unittest.TestCase):
             make_start_request(trigger_mode="immediate-custom", trigger_count=3, sample_count=2),
             "custom mode expected readings 6 exceed FAKE100 reading memory 5",
             profile=FAKE_CURRENT_ONLY_PROFILE,
+        )
+
+    def test_34460a_buffer_memory_and_trigger_mode_limits(self):
+        self.assert_valid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=1000,
+                buffer_drain_size=1000,
+            ),
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=1001,
+            ),
+            "custom mode expected readings 1001 exceed 34460A reading memory 1000",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_valid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=1001,
+                allow_buffer_overflow_risk=True,
+            ),
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=1001,
+                buffer_drain_size=1001,
+                allow_buffer_overflow_risk=True,
+            ),
+            "--buffer-drain-size 1001 is outside the 34460A reading-memory range 1-1000",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(trigger_mode="external", max_samples=1),
+            "--trigger-mode external is not supported by 34460A",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_invalid(
+            make_start_request(trigger_mode="external-custom", trigger_count=1, sample_count=1),
+            "--trigger-mode external-custom is not supported by 34460A",
+            profile=KEYSIGHT_34460A_PROFILE,
         )
 
     def test_generate_buffer_overflow_warnings_returns_messages(self):
