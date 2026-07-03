@@ -58,6 +58,8 @@ Implemented:
 - Optional UTC+8 timestamped CSV output path when `--csv` is omitted.
 - Optional resource verification with `list-resources --verify`.
 - Optional live-resource filtering with `list-resources --live-only`.
+- Optional CLI-only PyVISA library/backend selection for VISA-opening commands
+  through `--visa-library`, with `--backend` as an alias.
 - Optional measurement controls: measurement type, Auto Range, manual range,
   DCV input impedance, Auto Zero including `once`, NPLC, AC bandwidth/filter,
   Frequency/Period gate time, Frequency timeout, current terminal selection, hardware
@@ -98,6 +100,13 @@ Important limitations:
 - A VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
 - A supported Keysight Truevolt DMM visible to VISA. The 34460A base profile
   does not assume optional LAN/LXI or external trigger support.
+
+Optional pyvisa-py testing is supported through CLI arguments, but pyvisa-py is
+not a required dependency. Install optional backend packages only when needed:
+
+```powershell
+uv pip install pyvisa-py pyserial psutil zeroconf
+```
 
 ## Development
 
@@ -346,6 +355,41 @@ reading memory. It does not allow 10 A current range, `current_terminal=10`,
 unsupported trigger modes, or `--buffer-drain-size` above the selected profile
 reading memory.
 
+### Optional PyVISA Backend Selection
+
+By default, `keysight-logger` uses `pyvisa.ResourceManager()` and therefore the
+system VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
+
+For advanced testing with pyvisa-py, install the optional backend packages and
+pass `--visa-library "@py"` to CLI commands that open VISA resources:
+
+```powershell
+uv pip install pyvisa-py pyserial psutil zeroconf
+
+uv run keysight-logger list-resources --visa-library "@py" --verify
+
+uv run keysight-logger start-trigger-record `
+  --model 34461A `
+  --visa-library "@py" `
+  --resource "TCPIP0::<IP_OR_HOSTNAME>::inst0::INSTR" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1
+```
+
+`--backend "@py"` is accepted as an alias for `--visa-library "@py"`. This
+option is intended for CLI diagnostics and optional backend validation. The
+WebUI uses the default system VISA runtime and does not expose a backend
+selector.
+
+LAN/TCPIP is the best first pyvisa-py path to try. USBTMC on Windows may need
+WinUSB/libusb setup and is often not simpler than Keysight IO Libraries Suite
+or NI-VISA. RS-232/ASRL with pyvisa-py and pyserial is usually straightforward
+when a supported instrument uses serial I/O, but the current Meters profiles
+target USB/LAN Truevolt DMMs. `PYVISA_LIBRARY="@py"` can still affect PyVISA
+directly, but this project recommends explicit `--visa-library "@py"` on CLI
+commands so tests are reproducible.
+
 ## Command Reference
 
 Use the installed console script:
@@ -383,6 +427,7 @@ Root options:
 | `--verify` | Open each discovered resource and query `*IDN?`. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. Successful live checks run best-effort release-to-local before closing. |
 | `--live-only` | Verify resources and print only rows that answered. Successful live checks run best-effort release-to-local before closing. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
 | `--dry-run` | Print the resource-discovery contract and exit 0 without creating a VISA resource manager, listing resources, opening resources, querying `*IDN?`, or running release/local cleanup. Can be combined with `--verify`, `--live-only`, and `--json`. |
+| `--visa-library TEXT`, `--backend TEXT` | Optional PyVISA library/backend argument, such as `@py`. Omit it to use the system default VISA runtime through `pyvisa.ResourceManager()`. |
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |
 | `--json` | Alias for `--format json`. |
 
@@ -456,6 +501,7 @@ after that many successful timer CSV rows.
 | --- | --- | --- | --- |
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
 | `--model`, `--instrument-model` `34460A\|34461A` | No | 34461A | Select the instrument profile used for validation, capabilities, and live IDN matching. |
+| `--visa-library TEXT`, `--backend TEXT` | No | system default | Optional PyVISA library/backend argument, such as `@py`. Dry-run and simulator runs accept the option but do not open VISA. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
 | `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |
 | `--dry-run` | No | Off | Validate arguments and print the planned measurement, SCPI, read path, and cleanup contract without opening VISA, writing CSV, or starting the HTTP server. |

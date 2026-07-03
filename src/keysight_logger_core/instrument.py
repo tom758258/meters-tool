@@ -19,6 +19,22 @@ class InstrumentError(RuntimeError):
 _VISA_TIMEOUT_ERROR_CODE = -1073807339
 
 
+def _normalize_visa_library(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _create_resource_manager(visa_library: str | None = None):
+    if pyvisa is None:
+        raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
+    normalized = _normalize_visa_library(visa_library)
+    if normalized is not None:
+        return pyvisa.ResourceManager(normalized)
+    return pyvisa.ResourceManager()
+
+
 def is_pyvisa_timeout_error(exc: Exception) -> bool:
     if pyvisa is None:
         return False
@@ -52,15 +68,18 @@ class VisaInstrument:
     def _create_resource_manager(self):
         if self._resource_manager_factory is not None:
             return self._resource_manager_factory()
-        if pyvisa is None:
-            raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
-        return pyvisa.ResourceManager()
+        return _create_resource_manager(self._config.visa_library)
 
     @staticmethod
-    def list_resources(resource_manager_factory: Callable[[], object] | None = None) -> List[str]:
-        if resource_manager_factory is None and pyvisa is None:
-            raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
-        rm = resource_manager_factory() if resource_manager_factory is not None else pyvisa.ResourceManager()
+    def list_resources(
+        resource_manager_factory: Callable[[], object] | None = None,
+        visa_library: str | None = None,
+    ) -> List[str]:
+        rm = (
+            resource_manager_factory()
+            if resource_manager_factory is not None
+            else _create_resource_manager(visa_library)
+        )
         try:
             return list(rm.list_resources())
         finally:
@@ -74,14 +93,16 @@ class VisaInstrument:
         resource: str,
         timeout_ms: int = 1000,
         resource_manager_factory: Callable[[], object] | None = None,
+        visa_library: str | None = None,
     ) -> tuple[bool, str]:
-        if resource_manager_factory is None and pyvisa is None:
-            raise InstrumentError('pyvisa is not installed. Run: uv pip install -e ".[dev]"')
-
         rm = None
         inst = None
         try:
-            rm = resource_manager_factory() if resource_manager_factory is not None else pyvisa.ResourceManager()
+            rm = (
+                resource_manager_factory()
+                if resource_manager_factory is not None
+                else _create_resource_manager(visa_library)
+            )
             inst = rm.open_resource(resource)
             inst.timeout = timeout_ms
             idn_detail = str(inst.query("*IDN?")).strip()
@@ -92,6 +113,8 @@ class VisaInstrument:
             except Exception:
                 pass
             return True, idn_detail
+        except InstrumentError:
+            raise
         except Exception as exc:
             return False, f"{type(exc).__name__}: {exc}"
         finally:

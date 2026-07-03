@@ -94,6 +94,32 @@ class CliArgsTests(unittest.TestCase):
         self.assertIsNone(args.buffer_drain_size)
         self.assertFalse(args.allow_buffer_overflow_risk)
         self.assertIsNone(args.vm_comp_slope)
+        self.assertIsNone(args.visa_library)
+
+    def test_start_parser_accepts_visa_library_and_backend_aliases(self):
+        parser = build_parser()
+
+        visa_library_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--visa-library",
+                "@py",
+            ]
+        )
+        backend_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--backend",
+                "@py",
+            ]
+        )
+
+        self.assertEqual("@py", visa_library_args.visa_library)
+        self.assertEqual("@py", backend_args.visa_library)
 
     def test_start_help_lists_cli_limits(self):
         parser = build_parser()
@@ -201,6 +227,24 @@ class CliArgsTests(unittest.TestCase):
         self.assertTrue(args.verify)
         self.assertFalse(args.live_only)
         self.assertEqual("text", args.output_format)
+        self.assertIsNone(args.visa_library)
+
+    def test_list_resources_parser_accepts_visa_library_and_backend_aliases(self):
+        parser = build_parser()
+
+        visa_library_args = parser.parse_args(["list-resources", "--visa-library", "@py"])
+        backend_args = parser.parse_args(["list-resources", "--backend", "@py"])
+
+        self.assertEqual("@py", visa_library_args.visa_library)
+        self.assertEqual("@py", backend_args.visa_library)
+
+    def test_send_command_rejects_visa_library(self):
+        parser = build_parser()
+
+        with self.assertRaises(SystemExit) as exc:
+            parser.parse_args(["send-command", "--visa-library", "@py"])
+
+        self.assertEqual(2, exc.exception.code)
 
     def test_list_resources_live_only_flag(self):
         parser = build_parser()

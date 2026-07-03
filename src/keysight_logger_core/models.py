@@ -28,6 +28,7 @@ class InstrumentConfig:
     timeout_ms: int = 5000
     transport: Optional[Transport] = None
     expected_model: Optional[str] = None
+    visa_library: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -360,6 +361,7 @@ class AcquisitionConfig:
 class StartRequest:
     resource: str
     instrument_model: Optional[str] = None
+    visa_library: Optional[str] = None
     csv: Optional[str] = None
     dry_run: bool = False
     simulate: bool = False

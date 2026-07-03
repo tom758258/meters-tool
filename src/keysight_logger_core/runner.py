@@ -62,6 +62,7 @@ def run_start_session(
         resource_string=request.resource,
         timeout_ms=request.timeout_ms,
         expected_model=profile.model,
+        visa_library=request.visa_library,
     )
     aconfig = acquisition_config_from_start_request(request, measurement_type)
     instrument = deps.instrument_backend_factory(

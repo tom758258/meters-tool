@@ -29,6 +29,12 @@ behavior. Select `--model 34460A` or the WebUI model selector for 34460A limits:
 no 10 A current terminal/path, 1000 readings of memory, and no base-profile
 external trigger support.
 
+CLI commands that open VISA resources use the system VISA runtime by default
+through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a
+PyVISA library/backend explicitly, for example `--visa-library "@py"` or the
+alias `--backend "@py"` after installing optional pyvisa-py packages. The
+WebUI keeps using the default system VISA runtime.
+
 ## Project Structure
 
 The repository now has one distribution and one version number. In examples,
@@ -114,6 +120,34 @@ If you need pip directly, use the virtual environment's Python:
 .\.venv\Scripts\python.exe -m pip install ".[webui]"
 .\.venv\Scripts\python.exe -m pip install -e ".[all,dev]"
 ```
+
+### Optional PyVISA Backend Selection
+
+By default, `keysight-logger` uses `pyvisa.ResourceManager()` and therefore
+the system VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
+
+For advanced CLI testing with pyvisa-py, install the optional backend packages
+and pass `--visa-library "@py"` to commands that open VISA resources:
+
+```powershell
+uv pip install pyvisa-py pyserial psutil zeroconf
+
+uv run keysight-logger list-resources --visa-library "@py" --verify
+
+uv run keysight-logger start-trigger-record `
+  --model 34461A `
+  --visa-library "@py" `
+  --resource "TCPIP0::<IP_OR_HOSTNAME>::inst0::INSTR" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1
+```
+
+`--backend "@py"` is accepted as an alias for `--visa-library "@py"`. LAN/TCPIP
+is the best first pyvisa-py path to try. USBTMC on Windows may require
+WinUSB/libusb setup and is not always simpler than the vendor VISA runtime.
+`PYVISA_LIBRARY="@py"` can still affect PyVISA directly, but explicit
+`--visa-library "@py"` makes CLI test runs easier to reproduce.
 
 Windows creates virtualenv console wrappers such as
 `.\.venv\Scripts\keysight-logger.exe`,

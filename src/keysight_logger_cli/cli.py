@@ -433,10 +433,17 @@ def _emit_start_plan(plan: StartPlan, emitter: CliEventEmitter) -> None:
     for note in plan.notes:
         emitter.line(f"  note: {note}")
 
+def _optional_text(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
 def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
     return StartRequest(
         resource=args.resource,
         instrument_model=args.instrument_model,
+        visa_library=_optional_text(args.visa_library),
         csv=args.csv,
         dry_run=args.dry_run,
         simulate=args.simulate,
@@ -476,6 +483,7 @@ def cmd_list_resources(
     live_only: bool = False,
     output_format: str = "text",
     dry_run: bool = False,
+    visa_library: str | None = None,
     print_fn=print,  # noqa: ANN001
     resource_manager_factory=None,  # noqa: ANN001
 ) -> int:
@@ -483,6 +491,7 @@ def cmd_list_resources(
         raise ValueError("output_format must be 'text' or 'json'")
 
     effective_verify = verify or live_only
+    normalized_visa_library = _optional_text(visa_library)
     if dry_run:
         payload = {
             "command": "list-resources",
@@ -502,6 +511,7 @@ def cmd_list_resources(
             "schema_version": CLI_EVENT_SCHEMA_VERSION,
             "status": "dry_run",
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "visa_library": normalized_visa_library,
             "verify": verify,
         }
         if output_format == "json":
@@ -512,6 +522,7 @@ def cmd_list_resources(
             print_fn(f"  output_format: {output_format}")
             print_fn(f"  verify: {str(verify).lower()}")
             print_fn(f"  live_only: {str(live_only).lower()}")
+            print_fn(f"  visa_library: {normalized_visa_library or 'default'}")
             print_fn(f"  effective_verify: {str(effective_verify).lower()}")
             print_fn("  dry_run_performs_visa_io: false")
             print_fn("  VISA I/O: no")
@@ -529,7 +540,10 @@ def cmd_list_resources(
 
     resources = []
     text_rows = 0
-    for resource in VisaInstrument.list_resources(resource_manager_factory=resource_manager_factory):
+    for resource in VisaInstrument.list_resources(
+        resource_manager_factory=resource_manager_factory,
+        visa_library=normalized_visa_library,
+    ):
         if not effective_verify:
             if output_format == "text":
                 print_fn(resource)
@@ -540,6 +554,7 @@ def cmd_list_resources(
         ok, detail = VisaInstrument.verify_resource(
             resource,
             resource_manager_factory=resource_manager_factory,
+            visa_library=normalized_visa_library,
         )
         if live_only and not ok:
             continue
@@ -570,6 +585,7 @@ def cmd_list_resources(
             "schema_version": CLI_EVENT_SCHEMA_VERSION,
             "stale_count": stale_count,
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "visa_library": normalized_visa_library,
             "verify": effective_verify,
         }
         if live_only:
@@ -641,6 +657,7 @@ def main(argv: list[str] | None = None) -> int:
             live_only=args.live_only,
             output_format=args.output_format,
             dry_run=args.dry_run,
+            visa_library=args.visa_library,
         )
     if args.command == "send-command":
         validation_rc = _validate_client_port_and_timeout(args)

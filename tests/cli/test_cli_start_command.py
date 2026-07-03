@@ -154,6 +154,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--visa-library",
+                "@py",
                 "--csv",
                 "data\\dry_run.csv",
                 "--trigger-mode",
@@ -181,6 +183,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertNotIn("software status endpoint:", stdout.getvalue())
         mock_factory.assert_not_called()
         mock_server.assert_not_called()
+        self.assertEqual("@py", args.visa_library)
 
     def test_start_dry_run_jsonl_outputs_one_plan_object(self):
         parser = build_parser()
@@ -420,6 +423,31 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("34460A", model_args.instrument_model)
         self.assertEqual("34461A", instrument_model_args.instrument_model)
 
+    def test_start_parser_accepts_visa_library_aliases(self):
+        parser = build_parser()
+
+        visa_library_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--visa-library",
+                "@py",
+            ]
+        )
+        backend_args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--backend",
+                "@py",
+            ]
+        )
+
+        self.assertEqual("@py", visa_library_args.visa_library)
+        self.assertEqual("@py", backend_args.visa_library)
+
     def test_start_json_alias_conflicts_with_text_status_format(self):
         parser = build_parser()
 
@@ -499,6 +527,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "SIM::34461A",
                 "--model",
                 "34461A",
+                "--visa-library",
+                "@py",
                 "--csv",
                 "data\\delegate.csv",
                 "--trigger-mode",
@@ -543,6 +573,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertIsInstance(request_model, StartRequest)
         self.assertEqual("SIM::34461A", request_model.resource)
         self.assertEqual("34461A", request_model.instrument_model)
+        self.assertEqual("@py", request_model.visa_library)
         self.assertEqual("data\\delegate.csv", request_model.csv)
         self.assertTrue(request_model.simulate)
         self.assertEqual("current-ac", request_model.measurement)
@@ -556,6 +587,43 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("CliStartRunEventSink", type(event_sink).__name__)
         self.assertEqual("CliStartRunControls", type(controls).__name__)
         self.assertIn("run_id", mock_runner.call_args.kwargs)
+
+    def test_start_normalizes_blank_visa_library_before_runner(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34461A",
+                "--visa-library",
+                "   ",
+                "--csv",
+                "data\\delegate.csv",
+                "--trigger-mode",
+                "immediate",
+                "--measurement",
+                "voltage-dc",
+                "--simulate",
+                "--max-samples",
+                "1",
+            ]
+        )
+
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\delegate.csv",
+        )
+        with patch("keysight_logger_cli.cli.run_start_session", return_value=fake_result) as mock_runner:
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        request_model = mock_runner.call_args.args[0]
+        self.assertIsNone(request_model.visa_library)
 
     def test_start_dry_run_jsonl_overflow_warnings_are_plan_notes_only(self):
         parser = build_parser()

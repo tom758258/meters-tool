@@ -49,6 +49,11 @@ resource, validates the instrument identity against the selected model profile
 (default 34461A), starts the local HTTP control server, runs acquisition, and
 performs the documented release/local cleanup. Live runs must keep using
 explicit resources; wrappers must not scan or guess live instrument resources.
+When a CLI caller passes an optional PyVISA library/backend value such as
+`--visa-library "@py"`, live resource manager creation uses that backend. If it
+is omitted, live mode uses the system default `pyvisa.ResourceManager()`
+behavior. This option does not change the worker JSONL, CSV, HTTP control, or
+cleanup contracts.
 
 ## Orchestrator Quickstart
 

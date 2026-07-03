@@ -63,6 +63,12 @@ The 34460A profile blocks 10 A current range, current terminal selection, and
 base-profile external trigger modes, and uses a 1000-reading memory limit for
 custom modes.
 
+By default, the CLI uses the computer's system VISA runtime, such as Keysight
+IO Libraries Suite or NI-VISA. For advanced pyvisa-py LAN diagnostics, an
+operator may install optional backend packages and add `--visa-library "@py"`
+to `list-resources` or `start-trigger-record`. The alias `--backend "@py"` is
+also accepted. Normal WebUI runs use the default system VISA runtime.
+
 ## Choosing A Measurement
 
 Choose the measurement type that matches the instrument wiring and the signal
@@ -109,6 +115,10 @@ failed measurement.
 
 `--resource` is the VISA address of the instrument. Use a value returned by
 `list-resources --live-only` or a known operator-provided resource.
+
+`--visa-library` is an advanced CLI-only PyVISA backend selector. Omit it for
+normal use. Use `--visa-library "@py"` only when intentionally testing with an
+optional pyvisa-py backend; LAN/TCPIP is usually the best first path to try.
 
 `--csv` is the output file path. If omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review

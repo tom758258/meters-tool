@@ -100,6 +100,18 @@ def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argpa
         args.output_format = "json"
 
 
+def _add_visa_library_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--visa-library",
+        "--backend",
+        dest="visa_library",
+        default=None,
+        help=(
+            "optional PyVISA library/backend argument, such as @py. "
+            "Default uses the system VISA runtime."
+        ),
+    )
+
 
 def build_parser(version_provider) -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
@@ -136,6 +148,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         action="store_true",
         help="print the discovery contract without touching VISA",
     )
+    _add_visa_library_argument(list_resources)
     list_resources.add_argument(
         "--format",
         dest="output_format",
@@ -159,6 +172,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         default=None,
         help="instrument model profile; default: 34461A",
     )
+    _add_visa_library_argument(start)
     start.add_argument(
         "--csv",
         default=None,

@@ -9,6 +9,11 @@ metadata, and safety rules for the Keysight 34460A/34461A acquisition runtime. I
 shipped inside the single `keysight-logger` distribution while preserving the
 `keysight_logger_core` import boundary.
 
+Core can carry an optional `visa_library` value through `StartRequest` and
+`InstrumentConfig`. When it is unset, live VISA sessions use
+`pyvisa.ResourceManager()` and therefore the system default VISA runtime. CLI
+diagnostics may pass values such as `@py`; WebUI runs leave it unset.
+
 The CLI and WebUI components own their command-line, web, wrapper, and
 serialization layers. Core must not import `keysight_logger_cli` or
 `keysight_logger_webui`.

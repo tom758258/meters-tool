@@ -116,6 +116,10 @@ found by `Scan Device`, or type a known resource provided by the operator or
 test procedure. Do not guess a resource when more than one instrument may be
 connected.
 
+The WebUI uses the computer's default system VISA runtime. It does not include
+a PyVISA backend selector. Use the CLI advanced `--visa-library` option only
+when a test procedure explicitly requires optional pyvisa-py diagnostics.
+
 `Live resource` shows the result of the last scan. Use it to confirm which
 instrument answered before copying or selecting a resource for the run.
 

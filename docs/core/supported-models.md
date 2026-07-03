@@ -19,6 +19,22 @@ WebUI adapters can select the 34460A profile through their model selectors.
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource.
 
+## VISA Backend Selection
+
+VISA backend selection is not a model capability. When `visa_library` is unset,
+Core creates live resource managers with `pyvisa.ResourceManager()` and uses the
+system default VISA runtime. CLI commands that directly open VISA resources can
+pass a PyVISA library/backend string such as `@py`; this only changes resource
+manager creation to `pyvisa.ResourceManager("@py")`. It does not change SCPI
+setup, trigger behavior, cleanup, CSV/JSONL schemas, or 34460A/34461A profile
+validation.
+
+The WebUI leaves `visa_library` unset and uses the default system VISA runtime.
+For pyvisa-py diagnostics, LAN/TCPIP is the recommended first path to try.
+USBTMC on Windows may require WinUSB/libusb setup. The `PYVISA_LIBRARY`
+environment variable remains PyVISA-level behavior, but explicit CLI
+`--visa-library "@py"` is preferred for reproducible tests.
+
 ## Measurement Capability
 
 The 34460A and 34461A profiles currently expose the same measurement names, in

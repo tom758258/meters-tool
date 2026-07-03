@@ -83,6 +83,11 @@ class FakeVisaIOError(Exception):
 
 
 class VisaInstrumentStaticTests(unittest.TestCase):
+    def test_instrument_config_accepts_visa_library(self):
+        config = InstrumentConfig(resource_string="USB::FAKE", visa_library="@py")
+
+        self.assertEqual("@py", config.visa_library)
+
     def test_pyvisa_unavailable_raises_instrument_error(self):
         with patch("keysight_logger_core.instrument.pyvisa", None):
             with self.assertRaisesRegex(
@@ -119,6 +124,55 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual(["USB::A", "TCPIP::B"], resources)
         self.assertTrue(rm.closed)
 
+    def test_list_resources_passes_visa_library_to_resource_manager(self):
+        rm = FakeResourceManager(resources=("TCPIP::A",))
+        calls: list[tuple[str, ...]] = []
+
+        def resource_manager(*args):
+            calls.append(args)
+            return rm
+
+        fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            resources = VisaInstrument.list_resources(visa_library="@py")
+
+        self.assertEqual(["TCPIP::A"], resources)
+        self.assertEqual([("@py",)], calls)
+        self.assertTrue(rm.closed)
+
+    def test_list_resources_normalizes_blank_visa_library_to_default(self):
+        rm = FakeResourceManager(resources=("USB::A",))
+        calls: list[tuple[str, ...]] = []
+
+        def resource_manager(*args):
+            calls.append(args)
+            return rm
+
+        fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            resources = VisaInstrument.list_resources(visa_library="   ")
+
+        self.assertEqual(["USB::A"], resources)
+        self.assertEqual([()], calls)
+        self.assertTrue(rm.closed)
+
+    def test_list_resources_factory_takes_priority_over_visa_library(self):
+        rm = FakeResourceManager(resources=("USB::A",))
+        calls: list[tuple[str, ...]] = []
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *args: calls.append(args))
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            resources = VisaInstrument.list_resources(
+                resource_manager_factory=lambda: rm,
+                visa_library="@py",
+            )
+
+        self.assertEqual(["USB::A"], resources)
+        self.assertEqual([], calls)
+        self.assertTrue(rm.closed)
+
     def test_verify_resource_queries_idn_and_cleans_up(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)
@@ -139,6 +193,34 @@ class VisaInstrumentStaticTests(unittest.TestCase):
             session.writes,
         )
         self.assertEqual([0], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_resource_passes_visa_library_to_resource_manager(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+        calls: list[tuple[str, ...]] = []
+
+        def resource_manager(*args):
+            calls.append(args)
+            return rm
+
+        fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
+
+        with (
+            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
+            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+        ):
+            ok, detail = VisaInstrument.verify_resource(
+                "USB::FAKE",
+                timeout_ms=1234,
+                visa_library="@py",
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
+        self.assertEqual([("@py",)], calls)
+        self.assertEqual(["USB::FAKE"], rm.opened_resources)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
 
@@ -274,6 +356,55 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
         self.assertEqual(4321, session.timeout)
         self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
+
+    def test_connect_passes_visa_library_to_resource_manager(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+        calls: list[tuple[str, ...]] = []
+
+        def resource_manager(*args):
+            calls.append(args)
+            return rm
+
+        fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
+        instrument = VisaInstrument(
+            InstrumentConfig(
+                resource_string="USB::FAKE",
+                timeout_ms=4321,
+                visa_library="@py",
+            )
+        )
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            instrument.connect()
+
+        self.assertEqual([("@py",)], calls)
+        self.assertEqual(["USB::FAKE"], rm.opened_resources)
+        self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
+
+    def test_connect_normalizes_blank_visa_library_to_default(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+        calls: list[tuple[str, ...]] = []
+
+        def resource_manager(*args):
+            calls.append(args)
+            return rm
+
+        fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
+        instrument = VisaInstrument(
+            InstrumentConfig(
+                resource_string="USB::FAKE",
+                timeout_ms=4321,
+                visa_library="",
+            )
+        )
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            instrument.connect()
+
+        self.assertEqual([()], calls)
+        self.assertEqual(["USB::FAKE"], rm.opened_resources)
 
     def test_connect_accepts_idn_matching_expected_model(self):
         cases = [

@@ -151,9 +151,11 @@ class CoreRunnerTests(unittest.TestCase):
         connect_error: bool = False,
         fatal_error: str | None = None,
         errors: int = 0,
+        expected_visa_library: str | None = None,
     ) -> StartRunnerDependencies:
         def instrument_factory(config, *, simulate, measurement_type):  # noqa: ANN001
             self.assertEqual("SIM::34461A", config.resource_string)
+            self.assertEqual(expected_visa_library, config.visa_library)
             self.assertTrue(simulate)
             self.assertEqual("current_dc", measurement_type)
             return RecordingInstrument(operations, connect_error=connect_error)
@@ -214,6 +216,22 @@ class CoreRunnerTests(unittest.TestCase):
         ]
         positions = [operations.index(step) for step in cleanup_order]
         self.assertEqual(sorted(positions), positions)
+
+    def test_run_start_session_threads_visa_library_to_instrument_config(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+
+        result = run_start_session(
+            make_start_request(visa_library="@py"),
+            "immediate",
+            get_default_instrument_profile(),
+            sink,
+            RecordingControls(operations),
+            run_id="run-123",
+            dependencies=self._dependencies(operations, expected_visa_library="@py"),
+        )
+
+        self.assertTrue(result.ok)
 
     def test_run_start_session_connect_error_skips_instrument_cleanup(self):
         operations: list[str] = []

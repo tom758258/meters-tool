@@ -175,6 +175,10 @@ returns only resources that respond as live devices.
 Selecting a live resource copies it into the `VISA resource` input. The user can
 still type a resource manually.
 
+The WebUI uses the default system VISA runtime through Core. It does not expose
+a PyVISA backend selector in the browser. Use the CLI-only `--visa-library`
+advanced option when optional pyvisa-py backend diagnostics are required.
+
 ## Measurement Modes
 
 Measurement options are loaded from Core through:
