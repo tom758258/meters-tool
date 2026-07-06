@@ -75,17 +75,18 @@ Use this flow for a basic immediate measurement:
 2. Start the WebUI.
 3. Click `Scan Device`.
 4. Select or copy the detected VISA resource into `VISA resource`.
-5. Choose the instrument model, then choose the measurement type, such as DC
-   voltage or DC current.
-6. In `Run Setup`, choose the CSV location. Use `Select` to pick a folder and
+5. Confirm the Instrument model. Scan Device selects 34460A or 34461A
+   automatically when the instrument IDN is recognized.
+6. Choose the measurement type, such as DC voltage or DC current.
+7. In `Run Setup`, choose the CSV location. Use `Select` to pick a folder and
    generate a timestamped CSV path.
-7. Leave trigger mode on the immediate/default mode unless you specifically
+8. Leave trigger mode on the immediate/default mode unless you specifically
    need software or external triggering.
-8. Review the highlighted settings.
-9. Click `Start`.
-10. Watch `Captured`, `Status`, and `Live data`.
-11. Click `Stop` when the run should end.
-12. Click `Open CSV` after the run stops to open the completed CSV file.
+9. Review the highlighted settings.
+10. Click `Start`.
+11. Watch `Captured`, `Status`, and `Live data`.
+12. Click `Stop` when the run should end.
+13. Click `Open CSV` after the run stops to open the completed CSV file.
 
 Only one run can be active at a time. Starting a new run clears the displayed
 recent samples from the previous run.
@@ -121,7 +122,9 @@ a PyVISA backend selector. Use the CLI advanced `--visa-library` option only
 when a test procedure explicitly requires optional pyvisa-py diagnostics.
 
 `Live resource` shows the result of the last scan. Use it to confirm which
-instrument answered before copying or selecting a resource for the run.
+instrument answered before copying or selecting a resource for the run. When
+the scan recognizes a supported 34460A or 34461A IDN, the WebUI also updates
+Instrument model and reloads the model-specific options.
 
 `CSV path` is where readings will be written. Use `Select` to choose a folder
 and let the WebUI generate a timestamped file name, or type a specific file path
@@ -131,10 +134,13 @@ Run count and sample limit fields control how long a run can continue. Keep new
 setups bounded while checking wiring, measurement type, and trigger behavior.
 
 `Instrument model` selects the Core profile used for options and validation.
-Choose 34460A for a 34460A. With 34460A selected, the WebUI hides 10 A current
-ranges, current terminal selection, and external trigger modes; custom mode
-reading memory is 1000 readings. The selector changes validation and
-capabilities only; it does not change cleanup or trigger sequencing.
+Scan Device sets this automatically when the verified IDN matches a supported
+34460A or 34461A. You can still change it manually after scanning, or select it
+manually when the Status log says the live resource model could not be
+inferred. With 34460A selected, the WebUI hides 10 A current ranges, current
+terminal selection, and external trigger modes; custom mode reading memory is
+1000 readings. The selector changes validation and capabilities only; it does
+not change cleanup or trigger sequencing.
 
 `Measurement type` selects what the instrument measures: DC or AC voltage, DC
 or AC current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
@@ -243,6 +249,18 @@ Check that:
 - No other program is holding the instrument connection.
 
 You can still type a known VISA resource manually.
+
+### Scan Device cannot infer the model
+
+Select `Instrument model` manually before clicking `Start`. The WebUI keeps the
+current manual model when a live resource answers but its IDN does not match a
+supported 34460A or 34461A profile.
+
+### Start says the selected model does not match the IDN
+
+Select the model named in the message or click `Scan Device` again. This means
+the connected instrument IDN clearly matched a supported model different from
+the Instrument model selected in the WebUI.
 
 ### Start is blocked
 

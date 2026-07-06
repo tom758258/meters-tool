@@ -149,7 +149,7 @@ JavaScript modules.
 1. Start the WebUI server.
 2. Open `http://127.0.0.1:8767/`.
 3. Enter a VISA resource manually or click `Scan Device`.
-4. Select the instrument model, then select measurement and trigger settings.
+4. Confirm the instrument model, then select measurement and trigger settings.
 5. Keep low-risk defaults for first contact with a real instrument:
    Auto Range on, immediate trigger, and a small `max_samples` value.
 6. Click `Start`.
@@ -172,8 +172,22 @@ The backend uses Core resource listing behavior. With verification enabled, it
 opens each candidate resource and queries `*IDN?`. With `live_only=true`, it
 returns only resources that respond as live devices.
 
-Selecting a live resource copies it into the `VISA resource` input. The user can
-still type a resource manually.
+Verified scan results include nullable model metadata when the returned IDN
+matches a supported Core profile. A 34460A IDN returns
+`instrument_model: "34460A"` and a 34461A IDN returns
+`instrument_model: "34461A"`. Unknown live IDNs remain in the resource list
+with null model metadata so operators can still inspect or type resources
+without the listing failing.
+
+Selecting a live resource copies it into the `VISA resource` input. When the
+scan inferred a supported model, the browser also selects that Instrument model
+and reloads `/api/capabilities?model=<model>` before refreshing measurement,
+range, trigger, current-terminal, and panel state. If the model cannot be
+inferred, the current manual Instrument model selection is preserved and the
+Status log asks the operator to select the model manually.
+
+The user can still type a resource manually and can override the Instrument
+model selector after scanning.
 
 The WebUI uses the default system VISA runtime through Core. It does not expose
 a PyVISA backend selector in the browser. Use the CLI-only `--visa-library`
@@ -192,6 +206,12 @@ GET /api/capabilities?model=34461A
 When `model` is omitted, the WebUI uses the default 34461A profile. The browser
 model selector reloads capabilities with the selected model and sends
 `instrument_model` in the `POST /api/runs` payload.
+
+The Instrument model selector is the WebUI's selected Core profile. Scan Device
+can set it automatically from verified IDN metadata, but operators can still
+change it manually. Core validates the connected instrument identity at Start
+against the selected model. If a clear mismatch is detected, the WebUI reports
+which model was selected and which supported model was found in the IDN.
 
 Currently surfaced measurement modes include:
 
@@ -225,7 +245,7 @@ Measurement-specific UI behavior:
   supported.
 - With the 34460A profile selected, current ranges exclude 10 A and current
   terminal selection is hidden because the base 34460A profile has no 10 A
-  terminal/path.
+  terminal/path. Custom-mode reading memory is limited to 1000 readings.
 - DCV Input Z appears only for `voltage-dc`.
 - VM Comp remains a measurement option where supported by Core.
 - Auto Zero Once is available for supported DC/resistance measurements through
@@ -246,7 +266,9 @@ Currently surfaced trigger modes include:
 
 The exact list is profile-specific. The 34460A base profile hides `external`
 and `external-custom` because LAN/LXI/external trigger capability is optional
-and not assumed.
+and not assumed. Unsupported 34460A options are omitted through
+`/api/capabilities?model=34460A`; the frontend does not maintain a separate
+hard-coded 34460A option list.
 
 Simple immediate and software-triggered reads use Core's `READ?` path.
 Hardware-triggered simple reads use Core's `FETC?` path after the trigger
@@ -425,7 +447,9 @@ The browser-facing API surface is:
 - `GET /api/capabilities`: returns Core-backed measurement and trigger
   capabilities. Optional `model=34460A` or `model=34461A` selects the profile;
   omitted model returns the default 34461A profile.
-- `GET /api/resources?verify=true&live_only=true`: scans VISA resources.
+- `GET /api/resources?verify=true&live_only=true`: scans VISA resources and,
+  for verified supported IDNs, includes nullable `instrument_model` and
+  `matched_profile` metadata.
 - `POST /api/runs`: validates and starts a run.
 - `GET /api/runs/current`: returns current or latest run status.
 - `GET /api/runs/current/events`: returns Server-Sent Events (SSE) stream of run status changes.

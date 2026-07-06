@@ -52,7 +52,12 @@ from keysight_logger_core.measurement import (
     get_measurement_definition,
     registered_measurement_types,
 )
-from keysight_logger_core.models import INSTRUMENT_PROFILES, TriggerEvent, TriggerSource
+from keysight_logger_core.models import (
+    INSTRUMENT_PROFILES,
+    TriggerEvent,
+    TriggerSource,
+    find_instrument_profile_by_idn,
+)
 from keysight_logger_core.runner import StartRunnerDependencies
 from keysight_logger_core.validation import (
     BUFFER_DRAIN_SIZE_RANGE,
@@ -426,6 +431,7 @@ class WebRunManager:
                     "live": live,
                     "status": "live" if live else "stale",
                     "detail": detail,
+                    **_resource_model_metadata(detail if live else None),
                 }
             )
         return {
@@ -485,7 +491,12 @@ class WebRunManager:
                 if result is not None and not result.ok and result.reason == "connect_error":
                     self._active = None
                     self._publish_status_locked(status)
-                    raise RuntimeError(result.fatal_error or "connect_error")
+                    raise RuntimeError(
+                        _webui_connection_error_message(
+                            result.fatal_error or "connect_error",
+                            profile.model,
+                        )
+                    )
             return status
         except ValueError as exc:
             with self._lock:
@@ -925,6 +936,43 @@ def _static_js_digest(static_dir: Path) -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()[:12]
+
+
+def _resource_model_metadata(idn_detail: str | None) -> dict[str, Any]:
+    if not idn_detail:
+        return {"instrument_model": None, "matched_profile": None}
+    try:
+        profile = find_instrument_profile_by_idn(idn_detail)
+    except ValueError:
+        return {"instrument_model": None, "matched_profile": None}
+    return {
+        "instrument_model": profile.model,
+        "matched_profile": {"vendor": profile.vendor, "model": profile.model},
+    }
+
+
+def _webui_connection_error_message(message: str, selected_model: str) -> str:
+    if "unsupported instrument identity; expected Keysight/Agilent" not in message:
+        return message
+    marker = "got '"
+    start = message.find(marker)
+    if start < 0:
+        return message
+    start += len(marker)
+    end = message.find("'", start)
+    if end < 0:
+        return message
+    idn = message[start:end]
+    try:
+        connected_profile = find_instrument_profile_by_idn(idn)
+    except ValueError:
+        return message
+    if connected_profile.model == selected_model:
+        return message
+    return (
+        f"Selected model {selected_model} does not match the connected instrument "
+        f"IDN {connected_profile.model}. Select {connected_profile.model} or rescan the device."
+    )
 
 
 def _uvicorn_log_config() -> dict[str, Any]:

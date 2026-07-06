@@ -19,6 +19,8 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
     TestClient = None
 
 if TestClient is not None:
+    from keysight_logger_core.instrument import InstrumentError
+    from keysight_logger_core.runner import StartRunnerDependencies
     from keysight_logger_webui.web_ui import (
         APP_JS_CACHEBUSTER_TOKEN,
         CsvFolderSelectionUnavailable,
@@ -219,6 +221,88 @@ class WebUiApiTests(unittest.TestCase):
             {"name": "keysight-logger-webui", "version": FALLBACK_WEBUI_VERSION},
             response.json()["app"],
         )
+
+    def test_verified_resource_scan_infers_34460a_model_metadata(self):
+        client, _csv_path = self.make_client()
+
+        with (
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                return_value=["USB::METER"],
+            ),
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.verify_resource",
+                return_value=(True, "Keysight Technologies,34460A,MY123,1.0"),
+            ),
+        ):
+            response = client.get("/api/resources?verify=true&live_only=true")
+
+        self.assertEqual(200, response.status_code)
+        resource = response.json()["resources"][0]
+        self.assertEqual("34460A", resource["instrument_model"])
+        self.assertEqual(
+            {"vendor": "Keysight", "model": "34460A"},
+            resource["matched_profile"],
+        )
+
+    def test_verified_resource_scan_infers_34461a_model_metadata(self):
+        client, _csv_path = self.make_client()
+
+        with (
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                return_value=["USB::METER"],
+            ),
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.verify_resource",
+                return_value=(True, "Keysight Technologies,34461A,MY123,1.0"),
+            ),
+        ):
+            response = client.get("/api/resources?verify=true&live_only=true")
+
+        self.assertEqual(200, response.status_code)
+        resource = response.json()["resources"][0]
+        self.assertEqual("34461A", resource["instrument_model"])
+        self.assertEqual(
+            {"vendor": "Keysight", "model": "34461A"},
+            resource["matched_profile"],
+        )
+
+    def test_verified_resource_scan_keeps_unknown_idn_without_model_metadata(self):
+        client, _csv_path = self.make_client()
+
+        with (
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                return_value=["USB::UNKNOWN"],
+            ),
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.verify_resource",
+                return_value=(True, "Other Vendor,1234,ABC,1.0"),
+            ),
+        ):
+            response = client.get("/api/resources?verify=true&live_only=true")
+
+        self.assertEqual(200, response.status_code)
+        resource = response.json()["resources"][0]
+        self.assertIsNone(resource["instrument_model"])
+        self.assertIsNone(resource["matched_profile"])
+
+    def test_plain_resource_scan_does_not_verify_or_add_model_metadata(self):
+        client, _csv_path = self.make_client()
+
+        with (
+            patch(
+                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                return_value=["USB::METER"],
+            ),
+            patch("keysight_logger_webui.web_ui.VisaInstrument.verify_resource") as verify,
+        ):
+            response = client.get("/api/resources")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual([{"resource": "USB::METER"}], response.json()["resources"])
+        verify.assert_not_called()
 
     def test_index_uses_versioned_static_js_content_cachebuster(self):
         client, _csv_path = self.make_client()
@@ -655,6 +739,128 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, allowed_response.status_code)
         client.post("/api/runs/current/stop")
         self.wait_until_inactive(client)
+
+    def test_start_with_34460a_passes_expected_model_to_runner(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        seen_expected_models: list[str | None] = []
+
+        class FakeInstrument:
+            resource_id = "USB::FAKE"
+
+            def connect(self):
+                return None
+
+            def release_to_local(self):
+                return "release:ok"
+
+            def close(self):
+                return None
+
+            def cleanup_release_to_local(self):
+                return "cleanup:ok"
+
+        class FakeStorage:
+            def __init__(self, _path):
+                return None
+
+        class FakeEngine:
+            def __init__(self, **_kwargs):
+                self.stats = SimpleNamespace(captured=0, errors=0)
+                self.fatal_error = None
+
+            def run(self, *, trigger_mode, hardware_trigger_slope):  # noqa: ARG002
+                return None
+
+            def stop(self):
+                return None
+
+        class CompletedThread:
+            def __init__(self, *, target, kwargs, daemon):  # noqa: ARG002
+                self._target = target
+                self._kwargs = kwargs
+                self._alive = False
+
+            def start(self):
+                self._alive = True
+                self._target(**self._kwargs)
+                self._alive = False
+
+            def is_alive(self):
+                return self._alive
+
+            def join(self, timeout=None):  # noqa: ARG002
+                self._alive = False
+
+        def instrument_factory(config, *, simulate, measurement_type):  # noqa: ARG001
+            seen_expected_models.append(config.expected_model)
+            return FakeInstrument()
+
+        manager = WebRunManager(
+            runner_dependencies=StartRunnerDependencies(
+                instrument_backend_factory=instrument_factory,
+                storage_factory=FakeStorage,
+                measurement_factory=lambda _measurement_type: object(),
+                engine_factory=lambda **kwargs: FakeEngine(**kwargs),
+                thread_factory=CompletedThread,
+            )
+        )
+        client = self.make_client_with_manager(manager)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "instrument_model": "34460A",
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(["34460A"], seen_expected_models)
+
+    def test_model_idn_mismatch_returns_webui_action_message(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+
+        class MismatchedInstrument:
+            def connect(self):
+                raise InstrumentError(
+                    "unsupported instrument identity; expected Keysight/Agilent 34461A, "
+                    "got 'Keysight Technologies,34460A,MY123,1.0'"
+                )
+
+        def instrument_factory(config, *, simulate, measurement_type):  # noqa: ARG001
+            return MismatchedInstrument()
+
+        manager = WebRunManager(
+            runner_dependencies=StartRunnerDependencies(
+                instrument_backend_factory=instrument_factory,
+            )
+        )
+        client = self.make_client_with_manager(manager)
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": False,
+                "instrument_model": "34461A",
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(500, response.status_code)
+        self.assertEqual(
+            "Selected model 34461A does not match the connected instrument IDN 34460A. "
+            "Select 34460A or rescan the device.",
+            response.json()["detail"],
+        )
 
     def test_manager_can_build_default_request_model(self):
         request = RunStartRequest(resource="USB::FAKE")

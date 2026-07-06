@@ -53,9 +53,33 @@ function setPanelExpanded(button, expanded) {
   button.textContent = expanded ? "-" : "+";
 }
 
+let scanMetadataByResource = new Map();
+
+async function applyScannedResource(resource) {
+  if (!resource) {
+    return;
+  }
+  const metadata = scanMetadataByResource.get(resource);
+  const inferredModel = metadata?.instrument_model || null;
+  resourceInput.value = resource;
+  resourceSelect.value = resource;
+  if (!inferredModel) {
+    appendStatusLog("Live resource model could not be inferred; select Instrument model manually.");
+    return;
+  }
+  instrumentModelSelect.value = inferredModel;
+  await loadCapabilities(inferredModel);
+  updateRangeVisibility();
+  updateTriggerModeUi();
+  updatePanelSummaries();
+}
+
 async function refreshResources() {
   appendStatusLog("Scanning live resources...");
   const result = await api("/api/resources?verify=true&live_only=true");
+  scanMetadataByResource = new Map(
+    result.resources.map((item) => [item.resource, item])
+  );
   const placeholder = document.createElement("option");
   placeholder.value = "";
   placeholder.textContent = result.resources.length
@@ -73,8 +97,7 @@ async function refreshResources() {
     })
   );
   if (!resourceInput.value && result.resources.length > 0) {
-    resourceInput.value = result.resources[0].resource;
-    resourceSelect.value = result.resources[0].resource;
+    await applyScannedResource(result.resources[0].resource);
   }
   appendStatusLog(`Live resources found: ${result.resources.length}`);
 }
@@ -87,9 +110,13 @@ document.querySelector("#refresh-resources").addEventListener("click", async () 
   }
 });
 
-resourceSelect.addEventListener("change", () => {
+resourceSelect.addEventListener("change", async () => {
   if (resourceSelect.value) {
-    resourceInput.value = resourceSelect.value;
+    try {
+      await applyScannedResource(resourceSelect.value);
+    } catch (error) {
+      appendStatusLog(error.message);
+    }
   }
 });
 

@@ -37,6 +37,58 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("instrument_model", app_js)
         self.assertIn("/api/capabilities?model=", app_js)
 
+    def test_static_ui_scan_resource_metadata_drives_model_selection(self):
+        _index, app_js = load_static_ui()
+
+        self.assertIn("scanMetadataByResource = new Map", app_js)
+        self.assertIn("result.resources.map((item) => [item.resource, item])", app_js)
+        self.assertIn("metadata?.instrument_model || null", app_js)
+        self.assertIn("instrumentModelSelect.value = inferredModel", app_js)
+        self.assertIn("await loadCapabilities(inferredModel)", app_js)
+        self.assertIn(
+            "Live resource model could not be inferred; select Instrument model manually.",
+            app_js,
+        )
+
+    def test_static_ui_resource_selection_orders_model_reload_before_ui_updates(self):
+        _index, app_js = load_static_ui()
+
+        self.assertRegex(
+            app_js,
+            r"resourceInput\.value = resource;[\s\S]*?"
+            r"resourceSelect\.value = resource;[\s\S]*?"
+            r"instrumentModelSelect\.value = inferredModel;[\s\S]*?"
+            r"await loadCapabilities\(inferredModel\);[\s\S]*?"
+            r"updateRangeVisibility\(\);[\s\S]*?"
+            r"updateTriggerModeUi\(\);[\s\S]*?"
+            r"updatePanelSummaries\(\);",
+        )
+
+    def test_static_ui_manual_model_change_reloads_capabilities_without_resource_clear(self):
+        _index, app_js = load_static_ui()
+
+        self.assertIn(
+            "instrumentModelSelect.addEventListener(\"change\", async () =>",
+            app_js,
+        )
+        self.assertIn("await loadCapabilities(instrumentModelSelect.value)", app_js)
+        manual_handler = re.search(
+            r"instrumentModelSelect\.addEventListener\(\"change\", async \(\) => \{"
+            r"([\s\S]*?)\n\}\);",
+            app_js,
+        )
+        self.assertIsNotNone(manual_handler)
+        self.assertNotIn("resourceInput.value", manual_handler.group(1))
+        self.assertNotIn("resourceSelect.value", manual_handler.group(1))
+
+    def test_static_ui_unsupported_34460a_options_remain_capabilities_driven(self):
+        _index, app_js = load_static_ui()
+
+        self.assertIn("capabilities.trigger_modes.map", app_js)
+        self.assertIn("supportsCurrentTerminal(measurement)", app_js)
+        self.assertNotIn("instrumentModelSelect.value === \"34460A\"", app_js)
+        self.assertNotIn("selectedModel === \"34460A\"", app_js)
+
     def test_static_ui_uses_requested_layout_sections(self):
         index, app_js = load_static_ui()
 
