@@ -222,6 +222,16 @@ is `5.000 V` and Manual span is `0.010 V`, the chart shows `4.990 V` to
 `5.010 V`. Values outside `baseline +/- span` are clamped to the chart
 boundary, so the first version does not show a separate clipped indicator.
 
+`Range step` uses the manually selected `Range` as the chart display span. It
+is available only when `Auto Range` is off and a manual range is selected. It
+does not reflect the instrument's actual auto-selected range, because the WebUI
+does not know that hardware range while Auto Range is enabled. If the first
+sample is `5.000 V` and the selected manual Range is `0.010 V`, the chart shows
+`4.990 V` to `5.010 V`. Values outside `baseline +/- selected Range` may be
+clamped to the chart boundary. Like the other chart scale modes, Range step
+affects only the browser chart display and does not change instrument settings,
+SCPI commands, CSV output, or recorded values.
+
 ## CSV Output
 
 The CSV path shown in `Run Setup` is the file that will be used when `Start` is

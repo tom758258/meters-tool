@@ -9,6 +9,7 @@ import {
   freqPeriodTimeoutSelect,
   gateTimeSelect,
   instrumentModelSelect,
+  measurementRangeInput,
   measurementSelect,
   nplcSelect,
   openCsvButton,
@@ -22,7 +23,10 @@ import {
   triggerModeSelect,
   triggerRunButton,
 } from "./dom.js";
-import { initializeLiveDataUi } from "./live_data.js";
+import {
+  initializeLiveDataUi,
+  refreshLiveChartScaleAvailability,
+} from "./live_data.js";
 import {
   formPayload,
   loadCapabilities,
@@ -53,6 +57,16 @@ function setPanelExpanded(button, expanded) {
   button.textContent = expanded ? "-" : "+";
 }
 
+function updateMeasurementAndLiveChartScale() {
+  updateMeasurementUi();
+  refreshLiveChartScaleAvailability("");
+}
+
+function updateRangeAndLiveChartScale(notice = "") {
+  updateRangeVisibility();
+  refreshLiveChartScaleAvailability(notice);
+}
+
 let scanMetadataByResource = new Map();
 
 async function applyScannedResource(resource) {
@@ -69,7 +83,7 @@ async function applyScannedResource(resource) {
   }
   instrumentModelSelect.value = inferredModel;
   await loadCapabilities(inferredModel);
-  updateRangeVisibility();
+  updateRangeAndLiveChartScale();
   updateTriggerModeUi();
   updatePanelSummaries();
 }
@@ -135,11 +149,11 @@ selectCsvFolderButton.addEventListener("click", async () => {
   }
 });
 
-measurementSelect.addEventListener("change", updateMeasurementUi);
+measurementSelect.addEventListener("change", updateMeasurementAndLiveChartScale);
 instrumentModelSelect.addEventListener("change", async () => {
   try {
     await loadCapabilities(instrumentModelSelect.value);
-    updateRangeVisibility();
+    updateRangeAndLiveChartScale();
   } catch (error) {
     appendStatusLog(error.message);
   }
@@ -150,7 +164,16 @@ timerIntervalInput.addEventListener("input", () => {
   updatePanelSummaries();
 });
 timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
-autoRangeCheckbox.addEventListener("change", updateRangeVisibility);
+autoRangeCheckbox.addEventListener("change", () => {
+  updateRangeAndLiveChartScale(
+    autoRangeCheckbox.checked
+      ? "Range step disabled because Auto range is on."
+      : ""
+  );
+});
+measurementRangeInput.addEventListener("change", () => {
+  refreshLiveChartScaleAvailability("");
+});
 autoZeroSelect.addEventListener("change", updatePanelSummaries);
 acBandwidthSelect.addEventListener("change", updatePanelSummaries);
 gateTimeSelect.addEventListener("change", updatePanelSummaries);
@@ -236,7 +259,7 @@ for (const button of panelToggles) {
 
 loadCapabilities()
   .then(() => {
-    updateRangeVisibility();
+    updateRangeAndLiveChartScale();
     return pollStatus();
   })
   .then(startStatusUpdates)

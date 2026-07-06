@@ -59,7 +59,7 @@ class WebUiStaticTests(unittest.TestCase):
             r"resourceSelect\.value = resource;[\s\S]*?"
             r"instrumentModelSelect\.value = inferredModel;[\s\S]*?"
             r"await loadCapabilities\(inferredModel\);[\s\S]*?"
-            r"updateRangeVisibility\(\);[\s\S]*?"
+            r"updateRangeAndLiveChartScale\(\);[\s\S]*?"
             r"updateTriggerModeUi\(\);[\s\S]*?"
             r"updatePanelSummaries\(\);",
         )
@@ -286,6 +286,58 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("Auto deviation: Center", app_js)
         self.assertIn("Auto absolute: Range", app_js)
         self.assertIn("Manual span: Center", app_js)
+        self.assertIn("Range step: Center", app_js)
+        self.assertIn("Range step disabled because Auto range is on.", app_js)
+        self.assertIn(
+            "Range step requires Auto range off and a selected manual Range.",
+            app_js,
+        )
+
+    def test_static_ui_live_chart_range_step_mode_is_guarded(self):
+        index, app_js = load_static_ui()
+
+        self.assertRegex(
+            index,
+            r"<option\b(?=[^>]*\bvalue=\"range-step\")(?=[^>]*\bdisabled\b)[^>]*>"
+            r"Range step</option>",
+        )
+        self.assertIn('option[value="range-step"]', app_js)
+        self.assertIn("rangeStepOption.disabled = !rangeStepAvailable", app_js)
+        self.assertIn("!autoRangeCheckbox.checked", app_js)
+        self.assertIn("hasMeasurementRangeOptions()", app_js)
+        self.assertIn("selectedManualRange()", app_js)
+        self.assertIn('liveChartScaleMode !== "range-step"', app_js)
+        self.assertIn('liveChartScaleMode = "auto-deviation"', app_js)
+        self.assertIn('liveChartScaleModeSelect.value = "auto-deviation"', app_js)
+        self.assertIn("chartScaleForRangeStep(baseline, rangeStepSpan)", app_js)
+        self.assertIn(
+            "gridStepValue: span / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE",
+            app_js,
+        )
+        self.assertIn(
+            "refreshLiveChartScaleAvailability(\"\")",
+            app_js,
+        )
+        self.assertIn("updateRangeAndLiveChartScale(", app_js)
+        self.assertIn(
+            'autoRangeCheckbox.checked\n'
+            '      ? "Range step disabled because Auto range is on."\n'
+            '      : ""',
+            app_js,
+        )
+
+        range_change = re.search(
+            r"measurementRangeInput\.addEventListener\(\"change\", \(\) => \{"
+            r"([\s\S]*?)\n\}\);",
+            app_js,
+        )
+        self.assertIsNotNone(range_change)
+        self.assertIn("refreshLiveChartScaleAvailability(\"\");", range_change.group(1))
+
+        form_payload = re.search(r"export function formPayload\(\) \{([\s\S]*?)\n\}", app_js)
+        self.assertIsNotNone(form_payload)
+        self.assertNotIn("range-step", form_payload.group(1))
+        self.assertNotIn("liveChartScaleMode", form_payload.group(1))
 
     def test_static_ui_exposes_cli_limit_constraints(self):
         index, app_js = load_static_ui()

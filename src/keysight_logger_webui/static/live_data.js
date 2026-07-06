@@ -1,4 +1,5 @@
 import {
+  autoRangeCheckbox,
   closeLiveSampleDetailsButton,
   liveChartContent,
   liveChartEmpty,
@@ -23,6 +24,7 @@ import {
   liveStatsGrid,
   liveTableWrap,
   liveTrendChart,
+  measurementRangeInput,
   toggleLiveChartButton,
   toggleLiveSamplesButton,
   toggleLiveStatsButton,
@@ -38,6 +40,7 @@ let liveChartBaselineValue = null;
 let liveChartScaleMode = "auto-deviation";
 let liveChartManualSpan = null;
 let liveChartManualSpanInputInvalid = false;
+let liveChartScaleNotice = "";
 let lastLiveChartSamples = [];
 
 if (typeof window !== "undefined") {
@@ -61,12 +64,15 @@ export function initializeLiveDataUi() {
   });
   liveChartScaleModeSelect.addEventListener("change", () => {
     liveChartScaleMode = liveChartScaleModeSelect.value || "auto-deviation";
+    liveChartScaleNotice = "";
     liveChartManualSpanInputInvalid =
       liveChartScaleMode === "manual-span" && !validManualSpanInput();
+    refreshLiveChartScaleAvailability();
     updateLiveChartScaleControls();
     renderLiveChart(lastLiveChartSamples);
   });
   liveChartManualSpanInput.addEventListener("input", () => {
+    liveChartScaleNotice = "";
     const span = Number(liveChartManualSpanInput.value);
     if (Number.isFinite(span) && span > 0) {
       liveChartManualSpan = span;
@@ -101,6 +107,34 @@ export function initializeLiveDataUi() {
   setLiveSectionVisible(toggleLiveChartButton, liveChartContent, true);
   setLiveSectionVisible(toggleLiveStatsButton, liveStatsGrid, true);
   setLiveSectionVisible(toggleLiveSamplesButton, liveTableWrap, true);
+  refreshLiveChartScaleAvailability();
+  updateLiveChartScaleControls();
+  renderLiveChart(lastLiveChartSamples);
+}
+
+export function refreshLiveChartScaleAvailability(notice = null) {
+  if (notice !== null) {
+    liveChartScaleNotice = notice;
+  }
+  const rangeStepOption = liveChartScaleModeSelect.querySelector(
+    'option[value="range-step"]'
+  );
+  if (!rangeStepOption) {
+    return;
+  }
+  const rangeStepAvailable = liveChartRangeStepAvailable();
+  rangeStepOption.disabled = !rangeStepAvailable;
+  if (liveChartScaleMode !== "range-step") {
+    renderLiveChart(lastLiveChartSamples);
+    return;
+  }
+  if (rangeStepAvailable) {
+    renderLiveChart(lastLiveChartSamples);
+    return;
+  }
+  liveChartScaleMode = "auto-deviation";
+  liveChartScaleModeSelect.value = "auto-deviation";
+  liveChartScaleNotice = notice || rangeStepUnavailableMessage();
   updateLiveChartScaleControls();
   renderLiveChart(lastLiveChartSamples);
 }
@@ -217,7 +251,9 @@ function renderLiveChart(samples) {
   if (numericSamples.length === 0) {
     liveChartEmpty.textContent = "Waiting for samples";
     liveChartEmpty.classList.remove("is-hidden");
-    liveChartScaleInfo.textContent = scaleModeLabel(liveChartScaleMode);
+    liveChartScaleInfo.textContent = liveChartScaleNotice
+      ? liveChartScaleNotice
+      : scaleModeLabel(liveChartScaleMode);
     return;
   }
 
@@ -231,7 +267,8 @@ function renderLiveChart(samples) {
     baseline,
     liveChartScaleMode,
     liveChartManualSpan,
-    liveChartManualSpanInputInvalid
+    liveChartManualSpanInputInvalid,
+    selectedManualRange()
   );
   const plotWidth = width - padding * 2;
   const points = numericSamples.map((sample, index) => {
@@ -261,7 +298,9 @@ function renderLiveChart(samples) {
     class: "live-chart-point",
   }));
   liveChartEmpty.classList.add("is-hidden");
-  liveChartScaleInfo.textContent = formatLiveChartScaleInfo(scale, unit);
+  liveChartScaleInfo.textContent = liveChartScaleNotice
+    ? liveChartScaleNotice
+    : formatLiveChartScaleInfo(scale, unit);
 }
 
 function updateLiveChartScaleControls() {
@@ -271,9 +310,20 @@ function updateLiveChartScaleControls() {
   liveChartManualSpanInput.disabled = !manual;
 }
 
-function liveChartScaleFor(values, baseline, mode, manualSpan, manualSpanInputInvalid) {
+function liveChartScaleFor(
+  values,
+  baseline,
+  mode,
+  manualSpan,
+  manualSpanInputInvalid,
+  rangeStepSpan
+) {
   if (mode === "auto-absolute") {
     return chartScaleForAutoAbsolute(values);
+  }
+  if (mode === "range-step") {
+    return chartScaleForRangeStep(baseline, rangeStepSpan)
+      || chartScaleForAutoDeviation(values, baseline);
   }
   if (mode === "manual-span") {
     const manualScale = chartScaleForManualSpan(baseline, manualSpan);
@@ -338,6 +388,18 @@ function chartScaleForManualSpan(baseline, span) {
   };
 }
 
+function chartScaleForRangeStep(baseline, span) {
+  if (!Number.isFinite(span) || span <= 0) {
+    return null;
+  }
+  return {
+    mode: "range-step",
+    center: baseline,
+    gridStepValue: span / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE,
+    span,
+  };
+}
+
 function minimumGridValueFor(value) {
   return Math.max(Math.abs(value), 1) * 1e-9;
 }
@@ -347,9 +409,35 @@ function validManualSpanInput() {
   return Number.isFinite(span) && span > 0;
 }
 
+function liveChartRangeStepAvailable() {
+  return !autoRangeCheckbox.checked
+    && hasMeasurementRangeOptions()
+    && Number.isFinite(selectedManualRange())
+    && selectedManualRange() > 0;
+}
+
+function hasMeasurementRangeOptions() {
+  return [...measurementRangeInput.options].some((option) => option.value !== "");
+}
+
+function selectedManualRange() {
+  const range = Number(measurementRangeInput.value);
+  return Number.isFinite(range) ? range : null;
+}
+
+function rangeStepUnavailableMessage() {
+  if (autoRangeCheckbox.checked) {
+    return "Range step disabled because Auto range is on.";
+  }
+  return "Range step requires Auto range off and a selected manual Range.";
+}
+
 function formatLiveChartScaleInfo(scale, unit) {
   if (scale.mode === "auto-absolute") {
     return `Auto absolute: Range ${formatLiveValueWithUnit(scale.min, unit)} to ${formatLiveValueWithUnit(scale.max, unit)}`;
+  }
+  if (scale.mode === "range-step") {
+    return `Range step: Center ${formatLiveValueWithUnit(scale.center, unit)} / Span ${formatLiveValueWithUnit(scale.span, unit)} / Grid ${formatLiveValueWithUnit(scale.gridStepValue, unit)}`;
   }
   if (scale.mode === "manual-span") {
     return `Manual span: Center ${formatLiveValueWithUnit(scale.center, unit)} / Span ${formatLiveValueWithUnit(scale.span, unit)}`;
@@ -366,6 +454,9 @@ function scaleModeLabel(mode) {
   }
   if (mode === "manual-span") {
     return "Manual span";
+  }
+  if (mode === "range-step") {
+    return "Range step";
   }
   return "Auto deviation";
 }
