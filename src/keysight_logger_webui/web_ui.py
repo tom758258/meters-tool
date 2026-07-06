@@ -457,9 +457,14 @@ class WebRunManager:
 
         handle: _RunHandle | None = None
         try:
-            start_request = self._validate_request(request)
+            start_request = self._normalize_request_payload(request)
             start_request, profile = resolve_start_profile(start_request)
             trigger_mode = resolve_trigger_mode(start_request)
+            validate_start_request(
+                start_request,
+                trigger_mode,
+                instrument_profile=profile,
+            )
             warnings = generate_buffer_overflow_warnings(start_request, trigger_mode, profile)
             plan = build_start_plan(
                 start_request,
@@ -622,7 +627,7 @@ class WebRunManager:
             "csv_path": str(csv_path),
         }
 
-    def _validate_request(self, request: RunStartRequest) -> StartRequest:
+    def _normalize_request_payload(self, request: RunStartRequest) -> StartRequest:
         raw = _model_dict(request)
         raw["resource"] = str(raw["resource"]).strip()
         if not raw["resource"]:
@@ -632,14 +637,8 @@ class WebRunManager:
         raw_model = raw.get("instrument_model")
         if raw_model is not None:
             raw["instrument_model"] = str(raw_model).strip() or None
-        profile = resolve_instrument_profile(raw.get("instrument_model"))
         if raw.get("trigger_mode") is not None:
             raw["trigger_mode"] = str(raw["trigger_mode"]).strip().lower()
-            trigger_modes = supported_trigger_modes(profile)
-            if raw["trigger_mode"] not in trigger_modes:
-                raise RunValidationError(
-                    f"trigger_mode must be one of: {', '.join(trigger_modes)}"
-                )
         raw["hw_trigger_slope"] = str(raw["hw_trigger_slope"]).strip().lower()
         if raw["hw_trigger_slope"] not in {"pos", "neg"}:
             raise RunValidationError("hw_trigger_slope must be 'pos' or 'neg'")
@@ -668,14 +667,7 @@ class WebRunManager:
         else:
             raw["auto_zero"] = "on"
 
-        start_request = StartRequest(**raw)
-        trigger_mode = resolve_trigger_mode(start_request)
-        validate_start_request(
-            start_request,
-            trigger_mode,
-            instrument_profile=profile,
-        )
-        return start_request
+        return StartRequest(**raw)
 
     def _run_worker(
         self,

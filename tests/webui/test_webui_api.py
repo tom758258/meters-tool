@@ -891,6 +891,76 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(["34460A"], seen_expected_models)
 
+    def test_start_omitted_live_model_uses_resolved_34460a_for_trigger_validation(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        seen_expected_models: list[str | None] = []
+
+        def instrument_factory(config, *, simulate, measurement_type):  # noqa: ARG001
+            seen_expected_models.append(config.expected_model)
+            raise AssertionError("runner should not start for invalid resolved profile")
+
+        manager = WebRunManager(
+            runner_dependencies=StartRunnerDependencies(
+                instrument_backend_factory=instrument_factory,
+            )
+        )
+        client = self.make_client_with_manager(manager)
+
+        with patch(
+            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB::FAKE",
+                    "csv": str(csv_path),
+                    "trigger_mode": "external",
+                    "max_samples": 1,
+                },
+            )
+
+        self.assertEqual(422, response.status_code)
+        self.assertIn("trigger-mode external", response.json()["detail"])
+        self.assertEqual([], seen_expected_models)
+
+    def test_start_omitted_live_model_uses_resolved_34460a_for_current_terminal_validation(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        seen_expected_models: list[str | None] = []
+
+        def instrument_factory(config, *, simulate, measurement_type):  # noqa: ARG001
+            seen_expected_models.append(config.expected_model)
+            raise AssertionError("runner should not start for invalid resolved profile")
+
+        manager = WebRunManager(
+            runner_dependencies=StartRunnerDependencies(
+                instrument_backend_factory=instrument_factory,
+            )
+        )
+        client = self.make_client_with_manager(manager)
+
+        with patch(
+            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB::FAKE",
+                    "csv": str(csv_path),
+                    "measurement": "current-dc",
+                    "current_terminal": 10,
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        self.assertEqual(422, response.status_code)
+        self.assertIn("current", response.json()["detail"].lower())
+        self.assertEqual([], seen_expected_models)
+
     def test_start_omitted_live_model_resolves_from_fresh_preflight(self):
         self.tempdir = tempfile.TemporaryDirectory()
         csv_path = Path(self.tempdir.name) / "out.csv"
@@ -1020,10 +1090,10 @@ class WebUiApiTests(unittest.TestCase):
     def test_manager_normalizes_legacy_auto_zero_booleans(self):
         manager = WebRunManager()
 
-        on_request = manager._validate_request(
+        on_request = manager._normalize_request_payload(
             RunStartRequest(resource="USB::FAKE", auto_zero=True)
         )
-        off_request = manager._validate_request(
+        off_request = manager._normalize_request_payload(
             RunStartRequest(resource="USB::FAKE", auto_zero=False)
         )
 
