@@ -17,6 +17,7 @@ class InstrumentError(RuntimeError):
 
 
 _VISA_TIMEOUT_ERROR_CODE = -1073807339
+ASRL_VERIFY_TIMEOUT_MS = 1000
 
 
 def _normalize_visa_library(value: str | None) -> str | None:
@@ -52,6 +53,10 @@ def is_pyvisa_timeout_error(exc: Exception) -> bool:
         timeout_code = status_code.error_timeout
 
     return error_code == timeout_code or error_code == _VISA_TIMEOUT_ERROR_CODE
+
+
+def is_asrl_resource(resource: str) -> bool:
+    return str(resource).upper().startswith("ASRL")
 
 
 class VisaInstrument:
@@ -94,28 +99,44 @@ class VisaInstrument:
         timeout_ms: int = 1000,
         resource_manager_factory: Callable[[], object] | None = None,
         visa_library: str | None = None,
+        serial_read_termination: str | None = None,
+        serial_write_termination: str | None = None,
     ) -> tuple[bool, str]:
         rm = None
         inst = None
+        is_asrl = is_asrl_resource(resource)
+        effective_timeout_ms = ASRL_VERIFY_TIMEOUT_MS if is_asrl else timeout_ms
         try:
             rm = (
                 resource_manager_factory()
                 if resource_manager_factory is not None
                 else _create_resource_manager(visa_library)
             )
-            inst = rm.open_resource(resource)
-            inst.timeout = timeout_ms
+            if is_asrl:
+                inst = rm.open_resource(resource, open_timeout=ASRL_VERIFY_TIMEOUT_MS)
+                if serial_read_termination is not None:
+                    inst.read_termination = serial_read_termination
+                if serial_write_termination is not None:
+                    inst.write_termination = serial_write_termination
+            else:
+                inst = rm.open_resource(resource)
+            inst.timeout = effective_timeout_ms
             idn_detail = str(inst.query("*IDN?")).strip()
-            try:
-                VisaInstrument(
-                    InstrumentConfig(resource_string=resource)
-                )._release_session_to_local(inst)
-            except Exception:
-                pass
+            if not is_asrl:
+                try:
+                    VisaInstrument(
+                        InstrumentConfig(resource_string=resource)
+                    )._release_session_to_local(inst)
+                except Exception:
+                    pass
             return True, idn_detail
         except InstrumentError:
             raise
         except Exception as exc:
+            if is_asrl:
+                if is_pyvisa_timeout_error(exc) or isinstance(exc, TimeoutError):
+                    return False, f"ASRL verification timed out after {ASRL_VERIFY_TIMEOUT_MS} ms"
+                return False, f"ASRL verification failed: {type(exc).__name__}: {exc}"
             return False, f"{type(exc).__name__}: {exc}"
         finally:
             if inst is not None:

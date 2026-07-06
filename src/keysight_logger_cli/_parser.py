@@ -148,6 +148,18 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         action="store_true",
         help="print the discovery contract without touching VISA",
     )
+    list_resources.add_argument(
+        "--serial-read-termination",
+        choices=["CRLF", "LF", "CR", "NONE"],
+        default=None,
+        help="ASRL verification read termination for list-resources only",
+    )
+    list_resources.add_argument(
+        "--serial-write-termination",
+        choices=["CRLF", "LF", "CR", "NONE"],
+        default=None,
+        help="ASRL verification write termination for list-resources only",
+    )
     _add_visa_library_argument(list_resources)
     list_resources.add_argument(
         "--format",

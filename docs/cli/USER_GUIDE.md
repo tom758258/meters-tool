@@ -120,6 +120,14 @@ failed measurement.
 normal use. Use `--visa-library "@py"` only when intentionally testing with an
 optional pyvisa-py backend; LAN/TCPIP is usually the best first path to try.
 
+`list-resources --verify` opens discovered VISA resources and queries `*IDN?`.
+`list-resources --live-only` implies verification and hides stale entries.
+ASRL/RS-232 verification uses a short bounded timeout so a stale serial entry
+does not block later USB or TCPIP resources. The serial termination options
+`--serial-read-termination` and `--serial-write-termination` are CLI discovery
+compatibility settings for ASRL verification only; they are not acquisition
+settings.
+
 `--csv` is the output file path. If omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
 or automation.
@@ -200,7 +208,10 @@ contains the CLI executable. If your release uses a versioned name such as
 
 If `list-resources` shows stale resources, use `list-resources --verify` to see
 which resources answer and why others failed. Use `--live-only` when you only
-want resources that answered `*IDN?`.
+want resources that answered `*IDN?`. If an ASRL/RS-232 resource reports a
+termination-related stale result, retry discovery with
+`--serial-read-termination` or `--serial-write-termination`; those options only
+affect ASRL verification.
 
 If no live resource is found, check instrument power, USB/LAN/GPIB connection,
 VISA driver visibility, and whether another program is holding the instrument.

@@ -4,7 +4,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from keysight_logger_core.instrument import InstrumentError, VisaInstrument, is_pyvisa_timeout_error
+from keysight_logger_core.instrument import (
+    ASRL_VERIFY_TIMEOUT_MS,
+    InstrumentError,
+    VisaInstrument,
+    is_asrl_resource,
+    is_pyvisa_timeout_error,
+)
 from keysight_logger_core.models import InstrumentConfig, Transport
 
 
@@ -14,11 +20,14 @@ class FakeVisaSession:
         self.writes: list[str] = []
         self.closed = False
         self.cleared = False
+        self.read_termination = None
+        self.write_termination = None
         self.idn_response = " Keysight Technologies,34461A,MY123,1.0 \n"
         self.query_response = " Keysight Technologies,34461A,MY123,1.0 \n"
         self.status_byte = 32
         self.control_ren_calls: list[int] = []
         self.fail_query = False
+        self.fail_query_exception: Exception | None = None
         self.fail_clear = False
         self.fail_writes: set[str] = set()
         self.fail_control_ren_modes: set[int] = set()
@@ -30,6 +39,8 @@ class FakeVisaSession:
 
     def query(self, command: str) -> str:
         if self.fail_query:
+            if self.fail_query_exception is not None:
+                raise self.fail_query_exception
             raise RuntimeError("query failed")
         self.writes.append(f"query:{command}")
         if command == "*IDN?":
@@ -58,13 +69,15 @@ class FakeResourceManager:
         self.resources = resources
         self.session = session or FakeVisaSession()
         self.opened_resources: list[str] = []
+        self.open_calls: list[tuple[str, dict]] = []
         self.closed = False
 
     def list_resources(self):
         return self.resources
 
-    def open_resource(self, resource: str):
+    def open_resource(self, resource: str, **kwargs):
         self.opened_resources.append(resource)
+        self.open_calls.append((resource, kwargs))
         return self.session
 
     def close(self) -> None:
@@ -173,6 +186,11 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual([], calls)
         self.assertTrue(rm.closed)
 
+    def test_asrl_resource_detector_is_case_insensitive(self):
+        self.assertTrue(is_asrl_resource("ASRL6::INSTR"))
+        self.assertTrue(is_asrl_resource("asrl6::instr"))
+        self.assertFalse(is_asrl_resource("USB0::FAKE"))
+
     def test_verify_resource_queries_idn_and_cleans_up(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)
@@ -195,6 +213,60 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual([0], session.control_ren_calls)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
+
+    def test_verify_asrl_uses_bounded_open_and_session_timeout_without_release(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR", timeout_ms=9999)
+
+        self.assertTrue(ok)
+        self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
+        self.assertEqual([("ASRL6::INSTR", {"open_timeout": ASRL_VERIFY_TIMEOUT_MS})], rm.open_calls)
+        self.assertEqual(ASRL_VERIFY_TIMEOUT_MS, session.timeout)
+        self.assertEqual(["query:*IDN?"], session.writes)
+        self.assertFalse(session.cleared)
+        self.assertEqual([], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_asrl_applies_serial_termination_options(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            ok, _detail = VisaInstrument.verify_resource(
+                "ASRL6::INSTR",
+                serial_read_termination="\r\n",
+                serial_write_termination="\n",
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual("\r\n", session.read_termination)
+        self.assertEqual("\n", session.write_termination)
+
+    def test_verify_serial_termination_options_do_not_apply_to_usb(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+
+        with (
+            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
+            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+        ):
+            ok, _detail = VisaInstrument.verify_resource(
+                "USB::FAKE",
+                serial_read_termination="\r\n",
+                serial_write_termination="\n",
+            )
+
+        self.assertTrue(ok)
+        self.assertEqual([("USB::FAKE", {})], rm.open_calls)
+        self.assertIsNone(session.read_termination)
+        self.assertIsNone(session.write_termination)
 
     def test_verify_resource_passes_visa_library_to_resource_manager(self):
         session = FakeVisaSession()
@@ -282,6 +354,44 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual([], session.writes)
         self.assertFalse(session.cleared)
         self.assertEqual([], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_asrl_failure_returns_concise_detail_and_closes_handles(self):
+        session = FakeVisaSession()
+        session.fail_query = True
+        rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR")
+
+        self.assertFalse(ok)
+        self.assertEqual("ASRL verification failed: RuntimeError: query failed", detail)
+        self.assertEqual(ASRL_VERIFY_TIMEOUT_MS, session.timeout)
+        self.assertFalse(session.cleared)
+        self.assertEqual([], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
+    def test_verify_asrl_timeout_returns_concise_timeout_detail(self):
+        session = FakeVisaSession()
+        session.fail_query = True
+        session.fail_query_exception = FakeVisaIOError(-1073807339)
+        rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
+        fake_pyvisa = SimpleNamespace(
+            ResourceManager=lambda: rm,
+            errors=SimpleNamespace(VisaIOError=FakeVisaIOError),
+            constants=SimpleNamespace(
+                StatusCode=SimpleNamespace(error_timeout=-1073807339)
+            ),
+        )
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR")
+
+        self.assertFalse(ok)
+        self.assertEqual("ASRL verification timed out after 1000 ms", detail)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
 

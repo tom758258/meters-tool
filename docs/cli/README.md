@@ -86,11 +86,13 @@ Important limitations:
   any other NPLC value is rejected because these modes do not write NPLC SCPI.
   They also do not write Auto Zero SCPI commands.
 - Mixed software and hardware capture in the same run is not supported.
-- Plain `list-resources` calls VISA discovery directly and may show stale
-  resources cached by the VISA runtime. Use `list-resources --verify` to open
-  each resource and query `*IDN?`; successful verified resources are released
-  back to local on a best-effort basis before closing. Use
+- Plain `list-resources` lists VISA resources returned by discovery and may
+  include stale cached entries. Use `list-resources --verify` to open each
+  resource and query `*IDN?`; successful non-ASRL verified resources are
+  released back to local on a best-effort basis before closing. Use
   `list-resources --live-only` when you only want resources that answered.
+  ASRL/RS-232 verification uses a short bounded open and query timeout so a
+  stale serial entry does not block later USB or TCPIP resources.
 - `immediate` mode can capture continuously and quickly. Use `--max-samples`
   unless you intentionally want a continuous run.
 
@@ -424,10 +426,12 @@ Root options:
 | Option | Description |
 | --- | --- |
 | none | Print raw VISA resources returned by PyVISA. This can include stale cached resources and does not open resources or run release-to-local cleanup. |
-| `--verify` | Open each discovered resource and query `*IDN?`. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. Successful live checks run best-effort release-to-local before closing. |
-| `--live-only` | Verify resources and print only rows that answered. Successful live checks run best-effort release-to-local before closing. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
+| `--verify` | Open each discovered resource and query `*IDN?`. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. ASRL/RS-232 checks use a short bounded timeout. Successful non-ASRL live checks run best-effort release-to-local before closing. |
+| `--live-only` | Verify resources and print only rows that answered. This implies `--verify`, suppresses stale resources, and still continues after an ASRL stale timeout. Successful non-ASRL live checks run best-effort release-to-local before closing. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
 | `--dry-run` | Print the resource-discovery contract and exit 0 without creating a VISA resource manager, listing resources, opening resources, querying `*IDN?`, or running release/local cleanup. Can be combined with `--verify`, `--live-only`, and `--json`. |
 | `--visa-library TEXT`, `--backend TEXT` | Optional PyVISA library/backend argument, such as `@py`. Omit it to use the system default VISA runtime through `pyvisa.ResourceManager()`. |
+| `--serial-read-termination VALUE` | CLI discovery/verification compatibility setting for ASRL resources only. Accepted values are `CRLF`, `LF`, `CR`, and `NONE`. It maps to the PyVISA session `read_termination` before querying `*IDN?`; it is not an acquisition setting. |
+| `--serial-write-termination VALUE` | CLI discovery/verification compatibility setting for ASRL resources only. Accepted values are `CRLF`, `LF`, `CR`, and `NONE`. It maps to the PyVISA session `write_termination` before querying `*IDN?`; it is not an acquisition setting. |
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |
 | `--json` | Alias for `--format json`. |
 
@@ -807,9 +811,10 @@ Verify which resources are live:
 .\.venv\Scripts\keysight-logger.exe list-resources --verify
 ```
 
-Successful verified resources are released back to local on a best-effort basis
-before the scan session closes. Stale resources that fail the IDN query are
-closed without release SCPI.
+Successful non-ASRL verified resources are released back to local on a
+best-effort basis before the scan session closes. Stale resources that fail the
+IDN query are closed without release SCPI. ASRL/RS-232 verification uses a
+short bounded timeout and reports stale serial timeouts concisely.
 
 Show only live resources and hide stale VISA cache entries:
 
@@ -823,6 +828,19 @@ Use JSON output for scripts:
 .\.venv\Scripts\keysight-logger.exe list-resources --verify --format json
 ```
 
+For ASRL/RS-232 discovery only, optional termination settings can help a serial
+device answer `*IDN?` during verification:
+
+```powershell
+.\.venv\Scripts\keysight-logger.exe list-resources --verify `
+  --serial-read-termination CRLF `
+  --serial-write-termination LF
+```
+
+These serial termination options apply only while verifying ASRL resources in
+`list-resources`. They are not acquisition runtime settings and are not applied
+to USB or TCPIP resources.
+
 Preview the discovery contract without touching VISA:
 
 ```powershell
@@ -834,6 +852,7 @@ Verified output is tab-separated:
 ```text
 live    USB0::<vendor_id>::<product_id>::<serial>::0::INSTR    Keysight Technologies,34461A,...
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...
+stale   ASRL6::INSTR                                   ASRL verification timed out after 1000 ms
 ```
 
 `--live-only` still verifies each resource, but suppresses stale rows. If no

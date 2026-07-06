@@ -87,7 +87,9 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             "list_visa_resources",
             "open_each_resource",
             "query_idn",
+            "release_to_local_after_successful_non_asrl_verify",
             "release_to_local_after_successful_verify",
+            "serial_termination_applies_to_asrl_only",
         ]:
             self.assertIn(key, payload["planned_real_run"])
         self.assertFalse(payload["planned_real_run"]["query_idn"])
@@ -203,6 +205,28 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
 
     @patch("keysight_logger_cli.cli.VisaInstrument")
+    def test_list_resources_verify_passes_serial_terminations_to_verify(self, mock_visa):
+        mock_visa.list_resources.return_value = ["ASRL6::INSTR"]
+        mock_visa.verify_resource.return_value = (True, "Keysight Technologies,34461A,MY123,1.0")
+        lines = []
+
+        rc = cmd_list_resources(
+            verify=True,
+            serial_read_termination="CRLF",
+            serial_write_termination="LF",
+            print_fn=lines.append,
+        )
+
+        self.assertEqual(0, rc)
+        mock_visa.verify_resource.assert_called_once_with(
+            "ASRL6::INSTR",
+            resource_manager_factory=None,
+            visa_library=None,
+            serial_read_termination="\r\n",
+            serial_write_termination="\n",
+        )
+
+    @patch("keysight_logger_cli.cli.VisaInstrument")
     def test_list_resources_verify_json_marks_live_and_stale(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -303,6 +327,93 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         self.assertTrue(payload["verify"])
 
+    @patch("keysight_logger_cli.cli.VisaInstrument")
+    def test_list_resources_live_only_continues_after_first_asrl_stale(self, mock_visa):
+        mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
+        mock_visa.verify_resource.side_effect = [
+            (False, "ASRL verification timed out after 1000 ms"),
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(live_only=True, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(["live\tUSB::LIVE\tKeysight Technologies,34461A,MY123,1.0"], lines)
+        self.assertEqual(2, mock_visa.verify_resource.call_count)
+
+    @patch("keysight_logger_cli.cli.VisaInstrument")
+    def test_list_resources_verify_records_helper_failure_and_continues(self, mock_visa):
+        mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
+        mock_visa.verify_resource.side_effect = [
+            RuntimeError("helper failed"),
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(verify=True, print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        self.assertEqual(
+            [
+                "stale\tASRL6::INSTR\tRuntimeError: helper failed",
+                "live\tUSB::LIVE\tKeysight Technologies,34461A,MY123,1.0",
+            ],
+            lines,
+        )
+
+    @patch("keysight_logger_cli.cli.VisaInstrument")
+    def test_list_resources_verify_json_includes_stale_asrl_detail(self, mock_visa):
+        mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
+        mock_visa.verify_resource.side_effect = [
+            (False, "ASRL verification timed out after 1000 ms"),
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(verify=True, output_format="json", print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        payload = json.loads(lines[0])
+        self.assertEqual(2, payload["count"])
+        self.assertEqual(1, payload["live_count"])
+        self.assertEqual(1, payload["stale_count"])
+        self.assertEqual(
+            {
+                "detail": "ASRL verification timed out after 1000 ms",
+                "live": False,
+                "resource": "ASRL6::INSTR",
+                "status": "stale",
+            },
+            payload["resources"][0],
+        )
+
+    @patch("keysight_logger_cli.cli.VisaInstrument")
+    def test_list_resources_live_only_json_filters_stale_asrl(self, mock_visa):
+        mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
+        mock_visa.verify_resource.side_effect = [
+            (False, "ASRL verification timed out after 1000 ms"),
+            (True, "Keysight Technologies,34461A,MY123,1.0"),
+        ]
+        lines = []
+
+        rc = cmd_list_resources(live_only=True, output_format="json", print_fn=lines.append)
+
+        self.assertEqual(0, rc)
+        payload = json.loads(lines[0])
+        self.assertEqual(1, payload["count"])
+        self.assertEqual(
+            [
+                {
+                    "detail": "Keysight Technologies,34461A,MY123,1.0",
+                    "live": True,
+                    "resource": "USB::LIVE",
+                    "status": "live",
+                },
+            ],
+            payload["resources"],
+        )
+
     def test_main_dispatches_list_resources(self):
         with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
             rc = main(["list-resources", "--live-only", "--format", "json"])
@@ -314,6 +425,8 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             output_format="json",
             dry_run=False,
             visa_library=None,
+            serial_read_termination=None,
+            serial_write_termination=None,
         )
 
     def test_main_dispatches_list_resources_dry_run_json(self):
@@ -327,6 +440,8 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             output_format="json",
             dry_run=True,
             visa_library=None,
+            serial_read_termination=None,
+            serial_write_termination=None,
         )
 
     def test_main_dispatches_list_resources_with_visa_library_aliases(self):
@@ -341,6 +456,23 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         self.assertEqual(18, rc)
         self.assertEqual("@py", mock_cmd.call_args.kwargs["visa_library"])
+
+    def test_main_dispatches_list_resources_with_serial_terminations(self):
+        with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
+            rc = main(
+                [
+                    "list-resources",
+                    "--verify",
+                    "--serial-read-termination",
+                    "CRLF",
+                    "--serial-write-termination",
+                    "LF",
+                ]
+            )
+
+        self.assertEqual(17, rc)
+        self.assertEqual("CRLF", mock_cmd.call_args.kwargs["serial_read_termination"])
+        self.assertEqual("LF", mock_cmd.call_args.kwargs["serial_write_termination"])
 
 
 

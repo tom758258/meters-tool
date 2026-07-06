@@ -42,7 +42,13 @@ class CliArgsTests(unittest.TestCase):
 
     def test_subcommand_help_lists_agent_flags(self):
         cases = {
-            "list-resources": ["--dry-run", "--json", "--format"],
+            "list-resources": [
+                "--dry-run",
+                "--json",
+                "--format",
+                "--serial-read-termination",
+                "--serial-write-termination",
+            ],
             "start-trigger-record": ["--dry-run", "--simulate", "--json", "--status-format"],
             "send-command": ["--dry-run", "--json", "--format", "--timeout-ms"],
             "stop": ["--dry-run", "--json", "--format", "--timeout-ms"],
@@ -228,6 +234,8 @@ class CliArgsTests(unittest.TestCase):
         self.assertFalse(args.live_only)
         self.assertEqual("text", args.output_format)
         self.assertIsNone(args.visa_library)
+        self.assertIsNone(args.serial_read_termination)
+        self.assertIsNone(args.serial_write_termination)
 
     def test_list_resources_parser_accepts_visa_library_and_backend_aliases(self):
         parser = build_parser()
@@ -237,6 +245,31 @@ class CliArgsTests(unittest.TestCase):
 
         self.assertEqual("@py", visa_library_args.visa_library)
         self.assertEqual("@py", backend_args.visa_library)
+
+    def test_list_resources_parser_accepts_serial_termination_choices(self):
+        parser = build_parser()
+
+        args = parser.parse_args(
+            [
+                "list-resources",
+                "--verify",
+                "--serial-read-termination",
+                "CRLF",
+                "--serial-write-termination",
+                "LF",
+            ]
+        )
+
+        self.assertEqual("CRLF", args.serial_read_termination)
+        self.assertEqual("LF", args.serial_write_termination)
+
+    def test_list_resources_parser_rejects_invalid_serial_termination(self):
+        parser = build_parser()
+
+        with self.assertRaises(SystemExit) as exc:
+            parser.parse_args(["list-resources", "--serial-read-termination", "NUL"])
+
+        self.assertEqual(2, exc.exception.code)
 
     def test_send_command_rejects_visa_library(self):
         parser = build_parser()

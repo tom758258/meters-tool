@@ -439,6 +439,20 @@ def _optional_text(value: object) -> str | None:
     text = str(value).strip()
     return text or None
 
+def _normalize_serial_termination(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().upper()
+    if normalized == "CRLF":
+        return "\r\n"
+    if normalized == "LF":
+        return "\n"
+    if normalized == "CR":
+        return "\r"
+    if normalized == "NONE":
+        return None
+    raise ValueError("serial termination must be CRLF, LF, CR, or NONE")
+
 def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
     return StartRequest(
         resource=args.resource,
@@ -484,6 +498,8 @@ def cmd_list_resources(
     output_format: str = "text",
     dry_run: bool = False,
     visa_library: str | None = None,
+    serial_read_termination: str | None = None,
+    serial_write_termination: str | None = None,
     print_fn=print,  # noqa: ANN001
     resource_manager_factory=None,  # noqa: ANN001
 ) -> int:
@@ -492,6 +508,8 @@ def cmd_list_resources(
 
     effective_verify = verify or live_only
     normalized_visa_library = _optional_text(visa_library)
+    normalized_serial_read_termination = _normalize_serial_termination(serial_read_termination)
+    normalized_serial_write_termination = _normalize_serial_termination(serial_write_termination)
     if dry_run:
         payload = {
             "command": "list-resources",
@@ -506,9 +524,13 @@ def cmd_list_resources(
                 "list_visa_resources": True,
                 "open_each_resource": effective_verify,
                 "query_idn": effective_verify,
+                "release_to_local_after_successful_non_asrl_verify": effective_verify,
                 "release_to_local_after_successful_verify": effective_verify,
+                "serial_termination_applies_to_asrl_only": True,
             },
             "schema_version": CLI_EVENT_SCHEMA_VERSION,
+            "serial_read_termination": serial_read_termination,
+            "serial_write_termination": serial_write_termination,
             "status": "dry_run",
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "visa_library": normalized_visa_library,
@@ -523,6 +545,8 @@ def cmd_list_resources(
             print_fn(f"  verify: {str(verify).lower()}")
             print_fn(f"  live_only: {str(live_only).lower()}")
             print_fn(f"  visa_library: {normalized_visa_library or 'default'}")
+            print_fn(f"  serial_read_termination: {serial_read_termination or 'default'}")
+            print_fn(f"  serial_write_termination: {serial_write_termination or 'default'}")
             print_fn(f"  effective_verify: {str(effective_verify).lower()}")
             print_fn("  dry_run_performs_visa_io: false")
             print_fn("  VISA I/O: no")
@@ -531,9 +555,10 @@ def cmd_list_resources(
             print_fn(f"    open each resource: {'yes' if actions['open_each_resource'] else 'no'}")
             print_fn(f"    query *IDN?: {'yes' if actions['query_idn'] else 'no'}")
             print_fn(
-                "    release_to_local after successful verify: "
-                f"{'yes' if actions['release_to_local_after_successful_verify'] else 'no'}"
+                "    release_to_local after successful non-ASRL verify: "
+                f"{'yes' if actions['release_to_local_after_successful_non_asrl_verify'] else 'no'}"
             )
+            print_fn("    serial termination applies to ASRL only: yes")
             print_fn(f"    close each resource: {'yes' if actions['close_each_resource'] else 'no'}")
             print_fn(f"    filter live-only: {'yes' if actions['filter_live_only'] else 'no'}")
         return 0
@@ -551,11 +576,17 @@ def cmd_list_resources(
             else:
                 resources.append({"resource": resource})
             continue
-        ok, detail = VisaInstrument.verify_resource(
-            resource,
-            resource_manager_factory=resource_manager_factory,
-            visa_library=normalized_visa_library,
-        )
+        try:
+            ok, detail = VisaInstrument.verify_resource(
+                resource,
+                resource_manager_factory=resource_manager_factory,
+                visa_library=normalized_visa_library,
+                serial_read_termination=normalized_serial_read_termination,
+                serial_write_termination=normalized_serial_write_termination,
+            )
+        except Exception as exc:
+            ok = False
+            detail = f"{type(exc).__name__}: {exc}"
         if live_only and not ok:
             continue
         status = "live" if ok else "stale"
@@ -658,6 +689,8 @@ def main(argv: list[str] | None = None) -> int:
             output_format=args.output_format,
             dry_run=args.dry_run,
             visa_library=args.visa_library,
+            serial_read_termination=args.serial_read_termination,
+            serial_write_termination=args.serial_write_termination,
         )
     if args.command == "send-command":
         validation_rc = _validate_client_port_and_timeout(args)
