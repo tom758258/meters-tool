@@ -202,6 +202,9 @@ The `Live data` panel has chart scale controls in the `Trend` section. These
 settings affect only the browser chart display. They do not affect instrument
 settings, SCPI commands, CSV output, or recorded values.
 
+The trend chart shows Y-axis labels on the left side of each grid line using
+the active scale mode.
+
 `Auto deviation` is the default. It centers the chart on the first numeric
 sample in the run and shows later samples as differences from that first
 sample. This is best for small drift or stability changes. It is not an

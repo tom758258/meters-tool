@@ -268,6 +268,7 @@ class WebUiStaticTests(unittest.TestCase):
 
     def test_static_ui_live_chart_scale_keeps_existing_layout_contracts(self):
         index, app_js = load_static_ui()
+        styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
 
         self.assertNotIn("<dialog", index)
         self.assertNotIn('role="dialog"', index)
@@ -292,6 +293,26 @@ class WebUiStaticTests(unittest.TestCase):
             "Range step requires Auto range off and a selected manual Range.",
             app_js,
         )
+        self.assertIn(".live-chart-axis-label", styles)
+        self.assertIn("fill: var(--muted);", styles)
+
+    def test_static_ui_live_chart_y_axis_labels_use_active_scale(self):
+        index, app_js = load_static_ui()
+
+        self.assertIn('id="live-trend-chart"', index)
+        self.assertIn('viewBox="0 0 640 760"', index)
+        self.assertIn("const leftPadding = 72", app_js)
+        self.assertIn("const rightPadding = 18", app_js)
+        self.assertIn("const plotLeft = leftPadding", app_js)
+        self.assertIn("const plotRight = width - rightPadding", app_js)
+        self.assertIn("x1: plotLeft", app_js)
+        self.assertIn("x2: plotRight", app_js)
+        self.assertNotIn("x1: 18", app_js)
+        self.assertIn('svgElement("text"', app_js)
+        self.assertIn('class: "live-chart-axis-label"', app_js)
+        self.assertIn("const valueAtGrid = scale.center - offset * scale.gridStepValue", app_js)
+        self.assertIn("label.textContent = formatLiveValueWithUnit(valueAtGrid, unit)", app_js)
+        self.assertNotIn("live-chart-axis-label", index)
 
     def test_static_ui_live_chart_range_step_mode_is_guarded(self):
         index, app_js = load_static_ui()

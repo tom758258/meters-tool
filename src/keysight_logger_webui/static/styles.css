@@ -699,6 +699,12 @@ button:focus {
   stroke-width: 1.5;
 }
 
+.live-chart-axis-label {
+  fill: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 .live-chart-line {
   fill: none;
   stroke: var(--accent);

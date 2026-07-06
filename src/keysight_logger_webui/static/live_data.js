@@ -226,10 +226,17 @@ function renderLiveChart(samples) {
   );
   liveTrendChart.replaceChildren();
   const width = 640;
-  const height = 180;
-  const padding = 18;
+  const height = 760;
+  const leftPadding = 72;
+  const rightPadding = 18;
+  const topBottomPadding = 18;
+  const plotLeft = leftPadding;
+  const plotRight = width - rightPadding;
+  const plotWidth = plotRight - plotLeft;
   const centerY = height / 2;
-  const gridStepPx = (centerY - padding) / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
+  const gridStepPx = (
+    centerY - topBottomPadding
+  ) / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
 
   for (
     let offset = -LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
@@ -238,9 +245,9 @@ function renderLiveChart(samples) {
   ) {
     const y = centerY + offset * gridStepPx;
     liveTrendChart.appendChild(svgElement("line", {
-      x1: 18,
+      x1: plotLeft,
       y1: y,
-      x2: 624,
+      x2: plotRight,
       y2: y,
       class: offset === 0
         ? "live-chart-grid live-chart-grid-center"
@@ -270,11 +277,27 @@ function renderLiveChart(samples) {
     liveChartManualSpanInputInvalid,
     selectedManualRange()
   );
-  const plotWidth = width - padding * 2;
+  for (
+    let offset = -LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
+    offset <= LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
+    offset += 1
+  ) {
+    const y = centerY + offset * gridStepPx;
+    const valueAtGrid = scale.center - offset * scale.gridStepValue;
+    const label = svgElement("text", {
+      x: plotLeft - 8,
+      y,
+      "text-anchor": "end",
+      "dominant-baseline": "middle",
+      class: "live-chart-axis-label",
+    });
+    label.textContent = formatLiveValueWithUnit(valueAtGrid, unit);
+    liveTrendChart.appendChild(label);
+  }
   const points = numericSamples.map((sample, index) => {
     const x = numericSamples.length === 1
-      ? width / 2
-      : padding + (index * plotWidth) / (numericSamples.length - 1);
+      ? plotLeft + plotWidth / 2
+      : plotLeft + (index * plotWidth) / (numericSamples.length - 1);
     const gridOffset = clamp(
       (Number(sample.value) - scale.center) / scale.gridStepValue,
       -LIVE_CHART_GRID_LINE_COUNT_PER_SIDE,
