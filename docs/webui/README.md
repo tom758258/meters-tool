@@ -368,10 +368,22 @@ live panel.
 Stopped runs keep the latest sample window for operator review. Starting a new
 run creates a fresh sample window.
 
-The browser-side trend chart keeps the first numeric sample in a run as the
-baseline and rescales on every render so the largest visible deviation maps to
-four grid steps from the center line. This affects only chart display, not raw
-sample values, statistics, CSV output, or API sample payloads.
+The browser-side trend chart has three frontend-only scale modes:
+
+- `Auto deviation` is the default and preserves the original chart behavior.
+  It keeps the first numeric sample in a run as the baseline and rescales on
+  every render so the largest visible deviation maps to four grid steps from
+  the center line.
+- `Auto absolute` uses the absolute minimum and maximum of the visible recent
+  numeric samples, with small padding so the line does not sit on the chart
+  edges.
+- `Manual span` keeps the first numeric sample as the center and uses the
+  operator-entered positive raw-unit span as a fixed `baseline +/- span` range.
+  Values outside that range are clamped to the chart boundary.
+
+These modes affect only chart display, not raw sample values, statistics, CSV
+output, API sample payloads, instrument settings, or SCPI commands. The chart
+scale controls are not included in `POST /api/runs`.
 
 ## CSV Output, Select, And Open CSV
 

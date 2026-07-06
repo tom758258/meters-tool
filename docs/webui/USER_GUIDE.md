@@ -196,6 +196,32 @@ waits longer.
 `External trigger slope` selects the physical trigger edge. Match it to the
 signal source connected to the instrument.
 
+## Live Data Chart Scale
+
+The `Live data` panel has chart scale controls in the `Trend` section. These
+settings affect only the browser chart display. They do not affect instrument
+settings, SCPI commands, CSV output, or recorded values.
+
+`Auto deviation` is the default. It centers the chart on the first numeric
+sample in the run and shows later samples as differences from that first
+sample. This is best for small drift or stability changes. It is not an
+absolute Y-axis chart. If the first sample is `5.0000 V` and later samples are
+`5.0002 V` and `4.9998 V`, the chart shows `+0.0002 V` and `-0.0002 V`
+relative to the first sample.
+
+`Auto absolute` uses the actual minimum and maximum of the visible recent
+samples. This is best for seeing the measured range. If samples range from
+`4.9998 V` to `5.0004 V`, the chart range is based on those actual values.
+Outliers may rescale the chart and make small variations look flatter.
+
+`Manual span` uses the first numeric sample as the center and a fixed positive
+span entered by the operator. The span uses the raw measurement unit: `V` means
+volts, `A` means amps, `Ohm` means ohms, `Hz` means hertz, and `s` means
+seconds. For voltage, `0.01` means `0.01 V`, not `0.01 mV`. If the first sample
+is `5.000 V` and Manual span is `0.010 V`, the chart shows `4.990 V` to
+`5.010 V`. Values outside `baseline +/- span` are clamped to the chart
+boundary, so the first version does not show a separate clipped indicator.
+
 ## CSV Output
 
 The CSV path shown in `Run Setup` is the file that will be used when `Start` is
@@ -292,4 +318,3 @@ timeout behavior.
 - [WebUI README](README.md): engineering setup, WebUI API behavior, validation,
   build notes, and maintainer boundaries.
 - [WebUI Changelog](CHANGELOG.md): release notes.
-

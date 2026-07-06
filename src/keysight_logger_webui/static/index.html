@@ -280,6 +280,28 @@
                 -
               </button>
             </div>
+            <div class="live-chart-controls">
+              <label>
+                Scale mode
+                <select id="live-chart-scale-mode">
+                  <option value="auto-deviation" selected>Auto deviation</option>
+                  <option value="auto-absolute">Auto absolute</option>
+                  <option value="manual-span">Manual span</option>
+                </select>
+              </label>
+              <label id="live-chart-manual-span-field" class="is-hidden">
+                Manual span
+                <input
+                  id="live-chart-manual-span"
+                  type="number"
+                  min="0"
+                  step="any"
+                  placeholder="0.01"
+                  disabled
+                />
+              </label>
+            </div>
+            <p id="live-chart-scale-info" class="live-chart-scale-info">Auto deviation</p>
             <div id="live-chart-shell" class="live-chart-shell">
               <svg
                 id="live-trend-chart"

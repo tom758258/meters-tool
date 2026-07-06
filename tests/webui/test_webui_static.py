@@ -124,6 +124,9 @@ class WebUiStaticTests(unittest.TestCase):
             'id="toggle-live-stats"',
             'id="live-stats-grid"',
             'id="toggle-live-chart"',
+            'id="live-chart-scale-mode"',
+            'id="live-chart-manual-span"',
+            'id="live-chart-scale-info"',
             'id="live-chart-shell"',
             'id="live-trend-chart"',
             'id="live-chart-empty"',
@@ -146,6 +149,86 @@ class WebUiStaticTests(unittest.TestCase):
         ]:
             with self.subTest(expected=expected):
                 self.assertIn(expected, app_js)
+
+    def test_static_ui_live_chart_scale_controls_are_in_trend_section(self):
+        index, _app_js = load_static_ui()
+
+        trend_section = re.search(
+            r"<div class=\"live-collapse-section\">[\s\S]*?<span>Trend</span>"
+            r"[\s\S]*?</div>\s*</div>\s*"
+            r"<div class=\"live-collapse-section\">[\s\S]*?<span>Statistics</span>",
+            index,
+        )
+        self.assertIsNotNone(trend_section)
+        trend_html = trend_section.group(0)
+
+        self.assertLess(
+            trend_html.index('id="live-chart-scale-mode"'),
+            trend_html.index('id="live-chart-shell"'),
+        )
+        self.assertLess(
+            trend_html.index('id="live-chart-manual-span"'),
+            trend_html.index('id="live-chart-shell"'),
+        )
+        self.assertLess(
+            trend_html.index('id="live-chart-scale-info"'),
+            trend_html.index('id="live-chart-shell"'),
+        )
+        self.assertIn('id="live-trend-chart"', trend_html)
+
+    def test_static_ui_live_chart_scale_defaults_and_form_boundary(self):
+        index, app_js = load_static_ui()
+
+        self.assertRegex(
+            index,
+            r"<option\b(?=[^>]*\bvalue=\"auto-deviation\")(?=[^>]*\bselected\b)[^>]*>",
+        )
+        assert_tag_with_attrs(
+            self,
+            index,
+            "label",
+            {"id": "live-chart-manual-span-field", "class": "is-hidden"},
+        )
+        self.assertRegex(
+            index,
+            r"<input\b(?=[^>]*\bid=\"live-chart-manual-span\")"
+            r"(?=[^>]*\btype=\"number\")(?=[^>]*\bdisabled\b)[^>]*>",
+        )
+
+        manual_span_tag = re.search(r"<input\b[^>]*id=\"live-chart-manual-span\"[^>]*>", index)
+        self.assertIsNotNone(manual_span_tag)
+        self.assertNotIn("name=", manual_span_tag.group(0))
+        self.assertNotIn("form=", manual_span_tag.group(0))
+
+        self.assertIn('liveChartScaleMode = "auto-deviation"', app_js)
+        self.assertIn('liveChartScaleMode === "manual-span"', app_js)
+        form_payload = re.search(r"export function formPayload\(\) \{([\s\S]*?)\n\}", app_js)
+        self.assertIsNotNone(form_payload)
+        self.assertNotIn("live-chart-scale-mode", form_payload.group(1))
+        self.assertNotIn("live-chart-manual-span", form_payload.group(1))
+        self.assertNotIn("liveChartScaleMode", form_payload.group(1))
+        self.assertNotIn("liveChartManualSpan", form_payload.group(1))
+
+    def test_static_ui_live_chart_scale_keeps_existing_layout_contracts(self):
+        index, app_js = load_static_ui()
+
+        self.assertNotIn("<dialog", index)
+        self.assertNotIn('role="dialog"', index)
+        self.assertNotIn('class="modal', index)
+        self.assertIn('id="start-run"', index)
+        self.assertIn('id="trigger-run"', index)
+        self.assertIn('id="stop-run"', index)
+        self.assertIn('id="open-csv"', index)
+        self.assertIn('"/api/runs"', app_js)
+        self.assertIn('"/api/runs/current/command"', app_js)
+        self.assertIn('"/api/runs/current/stop"', app_js)
+        self.assertIn('"/api/runs/current/open-csv"', app_js)
+        self.assertIn('id="live-stats-grid"', index)
+        self.assertIn('id="live-table-wrap"', index)
+        self.assertIn("Manual span requires a positive value", app_js)
+        self.assertIn("Auto deviation: Center", app_js)
+        self.assertIn("Auto absolute: Range", app_js)
+        self.assertIn("Manual span: Center", app_js)
 
     def test_static_ui_exposes_cli_limit_constraints(self):
         index, app_js = load_static_ui()

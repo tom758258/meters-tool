@@ -658,6 +658,20 @@ button:focus {
 }
 
 /* ─── Live Chart ─────────────────────────────────────────────────────────── */
+.live-chart-controls {
+  display: grid;
+  grid-template-columns: minmax(160px, 220px) minmax(120px, 160px);
+  gap: 10px;
+  align-items: end;
+}
+
+.live-chart-scale-info {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .live-chart-shell {
   position: relative;
   overflow: hidden;
@@ -894,6 +908,10 @@ pre:empty {
   }
 
   .live-resource-field {
+    grid-template-columns: 1fr;
+  }
+
+  .live-chart-controls {
     grid-template-columns: 1fr;
   }
 }

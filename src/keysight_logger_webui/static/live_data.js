@@ -1,6 +1,10 @@
 import {
   closeLiveSampleDetailsButton,
   liveChartEmpty,
+  liveChartManualSpanField,
+  liveChartManualSpanInput,
+  liveChartScaleInfo,
+  liveChartScaleModeSelect,
   liveChartShell,
   liveDataSummary,
   liveLatestTime,
@@ -26,10 +30,15 @@ import {
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const LIVE_CHART_VISIBLE_GRID_LIMIT = 4;
+const LIVE_CHART_GRID_LINE_COUNT_PER_SIDE = 5;
 let selectedLiveSampleSequence = null;
 let liveSampleDetailsVisible = false;
 let liveChartBaselineRunId = null;
 let liveChartBaselineValue = null;
+let liveChartScaleMode = "auto-deviation";
+let liveChartManualSpan = null;
+let liveChartManualSpanInputInvalid = false;
+let lastLiveChartSamples = [];
 
 export function setLiveSectionVisible(button, section, visible) {
   section.classList.toggle("is-hidden", !visible);
@@ -43,6 +52,23 @@ export function initializeLiveDataUi() {
     selectedLiveSampleSequence = null;
     renderLiveSampleDetails(null);
     updateLiveSelectedRows();
+  });
+  liveChartScaleModeSelect.addEventListener("change", () => {
+    liveChartScaleMode = liveChartScaleModeSelect.value || "auto-deviation";
+    liveChartManualSpanInputInvalid =
+      liveChartScaleMode === "manual-span" && !validManualSpanInput();
+    updateLiveChartScaleControls();
+    renderLiveChart(lastLiveChartSamples);
+  });
+  liveChartManualSpanInput.addEventListener("input", () => {
+    const span = Number(liveChartManualSpanInput.value);
+    if (Number.isFinite(span) && span > 0) {
+      liveChartManualSpan = span;
+      liveChartManualSpanInputInvalid = false;
+    } else {
+      liveChartManualSpanInputInvalid = true;
+    }
+    renderLiveChart(lastLiveChartSamples);
   });
   toggleLiveStatsButton.addEventListener("click", () => {
     setLiveSectionVisible(
@@ -69,6 +95,7 @@ export function initializeLiveDataUi() {
   setLiveSectionVisible(toggleLiveChartButton, liveChartShell, true);
   setLiveSectionVisible(toggleLiveStatsButton, liveStatsGrid, true);
   setLiveSectionVisible(toggleLiveSamplesButton, liveTableWrap, true);
+  updateLiveChartScaleControls();
 }
 
 export function renderLiveData(status) {
@@ -152,6 +179,7 @@ function renderLiveStats(samples, latest) {
 }
 
 function renderLiveChart(samples) {
+  lastLiveChartSamples = samples;
   const numericSamples = samples.filter((sample) =>
     Number.isFinite(Number(sample.value))
   );
@@ -160,12 +188,11 @@ function renderLiveChart(samples) {
   const height = 180;
   const padding = 18;
   const centerY = height / 2;
-  const gridLineCountPerSide = 5;
-  const gridStepPx = (centerY - padding) / gridLineCountPerSide;
+  const gridStepPx = (centerY - padding) / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
 
   for (
-    let offset = -gridLineCountPerSide;
-    offset <= gridLineCountPerSide;
+    let offset = -LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
+    offset <= LIVE_CHART_GRID_LINE_COUNT_PER_SIDE;
     offset += 1
   ) {
     const y = centerY + offset * gridStepPx;
@@ -183,28 +210,33 @@ function renderLiveChart(samples) {
   if (numericSamples.length === 0) {
     liveChartEmpty.textContent = "Waiting for samples";
     liveChartEmpty.classList.remove("is-hidden");
+    liveChartScaleInfo.textContent = scaleModeLabel(liveChartScaleMode);
     return;
   }
 
   const values = numericSamples.map((sample) => Number(sample.value));
+  const unit = numericSamples[numericSamples.length - 1]?.unit || "";
   const baseline = Number.isFinite(liveChartBaselineValue)
     ? liveChartBaselineValue
     : values[0];
-  const deviations = values.map((value) => value - baseline);
-  const maxAbsDeviation = Math.max(...deviations.map((value) => Math.abs(value)));
-  const baselineMagnitude = Math.max(Math.abs(baseline), 1);
-  const minimumGridValue = baselineMagnitude * 1e-9;
-  const gridStepValue = Math.max(
-    maxAbsDeviation / LIVE_CHART_VISIBLE_GRID_LIMIT,
-    minimumGridValue
+  const scale = liveChartScaleFor(
+    values,
+    baseline,
+    liveChartScaleMode,
+    liveChartManualSpan,
+    liveChartManualSpanInputInvalid
   );
   const plotWidth = width - padding * 2;
   const points = numericSamples.map((sample, index) => {
     const x = numericSamples.length === 1
       ? width / 2
       : padding + (index * plotWidth) / (numericSamples.length - 1);
-    const deviation = Number(sample.value) - baseline;
-    const y = centerY - (deviation / gridStepValue) * gridStepPx;
+    const gridOffset = clamp(
+      (Number(sample.value) - scale.center) / scale.gridStepValue,
+      -LIVE_CHART_GRID_LINE_COUNT_PER_SIDE,
+      LIVE_CHART_GRID_LINE_COUNT_PER_SIDE
+    );
+    const y = centerY - gridOffset * gridStepPx;
     return { x, y };
   });
 
@@ -222,6 +254,116 @@ function renderLiveChart(samples) {
     class: "live-chart-point",
   }));
   liveChartEmpty.classList.add("is-hidden");
+  liveChartScaleInfo.textContent = formatLiveChartScaleInfo(scale, unit);
+}
+
+function updateLiveChartScaleControls() {
+  const manual = liveChartScaleMode === "manual-span";
+  liveChartManualSpanField.classList.toggle("is-hidden", !manual);
+  liveChartManualSpanInput.disabled = !manual;
+}
+
+function liveChartScaleFor(values, baseline, mode, manualSpan, manualSpanInputInvalid) {
+  if (mode === "auto-absolute") {
+    return chartScaleForAutoAbsolute(values);
+  }
+  if (mode === "manual-span") {
+    const manualScale = chartScaleForManualSpan(baseline, manualSpan);
+    if (manualSpanInputInvalid) {
+      return {
+        ...(manualScale || chartScaleForAutoDeviation(values, baseline)),
+        mode: "manual-span-invalid",
+      };
+    }
+    if (manualScale) {
+      return manualScale;
+    }
+    return {
+      ...chartScaleForAutoDeviation(values, baseline),
+      mode: "manual-span-invalid",
+    };
+  }
+  return chartScaleForAutoDeviation(values, baseline);
+}
+
+function chartScaleForAutoDeviation(values, baseline) {
+  const deviations = values.map((value) => value - baseline);
+  const maxAbsDeviation = Math.max(...deviations.map((value) => Math.abs(value)));
+  const gridStepValue = Math.max(
+    maxAbsDeviation / LIVE_CHART_VISIBLE_GRID_LIMIT,
+    minimumGridValueFor(baseline)
+  );
+  return {
+    mode: "auto-deviation",
+    center: baseline,
+    gridStepValue,
+  };
+}
+
+function chartScaleForAutoAbsolute(values) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const center = (min + max) / 2;
+  const halfRange = (max - min) / 2;
+  const paddedHalfRange = Math.max(
+    halfRange * 1.1,
+    minimumGridValueFor(center) * LIVE_CHART_GRID_LINE_COUNT_PER_SIDE
+  );
+  return {
+    mode: "auto-absolute",
+    center,
+    gridStepValue: paddedHalfRange / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE,
+    min,
+    max,
+  };
+}
+
+function chartScaleForManualSpan(baseline, span) {
+  if (!Number.isFinite(span) || span <= 0) {
+    return null;
+  }
+  return {
+    mode: "manual-span",
+    center: baseline,
+    gridStepValue: span / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE,
+    span,
+  };
+}
+
+function minimumGridValueFor(value) {
+  return Math.max(Math.abs(value), 1) * 1e-9;
+}
+
+function validManualSpanInput() {
+  const span = Number(liveChartManualSpanInput.value);
+  return Number.isFinite(span) && span > 0;
+}
+
+function formatLiveChartScaleInfo(scale, unit) {
+  if (scale.mode === "auto-absolute") {
+    return `Auto absolute: Range ${formatLiveValueWithUnit(scale.min, unit)} to ${formatLiveValueWithUnit(scale.max, unit)}`;
+  }
+  if (scale.mode === "manual-span") {
+    return `Manual span: Center ${formatLiveValueWithUnit(scale.center, unit)} / Span ${formatLiveValueWithUnit(scale.span, unit)}`;
+  }
+  if (scale.mode === "manual-span-invalid") {
+    return "Manual span requires a positive value";
+  }
+  return `Auto deviation: Center ${formatLiveValueWithUnit(scale.center, unit)} / Grid ${formatLiveValueWithUnit(scale.gridStepValue, unit)}`;
+}
+
+function scaleModeLabel(mode) {
+  if (mode === "auto-absolute") {
+    return "Auto absolute";
+  }
+  if (mode === "manual-span") {
+    return "Manual span";
+  }
+  return "Auto deviation";
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 function renderLiveSamplesTable(samples) {
