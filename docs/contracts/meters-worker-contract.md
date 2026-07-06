@@ -342,11 +342,18 @@ Live case result objects include:
 - `scpi_diagnostic_path`: probe JSON artifact path, or `null`.
 - `scpi_diagnostic`: the associated probe record, or `null`.
 
-The live wrapper supports `minimal`, `basic`, `frequency-period`, `external`,
-and `full` suites. `frequency-period` runs one immediate Auto Range Frequency
-sample and one immediate Auto Range Period sample with a `20` Hz AC filter,
-`0.1` second gate time, automatic Frequency timeout, and no Period timeout
-command. `full` includes the basic, Frequency/Period, and external cases.
+The live wrapper supports the `keysight-34461a` and `keysight-34460a` targets
+and passes the matching CLI model to every generated `start-trigger-record`
+command. Both targets support `minimal`, `basic`, `frequency-period`, and
+`full` suites. `keysight-34461a` also supports `external`; `keysight-34460a`
+rejects `external` because the base 34460A profile does not support external
+trigger modes.
+
+The `frequency-period` suite runs one immediate Auto Range Frequency sample and
+one immediate Auto Range Period sample with a `20` Hz AC filter, `0.1` second
+gate time, automatic Frequency timeout, and no Period timeout command.
+`keysight-34461a` `full` includes the basic, Frequency/Period, and external
+cases. `keysight-34460a` `full` is basic plus Frequency/Period only.
 
 Before each live Frequency/Period CLI case, the wrapper runs a private probe
 against the explicit `-Resource`. The probe records `*IDN?`, firmware revision,

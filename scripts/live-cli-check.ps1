@@ -261,13 +261,21 @@ function Assert-Condition {
 function Resolve-Target {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) {
-        Fail-Usage "Missing -Target. Supported target: keysight-34461a."
+        Fail-Usage "Missing -Target. Supported targets: keysight-34461a, keysight-34460a."
     }
     $normalized = $Value.Trim().ToLowerInvariant()
-    if ($normalized -ne "keysight-34461a") {
-        Fail-Usage "Unsupported target '$Value'. Supported target: keysight-34461a."
+    if ($normalized -notin @("keysight-34461a", "keysight-34460a")) {
+        Fail-Usage "Unsupported target '$Value'. Supported targets: keysight-34461a, keysight-34460a."
     }
     return $normalized
+}
+
+function Get-TargetCliModel {
+    param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
+    switch ($ResolvedTarget) {
+        "keysight-34461a" { return "34461A" }
+        "keysight-34460a" { return "34460A" }
+    }
 }
 
 function Resolve-Connection {
@@ -319,7 +327,10 @@ function New-LiveCase {
 }
 
 function Get-LiveCases {
-    param([Parameter(Mandatory = $true)][string]$SelectedSuite)
+    param(
+        [Parameter(Mandatory = $true)][string]$SelectedSuite,
+        [Parameter(Mandatory = $true)][string]$ResolvedTarget
+    )
 
     $minimal = @()
     $minimal += New-LiveCase `
@@ -383,12 +394,21 @@ function Get-LiveCases {
     $external += New-LiveCase -Name "external_simple" -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
     $external += New-LiveCase -Name "external_custom" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
 
+    if ($ResolvedTarget -eq "keysight-34460a" -and $SelectedSuite -eq "external") {
+        Fail-Usage "Suite 'external' is not supported for keysight-34460a because the base 34460A profile does not support external trigger modes."
+    }
+
     switch ($SelectedSuite) {
         "minimal" { return $minimal }
         "basic" { return $basic }
         "frequency-period" { return $frequencyPeriod }
         "external" { return $external }
-        "full" { return @($basic + $frequencyPeriod + $external) }
+        "full" {
+            if ($ResolvedTarget -eq "keysight-34460a") {
+                return @($basic + $frequencyPeriod)
+            }
+            return @($basic + $frequencyPeriod + $external)
+        }
     }
 }
 
@@ -403,6 +423,7 @@ function New-StartArgs {
         "-m", "keysight_logger_cli",
         "start-trigger-record",
         "--resource", $Resource,
+        "--model", $resolvedCliModel,
         "--csv", $CsvPath,
         "--sw-trigger-port", [string]$Port,
         "--auto-range", "on",
@@ -824,8 +845,9 @@ if ([string]::IsNullOrWhiteSpace($Resource)) {
 }
 
 $resolvedTarget = Resolve-Target -Value $Target
+$resolvedCliModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget
 $resolvedConnection = Resolve-Connection -Value $Connection
-$cases = @(Get-LiveCases -SelectedSuite $Suite)
+$cases = @(Get-LiveCases -SelectedSuite $Suite -ResolvedTarget $resolvedTarget)
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runDir = Join-Path (Join-Path (Join-Path (Join-Path $LiveRoot $resolvedTarget) $resolvedConnection) $Suite) $timestamp
@@ -889,7 +911,7 @@ if ($PlanOnly) {
     Write-Host "Stdin is redirected; generating dry-run plans only before refusing live acquisition."
 } else {
     Write-Host "Possible state changes:"
-    Write-Host "  Connects to the explicit VISA resource and validates 34461A identity."
+    Write-Host "  Connects to the explicit VISA resource and validates $resolvedCliModel identity."
     Write-Host "  Frequency/Period cases run isolated SCPI diagnostic sessions before the formal CLI run."
     Write-Host "  Sends the existing CLI clear/reset and measurement setup sequence for each case."
     Write-Host "  Uses best-effort release/local cleanup; no initial state snapshot/restore is available."

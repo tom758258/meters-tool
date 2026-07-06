@@ -220,9 +220,9 @@ form above remains a development fallback.
 ## Live Instrument Validation
 
 Use this section when moving to a new PC, a new VISA runtime, or a different
-34461A. Start with no-hardware validation, then discover a live resource, then
-run a plan-only live wrapper before allowing the wrapper to touch the
-instrument.
+34460A or 34461A. Start with no-hardware validation, then discover a live
+resource, then run a plan-only live wrapper before allowing the wrapper to touch
+the instrument.
 
 1. Run the no-hardware recipe above.
 2. Discover resources that currently answer `*IDN?`:
@@ -265,19 +265,29 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check
   -Suite minimal
 ```
 
-The minimal suite captures one bounded immediate-mode sample. It writes
-`report.json`, `summary.md`, command stdout/stderr files, and the case CSV under
-`.tmp_tests\cli_live\...`. Check `summary.md` first; a passed case should show
-`captured=1`, `errors=0`, and at least one CSV data row. Compare the CSV value
-with the 34461A front panel before trusting longer captures.
+The minimal suite follows the existing `current-dc immediate` validation
+convention and captures one bounded immediate-mode sample. It is live hardware
+validation, not the generally safest smoke test; current cases require correct
+current input wiring before execution. It writes `report.json`, `summary.md`,
+command stdout/stderr files, and the case CSV under `.tmp_tests\cli_live\...`.
+Check `summary.md` first; a passed case should show `captured=1`, `errors=0`,
+and at least one CSV data row. Compare the CSV value with the instrument front
+panel before trusting longer captures.
 
 For broader live coverage, use `-Suite basic` after the minimal suite passes.
-That suite covers immediate measurements and software-triggered paths. Use
-`-Suite frequency-period` when a stable input signal is connected and
-Frequency and Period should each capture one immediate Auto Range sample. Use
-`-Suite external` only when an operator can safely provide the required
-external trigger edge. Use `-Suite full` only when basic, Frequency/Period, and
-external coverage are all intended.
+That suite covers immediate measurements and software-triggered paths. Current,
+AC, resistance, Frequency, and Period live cases require the matching physical
+wiring and/or stable signal source setup. The software timer case uses the CLI
+PC-side path, `--trigger-mode software --timer-interval-s 0.5`; it does not mean
+the 34460A profile supports instrument-side sample timer mode. Use
+`-Suite frequency-period` when a stable input signal is connected and Frequency
+and Period should each capture one immediate Auto Range sample. Use
+`-Suite external` only with `-Target keysight-34461a` and only when an operator
+can safely provide the required external trigger edge. Use `-Suite full` for
+34461A only when basic, Frequency/Period, and external coverage are all
+intended. For `-Target keysight-34460a`, `-Suite full` is `basic` plus
+`frequency-period`; `external` is rejected because the base 34460A profile does
+not support external trigger modes.
 
 Preview the Frequency/Period live suite without opening VISA:
 
@@ -317,8 +327,8 @@ The CLI package has three wrapper scripts:
 
 | Script | Hardware use | Purpose |
 | --- | --- | --- |
-| `scripts\preflight-cli.ps1` | No hardware | Runs dry-run, simulator, client dry-run, mocked `list-resources`, and wrapper contract checks. Use this before live work. |
-| `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs live-wrapper plans and, with interactive confirmation, bounded live smoke cases against the explicit `-Resource`. Frequency/Period cases first run per-command SCPI error diagnostics. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`. |
+| `scripts\preflight-cli.ps1` | No hardware | Runs target-aware dry-run, simulator, client dry-run, mocked `list-resources`, and wrapper contract checks. Use this before live work. |
+| `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs target-aware live-wrapper plans and, with interactive confirmation, bounded live validation cases against the explicit `-Resource`. Frequency/Period cases first run per-command SCPI error diagnostics. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`; 34460A rejects `external` and its `full` suite excludes external cases. |
 | `scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
 
 ## Basic Workflow

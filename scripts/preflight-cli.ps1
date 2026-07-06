@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("all", "keysight-34461a")]
+    [ValidateSet("all", "keysight-34461a", "keysight-34460a")]
     [string]$Target = "all",
     [switch]$ListTargets,
     [string]$OutputRoot = ".tmp_tests\cli_preflight"
@@ -14,6 +14,7 @@ $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 
 if ($ListTargets) {
     Write-Output "keysight-34461a"
+    Write-Output "keysight-34460a"
     return
 }
 
@@ -277,6 +278,7 @@ function New-SafeCaseName {
 function New-StartBaseArgs {
     param(
         [Parameter(Mandatory = $true)][string]$Resource,
+        [Parameter(Mandatory = $true)][string]$Model,
         [Parameter(Mandatory = $true)][string]$CsvPath,
         [Parameter(Mandatory = $true)][string]$Port
     )
@@ -284,6 +286,7 @@ function New-StartBaseArgs {
         "-m", "keysight_logger_cli",
         "start-trigger-record",
         "--resource", $Resource,
+        "--model", $Model,
         "--csv", $CsvPath,
         "--sw-trigger-port", $Port,
         "--auto-range", "on",
@@ -291,6 +294,27 @@ function New-StartBaseArgs {
         "--nplc", "1.0",
         "--status-format", "jsonl"
     )
+}
+
+function Get-TargetCliModel {
+    param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
+    switch ($ResolvedTarget) {
+        "keysight-34461a" { return "34461A" }
+        "keysight-34460a" { return "34460A" }
+    }
+}
+
+function Get-TargetSimulatorResource {
+    param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
+    switch ($ResolvedTarget) {
+        "keysight-34461a" { return "SIM::34461A" }
+        "keysight-34460a" { return "SIM::34460A" }
+    }
+}
+
+function Test-TargetSupportsExternalTriggers {
+    param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
+    return $ResolvedTarget -eq "keysight-34461a"
 }
 
 function Invoke-DryRunCase {
@@ -301,6 +325,8 @@ function Invoke-DryRunCase {
         [Parameter(Mandatory = $true)][string]$ExpectedReadPath,
         [string]$ExpectedUnit,
         [string[]]$ExpectedScpiCommands = @(),
+        [Parameter(Mandatory = $true)][string]$Resource,
+        [Parameter(Mandatory = $true)][string]$Model,
         [Parameter(Mandatory = $true)][string]$OutDir,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Commands,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Checks
@@ -311,7 +337,7 @@ function Invoke-DryRunCase {
     $stderr = Join-Path $OutDir "$safeName.stderr.txt"
     $csv = Join-Path $OutDir "$safeName.csv"
     $port = [string](Get-AvailableTcpPort)
-    $args = @((New-StartBaseArgs -Resource "SIM::34461A" -CsvPath $csv -Port $port) + $ModeArgs + @("--dry-run"))
+    $args = @((New-StartBaseArgs -Resource $Resource -Model $Model -CsvPath $csv -Port $port) + $ModeArgs + @("--dry-run"))
 
     $result = Invoke-CapturedCommand `
         -Name $Name `
@@ -355,6 +381,8 @@ function Invoke-SimulateCase {
         [string]$ExpectedMeasurementType,
         [string]$ExpectedUnit,
         [int]$SoftTriggerCount = 0,
+        [Parameter(Mandatory = $true)][string]$Resource,
+        [Parameter(Mandatory = $true)][string]$Model,
         [Parameter(Mandatory = $true)][string]$OutDir,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Commands,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Checks
@@ -366,7 +394,7 @@ function Invoke-SimulateCase {
     $csv = Join-Path $OutDir "$safeName.csv"
     $port = Get-AvailableTcpPort
     $args = @(
-        (New-StartBaseArgs -Resource "SIM::34461A" -CsvPath $csv -Port ([string]$port)) +
+        (New-StartBaseArgs -Resource $Resource -Model $Model -CsvPath $csv -Port ([string]$port)) +
         $ModeArgs +
         @("--simulate")
     )
@@ -424,6 +452,9 @@ function Invoke-TargetPreflight {
 
     $checks = [System.Collections.Generic.List[object]]::new()
     $commands = [System.Collections.Generic.List[object]]::new()
+    $cliModel = Get-TargetCliModel -ResolvedTarget $ResolvedTarget
+    $simulatorResource = Get-TargetSimulatorResource -ResolvedTarget $ResolvedTarget
+    $supportsExternalTriggers = Test-TargetSupportsExternalTriggers -ResolvedTarget $ResolvedTarget
 
     $measurementCases = @(
         [pscustomobject]@{ name = "current-dc"; mode_args = @(); unit = $null; scpi_commands = @() },
@@ -469,25 +500,33 @@ function Invoke-TargetPreflight {
             -ExpectedReadPath "READ?" `
             -ExpectedUnit $measurementCase.unit `
             -ExpectedScpiCommands $measurementCase.scpi_commands `
+            -Resource $simulatorResource `
+            -Model $cliModel `
+            -OutDir $outDir `
+            -Commands $commands `
+            -Checks $checks
+    }
+
+    if ($supportsExternalTriggers) {
+        Invoke-DryRunCase `
+            -Name "dry_run_external_read_path" `
+            -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1") `
+            -ExpectedMeasurement "current-dc" `
+            -ExpectedReadPath "FETC?" `
+            -Resource $simulatorResource `
+            -Model $cliModel `
             -OutDir $outDir `
             -Commands $commands `
             -Checks $checks
     }
 
     Invoke-DryRunCase `
-        -Name "dry_run_external_read_path" `
-        -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1") `
-        -ExpectedMeasurement "current-dc" `
-        -ExpectedReadPath "FETC?" `
-        -OutDir $outDir `
-        -Commands $commands `
-        -Checks $checks
-
-    Invoke-DryRunCase `
         -Name "dry_run_buffered_read_path" `
         -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
         -ExpectedMeasurement "current-dc" `
         -ExpectedReadPath "DATA:POINts? / DATA:REMove?" `
+        -Resource $simulatorResource `
+        -Model $cliModel `
         -OutDir $outDir `
         -Commands $commands `
         -Checks $checks
@@ -502,6 +541,8 @@ function Invoke-TargetPreflight {
             -ExpectedCaptured 1 `
             -ExpectedMeasurementType $measurementCase.name.Replace("-", "_") `
             -ExpectedUnit $measurementCase.unit `
+            -Resource $simulatorResource `
+            -Model $cliModel `
             -OutDir $outDir `
             -Commands $commands `
             -Checks $checks
@@ -512,6 +553,8 @@ function Invoke-TargetPreflight {
         -ModeArgs @("--trigger-mode", "software", "--measurement", "current-dc", "--max-samples", "2") `
         -ExpectedCaptured 2 `
         -SoftTriggerCount 2 `
+        -Resource $simulatorResource `
+        -Model $cliModel `
         -OutDir $outDir `
         -Commands $commands `
         -Checks $checks
@@ -520,6 +563,8 @@ function Invoke-TargetPreflight {
         -Name "simulate_software_timer" `
         -ModeArgs @("--trigger-mode", "software", "--timer-interval-s", "0.5", "--measurement", "current-dc", "--max-samples", "1") `
         -ExpectedCaptured 1 `
+        -Resource $simulatorResource `
+        -Model $cliModel `
         -OutDir $outDir `
         -Commands $commands `
         -Checks $checks
@@ -528,6 +573,8 @@ function Invoke-TargetPreflight {
         -Name "simulate_immediate_custom" `
         -ModeArgs @("--trigger-mode", "immediate-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
         -ExpectedCaptured 2 `
+        -Resource $simulatorResource `
+        -Model $cliModel `
         -OutDir $outDir `
         -Commands $commands `
         -Checks $checks
@@ -537,25 +584,33 @@ function Invoke-TargetPreflight {
         -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "2", "--sample-count", "1") `
         -ExpectedCaptured 2 `
         -SoftTriggerCount 2 `
+        -Resource $simulatorResource `
+        -Model $cliModel `
         -OutDir $outDir `
         -Commands $commands `
         -Checks $checks
 
-    Invoke-SimulateCase `
-        -Name "simulate_external" `
-        -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1") `
-        -ExpectedCaptured 1 `
-        -OutDir $outDir `
-        -Commands $commands `
-        -Checks $checks
+    if ($supportsExternalTriggers) {
+        Invoke-SimulateCase `
+            -Name "simulate_external" `
+            -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1") `
+            -ExpectedCaptured 1 `
+            -Resource $simulatorResource `
+            -Model $cliModel `
+            -OutDir $outDir `
+            -Commands $commands `
+            -Checks $checks
 
-    Invoke-SimulateCase `
-        -Name "simulate_external_custom" `
-        -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
-        -ExpectedCaptured 2 `
-        -OutDir $outDir `
-        -Commands $commands `
-        -Checks $checks
+        Invoke-SimulateCase `
+            -Name "simulate_external_custom" `
+            -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "2") `
+            -ExpectedCaptured 2 `
+            -Resource $simulatorResource `
+            -Model $cliModel `
+            -OutDir $outDir `
+            -Commands $commands `
+            -Checks $checks
+    }
 
     $softTriggerJson = Join-Path $outDir "soft_trigger_dry_run.json"
     $softTriggerResult = Invoke-CapturedCommand `
@@ -641,6 +696,11 @@ function Invoke-TargetPreflight {
 
     $checkItems = @($checks.ToArray())
     $commandItems = @($commands.ToArray())
+    $readPaths = @($checkItems | Where-Object { $_.PSObject.Properties.Name -contains "read_path" } | ForEach-Object { $_.read_path } | Select-Object -Unique)
+    $simulatorTriggerModes = @("immediate", "software", "software timer", "immediate-custom", "software-custom")
+    if ($supportsExternalTriggers) {
+        $simulatorTriggerModes += @("external", "external-custom")
+    }
     $summaryCounts = [ordered]@{
         commands_total = $commandItems.Count
         checks_total = $checkItems.Count
@@ -690,8 +750,8 @@ function Invoke-TargetPreflight {
         "- list-resources contract checks: $($summaryCounts.list_resources_contract_checks)",
         "- Mocked pytest checks: $($summaryCounts.mocked_pytest_checks)",
         "- Measurements covered by dry-run and simulator immediate: $($measurements -join ', ')",
-        "- Read paths covered: READ?, FETC?, DATA:POINts? / DATA:REMove?",
-        "- Simulator trigger modes covered: immediate, software, software timer, immediate-custom, software-custom, external, external-custom",
+        "- Read paths covered: $($readPaths -join ', ')",
+        "- Simulator trigger modes covered: $($simulatorTriggerModes -join ', ')",
         "- Soft client dry-runs: passed",
         "- list-resources dry-run JSON contract: passed",
         "- Mocked list-resources coverage: passed",
@@ -711,7 +771,7 @@ function Invoke-TargetPreflight {
 }
 
 $targets = if ($Target -eq "all") {
-    @("keysight-34461a")
+    @("keysight-34461a", "keysight-34460a")
 } else {
     @($Target)
 }

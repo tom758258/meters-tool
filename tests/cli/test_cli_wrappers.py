@@ -93,6 +93,12 @@ def assert_command_artifacts(commands: list[dict], output_dir: Path) -> None:
         assert output_dir == stderr or output_dir in stderr.parents
 
 
+def command_arguments(report: dict, command_name: str) -> list[str]:
+    matches = [command for command in report["commands"] if command["name"] == command_name]
+    assert len(matches) == 1
+    return matches[0]["arguments"]
+
+
 def test_release_check_rejects_mismatched_package_version():
     result = run_wrapper(
         "scripts/release-cli-check.ps1",
@@ -223,6 +229,48 @@ def test_preflight_report_contract():
     assert f"- Report: {report_path}" in summary
 
 
+def test_preflight_list_targets_includes_supported_meter_targets():
+    result = run_wrapper("scripts/preflight-cli.ps1", "-ListTargets")
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout.splitlines() == ["keysight-34461a", "keysight-34460a"]
+
+
+def test_preflight_34460a_is_target_aware_without_external_positive_cases():
+    output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"preflight_34460a_{uuid4().hex}"
+    result = run_wrapper(
+        "scripts/preflight-cli.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-OutputRoot",
+        str(output_root.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    output_dir = output_root / "keysight-34460a"
+    report = load_json(output_dir / "report.json")
+    assert report["target"] == "keysight-34460a"
+    assert report["status"] == "passed"
+
+    command_names = {command["name"] for command in report["commands"]}
+    check_names = {check["name"] for check in report["checks"]}
+    assert "dry_run_external_read_path" not in command_names
+    assert "simulate_external" not in command_names
+    assert "simulate_external_custom" not in command_names
+    assert "dry_run_external_read_path" not in check_names
+    assert "simulate_external" not in check_names
+    assert "simulate_external_custom" not in check_names
+
+    for command in report["commands"]:
+        if command["name"].startswith(("dry_run_", "simulate_")):
+            assert "--model" in command["arguments"]
+            assert command["arguments"][command["arguments"].index("--model") + 1] == "34460A"
+
+    summary = (output_dir / "summary.md").read_text(encoding="utf-8")
+    assert "Read paths covered: READ?, DATA:POINts? / DATA:REMove?" in summary
+    assert "external, external-custom" not in summary
+
+
 def test_preflight_rejects_output_root_outside_tmp_tests():
     bad_root = REPO_ROOT / ".tmp_bad"
     assert not bad_root.exists()
@@ -285,6 +333,8 @@ def test_live_plan_only_minimal_report_contract():
         "cleanup_release_to_local",
         "stop_http_server",
     ]
+    args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
+    assert args[args.index("--model") + 1] == "34461A"
 
 
 def test_live_plan_only_full_report_contract():
@@ -354,6 +404,148 @@ def test_live_plan_only_full_report_contract():
         assert Path(command["stderr"]).resolve().exists()
 
     assert_command_artifacts(report["commands"], output_dir)
+
+
+def test_live_plan_only_34460a_minimal_uses_34460a_model():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34460A",
+        "-Suite",
+        "minimal",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    assert report["target"] == "keysight-34460a"
+    assert report["status"] == "planned"
+    assert {dry_run["name"] for dry_run in report["dry_runs"]} == {
+        "minimal_current_dc_immediate"
+    }
+    args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
+    assert args[args.index("--model") + 1] == "34460A"
+
+
+def test_live_plan_only_34460a_basic_suite_supported_cases():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34460A",
+        "-Suite",
+        "basic",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    expected_names = {
+        "basic_immediate_current_dc",
+        "basic_immediate_voltage_dc",
+        "basic_immediate_current_ac",
+        "basic_immediate_voltage_ac",
+        "basic_immediate_resistance_2w",
+        "basic_immediate_resistance_4w",
+        "basic_software_trigger",
+        "basic_software_timer",
+        "basic_immediate_custom",
+        "basic_software_custom",
+    }
+    assert {dry_run["name"] for dry_run in report["dry_runs"]} == expected_names
+    assert all("--model" in dry_run["command"]["arguments"] for dry_run in report["dry_runs"])
+    assert all(
+        dry_run["command"]["arguments"][dry_run["command"]["arguments"].index("--model") + 1] == "34460A"
+        for dry_run in report["dry_runs"]
+    )
+
+
+def test_live_plan_only_34460a_frequency_period_suite():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34460A",
+        "-Suite",
+        "frequency-period",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    plans = {item["name"]: item["plan"] for item in report["dry_runs"]}
+    assert set(plans) == {
+        "frequency_period_frequency_immediate",
+        "frequency_period_period_immediate",
+    }
+    assert plans["frequency_period_frequency_immediate"]["measurement_unit"] == "Hz"
+    assert plans["frequency_period_period_immediate"]["measurement_unit"] == "s"
+    assert all(plan["read_path"] == "READ?" for plan in plans.values())
+
+
+def test_live_plan_only_34460a_full_excludes_external_cases():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34460A",
+        "-Suite",
+        "full",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    names = {dry_run["name"] for dry_run in report["dry_runs"]}
+    assert names == {
+        "basic_immediate_current_dc",
+        "basic_immediate_voltage_dc",
+        "basic_immediate_current_ac",
+        "basic_immediate_voltage_ac",
+        "basic_immediate_resistance_2w",
+        "basic_immediate_resistance_4w",
+        "basic_software_trigger",
+        "basic_software_timer",
+        "basic_immediate_custom",
+        "basic_software_custom",
+        "frequency_period_frequency_immediate",
+        "frequency_period_period_immediate",
+    }
+    assert "external_simple" not in names
+    assert "external_custom" not in names
+
+
+def test_live_plan_only_34460a_rejects_external_suite():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34460A",
+        "-Suite",
+        "external",
+        "-PlanOnly",
+    )
+
+    assert result.returncode == 2
+    assert "Suite 'external' is not supported for keysight-34460a" in (
+        result.stdout + result.stderr
+    )
 
 
 def test_live_plan_only_frequency_period_report_contract():

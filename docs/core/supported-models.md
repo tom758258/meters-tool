@@ -161,17 +161,23 @@ profile's `reading_memory_limit`.
 
 ## Hardware Validation Plan
 
-Minimal 34460A smoke plan:
+34460A scripted live validation plan:
 
 1. Identify the instrument and confirm IDN matches the selected 34460A profile.
-2. Run `voltage-dc` immediate with `max_samples=1`.
-3. Run `current-dc` immediate with Auto Range and `max_samples=1` after safe wiring.
-4. Confirm `current-dc` manual range 3 A dry-run is accepted.
-5. Confirm `current-dc` manual range 10 A dry-run is rejected before VISA I/O.
-6. Run `immediate-custom` with `trigger_count=1` and `sample_count=1`.
-7. Confirm expected readings 1001 without allow flag is rejected in dry-run.
-8. Confirm expected readings 1001 with allow flag is accepted in dry-run.
-9. Leave external trigger disabled until the specific 34460A has the required
+2. `minimal` follows the existing `current-dc` immediate validation convention;
+   current live cases require correct current input wiring.
+3. `basic` mirrors supported 34461A live cases: DC/AC current, DC/AC voltage,
+   2-wire/4-wire resistance, software trigger, CLI-side software timer,
+   `immediate-custom`, and `software-custom`.
+4. `frequency-period` runs one Frequency and one Period immediate sample and
+   requires a stable input signal.
+5. `full` is `basic` plus `frequency-period`; it does not include external
+   trigger cases.
+6. Confirm `current-dc` manual range 3 A dry-run is accepted.
+7. Confirm `current-dc` manual range 10 A dry-run is rejected before VISA I/O.
+8. Confirm expected readings 1001 without allow flag is rejected in dry-run.
+9. Confirm expected readings 1001 with allow flag is accepted in dry-run.
+10. Leave external trigger disabled until the specific 34460A has the required
    LAN/external trigger option confirmed.
 
 ## Future Models
