@@ -426,6 +426,11 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("export const refreshResourcesButton", app_js)
         self.assertIn("export const startRunButton", app_js)
         self.assertIn("export const stopRunButton", app_js)
+        self.assertIn("stopRunButton.addEventListener(\"click\"", app_js)
+        self.assertNotIn(
+            'document.querySelector("#stop-run").addEventListener',
+            app_js,
+        )
         self.assertIn("let latestRenderedStatus = null", app_js)
         self.assertIn("latestRenderedStatus = status || null", app_js)
         self.assertIn("export function isRunActive()", app_js)

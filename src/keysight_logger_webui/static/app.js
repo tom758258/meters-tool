@@ -19,6 +19,7 @@ import {
   resourceSelect,
   selectCsvFolderButton,
   startRunButton,
+  stopRunButton,
   swMinIntervalInput,
   timerIntervalInput,
   timerTriggerCheckbox,
@@ -245,7 +246,7 @@ triggerRunButton.addEventListener("click", async () => {
   }
 });
 
-document.querySelector("#stop-run").addEventListener("click", async () => {
+stopRunButton.addEventListener("click", async () => {
   try {
     renderStatus(await api("/api/runs/current/stop", { method: "POST" }));
   } catch (error) {
