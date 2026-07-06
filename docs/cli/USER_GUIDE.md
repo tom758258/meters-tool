@@ -37,13 +37,22 @@ instrument setup.
 .\keysight-logger.exe list-resources --live-only
 ```
 
-3. Copy the resource string for the instrument.
+3. Copy the resource string for the instrument and set it once for this
+   PowerShell session:
+
+```powershell
+$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
+```
+
+   The value can be any live VISA resource returned by discovery, including
+   USB or TCPIP/LAN resources.
+
 4. Run one bounded immediate-mode sample:
 
 ```powershell
 .\keysight-logger.exe start-trigger-record `
   --model 34461A `
-  --resource "<VISA_RESOURCE>" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -55,8 +64,10 @@ instrument setup.
 6. Compare the CSV value with the front-panel reading before trusting longer
    captures.
 
-Use an explicit resource string for live acquisition. Do not rely on a script
-or unattended workflow to guess which instrument should be used.
+Use an explicit `--resource` value for live acquisition. Passing
+`"$env:KEYSIGHT_METER_RESOURCE"` still gives the CLI an explicit resource; do
+not rely on a script or unattended workflow to guess which instrument should be
+used.
 
 The default model profile is 34461A. Add `--model 34460A` when using a 34460A.
 The 34460A profile blocks 10 A current range, current terminal selection, and
@@ -114,7 +125,10 @@ failed measurement.
 ## Common Settings
 
 `--resource` is the VISA address of the instrument. Use a value returned by
-`list-resources --live-only` or a known operator-provided resource.
+`list-resources --live-only` or a known operator-provided resource. In
+PowerShell examples, set `$env:KEYSIGHT_METER_RESOURCE` once and pass
+`--resource "$env:KEYSIGHT_METER_RESOURCE"` so copied commands continue to use
+the selected instrument.
 
 `--visa-library` is an advanced CLI-only PyVISA backend selector. Omit it for
 normal use. Use `--visa-library "@py"` only when intentionally testing with an

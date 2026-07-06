@@ -231,8 +231,16 @@ instrument.
 .\.venv\Scripts\keysight-logger.exe list-resources --live-only --json
 ```
 
-3. Copy one resource string from the JSON output. Use that exact value in the
-   commands below. The live wrapper never scans for or guesses a resource.
+3. Copy one resource string from the JSON output and set it once for this
+   PowerShell session. Use that exact value in the commands below. The live
+   wrapper never scans for or guesses a resource:
+
+```powershell
+$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
+```
+
+The value can be any live VISA resource returned by discovery, including USB
+or TCPIP/LAN resources.
 
 4. Generate the live plan without opening VISA or changing the instrument:
 
@@ -240,7 +248,7 @@ instrument.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource "<VISA_RESOURCE>" `
+  -Resource $env:KEYSIGHT_METER_RESOURCE `
   -Suite minimal `
   -PlanOnly
 ```
@@ -253,7 +261,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource "<VISA_RESOURCE>" `
+  -Resource $env:KEYSIGHT_METER_RESOURCE `
   -Suite minimal
 ```
 
@@ -277,7 +285,7 @@ Preview the Frequency/Period live suite without opening VISA:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource "<VISA_RESOURCE>" `
+  -Resource $env:KEYSIGHT_METER_RESOURCE `
   -Suite frequency-period `
   -PlanOnly
 ```
@@ -332,7 +340,7 @@ Select the 34460A profile explicitly when using a 34460A:
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
   --model 34460A `
-  --resource "<RESOURCE>" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1
@@ -344,7 +352,7 @@ require `--allow-buffer-overflow-risk`:
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
   --model 34460A `
-  --resource "<RESOURCE>" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate-custom `
   --measurement voltage-dc `
   --trigger-count 2 `
@@ -373,7 +381,7 @@ uv run keysight-logger list-resources --visa-library "@py" --verify
 uv run keysight-logger start-trigger-record `
   --model 34461A `
   --visa-library "@py" `
-  --resource "TCPIP0::<IP_OR_HOSTNAME>::inst0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1
@@ -557,7 +565,7 @@ without touching the instrument:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1 `
@@ -931,7 +939,7 @@ One immediate current sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\current_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -948,7 +956,7 @@ Dry-run 10 A terminal check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement current-dc `
   --auto-range off `
@@ -980,7 +988,7 @@ the current path is safe for the 10 A input terminal and expected current.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\current_10a_terminal_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -999,7 +1007,7 @@ Terminal 1, start recording and wait for five software triggers:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\software_5.csv" `
   --trigger-mode software `
   --max-samples 5 `
@@ -1033,7 +1041,7 @@ Dry-run Auto Zero once check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --auto-zero once `
@@ -1060,7 +1068,7 @@ Auto range, one immediate voltage sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1074,7 +1082,7 @@ Manual 10 V range, one immediate voltage sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_range10_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1089,7 +1097,7 @@ Live Auto Zero once smoke check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_auto_zero_once_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1111,7 +1119,7 @@ DCV Input Z smoke check, Auto mode:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_dcv_input_z_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1126,7 +1134,7 @@ DCV Input Z smoke check, fixed 10 MOhm:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_dcv_input_z_10m_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1153,7 +1161,7 @@ Dry-run DCV Ratio check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
   --max-samples 1 `
@@ -1178,7 +1186,7 @@ Live DCV Ratio smoke check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_dc_ratio_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
@@ -1205,7 +1213,7 @@ Dry-run AC bandwidth check:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-ac `
   --ac-bandwidth-hz 20 `
@@ -1232,7 +1240,7 @@ Suggested Auto Range AC voltage smoke test:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\voltage_ac_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-ac `
@@ -1245,7 +1253,7 @@ Suggested manual-range AC current smoke test:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\current_ac_range100ma_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-ac `
@@ -1271,7 +1279,7 @@ Preview each setup before live I/O:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "<VISA_RESOURCE>" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --measurement frequency `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -1279,7 +1287,7 @@ Preview each setup before live I/O:
   --status-format jsonl
 
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "<VISA_RESOURCE>" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --measurement period `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -1310,7 +1318,7 @@ Auto range, one immediate resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\resistance_2w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1324,7 +1332,7 @@ Manual 1000 Ohm range, one immediate resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\resistance_2w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1353,7 +1361,7 @@ Auto range, one immediate 4-wire resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\resistance_4w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1366,7 +1374,7 @@ Manual 1000 Ohm range, one immediate 4-wire resistance sample:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\resistance_4w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1395,7 +1403,7 @@ The metadata is accepted by the command endpoint and written to the CSV
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\software_limited.csv" `
   --trigger-mode software `
   --sw-min-interval-ms 250 `
@@ -1410,7 +1418,7 @@ full, the HTTP endpoint returns `429`.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\software_timer_100.csv" `
   --trigger-mode software `
   --timer-interval-s 1.0 `
@@ -1428,7 +1436,7 @@ logger, not a no-loss precision timing mode.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\external_10.csv" `
   --trigger-mode external `
   --max-samples 10 `
@@ -1448,7 +1456,7 @@ protective re-arm condition; it should not be counted as an error by itself.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\immediate_100.csv" `
   --trigger-mode immediate `
   --max-samples 100 `
@@ -1465,7 +1473,7 @@ Immediate mode does not wait for `send-command` or external trigger edges. Use
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\immediate_custom_1000.csv" `
   --trigger-mode immediate-custom `
   --trigger-count 1 `
@@ -1490,7 +1498,7 @@ is set.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\software_custom_20.csv" `
   --trigger-mode software-custom `
   --trigger-count 2 `
@@ -1517,7 +1525,7 @@ should produce 20 CSV rows.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\external_custom_10.csv" `
   --trigger-mode external-custom `
   --trigger-count 1 `
@@ -1541,7 +1549,7 @@ external edge.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "TCPIP0::<host>::hislip0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\lan_software.csv" `
   --trigger-mode software `
   --max-samples 5
@@ -1561,7 +1569,7 @@ for diagnosis.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\software_high_accuracy.csv" `
   --trigger-mode software `
   --auto-range off `
@@ -1582,7 +1590,7 @@ pulse slope.
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
-  --resource "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --csv ".\data\vm_comp_pos.csv" `
   --trigger-mode software `
   --max-samples 5 `
