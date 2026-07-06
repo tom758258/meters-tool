@@ -24,10 +24,11 @@ unit, trigger source, and related metadata.
 * Operate through either the CLI or local WebUI
 * Produce JSON and JSONL output for automation, agents, and orchestrators
 
-The default instrument profile is Keysight 34461A to preserve existing
-behavior. Select `--model 34460A` or the WebUI model selector for 34460A limits:
-no 10 A current terminal/path, 1000 readings of memory, and no base-profile
-external trigger support.
+Live CLI and WebUI starts auto-detect the connected model from `*IDN?` when the
+model is omitted. Select `--model 34460A` / `--model 34461A` or the WebUI model
+override only to force a profile; explicit live mismatches fail before setup
+SCPI. Dry-run and simulator runs require an explicit model unless the simulator
+resource encodes one, such as `SIM::34460A` or `SIM::34461A`.
 
 CLI commands that open VISA resources use the system VISA runtime by default
 through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a

@@ -10,11 +10,12 @@ Core currently provides these instrument profiles:
 
 | Profile | Instrument | Reading memory | Current max | External trigger | Live validation |
 | --- | --- | ---: | ---: | --- | --- |
-| `keysight-34461a` | Keysight 34461A | 10000 | 10 A with 10A terminal | supported | expected IDN must match selected 34461A profile |
-| `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | expected IDN must match selected 34460A profile; operator validation required |
+| `keysight-34461a` | Keysight 34461A | 10000 | 10 A with 10A terminal | supported | auto-detected or explicitly selected IDN must match 34461A |
+| `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | auto-detected or explicitly selected IDN must match 34460A; operator validation required |
 
-The default profile is `keysight-34461a` to preserve existing behavior. CLI and
-WebUI adapters can select the 34460A profile through their model selectors.
+CLI and WebUI live starts auto-detect 34460A/34461A from `*IDN?` when the model
+request is omitted. Explicit model selection forces the profile and fails before
+setup SCPI if the connected IDN reports the other supported model.
 
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource.

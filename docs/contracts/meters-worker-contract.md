@@ -45,10 +45,11 @@ normal CSV/runtime output, and is intended for workflow validation without
 hardware. Simple simulate modes require a finite bound such as `--max-samples`.
 
 Live `start-trigger-record` is the default mode. It opens the explicit VISA
-resource, validates the instrument identity against the selected model profile
-(default 34461A), starts the local HTTP control server, runs acquisition, and
-performs the documented release/local cleanup. Live runs must keep using
-explicit resources; wrappers must not scan or guess live instrument resources.
+resource, resolves the instrument profile through IDN-only auto-detect when
+`--model` is omitted, validates explicit model requests against that IDN, starts
+the local HTTP control server, runs acquisition, and performs the documented
+release/local cleanup. Live runs must keep using explicit resources; wrappers
+must not scan or guess live instrument resources.
 When a CLI caller passes an optional PyVISA library/backend value such as
 `--visa-library "@py"`, live resource manager creation uses that backend. If it
 is omitted, live mode uses the system default `pyvisa.ResourceManager()`

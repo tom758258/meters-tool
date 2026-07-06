@@ -128,13 +128,19 @@ validate_start_request(request, trigger_mode, instrument_profile=profile)
 warnings = generate_buffer_overflow_warnings(request, trigger_mode, profile)
 ```
 
-Adapters that expose model selection should resolve the profile once from
-`StartRequest.instrument_model` and reuse it for validation, warnings, planning,
-and runtime:
+CLI/WebUI adapters should resolve the start profile once and reuse it for
+validation, warnings, planning, and runtime. For live starts, omitted
+`StartRequest.instrument_model` means IDN auto-detect. For dry-run and
+simulate, omitted model is accepted only when the simulator resource encodes a
+single supported model token:
 
 ```python
-profile = resolve_instrument_profile(request.instrument_model)
+request, profile = resolve_start_profile(request)
 ```
+
+`resolve_instrument_profile(None)` remains a compatibility helper that returns
+the default 34461A profile; do not use it to interpret omitted CLI/WebUI live
+start model requests.
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user

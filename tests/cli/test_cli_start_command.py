@@ -72,6 +72,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\locked.csv",
                 "--trigger-mode",
@@ -91,6 +93,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             patch(
                 "keysight_logger_core.runner.create_measurement_plugin",
                 return_value=FakeStartMeasurement(),
+            ),
+            patch(
+                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34461A,MY123,1.0",
             ),
             patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
             patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
@@ -113,6 +119,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::WRONG",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\unused.csv",
                 "--trigger-mode",
@@ -131,6 +139,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         with (
             patch("keysight_logger_core.runner.create_instrument_backend", return_value=fake_backend),
             patch("keysight_logger_core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch(
+                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34461A,MY123,1.0",
+            ),
             patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
             patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
             patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
@@ -154,6 +166,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--visa-library",
                 "@py",
                 "--csv",
@@ -185,6 +199,75 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         mock_server.assert_not_called()
         self.assertEqual("@py", args.visa_library)
 
+    def test_start_dry_run_omitted_model_real_resource_fails_without_preflight(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\dry_run.csv",
+                "--trigger-mode",
+                "immediate",
+                "--dry-run",
+            ]
+        )
+        stderr = io.StringIO()
+
+        with (
+            patch("keysight_logger_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(2, rc)
+        self.assertIn(
+            "dry-run cannot auto-detect the instrument model without VISA I/O",
+            stderr.getvalue(),
+        )
+        preflight.assert_not_called()
+
+    def test_start_live_omitted_model_uses_preflight_profile_for_runner(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--csv",
+                "data\\delegate_live.csv",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\delegate_live.csv",
+        )
+
+        with (
+            patch(
+                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ) as preflight,
+            patch("keysight_logger_cli.cli.run_start_session", return_value=fake_result) as runner,
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        request_model, _trigger_mode, profile = runner.call_args.args[:3]
+        self.assertEqual("34460A", request_model.instrument_model)
+        self.assertEqual("34460A", profile.model)
+        preflight.assert_called_once()
+
     def test_start_dry_run_jsonl_outputs_one_plan_object(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -192,6 +275,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\dry_run.csv",
                 "--trigger-mode",
@@ -251,6 +336,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--measurement",
                 "frequency",
                 "--dry-run",
@@ -292,6 +379,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "start-trigger-record",
                     "--resource",
                     "USB::FAKE",
+                    "--model",
+                    "34461A",
                     "--measurement",
                     "period",
                     "--freq-period-timeout",
@@ -472,6 +561,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\dry_run.json.csv",
                 "--trigger-mode",
@@ -632,6 +723,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\dry_run.csv",
                 "--trigger-mode",
@@ -668,6 +761,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::WRONG",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\unused.csv",
                 "--trigger-mode",
@@ -691,6 +786,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         with (
             patch("keysight_logger_core.runner.create_instrument_backend", return_value=fake_backend),
+            patch(
+                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34461A,MY123,1.0",
+            ),
             redirect_stdout(stdout),
         ):
             rc = cmd_start(args)
@@ -1320,6 +1419,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\dry_run.csv",
                 "--trigger-mode",
@@ -1348,6 +1449,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "start-trigger-record",
                 "--resource",
                 "USB::FAKE",
+                "--model",
+                "34461A",
                 "--csv",
                 "data\\dry_run_custom.csv",
                 "--trigger-mode",

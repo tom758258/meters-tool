@@ -184,8 +184,8 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
     )
     return (
         "Limits:\n"
-        f"  instrument profile default: {effective_profile.model}; "
-        "use --model 34460A or --model 34461A to select model-specific limits\n"
+        "  instrument profile: live starts auto-detect when --model is omitted; "
+        "use --model 34460A or --model 34461A to force model-specific limits\n"
         f"  measurement choices: {', '.join(measurement_names)}\n"
         "  NPLC choices for DC/resistance: 0.02, 0.2, 1, 10, 100\n"
         "  AC current/voltage and Frequency/Period do not support NPLC SCPI; "

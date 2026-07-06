@@ -19,7 +19,6 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
     TestClient = None
 
 if TestClient is not None:
-    from keysight_logger_core.instrument import InstrumentError
     from keysight_logger_core.runner import StartRunnerDependencies
     from keysight_logger_webui.web_ui import (
         APP_JS_CACHEBUSTER_TOKEN,
@@ -159,7 +158,11 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual({"min": 0, "max": 10000}, limits["sw_queue_max"])
 
         defaults = payload["defaults"]
-        self.assertEqual("34461A", defaults["instrument_model"])
+        self.assertIsNone(defaults["instrument_model"])
+        self.assertEqual(
+            {"mode": "auto", "resolved": False, "fallback_profile": "34461A"},
+            payload["model_resolution"],
+        )
         self.assertEqual("on", defaults["auto_zero"])
         self.assertIsNone(defaults["ac_bandwidth_hz"])
         self.assertIsNone(defaults["gate_time_s"])
@@ -349,6 +352,7 @@ class WebUiApiTests(unittest.TestCase):
         client, csv_path = self.make_client()
         request = {
             "resource": "USB::FAKE",
+            "instrument_model": "34461A",
             "csv": str(csv_path),
             "simulate": True,
             "trigger_mode": "software-custom",
@@ -381,6 +385,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "trigger_mode": "software-custom",
@@ -482,6 +487,7 @@ class WebUiApiTests(unittest.TestCase):
         manager = WebRunManager()
         request = RunStartRequest(
             resource="USB::FAKE",
+            instrument_model="34461A",
             csv=str(csv_path),
             simulate=True,
             trigger_mode="software-custom",
@@ -506,6 +512,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "trigger_mode": "software",
@@ -603,6 +610,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "trigger_mode": "immediate",
@@ -650,6 +658,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(next_csv_path),
                 "simulate": True,
                 "trigger_mode": "immediate",
@@ -670,6 +679,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "auto_range": False,
@@ -694,6 +704,7 @@ class WebUiApiTests(unittest.TestCase):
                     "/api/runs",
                     json={
                         "resource": "USB::FAKE",
+                        "instrument_model": "34461A",
                         "csv": str(csv_path),
                         "simulate": True,
                         **extra_payload,
@@ -702,6 +713,48 @@ class WebUiApiTests(unittest.TestCase):
 
                 self.assertEqual(422, response.status_code)
                 self.assertIn(expected_detail, response.json()["detail"])
+
+    def test_start_rejects_model_mode_payload_field(self):
+        client, csv_path = self.make_client()
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "SIM::34461A",
+                "csv": str(csv_path),
+                "simulate": True,
+                "model_mode": "auto",
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(422, response.status_code)
+        self.assertEqual(
+            "model_mode/modelMode is not supported; use instrument_model only",
+            response.json()["detail"],
+        )
+
+    def test_start_simulate_omitted_non_deterministic_model_returns_clear_error(self):
+        client, csv_path = self.make_client()
+
+        response = client.post(
+            "/api/runs",
+            json={
+                "resource": "SIM::INSTR",
+                "csv": str(csv_path),
+                "simulate": True,
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(422, response.status_code)
+        self.assertEqual(
+            "simulate cannot auto-detect the instrument model unless the simulator resource encodes it; "
+            "pass --model 34460A or --model 34461A, or use SIM::34460A / SIM::34461A.",
+            response.json()["detail"],
+        )
 
     def test_start_validation_uses_selected_34460a_profile(self):
         client, csv_path = self.make_client()
@@ -838,43 +891,119 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(["34460A"], seen_expected_models)
 
-    def test_model_idn_mismatch_returns_webui_action_message(self):
+    def test_start_omitted_live_model_resolves_from_fresh_preflight(self):
         self.tempdir = tempfile.TemporaryDirectory()
         csv_path = Path(self.tempdir.name) / "out.csv"
+        seen_expected_models: list[str | None] = []
 
-        class MismatchedInstrument:
+        class FakeInstrument:
+            resource_id = "USB::FAKE"
+
             def connect(self):
-                raise InstrumentError(
-                    "unsupported instrument identity; expected Keysight/Agilent 34461A, "
-                    "got 'Keysight Technologies,34460A,MY123,1.0'"
-                )
+                return None
+
+            def release_to_local(self):
+                return "release:ok"
+
+            def close(self):
+                return None
+
+            def cleanup_release_to_local(self):
+                return "cleanup:ok"
+
+        class FakeStorage:
+            def __init__(self, _path):
+                return None
+
+        class FakeEngine:
+            def __init__(self, **_kwargs):
+                self.stats = SimpleNamespace(captured=0, errors=0)
+                self.fatal_error = None
+
+            def run(self, *, trigger_mode, hardware_trigger_slope):  # noqa: ARG002
+                return None
+
+            def stop(self):
+                return None
+
+        class CompletedThread:
+            def __init__(self, *, target, kwargs, daemon):  # noqa: ARG002
+                self._target = target
+                self._kwargs = kwargs
+                self._alive = False
+
+            def start(self):
+                self._alive = True
+                self._target(**self._kwargs)
+                self._alive = False
+
+            def is_alive(self):
+                return self._alive
+
+            def join(self, timeout=None):  # noqa: ARG002
+                self._alive = False
 
         def instrument_factory(config, *, simulate, measurement_type):  # noqa: ARG001
-            return MismatchedInstrument()
+            seen_expected_models.append(config.expected_model)
+            return FakeInstrument()
 
         manager = WebRunManager(
             runner_dependencies=StartRunnerDependencies(
                 instrument_backend_factory=instrument_factory,
+                storage_factory=FakeStorage,
+                measurement_factory=lambda _measurement_type: object(),
+                engine_factory=lambda **kwargs: FakeEngine(**kwargs),
+                thread_factory=CompletedThread,
             )
         )
         client = self.make_client_with_manager(manager)
 
-        response = client.post(
-            "/api/runs",
-            json={
-                "resource": "USB::FAKE",
-                "csv": str(csv_path),
-                "simulate": False,
-                "instrument_model": "34461A",
-                "trigger_mode": "immediate",
-                "max_samples": 1,
-            },
-        )
+        with patch(
+            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ) as preflight:
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB::FAKE",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
 
-        self.assertEqual(500, response.status_code)
+        self.assertEqual(200, response.status_code)
+        self.assertEqual(["34460A"], seen_expected_models)
+        preflight.assert_called_once()
+
+    def test_model_idn_mismatch_returns_webui_action_message(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+
+        with patch(
+            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB::FAKE",
+                    "instrument_model": "34461A",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        self.assertEqual(422, response.status_code)
         self.assertEqual(
             "Selected model 34461A does not match the connected instrument IDN 34460A. "
-            "Select 34460A or rescan the device.",
+            "Select 34460A or omit --model to auto-detect.",
             response.json()["detail"],
         )
 
@@ -979,6 +1108,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "current-dc",
@@ -997,6 +1127,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "period",
@@ -1017,6 +1148,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "frequency",
@@ -1037,6 +1169,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "voltage-ac",
@@ -1055,6 +1188,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "current-dc",
@@ -1075,6 +1209,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "voltage-dc-ratio",
@@ -1093,6 +1228,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "current-dc",
@@ -1115,6 +1251,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "measurement": "voltage-dc",
@@ -1141,6 +1278,7 @@ class WebUiApiTests(unittest.TestCase):
             "/api/runs",
             json={
                 "resource": "USB::FAKE",
+                "instrument_model": "34461A",
                 "csv": str(csv_path),
                 "simulate": True,
                 "trigger_mode": "immediate",

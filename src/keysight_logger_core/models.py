@@ -320,6 +320,15 @@ def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
     raise ValueError(f"Unsupported instrument model: {model}")
 
 
+def normalize_requested_model(model: str | None) -> str | None:
+    if model is None:
+        return None
+    text = str(model).strip()
+    if not text:
+        return None
+    return find_instrument_profile_by_model(text).model
+
+
 def resolve_instrument_profile(model: str | None = None) -> InstrumentProfile:
     if model is None:
         return get_default_instrument_profile()

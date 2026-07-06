@@ -79,14 +79,15 @@ async function applyScannedResource(resource) {
   }
   const metadata = scanMetadataByResource.get(resource);
   const inferredModel = metadata?.instrument_model || null;
+  const forcedModel = instrumentModelSelect.value || "";
   resourceInput.value = resource;
   resourceSelect.value = resource;
   if (!inferredModel) {
-    appendStatusLog("Live resource model could not be inferred; select Instrument model manually.");
+    appendStatusLog("Live resource model could not be inferred; Start will auto-detect it.");
     return;
   }
-  instrumentModelSelect.value = inferredModel;
-  await loadCapabilities(inferredModel);
+  await loadCapabilities(forcedModel || inferredModel);
+  instrumentModelSelect.value = forcedModel;
   updateRangeAndLiveChartScale();
   updateTriggerModeUi();
   updatePanelSummaries();

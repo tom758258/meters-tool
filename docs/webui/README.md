@@ -131,8 +131,9 @@ Main areas:
 
 - Header: `Keysight Meters` and `Local acquisition console`.
 - Resource row: `VISA resource`, `Live resource`, and `Scan Device`.
-- Run Setup includes the instrument model selector. It defaults to 34461A and
-  can select 34460A for model-specific validation limits.
+- Run Setup includes an instrument model override selector. It defaults to
+  `Auto-detect on start`; explicit 34460A/34461A choices force model-specific
+  validation limits.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
 - Collapsible setup panels for run configuration, measurement settings,
@@ -149,7 +150,8 @@ JavaScript modules.
 1. Start the WebUI server.
 2. Open `http://127.0.0.1:8767/`.
 3. Enter a VISA resource manually or click `Scan Device`.
-4. Confirm the instrument model, then select measurement and trigger settings.
+4. Leave the model override on Auto unless you need to force 34460A or 34461A,
+   then select measurement and trigger settings.
 5. Keep low-risk defaults for first contact with a real instrument:
    Auto Range on, immediate trigger, and a small `max_samples` value.
 6. Click `Start`.
@@ -180,14 +182,12 @@ with null model metadata so operators can still inspect or type resources
 without the listing failing.
 
 Selecting a live resource copies it into the `VISA resource` input. When the
-scan inferred a supported model, the browser also selects that Instrument model
-and reloads `/api/capabilities?model=<model>` before refreshing measurement,
-range, trigger, current-terminal, and panel state. If the model cannot be
-inferred, the current manual Instrument model selection is preserved and the
-Status log asks the operator to select the model manually.
+scan inferred a supported model and the override remains Auto, the browser may
+reload `/api/capabilities?model=<model>` for display options, but it leaves the
+override on Auto. Start always performs a fresh backend IDN preflight.
 
-The user can still type a resource manually and can override the Instrument
-model selector after scanning.
+The user can still type a resource manually and can force the Instrument model
+override after scanning.
 
 The WebUI uses the default system VISA runtime through Core. It does not expose
 a PyVISA backend selector in the browser. Use the CLI-only `--visa-library`
@@ -203,15 +203,15 @@ GET /api/capabilities?model=34460A
 GET /api/capabilities?model=34461A
 ```
 
-When `model` is omitted, the WebUI uses the default 34461A profile. The browser
-model selector reloads capabilities with the selected model and sends
-`instrument_model` in the `POST /api/runs` payload.
+When `model` is omitted, `/api/capabilities` returns the compatibility
+34461A-shaped capability surface with `defaults.instrument_model = null` and
+`model_resolution.resolved = false`. The browser sends no `instrument_model`
+for Auto; explicit override choices send `"34460A"` or `"34461A"`.
 
-The Instrument model selector is the WebUI's selected Core profile. Scan Device
-can set it automatically from verified IDN metadata, but operators can still
-change it manually. Core validates the connected instrument identity at Start
-against the selected model. If a clear mismatch is detected, the WebUI reports
-which model was selected and which supported model was found in the IDN.
+The Instrument model override is optional. Core validates the connected
+instrument identity at Start. If an explicit override does not match the fresh
+IDN preflight, the WebUI reports which model was selected and which supported
+model was found in the IDN.
 
 Currently surfaced measurement modes include:
 
@@ -458,7 +458,8 @@ The browser-facing API surface is:
 - `GET /`: serves `index.html`.
 - `GET /api/capabilities`: returns Core-backed measurement and trigger
   capabilities. Optional `model=34460A` or `model=34461A` selects the profile;
-  omitted model returns the default 34461A profile.
+  omitted model returns unresolved auto metadata and a compatibility
+  34461A-shaped capability surface.
 - `GET /api/resources?verify=true&live_only=true`: scans VISA resources and,
   for verified supported IDNs, includes nullable `instrument_model` and
   `matched_profile` metadata.

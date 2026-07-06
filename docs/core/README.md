@@ -14,6 +14,12 @@ Core can carry an optional `visa_library` value through `StartRequest` and
 `pyvisa.ResourceManager()` and therefore the system default VISA runtime. CLI
 diagnostics may pass values such as `@py`; WebUI runs leave it unset.
 
+For CLI/WebUI starts, `StartRequest.instrument_model = None` means auto-detect
+for live resources. Adapters resolve the connected profile with an IDN-only
+preflight before validation and planning. Dry-run and simulator starts must use
+an explicit model unless the simulator resource deterministically names one,
+such as `SIM::34460A` or `SIM::34461A`.
+
 The CLI and WebUI components own their command-line, web, wrapper, and
 serialization layers. Core must not import `keysight_logger_cli` or
 `keysight_logger_webui`.

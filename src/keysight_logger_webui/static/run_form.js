@@ -545,14 +545,15 @@ export async function loadCapabilities(model = null) {
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
   if (instrumentModelSelect) {
+    const forcedModel = textOrNull(instrumentModelSelect.value);
     const profileOptions = capabilities.available_profiles || [];
     instrumentModelSelect.replaceChildren(
+      optionElement("", "Auto-detect on start"),
       ...profileOptions.map((profile) =>
         optionElement(profile.model, profile.model)
       )
     );
-    instrumentModelSelect.value =
-      capabilities.instrument_profile?.model || capabilities.defaults?.instrument_model || "34461A";
+    instrumentModelSelect.value = forcedModel || "";
   }
   measurementsByName = new Map(
     capabilities.measurements.map((item) => [item.name, item])

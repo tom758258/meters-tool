@@ -151,6 +151,40 @@ class VisaInstrument:
                     pass
 
     @staticmethod
+    def preflight_idn(
+        resource: str,
+        timeout_ms: int = 5000,
+        resource_manager_factory: Callable[[], object] | None = None,
+        visa_library: str | None = None,
+    ) -> str:
+        rm = None
+        inst = None
+        try:
+            rm = (
+                resource_manager_factory()
+                if resource_manager_factory is not None
+                else _create_resource_manager(visa_library)
+            )
+            inst = rm.open_resource(resource)
+            inst.timeout = timeout_ms
+            return str(inst.query("*IDN?")).strip()
+        except InstrumentError:
+            raise
+        except Exception as exc:
+            raise InstrumentError(f"failed to query instrument identity: {exc}") from exc
+        finally:
+            if inst is not None:
+                try:
+                    inst.close()
+                except Exception:
+                    pass
+            if rm is not None:
+                try:
+                    rm.close()
+                except Exception:
+                    pass
+
+    @staticmethod
     def infer_transport(resource: str) -> Optional[Transport]:
         upper = resource.upper()
         if upper.startswith("TCPIP"):

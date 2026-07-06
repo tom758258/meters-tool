@@ -34,19 +34,21 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("nplc", app_js)
         self.assertIn('id="instrument-model"', index)
         self.assertIn('name="instrument_model"', index)
+        self.assertIn("Auto-detect on start", index)
         self.assertIn("instrument_model", app_js)
         self.assertIn("/api/capabilities?model=", app_js)
 
-    def test_static_ui_scan_resource_metadata_drives_model_selection(self):
+    def test_static_ui_scan_resource_metadata_reloads_capabilities_without_forcing_model(self):
         _index, app_js = load_static_ui()
 
         self.assertIn("scanMetadataByResource = new Map", app_js)
         self.assertIn("result.resources.map((item) => [item.resource, item])", app_js)
         self.assertIn("metadata?.instrument_model || null", app_js)
-        self.assertIn("instrumentModelSelect.value = inferredModel", app_js)
-        self.assertIn("await loadCapabilities(inferredModel)", app_js)
+        self.assertIn("const forcedModel = instrumentModelSelect.value || \"\"", app_js)
+        self.assertIn("await loadCapabilities(forcedModel || inferredModel)", app_js)
+        self.assertIn("instrumentModelSelect.value = forcedModel", app_js)
         self.assertIn(
-            "Live resource model could not be inferred; select Instrument model manually.",
+            "Live resource model could not be inferred; Start will auto-detect it.",
             app_js,
         )
 
@@ -57,8 +59,8 @@ class WebUiStaticTests(unittest.TestCase):
             app_js,
             r"resourceInput\.value = resource;[\s\S]*?"
             r"resourceSelect\.value = resource;[\s\S]*?"
-            r"instrumentModelSelect\.value = inferredModel;[\s\S]*?"
-            r"await loadCapabilities\(inferredModel\);[\s\S]*?"
+            r"await loadCapabilities\(forcedModel \|\| inferredModel\);[\s\S]*?"
+            r"instrumentModelSelect\.value = forcedModel;[\s\S]*?"
             r"updateRangeAndLiveChartScale\(\);[\s\S]*?"
             r"updateTriggerModeUi\(\);[\s\S]*?"
             r"updatePanelSummaries\(\);",

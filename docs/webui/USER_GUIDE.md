@@ -59,8 +59,8 @@ The WebUI is a local acquisition console. The main areas are:
 - `Live resource`: the instrument detected by a scan.
 - `Scan Device`: searches for connected live instruments.
 - `Run Setup`: CSV output path and run count settings.
-- `Instrument model`: selects the model profile used for validation. The
-  default is 34461A.
+- `Instrument model`: optional override for the model profile. Leave it on
+  Auto-detect for normal live starts.
 - `Measurement`: measurement type and related options.
 - `Trigger`: trigger mode and trigger-related options.
 - `Status`: current run state, captured sample count, errors, CSV path, and log.
@@ -75,8 +75,8 @@ Use this flow for a basic immediate measurement:
 2. Start the WebUI.
 3. Click `Scan Device`.
 4. Select or copy the detected VISA resource into `VISA resource`.
-5. Confirm the Instrument model. Scan Device selects 34460A or 34461A
-   automatically when the instrument IDN is recognized.
+5. Leave Instrument model on Auto-detect unless you need to force 34460A or
+   34461A.
 6. Choose the measurement type, such as DC voltage or DC current.
 7. In `Run Setup`, choose the CSV location. Use `Select` to pick a folder and
    generate a timestamped CSV path.
@@ -123,8 +123,8 @@ when a test procedure explicitly requires optional pyvisa-py diagnostics.
 
 `Live resource` shows the result of the last scan. Use it to confirm which
 instrument answered before copying or selecting a resource for the run. When
-the scan recognizes a supported 34460A or 34461A IDN, the WebUI also updates
-Instrument model and reloads the model-specific options.
+the scan recognizes a supported 34460A or 34461A IDN, the WebUI may reload
+model-specific options for display while keeping the override on Auto-detect.
 
 `CSV path` is where readings will be written. Use `Select` to choose a folder
 and let the WebUI generate a timestamped file name, or type a specific file path
@@ -133,14 +133,14 @@ before clicking `Start`.
 Run count and sample limit fields control how long a run can continue. Keep new
 setups bounded while checking wiring, measurement type, and trigger behavior.
 
-`Instrument model` selects the Core profile used for options and validation.
-Scan Device sets this automatically when the verified IDN matches a supported
-34460A or 34461A. You can still change it manually after scanning, or select it
-manually when the Status log says the live resource model could not be
-inferred. With 34460A selected, the WebUI hides 10 A current ranges, current
-terminal selection, and external trigger modes; custom mode reading memory is
-1000 readings. The selector changes validation and capabilities only; it does
-not change cleanup or trigger sequencing.
+`Instrument model` is an optional Core profile override. Auto-detect starts run
+with no forced model and lets the backend resolve the connected instrument from
+a fresh IDN preflight. Select 34460A or 34461A only when you want Start to fail
+if the connected instrument reports the other supported model. With 34460A
+forced, the WebUI hides 10 A current ranges, current terminal selection, and
+external trigger modes; custom mode reading memory is 1000 readings. The
+override changes validation and capabilities only; it does not change cleanup
+or trigger sequencing.
 
 `Measurement type` selects what the instrument measures: DC or AC voltage, DC
 or AC current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
@@ -291,15 +291,15 @@ You can still type a known VISA resource manually.
 
 ### Scan Device cannot infer the model
 
-Select `Instrument model` manually before clicking `Start`. The WebUI keeps the
-current manual model when a live resource answers but its IDN does not match a
-supported 34460A or 34461A profile.
+Leave `Instrument model` on Auto-detect and click `Start`; the backend performs
+a fresh IDN preflight. Use a manual override only when you intentionally want
+to force 34460A or 34461A.
 
 ### Start says the selected model does not match the IDN
 
-Select the model named in the message or click `Scan Device` again. This means
-the connected instrument IDN clearly matched a supported model different from
-the Instrument model selected in the WebUI.
+Select the model named in the message or return Instrument model to
+Auto-detect. This means the connected instrument IDN clearly matched a
+supported model different from the forced WebUI override.
 
 ### Start is blocked
 

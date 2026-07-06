@@ -12,11 +12,12 @@ from keysight_logger_core._version import (
     FALLBACK_PACKAGE_VERSION,
     get_distribution_version,
 )
-from keysight_logger_core.instrument import VisaInstrument
-from keysight_logger_core.models import StartRequest, resolve_instrument_profile
+from keysight_logger_core.instrument import InstrumentError, VisaInstrument
+from keysight_logger_core.models import StartRequest
 from keysight_logger_core.runner import StopController, run_start_session
 from keysight_logger_core.run_plan import StartPlan, build_start_plan
 from keysight_logger_core.session import StartRunEvent, new_run_id
+from keysight_logger_core.start_resolution import resolve_start_profile
 from keysight_logger_core.validation import (
     generate_buffer_overflow_warnings,
     resolve_trigger_mode,
@@ -638,12 +639,15 @@ def cmd_start(args: argparse.Namespace) -> int:
     request_model: StartRequest
     try:
         request_model = _start_request_from_args(args)
-        instrument_profile = resolve_instrument_profile(request_model.instrument_model)
+        request_model, instrument_profile = resolve_start_profile(request_model)
         trigger_mode = resolve_trigger_mode(request_model)
         validate_start_request(request_model, trigger_mode, instrument_profile=instrument_profile)
     except ValueError as exc:
         emitter.error(str(exc), rc=2)
         return 2
+    except InstrumentError as exc:
+        emitter.error(str(exc), rc=3)
+        return 3
     runtime_run_id = None if request_model.dry_run else new_run_id()
     warnings = generate_buffer_overflow_warnings(
         request_model,

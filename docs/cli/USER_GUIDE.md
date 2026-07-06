@@ -51,7 +51,6 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
 
 ```powershell
 .\keysight-logger.exe start-trigger-record `
-  --model 34461A `
   --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
@@ -69,10 +68,10 @@ Use an explicit `--resource` value for live acquisition. Passing
 not rely on a script or unattended workflow to guess which instrument should be
 used.
 
-The default model profile is 34461A. Add `--model 34460A` when using a 34460A.
-The 34460A profile blocks 10 A current range, current terminal selection, and
-base-profile external trigger modes, and uses a 1000-reading memory limit for
-custom modes.
+Live starts auto-detect 34460A or 34461A from the connected instrument IDN when
+`--model` is omitted. Add `--model 34460A` or `--model 34461A` only when you
+want to force a profile; a live mismatch fails before setup. Dry-run commands
+need `--model` unless the resource is `SIM::34460A` or `SIM::34461A`.
 
 By default, the CLI uses the computer's system VISA runtime, such as Keysight
 IO Libraries Suite or NI-VISA. For advanced pyvisa-py LAN diagnostics, an

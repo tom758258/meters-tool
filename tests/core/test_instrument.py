@@ -214,6 +214,22 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
 
+    def test_preflight_idn_queries_only_idn_and_closes(self):
+        session = FakeVisaSession()
+        rm = FakeResourceManager(session=session)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+
+        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+            idn = VisaInstrument.preflight_idn("USB::FAKE", timeout_ms=4321)
+
+        self.assertEqual("Keysight Technologies,34461A,MY123,1.0", idn)
+        self.assertEqual(4321, session.timeout)
+        self.assertEqual(["query:*IDN?"], session.writes)
+        self.assertFalse(session.cleared)
+        self.assertEqual([], session.control_ren_calls)
+        self.assertTrue(session.closed)
+        self.assertTrue(rm.closed)
+
     def test_verify_asrl_uses_bounded_open_and_session_timeout_without_release(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)

@@ -136,6 +136,9 @@ class CliArgsTests(unittest.TestCase):
 
         self.assertEqual(0, exc.exception.code)
         help_text = stdout.getvalue()
+        self.assertNotIn("default: 34461A", help_text)
+        self.assertIn("Omit for live", help_text)
+        self.assertIn("auto-detect", help_text)
         for tokens in (
             ("NPLC", "DC", "resistance", "0.02", "0.2", "1", "10", "100"),
             ("current-dc", "0.0001", "0.001", "0.01", "0.1", "1", "3", "10", "A"),

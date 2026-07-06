@@ -182,7 +182,10 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         dest="instrument_model",
         choices=["34460A", "34461A"],
         default=None,
-        help="instrument model profile; default: 34461A",
+        help=(
+            "optional forced instrument profile. Omit for live auto-detect; "
+            "dry-run requires --model unless the resource is SIM::34460A or SIM::34461A."
+        ),
     )
     _add_visa_library_argument(start)
     start.add_argument(

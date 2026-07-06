@@ -68,12 +68,14 @@ Implemented:
 
 Important limitations:
 
-- This project supports Keysight 34460A and 34461A Truevolt DMM logging. The
-  default model profile is 34461A for backward compatibility.
+- This project supports Keysight 34460A and 34461A Truevolt DMM logging. Live
+  starts auto-detect the model from the connected instrument IDN when
+  `--model` is omitted.
 - Select `--model 34460A` for 34460A limits: no 10 A current range or current
   terminal selection, 1000 readings of memory, and no base-profile external
   trigger modes.
-- Select `--model 34461A` or omit `--model` for the existing 34461A behavior.
+- Select `--model 34461A` to force the 34461A profile. Explicit live mismatches
+  fail before setup SCPI.
 - The 34460A has a lower maximum reading rate than the 34461A, but the CLI does
   not actively control high-speed reading rate in this release.
 - AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz
@@ -522,7 +524,7 @@ after that many successful timer CSV rows.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
-| `--model`, `--instrument-model` `34460A\|34461A` | No | 34461A | Select the instrument profile used for validation, capabilities, and live IDN matching. |
+| `--model`, `--instrument-model` `34460A\|34461A` | No | auto for live; required for non-deterministic dry-run/simulate | Force the instrument profile used for validation, capabilities, and live IDN matching. Omit for live auto-detect. |
 | `--visa-library TEXT`, `--backend TEXT` | No | system default | Optional PyVISA library/backend argument, such as `@py`. Dry-run and simulator runs accept the option but do not open VISA. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
 | `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |

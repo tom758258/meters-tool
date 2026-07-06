@@ -16,7 +16,7 @@ try:
     from fastapi import Body, FastAPI, HTTPException, Request
     from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
     from fastapi.staticfiles import StaticFiles
-    from pydantic import BaseModel
+    from pydantic import BaseModel, ValidationError
 except ImportError as exc:  # pragma: no cover - exercised only without web deps
     raise RuntimeError(
         'Web UI dependencies are not installed. Run: uv pip install -e ".[webui]" --link-mode=copy'
@@ -59,6 +59,7 @@ from keysight_logger_core.models import (
     find_instrument_profile_by_idn,
 )
 from keysight_logger_core.runner import StartRunnerDependencies
+from keysight_logger_core.start_resolution import resolve_start_profile
 from keysight_logger_core.validation import (
     BUFFER_DRAIN_SIZE_RANGE,
     HW_TRIGGER_DELAY_S_RANGE,
@@ -313,6 +314,7 @@ class WebRunManager:
                 yield _format_keepalive_event()
 
     def capabilities(self, instrument_model: str | None = None) -> dict[str, Any]:
+        auto_unresolved = instrument_model is None or not str(instrument_model).strip()
         profile = resolve_instrument_profile(instrument_model)
         measurements = []
         registered = set(registered_measurement_types())
@@ -398,7 +400,7 @@ class WebRunManager:
             },
             "defaults": {
                 "measurement": "current-dc",
-                "instrument_model": profile.model,
+                "instrument_model": None if auto_unresolved else profile.model,
                 "trigger_mode": "software",
                 "timeout_ms": 5000,
                 "trigger_timeout_ms": 10000,
@@ -412,6 +414,11 @@ class WebRunManager:
                 "gate_time_s": None,
                 "freq_period_timeout": None,
                 "current_terminal": None,
+            },
+            "model_resolution": {
+                "mode": "auto" if auto_unresolved else "explicit",
+                "resolved": not auto_unresolved,
+                "fallback_profile": "34461A" if auto_unresolved else None,
             },
         }
 
@@ -451,7 +458,7 @@ class WebRunManager:
         handle: _RunHandle | None = None
         try:
             start_request = self._validate_request(request)
-            profile = resolve_instrument_profile(start_request.instrument_model)
+            start_request, profile = resolve_start_profile(start_request)
             trigger_mode = resolve_trigger_mode(start_request)
             warnings = generate_buffer_overflow_warnings(start_request, trigger_mode, profile)
             plan = build_start_plan(
@@ -622,6 +629,9 @@ class WebRunManager:
             raise RunValidationError("resource is required")
         if raw.get("csv") is not None:
             raw["csv"] = str(raw["csv"]).strip() or None
+        raw_model = raw.get("instrument_model")
+        if raw_model is not None:
+            raw["instrument_model"] = str(raw_model).strip() or None
         profile = resolve_instrument_profile(raw.get("instrument_model"))
         if raw.get("trigger_mode") is not None:
             raw["trigger_mode"] = str(raw["trigger_mode"]).strip().lower()
@@ -860,9 +870,21 @@ def create_app(manager: WebRunManager | None = None) -> FastAPI:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
     @app.post("/api/runs")
-    def api_start_run(payload: RunStartRequest) -> dict[str, Any]:
+    async def api_start_run(request: Request) -> dict[str, Any]:
         try:
+            raw_payload = json.loads((await request.body()).decode("utf-8"))
+            if not isinstance(raw_payload, dict):
+                raise RunValidationError("request body must be a JSON object")
+            if "model_mode" in raw_payload or "modelMode" in raw_payload:
+                raise RunValidationError(
+                    "model_mode/modelMode is not supported; use instrument_model only"
+                )
+            payload = RunStartRequest(**raw_payload)
             return app.state.manager.start(payload)
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HTTPException(status_code=400, detail=f"malformed JSON: {exc}") from exc
+        except ValidationError as exc:
+            raise HTTPException(status_code=422, detail=json.loads(exc.json())) from exc
         except WebRunError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except Exception as exc:
