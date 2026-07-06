@@ -14,9 +14,11 @@ import {
   nplcSelect,
   openCsvButton,
   panelToggles,
+  refreshResourcesButton,
   resourceInput,
   resourceSelect,
   selectCsvFolderButton,
+  startRunButton,
   swMinIntervalInput,
   timerIntervalInput,
   timerTriggerCheckbox,
@@ -41,6 +43,7 @@ import {
 import {
   appendStatusLog,
   initializeStatusUi,
+  isRunActive,
   markSoftwareTriggerQueuedForLog,
   pollStatus,
   renderStatus,
@@ -116,7 +119,11 @@ async function refreshResources() {
   appendStatusLog(`Live resources found: ${result.resources.length}`);
 }
 
-document.querySelector("#refresh-resources").addEventListener("click", async () => {
+refreshResourcesButton.addEventListener("click", async () => {
+  if (isRunActive()) {
+    appendStatusLog("Stop the active run before scanning resources.");
+    return;
+  }
   try {
     await refreshResources();
   } catch (error) {
@@ -191,7 +198,11 @@ for (const button of panelToggles) {
   });
 }
 
-document.querySelector("#start-run").addEventListener("click", async () => {
+startRunButton.addEventListener("click", async () => {
+  if (isRunActive()) {
+    appendStatusLog("A run is already active. Stop it before starting another run.");
+    return;
+  }
   try {
     const payload = formPayload();
     if (!payload.resource) {

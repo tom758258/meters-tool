@@ -5,11 +5,14 @@ import {
   latestStatus,
   openCsvButton,
   rawStatus,
+  refreshResourcesButton,
+  startRunButton,
   statusCaptured,
   statusCsv,
   statusDetails,
   statusErrors,
   statusState,
+  stopRunButton,
   toggleStatusDetailsButton,
   triggerModeSelect,
 } from "./dom.js";
@@ -27,6 +30,10 @@ let loggedWaitingTriggerKeys = new Set();
 let sseSource = null;
 let pollingIntervalId = null;
 let loggedSseFallback = false;
+let latestRenderedStatus = null;
+let lastRunControlsActive = false;
+const ACTIVE_RUN_UNLOAD_MESSAGE =
+  "A measurement run is active. Refreshing or closing the page will not stop it.";
 
 function renderStatusLog() {
   const blankLineCount = Math.max(0, STATUS_LOG_LINE_COUNT - statusLogMessages.length);
@@ -116,6 +123,19 @@ export function markSoftwareTriggerQueuedForLog() {
   }
 }
 
+export function isRunActive() {
+  return Boolean(latestRenderedStatus?.active);
+}
+
+function warnBeforeUnloadIfActive(event) {
+  if (!isRunActive()) {
+    return undefined;
+  }
+  event.preventDefault();
+  event.returnValue = ACTIVE_RUN_UNLOAD_MESSAGE;
+  return ACTIVE_RUN_UNLOAD_MESSAGE;
+}
+
 function setStatusDetailsVisible(visible) {
   statusDetails.classList.toggle("is-hidden", !visible);
   toggleStatusDetailsButton.setAttribute("aria-expanded", String(visible));
@@ -123,18 +143,34 @@ function setStatusDetailsVisible(visible) {
 }
 
 export function renderStatus(status) {
+  latestRenderedStatus = status || null;
   statusState.textContent = capitalizeFirst(status.state || "idle");
   statusCaptured.textContent = String(status.captured ?? 0);
   statusErrors.textContent = String(status.errors ?? 0);
   if (statusCsv) {
     statusCsv.textContent = status.csv_path || "Default";
   }
+  updateRunControlButtons(status);
   updateOpenCsvButton(status);
   appendApiStatusLog(status);
   fatalError.textContent = status.fatal_error || "";
   cleanupStatus.textContent = status.cleanup_status || "";
   rawStatus.textContent = JSON.stringify(status, null, 2);
   renderLiveData(status);
+}
+
+function updateRunControlButtons(status) {
+  const active = Boolean(status?.active);
+  startRunButton.disabled = active;
+  refreshResourcesButton.disabled = active;
+  if (active) {
+    stopRunButton.disabled = false;
+  }
+  if (active && !lastRunControlsActive) {
+    appendStatusLog("A run is already active. Stop it before starting another run.");
+    appendStatusLog("Stop the active run before scanning resources.");
+  }
+  lastRunControlsActive = active;
 }
 
 function updateOpenCsvButton(status) {
@@ -201,6 +237,7 @@ export function initializeStatusUi() {
   toggleStatusDetailsButton.addEventListener("click", () => {
     setStatusDetailsVisible(statusDetails.classList.contains("is-hidden"));
   });
+  window.addEventListener("beforeunload", warnBeforeUnloadIfActive);
   renderStatusLog();
   setStatusDetailsVisible(false);
 }

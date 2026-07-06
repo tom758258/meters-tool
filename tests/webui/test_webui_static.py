@@ -410,6 +410,78 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('id="raw-status"', index)
         self.assertIn("status", app_js)
 
+    def test_static_ui_guards_run_controls_while_status_active(self):
+        index, app_js = load_static_ui()
+
+        for expected in [
+            'id="refresh-resources"',
+            'id="start-run"',
+            'id="trigger-run"',
+            'id="stop-run"',
+            'id="open-csv"',
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, index)
+
+        self.assertIn("export const refreshResourcesButton", app_js)
+        self.assertIn("export const startRunButton", app_js)
+        self.assertIn("export const stopRunButton", app_js)
+        self.assertIn("let latestRenderedStatus = null", app_js)
+        self.assertIn("latestRenderedStatus = status || null", app_js)
+        self.assertIn("export function isRunActive()", app_js)
+        self.assertIn("startRunButton.disabled = active", app_js)
+        self.assertIn("refreshResourcesButton.disabled = active", app_js)
+        self.assertRegex(
+            app_js,
+            r"if \(active\) \{\s+stopRunButton\.disabled = false;\s+\}",
+        )
+
+        scan_handler = app_js[
+            app_js.index("refreshResourcesButton.addEventListener")
+            : app_js.index("resourceSelect.addEventListener")
+        ]
+        self.assertIn("if (isRunActive())", scan_handler)
+        self.assertIn("Stop the active run before scanning resources.", scan_handler)
+        self.assertLess(scan_handler.index("if (isRunActive())"), scan_handler.index("refreshResources()"))
+
+        start_handler = app_js[
+            app_js.index("startRunButton.addEventListener")
+            : app_js.index("triggerRunButton.addEventListener")
+        ]
+        self.assertIn("if (isRunActive())", start_handler)
+        self.assertIn(
+            "A run is already active. Stop it before starting another run.",
+            start_handler,
+        )
+        self.assertLess(start_handler.index("if (isRunActive())"), start_handler.index('api("/api/runs"'))
+
+        form_payload = re.search(r"export function formPayload\(\) \{([\s\S]*?)\n\}", app_js)
+        self.assertIsNotNone(form_payload)
+        self.assertNotIn("isRunActive", form_payload.group(1))
+        self.assertNotIn("latestRenderedStatus", form_payload.group(1))
+
+    def test_static_ui_warns_before_unload_only_for_active_run(self):
+        _index, app_js = load_static_ui()
+
+        self.assertIn(
+            "A measurement run is active. Refreshing or closing the page will not stop it.",
+            app_js,
+        )
+        self.assertIn(
+            'window.addEventListener("beforeunload", warnBeforeUnloadIfActive)',
+            app_js,
+        )
+        beforeunload_handler = re.search(
+            r"function warnBeforeUnloadIfActive\(event\) \{([\s\S]*?)\n\}",
+            app_js,
+        )
+        self.assertIsNotNone(beforeunload_handler)
+        handler_body = beforeunload_handler.group(1)
+        self.assertIn("if (!isRunActive())", handler_body)
+        self.assertIn("return undefined", handler_body)
+        self.assertIn("event.preventDefault()", handler_body)
+        self.assertIn("event.returnValue = ACTIVE_RUN_UNLOAD_MESSAGE", handler_body)
+
     def test_static_ui_marks_blankable_inputs_optional(self):
         index, _app_js = load_static_ui()
 
