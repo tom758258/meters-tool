@@ -225,9 +225,10 @@ function renderLiveChart(samples) {
     Number.isFinite(Number(sample.value))
   );
   liveTrendChart.replaceChildren();
-  const width = 640;
-  const height = 760;
-  const leftPadding = 72;
+  const width = Math.max(Math.round(liveTrendChart.clientWidth || 0), 640);
+  const height = Math.max(Math.round(liveTrendChart.clientHeight || 0), 760);
+  liveTrendChart.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  const leftPadding = 120;
   const rightPadding = 18;
   const topBottomPadding = 18;
   const plotLeft = leftPadding;
@@ -285,13 +286,13 @@ function renderLiveChart(samples) {
     const y = centerY + offset * gridStepPx;
     const valueAtGrid = scale.center - offset * scale.gridStepValue;
     const label = svgElement("text", {
-      x: plotLeft - 8,
+      x: plotLeft - 10,
       y,
       "text-anchor": "end",
       "dominant-baseline": "middle",
       class: "live-chart-axis-label",
     });
-    label.textContent = formatLiveValueWithUnit(valueAtGrid, unit);
+    label.textContent = formatLiveAxisLabel(valueAtGrid, unit);
     liveTrendChart.appendChild(label);
   }
   const points = numericSamples.map((sample, index) => {
@@ -597,6 +598,12 @@ function formatLiveValueWithUnit(value, unit) {
   return [formatLiveValue(scaled.value), scaled.unit || ""].filter(Boolean).join(" ");
 }
 
+function formatLiveAxisLabel(value, unit) {
+  const scaled = scaleLiveValue(value, unit);
+  const formatted = formatLiveAxisNumber(scaled.value);
+  return [formatted, scaled.unit || ""].filter(Boolean).join(" ");
+}
+
 function scaleLiveValue(value, unit) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) {
@@ -634,6 +641,17 @@ function formatLiveValue(value) {
   const numeric = Number(value);
   if (Number.isFinite(numeric)) {
     return numeric.toLocaleString("en-US", { maximumSignificantDigits: 6 });
+  }
+  if (value === null || value === undefined || value === "") {
+    return "--";
+  }
+  return String(value);
+}
+
+function formatLiveAxisNumber(value) {
+  const numeric = Number(value);
+  if (Number.isFinite(numeric)) {
+    return numeric.toLocaleString("en-US", { maximumSignificantDigits: 4 });
   }
   if (value === null || value === undefined || value === "") {
     return "--";

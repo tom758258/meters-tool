@@ -301,7 +301,20 @@ class WebUiStaticTests(unittest.TestCase):
 
         self.assertIn('id="live-trend-chart"', index)
         self.assertIn('viewBox="0 0 640 760"', index)
-        self.assertIn("const leftPadding = 72", app_js)
+        self.assertIn(
+            "const width = Math.max(Math.round(liveTrendChart.clientWidth || 0), 640)",
+            app_js,
+        )
+        self.assertIn(
+            "const height = Math.max(Math.round(liveTrendChart.clientHeight || 0), 760)",
+            app_js,
+        )
+        self.assertIn(
+            'liveTrendChart.setAttribute("viewBox", `0 0 ${width} ${height}`)',
+            app_js,
+        )
+        self.assertIn("const leftPadding = 120", app_js)
+        self.assertNotIn("const leftPadding = 72", app_js)
         self.assertIn("const rightPadding = 18", app_js)
         self.assertIn("const plotLeft = leftPadding", app_js)
         self.assertIn("const plotRight = width - rightPadding", app_js)
@@ -309,9 +322,14 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("x2: plotRight", app_js)
         self.assertNotIn("x1: 18", app_js)
         self.assertIn('svgElement("text"', app_js)
+        self.assertIn("x: plotLeft - 10", app_js)
         self.assertIn('class: "live-chart-axis-label"', app_js)
         self.assertIn("const valueAtGrid = scale.center - offset * scale.gridStepValue", app_js)
-        self.assertIn("label.textContent = formatLiveValueWithUnit(valueAtGrid, unit)", app_js)
+        self.assertIn("label.textContent = formatLiveAxisLabel(valueAtGrid, unit)", app_js)
+        self.assertIn("function formatLiveAxisLabel(value, unit)", app_js)
+        self.assertIn("const scaled = scaleLiveValue(value, unit)", app_js)
+        self.assertIn("function formatLiveAxisNumber(value)", app_js)
+        self.assertIn("maximumSignificantDigits: 4", app_js)
         self.assertNotIn("live-chart-axis-label", index)
 
     def test_static_ui_live_chart_range_step_mode_is_guarded(self):
