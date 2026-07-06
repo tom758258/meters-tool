@@ -548,6 +548,22 @@ def test_live_plan_only_34460a_rejects_external_suite():
     )
 
 
+def test_live_frequency_period_probe_args_include_selected_model():
+    script = (REPO_ROOT / "scripts" / "live-cli-check.ps1").read_text(
+        encoding="utf-8-sig"
+    )
+    match = re.search(
+        r"function Invoke-FrequencyPeriodScpiProbe \{(?P<body>.*?)"
+        r"\nfunction New-ScpiProbeFailureCaseResult",
+        script,
+        flags=re.S,
+    )
+    assert match, "Invoke-FrequencyPeriodScpiProbe block not found"
+    body = match.group("body")
+
+    assert '"--model", $resolvedCliModel' in body
+
+
 def test_live_plan_only_frequency_period_report_contract():
     result = run_wrapper(
         "scripts/live-cli-check.ps1",

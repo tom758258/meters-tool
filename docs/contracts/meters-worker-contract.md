@@ -356,12 +356,13 @@ gate time, automatic Frequency timeout, and no Period timeout command.
 cases. `keysight-34460a` `full` is basic plus Frequency/Period only.
 
 Before each live Frequency/Period CLI case, the wrapper runs a private probe
-against the explicit `-Resource`. The probe records `*IDN?`, firmware revision,
-the `READ?` response, and up to 10 `SYST:ERR?` responses immediately after each
-planned SCPI command. A case passes only when the probe reports zero for every
-SCPI error response and the formal CLI sample/CSV checks also pass. A failed
-probe skips the duplicate formal CLI run but does not prevent the other
-Frequency/Period measurement from being diagnosed.
+against the explicit `-Resource` and validates identity against the selected
+target model. The probe records `*IDN?`, firmware revision, the `READ?`
+response, and up to 10 `SYST:ERR?` responses immediately after each planned SCPI
+command. A case passes only when the probe reports zero for every SCPI error
+response and the formal CLI sample/CSV checks also pass. A failed probe skips
+the duplicate formal CLI run but does not prevent the other Frequency/Period
+measurement from being diagnosed.
 
 The probe sends only the runtime's planned SCPI commands; it does not search
 for alternate timeout syntax. Probe cleanup records the order `abort`,

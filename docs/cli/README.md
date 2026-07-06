@@ -304,15 +304,15 @@ After reviewing the plans, remove `-PlanOnly` to run the two bounded live
 cases. The suite uses Auto Range, a `20` Hz AC filter, a `0.1` second gate
 time, automatic Frequency timeout, no Period timeout command, and one sample
 per measurement.
-Before each formal CLI case, a private diagnostic session sends the planned
-SCPI commands and checks `SYST:ERR?` after every command and after `READ?`.
-The report includes the IDN, firmware revision, per-command error responses,
-and the diagnostic JSON path. A probe error fails that case and skips its
-duplicate formal run while allowing the other measurement to be diagnosed.
-Compare the reported value and CSV row with the 34461A front panel. On a
-34461A with firmware A.03.03, both probes completed without SCPI errors and
-each formal case produced one sample and CSV row after the Period timeout
-command was omitted. The
+Before each formal CLI case, a private diagnostic session validates identity
+against the selected target model, sends the planned SCPI commands, and checks
+`SYST:ERR?` after every command and after `READ?`. The report includes the IDN,
+firmware revision, per-command error responses, and the diagnostic JSON path. A
+probe error fails that case and skips its duplicate formal run while allowing
+the other measurement to be diagnosed. Compare the reported value and CSV row
+with the selected meter front panel. On a 34461A with firmware A.03.03, both
+probes completed without SCPI errors and each formal case produced one sample
+and CSV row after the Period timeout command was omitted. The
 [Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf),
 Edition 10, May 2024, contains ambiguous timeout syntax; observed instrument
 behavior is authoritative for the unsupported Period header.

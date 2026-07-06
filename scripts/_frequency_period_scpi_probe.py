@@ -136,11 +136,16 @@ def _run_session(
     resource: str,
     commands: Sequence[str],
     timeout_ms: int,
+    model: str | None,
     resource_manager_factory: Callable[[], object] | None,
     include_read: bool,
 ) -> dict[str, Any]:
     instrument = VisaInstrument(
-        InstrumentConfig(resource_string=resource, timeout_ms=timeout_ms),
+        InstrumentConfig(
+            resource_string=resource,
+            timeout_ms=timeout_ms,
+            expected_model=model,
+        ),
         resource_manager_factory=resource_manager_factory,
     )
     result: dict[str, Any] = {
@@ -196,6 +201,7 @@ def run_probe(
     measurement: str,
     commands: Sequence[str],
     timeout_ms: int = 5000,
+    model: str | None = None,
     resource_manager_factory: Callable[[], object] | None = None,
 ) -> dict[str, Any]:
     if not resource.strip():
@@ -209,6 +215,7 @@ def run_probe(
         resource=resource,
         commands=commands,
         timeout_ms=timeout_ms,
+        model=model,
         resource_manager_factory=resource_manager_factory,
         include_read=True,
     )
@@ -232,6 +239,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--measurement", choices=("frequency", "period"), required=True)
     parser.add_argument("--command", action="append", dest="commands", required=True)
     parser.add_argument("--timeout-ms", type=int, default=5000)
+    parser.add_argument("--model", choices=("34460A", "34461A"))
     return parser
 
 
@@ -243,6 +251,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             measurement=args.measurement,
             commands=args.commands,
             timeout_ms=args.timeout_ms,
+            model=args.model,
         )
     except Exception as exc:
         result = {

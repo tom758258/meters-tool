@@ -510,6 +510,7 @@ function Invoke-FrequencyPeriodScpiProbe {
     $args = @(
         $ScpiProbeScript,
         "--resource", $Resource,
+        "--model", $resolvedCliModel,
         "--measurement", $measurement,
         "--timeout-ms", "5000"
     )

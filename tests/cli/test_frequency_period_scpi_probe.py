@@ -25,12 +25,17 @@ PERIOD_COMMANDS = [
 
 
 class FakeVisaSession:
-    def __init__(self, error_responses: dict[str, list[str]] | None = None):
+    def __init__(
+        self,
+        error_responses: dict[str, list[str]] | None = None,
+        idn: str = "Keysight Technologies,34461A,MY12345678,A.03.02",
+    ):
         self.timeout = None
         self.writes: list[str] = []
         self.closed = False
         self.cleared = False
         self.control_ren_calls: list[int] = []
+        self.idn = idn
         self._error_responses = error_responses or {}
         self._active_errors: deque[str] = deque()
 
@@ -44,7 +49,7 @@ class FakeVisaSession:
             self._active_errors = deque(
                 self._error_responses.get(command, ['+0,"No error"'])
             )
-            return "Keysight Technologies,34461A,MY12345678,A.03.02"
+            return self.idn
         if command == "READ?":
             self._active_errors = deque(
                 self._error_responses.get(command, ['+0,"No error"'])
@@ -95,6 +100,7 @@ def resource_manager_factory(
 def run_frequency_probe(
     sessions: list[FakeVisaSession],
     commands: list[str] | None = None,
+    model: str | None = None,
 ) -> tuple[dict, list[FakeResourceManager]]:
     factory, managers = resource_manager_factory(sessions)
     with patch("keysight_logger_core.instrument.time.sleep", return_value=None):
@@ -102,6 +108,7 @@ def run_frequency_probe(
             resource="USB::FAKE",
             measurement="frequency",
             commands=commands or FREQUENCY_COMMANDS,
+            model=model,
             resource_manager_factory=factory,
         )
     return result, managers
@@ -120,6 +127,35 @@ def test_probe_accepts_zero_error_queue_and_cleans_up():
     assert result["read"]["response"] == "1000.0"
     assert result["read"]["all_error_responses_zero"] is True
     assert result["cleanup"]["order"] == ["abort", "release_to_local", "close"]
+    assert session.closed is True
+    assert managers[0].closed is True
+
+
+def test_probe_accepts_34460a_identity_when_model_selected():
+    session = FakeVisaSession(
+        idn="Keysight Technologies,34460A,MY12345678,A.03.02"
+    )
+
+    result, managers = run_frequency_probe([session], model="34460A")
+
+    assert result["status"] == "passed"
+    assert result["idn"] == "Keysight Technologies,34460A,MY12345678,A.03.02"
+    assert session.closed is True
+    assert managers[0].closed is True
+
+
+def test_probe_without_model_keeps_default_34461a_identity_check():
+    session = FakeVisaSession(
+        idn="Keysight Technologies,34460A,MY12345678,A.03.02"
+    )
+
+    result, managers = run_frequency_probe([session], model=None)
+
+    assert result["status"] == "failed"
+    assert any(
+        "expected Keysight/Agilent 34461A" in reason
+        for reason in result["failure_reasons"]
+    )
     assert session.closed is True
     assert managers[0].closed is True
 
