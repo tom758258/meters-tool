@@ -826,12 +826,20 @@ def _format_keepalive_event() -> str:
     return ": keepalive\n\n"
 
 
+class _NoStoreJavaScriptStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: dict[str, Any]):
+        response = await super().get_response(path, scope)
+        if path.lower().endswith(".js"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+
 def create_app(manager: WebRunManager | None = None) -> FastAPI:
     static_dir = Path(__file__).with_name("static")
     index_html = _render_index_html(static_dir)
     app = FastAPI(title="Keysight Logger Web UI")
     app.state.manager = manager or WebRunManager()
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    app.mount("/static", _NoStoreJavaScriptStaticFiles(directory=static_dir), name="static")
 
     @app.get("/")
     def index() -> HTMLResponse:

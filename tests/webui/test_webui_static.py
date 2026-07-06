@@ -124,6 +124,7 @@ class WebUiStaticTests(unittest.TestCase):
             'id="toggle-live-stats"',
             'id="live-stats-grid"',
             'id="toggle-live-chart"',
+            'id="live-chart-content"',
             'id="live-chart-scale-mode"',
             'id="live-chart-manual-span"',
             'id="live-chart-scale-info"',
@@ -151,7 +152,7 @@ class WebUiStaticTests(unittest.TestCase):
                 self.assertIn(expected, app_js)
 
     def test_static_ui_live_chart_scale_controls_are_in_trend_section(self):
-        index, _app_js = load_static_ui()
+        index, app_js = load_static_ui()
 
         trend_section = re.search(
             r"<div class=\"live-collapse-section\">[\s\S]*?<span>Trend</span>"
@@ -162,6 +163,20 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIsNotNone(trend_section)
         trend_html = trend_section.group(0)
 
+        assert_tag_with_attrs(
+            self,
+            trend_html,
+            "button",
+            {"id": "toggle-live-chart", "aria-controls": "live-chart-content"},
+        )
+        self.assertRegex(
+            trend_html,
+            r"<div\b(?=[^>]*\bid=\"live-chart-content\")"
+            r"(?=[^>]*\bclass=\"live-chart-content\")[^>]*>"
+            r"[\s\S]*?<div class=\"live-chart-controls\">"
+            r"[\s\S]*?id=\"live-chart-scale-info\""
+            r"[\s\S]*?id=\"live-chart-shell\"",
+        )
         self.assertLess(
             trend_html.index('id="live-chart-scale-mode"'),
             trend_html.index('id="live-chart-shell"'),
@@ -175,6 +190,20 @@ class WebUiStaticTests(unittest.TestCase):
             trend_html.index('id="live-chart-shell"'),
         )
         self.assertIn('id="live-trend-chart"', trend_html)
+        self.assertIn("export const liveChartContent", app_js)
+
+        chart_toggle = re.search(
+            r"toggleLiveChartButton\.addEventListener\(\"click\", \(\) => \{"
+            r"([\s\S]*?)\n  \}\);",
+            app_js,
+        )
+        self.assertIsNotNone(chart_toggle)
+        self.assertIn("liveChartContent", chart_toggle.group(1))
+        self.assertNotIn("liveChartShell", chart_toggle.group(1))
+        self.assertIn(
+            "setLiveSectionVisible(toggleLiveChartButton, liveChartContent, true)",
+            app_js,
+        )
 
     def test_static_ui_live_chart_scale_defaults_and_form_boundary(self):
         index, app_js = load_static_ui()
@@ -187,7 +216,11 @@ class WebUiStaticTests(unittest.TestCase):
             self,
             index,
             "label",
-            {"id": "live-chart-manual-span-field", "class": "is-hidden"},
+            {
+                "id": "live-chart-manual-span-field",
+                "class": "is-hidden",
+                "aria-hidden": "true",
+            },
         )
         self.assertRegex(
             index,
@@ -201,7 +234,31 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertNotIn("form=", manual_span_tag.group(0))
 
         self.assertIn('liveChartScaleMode = "auto-deviation"', app_js)
+        self.assertIn(
+            'liveChartScaleMode = liveChartScaleModeSelect.value || "auto-deviation"',
+            app_js,
+        )
         self.assertIn('liveChartScaleMode === "manual-span"', app_js)
+        self.assertIn(
+            'liveChartManualSpanField.setAttribute("aria-hidden", String(!manual))',
+            app_js,
+        )
+        self.assertIn("liveChartManualSpanInput.disabled = !manual", app_js)
+        self.assertIn("window.__KEYSIGHT_LIVE_DATA_SCALE_MODES__ = true", app_js)
+
+        scale_change = re.search(
+            r"liveChartScaleModeSelect\.addEventListener\(\"change\", \(\) => \{"
+            r"([\s\S]*?)\n  \}\);",
+            app_js,
+        )
+        self.assertIsNotNone(scale_change)
+        self.assertIn(
+            'liveChartScaleMode = liveChartScaleModeSelect.value || "auto-deviation"',
+            scale_change.group(1),
+        )
+        self.assertIn("updateLiveChartScaleControls();", scale_change.group(1))
+        self.assertIn("renderLiveChart(lastLiveChartSamples);", scale_change.group(1))
+
         form_payload = re.search(r"export function formPayload\(\) \{([\s\S]*?)\n\}", app_js)
         self.assertIsNotNone(form_payload)
         self.assertNotIn("live-chart-scale-mode", form_payload.group(1))

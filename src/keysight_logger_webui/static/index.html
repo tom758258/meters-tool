@@ -274,44 +274,46 @@
                 id="toggle-live-chart"
                 class="live-collapse-toggle"
                 type="button"
-                aria-controls="live-chart-shell"
+                aria-controls="live-chart-content"
                 aria-expanded="true"
               >
                 -
               </button>
             </div>
-            <div class="live-chart-controls">
-              <label>
-                Scale mode
-                <select id="live-chart-scale-mode">
-                  <option value="auto-deviation" selected>Auto deviation</option>
-                  <option value="auto-absolute">Auto absolute</option>
-                  <option value="manual-span">Manual span</option>
-                </select>
-              </label>
-              <label id="live-chart-manual-span-field" class="is-hidden">
-                Manual span
-                <input
-                  id="live-chart-manual-span"
-                  type="number"
-                  min="0"
-                  step="any"
-                  placeholder="0.01"
-                  disabled
-                />
-              </label>
-            </div>
-            <p id="live-chart-scale-info" class="live-chart-scale-info">Auto deviation</p>
-            <div id="live-chart-shell" class="live-chart-shell">
-              <svg
-                id="live-trend-chart"
-                class="live-trend-chart"
-                viewBox="0 0 640 180"
-                preserveAspectRatio="none"
-                role="img"
-                aria-label="Live sample value trend"
-              ></svg>
-              <div id="live-chart-empty" class="live-chart-empty">Waiting for samples</div>
+            <div id="live-chart-content" class="live-chart-content">
+              <div class="live-chart-controls">
+                <label>
+                  Scale mode
+                  <select id="live-chart-scale-mode">
+                    <option value="auto-deviation" selected>Auto deviation</option>
+                    <option value="auto-absolute">Auto absolute</option>
+                    <option value="manual-span">Manual span</option>
+                  </select>
+                </label>
+                <label id="live-chart-manual-span-field" class="is-hidden" aria-hidden="true">
+                  Manual span
+                  <input
+                    id="live-chart-manual-span"
+                    type="number"
+                    min="0"
+                    step="any"
+                    placeholder="0.01"
+                    disabled
+                  />
+                </label>
+              </div>
+              <p id="live-chart-scale-info" class="live-chart-scale-info">Auto deviation</p>
+              <div id="live-chart-shell" class="live-chart-shell">
+                <svg
+                  id="live-trend-chart"
+                  class="live-trend-chart"
+                  viewBox="0 0 640 180"
+                  preserveAspectRatio="none"
+                  role="img"
+                  aria-label="Live sample value trend"
+                ></svg>
+                <div id="live-chart-empty" class="live-chart-empty">Waiting for samples</div>
+              </div>
             </div>
           </div>
 

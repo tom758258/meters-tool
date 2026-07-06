@@ -329,6 +329,22 @@ class WebUiApiTests(unittest.TestCase):
             response.text,
         )
 
+    def test_static_javascript_assets_are_not_cached(self):
+        client, _csv_path = self.make_client()
+
+        response = client.get("/static/live_data.js")
+
+        self.assertEqual(200, response.status_code)
+        self.assertIn("no-store", response.headers["Cache-Control"])
+
+    def test_static_no_store_header_is_limited_to_javascript_assets(self):
+        client, _csv_path = self.make_client()
+
+        response = client.get("/static/styles.css")
+
+        self.assertEqual(200, response.status_code)
+        self.assertNotIn("no-store", response.headers.get("Cache-Control", ""))
+
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
         client, csv_path = self.make_client()
         request = {

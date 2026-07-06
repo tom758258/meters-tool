@@ -22,6 +22,7 @@ export const liveStatStdDev = document.querySelector("#live-stat-std-dev");
 export const liveStatSample = document.querySelector("#live-stat-sample");
 export const liveStatsGrid = document.querySelector("#live-stats-grid");
 export const toggleLiveStatsButton = document.querySelector("#toggle-live-stats");
+export const liveChartContent = document.querySelector("#live-chart-content");
 export const liveChartShell = document.querySelector("#live-chart-shell");
 export const toggleLiveChartButton = document.querySelector("#toggle-live-chart");
 export const liveTrendChart = document.querySelector("#live-trend-chart");

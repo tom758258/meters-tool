@@ -1,11 +1,11 @@
 import {
   closeLiveSampleDetailsButton,
+  liveChartContent,
   liveChartEmpty,
   liveChartManualSpanField,
   liveChartManualSpanInput,
   liveChartScaleInfo,
   liveChartScaleModeSelect,
-  liveChartShell,
   liveDataSummary,
   liveLatestTime,
   liveLatestTrigger,
@@ -40,6 +40,10 @@ let liveChartManualSpan = null;
 let liveChartManualSpanInputInvalid = false;
 let lastLiveChartSamples = [];
 
+if (typeof window !== "undefined") {
+  window.__KEYSIGHT_LIVE_DATA_SCALE_MODES__ = true;
+}
+
 export function setLiveSectionVisible(button, section, visible) {
   section.classList.toggle("is-hidden", !visible);
   button.setAttribute("aria-expanded", String(visible));
@@ -47,6 +51,8 @@ export function setLiveSectionVisible(button, section, visible) {
 }
 
 export function initializeLiveDataUi() {
+  liveChartScaleMode = liveChartScaleModeSelect.value || "auto-deviation";
+
   closeLiveSampleDetailsButton.addEventListener("click", () => {
     liveSampleDetailsVisible = false;
     selectedLiveSampleSequence = null;
@@ -80,7 +86,7 @@ export function initializeLiveDataUi() {
   toggleLiveChartButton.addEventListener("click", () => {
     setLiveSectionVisible(
       toggleLiveChartButton,
-      liveChartShell,
+      liveChartContent,
       toggleLiveChartButton.getAttribute("aria-expanded") !== "true"
     );
   });
@@ -92,10 +98,11 @@ export function initializeLiveDataUi() {
     );
   });
 
-  setLiveSectionVisible(toggleLiveChartButton, liveChartShell, true);
+  setLiveSectionVisible(toggleLiveChartButton, liveChartContent, true);
   setLiveSectionVisible(toggleLiveStatsButton, liveStatsGrid, true);
   setLiveSectionVisible(toggleLiveSamplesButton, liveTableWrap, true);
   updateLiveChartScaleControls();
+  renderLiveChart(lastLiveChartSamples);
 }
 
 export function renderLiveData(status) {
@@ -260,6 +267,7 @@ function renderLiveChart(samples) {
 function updateLiveChartScaleControls() {
   const manual = liveChartScaleMode === "manual-span";
   liveChartManualSpanField.classList.toggle("is-hidden", !manual);
+  liveChartManualSpanField.setAttribute("aria-hidden", String(!manual));
   liveChartManualSpanInput.disabled = !manual;
 }
 
