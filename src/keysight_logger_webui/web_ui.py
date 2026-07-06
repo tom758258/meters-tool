@@ -47,7 +47,7 @@ from keysight_logger_core.command import (
     command_response,
     parse_command_envelope,
 )
-from keysight_logger_core.instrument import VisaInstrument
+from keysight_logger_core.instrument import InstrumentError, VisaInstrument
 from keysight_logger_core.measurement import (
     get_measurement_definition,
     registered_measurement_types,
@@ -149,6 +149,10 @@ class RunAlreadyActive(WebRunError):
 
 class RunValidationError(WebRunError):
     status_code = 422
+
+
+class RunConnectionError(WebRunError):
+    status_code = 503
 
 
 class NoActiveRun(WebRunError):
@@ -503,7 +507,7 @@ class WebRunManager:
                 if result is not None and not result.ok and result.reason == "connect_error":
                     self._active = None
                     self._publish_status_locked(status)
-                    raise RuntimeError(
+                    raise RunConnectionError(
                         _webui_connection_error_message(
                             result.fatal_error or "connect_error",
                             profile.model,
@@ -516,6 +520,12 @@ class WebRunManager:
                 if handle is not None and self._active is handle:
                     self._active = None
             raise RunValidationError(str(exc)) from exc
+        except InstrumentError as exc:
+            with self._lock:
+                self._starting = False
+                if handle is not None and self._active is handle:
+                    self._active = None
+            raise RunConnectionError(str(exc)) from exc
         except Exception:
             with self._lock:
                 self._starting = False

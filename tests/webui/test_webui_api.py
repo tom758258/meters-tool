@@ -19,6 +19,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
     TestClient = None
 
 if TestClient is not None:
+    from keysight_logger_core.instrument import InstrumentError
     from keysight_logger_core.runner import StartRunnerDependencies
     from keysight_logger_webui.web_ui import (
         APP_JS_CACHEBUSTER_TOKEN,
@@ -1046,6 +1047,133 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(["34460A"], seen_expected_models)
         preflight.assert_called_once()
+
+    def test_live_preflight_instrument_error_returns_503_and_resets_starting(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+
+        with patch(
+            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            side_effect=InstrumentError("failed to query instrument identity: boom"),
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB::BAD",
+                    "csv": str(csv_path),
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        follow_up = client.post(
+            "/api/runs",
+            json={
+                "resource": " ",
+                "csv": str(csv_path),
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(503, response.status_code)
+        self.assertIn("failed to query instrument identity", response.json()["detail"])
+        self.assertEqual(422, follow_up.status_code)
+
+    def test_runtime_connect_error_returns_503_and_resets_starting(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+
+        class FakeInstrument:
+            resource_id = "USB::FAKE"
+
+            def connect(self):
+                raise InstrumentError("failed to validate instrument identity: boom")
+
+            def release_to_local(self):
+                return "release:ok"
+
+            def close(self):
+                return None
+
+            def cleanup_release_to_local(self):
+                return "cleanup:ok"
+
+        class FakeStorage:
+            def __init__(self, _path):
+                return None
+
+        class FakeEngine:
+            def __init__(self, **_kwargs):
+                self.stats = SimpleNamespace(captured=0, errors=0)
+                self.fatal_error = None
+
+            def run(self, *, trigger_mode, hardware_trigger_slope):  # noqa: ARG002
+                return None
+
+            def stop(self):
+                return None
+
+        class CompletedThread:
+            def __init__(self, *, target, kwargs, daemon):  # noqa: ARG002
+                self._target = target
+                self._kwargs = kwargs
+                self._alive = False
+
+            def start(self):
+                self._alive = True
+                self._target(**self._kwargs)
+                self._alive = False
+
+            def is_alive(self):
+                return self._alive
+
+            def join(self, timeout=None):  # noqa: ARG002
+                self._alive = False
+
+        def instrument_factory(config, *, simulate, measurement_type):  # noqa: ARG001
+            return FakeInstrument()
+
+        manager = WebRunManager(
+            runner_dependencies=StartRunnerDependencies(
+                instrument_backend_factory=instrument_factory,
+                storage_factory=FakeStorage,
+                measurement_factory=lambda _measurement_type: object(),
+                engine_factory=lambda **kwargs: FakeEngine(**kwargs),
+                thread_factory=CompletedThread,
+            )
+        )
+        client = self.make_client_with_manager(manager)
+
+        with patch(
+            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34461A,MY123,1.0",
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB::FAKE",
+                    "csv": str(csv_path),
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        follow_up = client.post(
+            "/api/runs",
+            json={
+                "resource": " ",
+                "csv": str(csv_path),
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+
+        self.assertEqual(503, response.status_code)
+        self.assertIn("boom", response.json()["detail"])
+        self.assertEqual(422, follow_up.status_code)
 
     def test_model_idn_mismatch_returns_webui_action_message(self):
         self.tempdir = tempfile.TemporaryDirectory()
