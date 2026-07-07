@@ -6,6 +6,7 @@ import {
   liveChartManualSpanField,
   liveChartManualSpanInput,
   liveChartScaleInfo,
+  liveChartScaleModeHelp,
   liveChartScaleModeSelect,
   liveDataSummary,
   liveLatestTime,
@@ -124,6 +125,12 @@ export function refreshLiveChartScaleAvailability(notice = null) {
   }
   const rangeStepAvailable = liveChartRangeStepAvailable();
   rangeStepOption.disabled = !rangeStepAvailable;
+  if (liveChartScaleModeHelp) {
+    liveChartScaleModeHelp.textContent = rangeStepAvailable
+      ? ""
+      : rangeStepUnavailableMessage();
+    liveChartScaleModeHelp.classList.toggle("is-hidden", rangeStepAvailable);
+  }
   if (liveChartScaleMode !== "range-step") {
     renderLiveChart(lastLiveChartSamples);
     return;

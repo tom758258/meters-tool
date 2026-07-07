@@ -28,6 +28,7 @@ export const toggleLiveChartButton = document.querySelector("#toggle-live-chart"
 export const liveTrendChart = document.querySelector("#live-trend-chart");
 export const liveChartEmpty = document.querySelector("#live-chart-empty");
 export const liveChartScaleModeSelect = document.querySelector("#live-chart-scale-mode");
+export const liveChartScaleModeHelp = document.querySelector("#live-chart-scale-mode-help");
 export const liveChartManualSpanField = document.querySelector("#live-chart-manual-span-field");
 export const liveChartManualSpanInput = document.querySelector("#live-chart-manual-span");
 export const liveChartScaleInfo = document.querySelector("#live-chart-scale-info");

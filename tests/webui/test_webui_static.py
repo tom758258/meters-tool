@@ -479,6 +479,24 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('liveChartScaleMode = "auto-deviation"', app_js)
         self.assertIn('liveChartScaleModeSelect.value = "auto-deviation"', app_js)
         self.assertIn("chartScaleForRangeStep(baseline, rangeStepSpan)", app_js)
+        self.assertIn('id="live-chart-scale-mode-help"', index)
+        assert_tag_with_attrs(
+            self,
+            index,
+            "span",
+            {"id": "live-chart-scale-mode-help", "class": "field-help is-hidden"},
+        )
+        self.assertIn("export const liveChartScaleModeHelp", app_js)
+        self.assertIn("liveChartScaleModeHelp", app_js)
+        self.assertIn(
+            "liveChartScaleModeHelp.textContent = rangeStepAvailable",
+            app_js,
+        )
+        self.assertIn(": rangeStepUnavailableMessage();", app_js)
+        self.assertIn(
+            'liveChartScaleModeHelp.classList.toggle("is-hidden", rangeStepAvailable)',
+            app_js,
+        )
         self.assertIn(
             "gridStepValue: span / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE",
             app_js,
