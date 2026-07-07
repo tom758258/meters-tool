@@ -16,6 +16,40 @@
       </section>
 
       <section class="resource-row">
+        <div class="resource-row-header">
+          <h2>Device / Resource</h2>
+          <div class="device-options">
+            <button
+              id="device-options-toggle"
+              class="device-options-button"
+              type="button"
+              title="Device options"
+              aria-label="Device options"
+              aria-controls="device-options-panel"
+              aria-expanded="false"
+            >
+              <span aria-hidden="true">&#9881;</span>
+            </button>
+            <div
+              id="device-options-panel"
+              class="device-options-panel is-hidden"
+              aria-labelledby="device-options-title"
+            >
+              <h2 id="device-options-title">Device options</h2>
+              <label>
+                Expected model
+                <select name="instrument_model" id="instrument-model" form="run-form">
+                  <option value="">Auto-detect</option>
+                  <option value="34460A">Require 34460A</option>
+                  <option value="34461A">Require 34461A</option>
+                </select>
+              </label>
+              <p class="device-options-help">
+                Auto-detect uses the connected instrument IDN. Select a model only when you want to require a specific one.
+              </p>
+            </div>
+          </div>
+        </div>
         <label>
           VISA resource
           <input id="resource" name="resource" form="run-form" placeholder="Waiting Scan" required />
@@ -42,14 +76,6 @@
               <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
-            <label>
-              Instrument model override
-              <select name="instrument_model" id="instrument-model">
-                <option value="">Auto-detect on start</option>
-                <option value="34461A">34461A</option>
-                <option value="34460A">34460A</option>
-              </select>
-            </label>
               <div class="csv-path-field">
                 <div class="csv-path-header">
                   <label for="csv-path-input">

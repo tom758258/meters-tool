@@ -32,11 +32,76 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertNotIn('name="nplc" form="run-form" type="number"', index)
         self.assertIn("measurement_range", app_js)
         self.assertIn("nplc", app_js)
-        self.assertIn('id="instrument-model"', index)
-        self.assertIn('name="instrument_model"', index)
-        self.assertIn("Auto-detect on start", index)
+        assert_tag_with_attrs(
+            self,
+            index,
+            "select",
+            {"id": "instrument-model", "name": "instrument_model", "form": "run-form"},
+        )
         self.assertIn("instrument_model", app_js)
         self.assertIn("/api/capabilities?model=", app_js)
+
+    def test_static_ui_places_expected_model_in_device_options_panel(self):
+        index, app_js = load_static_ui()
+
+        assert_tag_with_attrs(
+            self,
+            index,
+            "button",
+            {
+                "id": "device-options-toggle",
+                "type": "button",
+                "title": "Device options",
+                "aria-label": "Device options",
+                "aria-expanded": "false",
+            },
+        )
+        self.assertIn('aria-controls="device-options-panel"', index)
+        self.assertNotIn("Instrument model override", index)
+
+        run_setup = index[
+            index.index('<form id="run-form"')
+            : index.index('<section class="panel collapsible-panel" data-panel="measurement-options">')
+        ]
+        self.assertNotIn('id="instrument-model"', run_setup)
+        self.assertNotIn("Expected model", run_setup)
+
+        panel = index[
+            index.index('id="device-options-panel"')
+            : index.index("VISA resource")
+        ]
+        for expected in [
+            "Device options",
+            "Expected model",
+            "Auto-detect",
+            "Require 34460A",
+            "Require 34461A",
+            (
+                "Auto-detect uses the connected instrument IDN. Select a model only "
+                "when you want to require a specific one."
+            ),
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, panel)
+
+        self.assertIn("setDeviceOptionsExpanded", app_js)
+        self.assertIn('event.key === "Escape"', app_js)
+        self.assertIn('document.addEventListener("click"', app_js)
+
+    def test_static_ui_expected_model_payload_semantics_remain_instrument_model(self):
+        index, app_js = load_static_ui()
+
+        self.assertRegex(index, r'<option value="">Auto-detect</option>')
+        self.assertRegex(index, r'<option value="34460A">Require 34460A</option>')
+        self.assertRegex(index, r'<option value="34461A">Require 34461A</option>')
+        self.assertIn(
+            'instrument_model: textOrNull(data.get("instrument_model"))',
+            app_js,
+        )
+        self.assertIn('optionElement("", "Auto-detect")', app_js)
+        self.assertIn('optionElement(profile.model, `Require ${profile.model}`)', app_js)
+        self.assertNotIn("model_mode", app_js)
+        self.assertNotIn("modelMode", app_js)
 
     def test_static_ui_scan_resource_metadata_reloads_capabilities_without_forcing_model(self):
         _index, app_js = load_static_ui()

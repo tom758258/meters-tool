@@ -184,6 +184,68 @@ button:disabled:hover {
   box-shadow: var(--shadow-sm);
 }
 
+.resource-row-header {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.resource-row-header h2 {
+  margin-bottom: 0;
+}
+
+.device-options {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.device-options-button {
+  width: 32px;
+  min-height: 32px;
+  border-radius: 50%;
+  padding: 0;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.device-options-button[aria-expanded="true"] {
+  border-color: var(--accent);
+  background: #f0f6ff;
+  color: var(--accent);
+}
+
+.device-options-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  display: grid;
+  gap: 12px;
+  width: min(320px, calc(100vw - 72px));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  padding: 14px;
+  box-shadow: var(--shadow-md);
+}
+
+.device-options-panel h2 {
+  margin-bottom: 0;
+  font-size: 14px;
+}
+
+.device-options-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .live-resource-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

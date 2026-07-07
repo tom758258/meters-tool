@@ -130,9 +130,10 @@ The current WebUI layout is a direct acquisition console, not a landing page.
 Main areas:
 
 - Header: `Keysight Meters` and `Local acquisition console`.
-- Resource row: `VISA resource`, `Live resource`, and `Scan Device`.
-- Run Setup includes an instrument model override selector. It defaults to
-  `Auto-detect on start`; explicit 34460A/34461A choices force model-specific
+- Device / Resource row: `VISA resource`, `Live resource`, `Scan Device`, and a
+  `Device options` gear for the `Expected model` selector.
+- The Expected model selector defaults to `Auto-detect`; explicit
+  `Require 34460A` or `Require 34461A` choices enforce model-specific
   validation limits.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
@@ -150,8 +151,8 @@ JavaScript modules.
 1. Start the WebUI server.
 2. Open `http://127.0.0.1:8767/`.
 3. Enter a VISA resource manually or click `Scan Device`.
-4. Leave the model override on Auto unless you need to force 34460A or 34461A,
-   then select measurement and trigger settings.
+4. Leave `Expected model` in `Device options` on Auto-detect unless you need to
+   require 34460A or 34461A, then select measurement and trigger settings.
 5. Keep low-risk defaults for first contact with a real instrument:
    Auto Range on, immediate trigger, and a small `max_samples` value.
 6. Click `Start`.
@@ -182,12 +183,13 @@ with null model metadata so operators can still inspect or type resources
 without the listing failing.
 
 Selecting a live resource copies it into the `VISA resource` input. When the
-scan inferred a supported model and the override remains Auto, the browser may
-reload `/api/capabilities?model=<model>` for display options, but it leaves the
-override on Auto. Start always performs a fresh backend IDN preflight.
+scan inferred a supported model and `Expected model` remains Auto-detect, the
+browser may reload `/api/capabilities?model=<model>` for display options, but it
+leaves `Expected model` on Auto-detect. Start always performs a fresh backend
+IDN preflight.
 
-The user can still type a resource manually and can force the Instrument model
-override after scanning.
+The user can still type a resource manually and can require a specific Expected
+model from `Device options` after scanning.
 
 The WebUI uses the default system VISA runtime through Core. It does not expose
 a PyVISA backend selector in the browser. Use the CLI-only `--visa-library`
@@ -206,12 +208,12 @@ GET /api/capabilities?model=34461A
 When `model` is omitted, `/api/capabilities` returns the compatibility
 34461A-shaped capability surface with `defaults.instrument_model = null` and
 `model_resolution.resolved = false`. The browser sends no `instrument_model`
-for Auto; explicit override choices send `"34460A"` or `"34461A"`.
+for Auto; explicit Expected model choices send `"34460A"` or `"34461A"`.
 
-The Instrument model override is optional. Core validates the connected
-instrument identity at Start. If an explicit override does not match the fresh
-IDN preflight, the WebUI reports which model was selected and which supported
-model was found in the IDN.
+The Expected model check is optional. Core validates the connected instrument
+identity at Start. If an explicit expected model does not match the fresh IDN
+preflight, the WebUI reports which model was selected and which supported model
+was found in the IDN.
 
 Currently surfaced measurement modes include:
 

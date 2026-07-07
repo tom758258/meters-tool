@@ -41,6 +41,8 @@ export const closeLiveSampleDetailsButton = document.querySelector("#close-live-
 export const resourceInput = document.querySelector("#resource");
 export const resourceSelect = document.querySelector("#resource-select");
 export const refreshResourcesButton = document.querySelector("#refresh-resources");
+export const deviceOptionsToggleButton = document.querySelector("#device-options-toggle");
+export const deviceOptionsPanel = document.querySelector("#device-options-panel");
 export const csvInput = document.querySelector("[name='csv']");
 export const selectCsvFolderButton = document.querySelector("#select-csv-folder");
 export const startRunButton = document.querySelector("#start-run");

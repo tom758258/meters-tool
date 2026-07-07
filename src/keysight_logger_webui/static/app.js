@@ -5,6 +5,8 @@ import {
   autoZeroSelect,
   csvInput,
   currentTerminalSelect,
+  deviceOptionsPanel,
+  deviceOptionsToggleButton,
   form,
   freqPeriodTimeoutSelect,
   gateTimeSelect,
@@ -59,6 +61,14 @@ function setPanelExpanded(button, expanded) {
   panel.classList.toggle("is-collapsed", !expanded);
   button.setAttribute("aria-expanded", String(expanded));
   button.textContent = expanded ? "-" : "+";
+}
+
+function setDeviceOptionsExpanded(expanded) {
+  if (!deviceOptionsPanel || !deviceOptionsToggleButton) {
+    return;
+  }
+  deviceOptionsPanel.classList.toggle("is-hidden", !expanded);
+  deviceOptionsToggleButton.setAttribute("aria-expanded", String(expanded));
 }
 
 function updateMeasurementAndLiveChartScale() {
@@ -197,6 +207,39 @@ swMinIntervalInput.addEventListener("input", validateSwMinInterval);
 for (const button of panelToggles) {
   button.addEventListener("click", () => {
     setPanelExpanded(button, button.getAttribute("aria-expanded") !== "true");
+  });
+}
+if (deviceOptionsToggleButton && deviceOptionsPanel) {
+  deviceOptionsToggleButton.addEventListener("click", (event) => {
+    event.stopPropagation();
+    setDeviceOptionsExpanded(
+      deviceOptionsToggleButton.getAttribute("aria-expanded") !== "true"
+    );
+  });
+  deviceOptionsPanel.addEventListener("click", (event) => {
+    event.stopPropagation();
+  });
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Node)) {
+      return;
+    }
+    if (
+      deviceOptionsToggleButton.contains(target) ||
+      deviceOptionsPanel.contains(target)
+    ) {
+      return;
+    }
+    setDeviceOptionsExpanded(false);
+  });
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.key === "Escape" &&
+      deviceOptionsToggleButton.getAttribute("aria-expanded") === "true"
+    ) {
+      setDeviceOptionsExpanded(false);
+      deviceOptionsToggleButton.focus();
+    }
   });
 }
 

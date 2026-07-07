@@ -546,11 +546,13 @@ export async function loadCapabilities(model = null) {
   applyInputLimits(capabilities.limits);
   if (instrumentModelSelect) {
     const forcedModel = textOrNull(instrumentModelSelect.value);
-    const profileOptions = capabilities.available_profiles || [];
+    const profileOptions = [...(capabilities.available_profiles || [])].sort((a, b) =>
+      String(a.model || "").localeCompare(String(b.model || ""))
+    );
     instrumentModelSelect.replaceChildren(
-      optionElement("", "Auto-detect on start"),
+      optionElement("", "Auto-detect"),
       ...profileOptions.map((profile) =>
-        optionElement(profile.model, profile.model)
+        optionElement(profile.model, `Require ${profile.model}`)
       )
     );
     instrumentModelSelect.value = forcedModel || "";
