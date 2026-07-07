@@ -2,19 +2,23 @@
 
 # Keysight Logger
 
-Keysight Logger 是供 Keysight 34461A 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `keysight-logger`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`keysight_logger_core`、`keysight_logger_cli` 與 `keysight_logger_webui`。
+Keysight Logger 是供 Keysight 34460A 與 34461A Truevolt 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `keysight-logger`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`keysight_logger_core`、`keysight_logger_cli` 與 `keysight_logger_webui`。
 
 本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。每筆擷取的樣本都會寫入 CSV 的一行，包含時間戳記、量測類型、單位、觸發來源與相關 metadata。
 
 ## 功能特性
 
-* 透過 USB 或 LAN 使用 VISA 控制 Keysight 34461A
+* 透過 VISA 控制支援的 Keysight Truevolt DMM
 * 設定量測範圍 (range)、NPLC、Auto Zero、AC 頻寬 (bandwidth)、電流端子 (current terminal) 與 DC 電壓輸入阻抗 (input impedance)
 * 支援 software、timer、external hardware、immediate 與 buffered 觸發工作流程
 * 使用 dry-run 模式預覽儀器命令
 * 使用內建模擬器在沒有硬體的情況下測試工作流程
 * 透過 CLI 或本機 WebUI 進行操作
 * 產生 JSON 與 JSONL 輸出，供自動化、agent 與 orchestrator 使用
+
+當未提供預期型號時，Live CLI 與 WebUI 啟動會透過 `*IDN?` 自動偵測已連接的型號。只有當啟動必須要求該 IDN 相符時，才選擇 CLI `--model 34460A` / `--model 34461A` 或 WebUI `Require 34460A` / `Require 34461A`；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 與 simulator 執行需要明確型號，除非 simulator resource 以可確定的方式編碼了型號，例如 `SIM::34460A` 或 `SIM::34461A`。
+
+CLI 中會開啟 VISA 資源的命令預設使用 `pyvisa.ResourceManager()` 與系統預設的 VISA 執行階段。進階 CLI 診斷可以明確選取 PyVISA library/backend，例如在安裝可選的 pyvisa-py 套件之後使用 `--visa-library "@py"` 或別名 `--backend "@py"`。WebUI 則維持使用預設的系統 VISA 執行階段。
 
 ## 專案結構
 

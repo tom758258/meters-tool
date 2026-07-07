@@ -117,7 +117,8 @@ http://127.0.0.1:8767/
 主要區域：
 
 - 標頭：`Keysight Meters` 和 `Local acquisition console`。
-- 資源列：`VISA resource`、`Live resource` 和 `Scan Device`。
+- `Device / Resource` 列：`VISA resource`、`Live resource`、`Scan Device`，以及 `Device options` 齒輪中的 `Expected model` 選擇器。此列預設展開，可收合成資源/型號摘要。
+- `Expected model` 選擇器預設為 `Auto-detect`，會在 Start 時使用連接中的儀器 IDN。若明確選擇 `Require 34460A` 或 `Require 34461A`，仍會讀取 IDN，只有在符合時才啟動，並套用對應的型號驗證限制。
 - 狀態列 (Status strip)：`State`、`Captured`、`Errors` 和 `CSV`。
 - 動作按鈕：`Start`、`Trigger`、`Stop` 和 `Open CSV`。
 - 用於執行設定 (run configuration)、量測設定、觸發設定、即時數據 (Live data) 與狀態詳細資料的可摺疊設定面板。
@@ -150,7 +151,11 @@ GET /api/resources?verify=true&live_only=true
 
 後端會使用 Core 的資源列表行為。啟用驗證時，它會開啟每個候選資源並查詢 `*IDN?`。當 `live_only=true` 時，它僅會傳回有回應且為作用中 (live) 裝置的資源。
 
-選擇作用中的資源會將其複製到 `VISA resource` 輸入欄位中。使用者仍然可以手動輸入資源。
+選擇作用中的資源會將其複製到 `VISA resource` 輸入欄位中。當掃描辨識出支援的型號且 `Expected model` 仍為 Auto-detect 時，瀏覽器可能會重新載入 `/api/capabilities?model=<model>` 以顯示對應選項，但仍會維持 `Expected model` 為 Auto-detect。Start 一律會先執行新的後端 IDN preflight。
+
+使用者仍然可以手動輸入資源，並在掃描後於 `Device options` 中要求特定的 `Expected model`。
+
+WebUI 使用 Core 預設的系統 VISA 執行階段。瀏覽器中不提供 PyVISA backend 選擇器。只有在需要可選的 pyvisa-py 診斷時，才使用 CLI 專用的 `--visa-library` 進階選項。
 
 ## 量測模式
 
@@ -511,7 +516,7 @@ uv run pytest tests -q -p no:cacheprovider
 
 頻率與週期真實儀器檢查：
 
-- 連接 34461A 前面板能量測的穩定訊號。
+- 連接一個可由前面板穩定量測的訊號。
 - 選擇 Frequency (頻率)，確認啟用 Auto Range、`20 Hz` AC 濾波器、`0.1 s` 閘門時間，以及 `Auto` 逾時，然後擷取一個即時樣本。
 - 確認即時數據的值使用原始的 `Hz`，並與前面板對比。
 - 以 Period (週期) 重複上述步驟，並確認原始單位為 `s`。

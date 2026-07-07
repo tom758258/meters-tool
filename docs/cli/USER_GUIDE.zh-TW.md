@@ -1,6 +1,6 @@
 # Keysight Logger CLI 使用者指南
 
-本指南適用於取得已建置之 CLI 執行檔或已安裝的 `keysight-logger` 指令，並使用它來記錄 Keysight 34461A 量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
+本指南適用於取得已建置之 CLI 執行檔或已安裝的 `keysight-logger` 指令，並使用它來記錄支援的 Keysight Truevolt DMM 量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
 
 ## 啟動 CLI
 
@@ -22,14 +22,14 @@ keysight-logger-<version>.exe
 
 在檢查新的電腦、VISA 執行階段、連線或儀器設定時，請使用此流程。
 
-1. 開啟 Keysight 34461A 電源並將其連接至電腦。
+1. 開啟 Keysight 34460A 或 34461A 電源並將其連接至電腦。
 2. 列出目前能回應 `*IDN?` 指令的資源：
 
 ```powershell
 .\keysight-logger.exe list-resources --live-only
 ```
 
-3. 複製 34461A 的資源字串。
+3. 複製儀器的資源字串。
 4. 執行一次有界限的即時模式 (immediate-mode) 樣本：
 
 ```powershell
@@ -43,6 +43,10 @@ keysight-logger-<version>.exe
 
 5. 確認指令正常退出、CSV 檔案已存在，且 CSV 包含一筆資料列。
 6. 在信任較長期的擷取之前，請將 CSV 數值與前面板讀數進行對比。
+
+Live 啟動在省略 `--model` 時會透過已連接儀器的 IDN 自動偵測 34460A 或 34461A。只有在 Start 必須要求該 IDN 相符時，才加入 `--model 34460A` 或 `--model 34461A`；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 指令需要 `--model`，除非資源是可確定型號的 simulator resource，例如 `SIM::34460A` 或 `SIM::34461A`。
+
+CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。進階的 pyvisa-py LAN 診斷可以安裝可選的 backend 套件，並在 `list-resources` 或 `start-trigger-record` 中加入 `--visa-library "@py"`；`--backend "@py"` 也接受作為別名。一般 WebUI 執行則使用預設的系統 VISA 執行階段。
 
 進行實機擷取時請使用明確的資源字串。請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。
 
@@ -80,6 +84,8 @@ keysight-logger-<version>.exe
 ## 常見設定
 
 `--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。
+
+`--visa-library` 是進階 CLI 專用的 PyVISA backend 選擇器。一般情況下請省略它。只有在刻意使用可選的 pyvisa-py backend 測試時，才使用 `--visa-library "@py"`；LAN/TCPIP 通常是最先嘗試的最佳路徑。
 
 `--csv` 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。
 

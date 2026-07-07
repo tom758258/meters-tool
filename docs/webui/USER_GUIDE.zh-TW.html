@@ -215,7 +215,7 @@
 
     <main>
         <h1>Keysight Logger WebUI 使用者指南</h1>
-        <p>本指南適用於收到已建置之 WebUI 啟動器，並使用它來記錄 Keysight 34461A 測量數據的操作人員。本指南避開了開發人員細節，專注於標準的測量工作流程。</p>
+        <p>本指南適用於收到已建置之 WebUI 啟動器，並使用它來記錄支援的 Keysight Truevolt DMM 測量數據的操作人員。本指南避開了開發人員細節，專注於標準的測量工作流程。</p>
 
         <h2 id="features">WebUI 的功能</h2>
         <p>WebUI 會啟動一個本機瀏覽器頁面，用於設定與監控數據擷取作業 (acquisition run)。它的功能包含：</p>
@@ -252,9 +252,7 @@
         <h2 id="screen-overview">畫面總覽</h2>
         <p>WebUI 是一個本機的擷取控制台。主要區域包含：</p>
         <ul>
-            <li><code>VISA resource</code> (VISA 資源)：作業將使用的儀器位址。</li>
-            <li><code>Live resource</code> (即時資源)：掃描偵測到的儀器。</li>
-            <li><code>Scan Device</code> (掃描裝置)：搜尋已連線的可用儀器。</li>
+            <li><code>Device / Resource</code> (裝置/資源列)：儀器位址、最近一次掃描回應的即時資源、<code>Scan Device</code> 按鈕，以及 <code>Device options</code> 齒輪中的 <code>Expected model</code> 選擇器。此列預設展開，可收合成資源/型號摘要。</li>
             <li><code>Run Setup</code> (作業設定)：CSV 輸出路徑與執行次數設定。</li>
             <li><code>Measurement</code> (測量)：測量類型與相關選項。</li>
             <li><code>Trigger</code> (觸發)：觸發模式與觸發相關選項。</li>
@@ -265,10 +263,11 @@
         <h2 id="first-run">首次執行</h2>
         <p>進行基本的立即測量，請採用以下流程：</p>
         <ol>
-            <li>開啟 Keysight 34461A 電源並將其連接至電腦。</li>
+            <li>開啟 Keysight 34460A 或 34461A 電源並將其連接至電腦。</li>
             <li>啟動 WebUI。</li>
             <li>點擊 <code>Scan Device</code> (掃描裝置)。</li>
             <li>選取或將偵測到的 VISA 資源複製到 <code>VISA resource</code> 欄位中。</li>
+            <li>只有在需要強制指定型號時，才在 <code>Device options</code> 中將 <code>Expected model</code> 改選 <code>Require 34460A</code> 或 <code>Require 34461A</code>；否則請維持 <code>Auto-detect</code>。</li>
             <li>選擇測量類型，例如直流電壓 (DC voltage) 或直流電流 (DC current)。</li>
             <li>在 <code>Run Setup</code> 中，選擇 CSV 檔案位置。使用 <code>Select</code> (選擇) 挑選一個資料夾，系統會產生帶有時間戳記的 CSV 檔案路徑。</li>
             <li>除非特別需要軟體或外部觸發，否則請將觸發模式保持在立即/預設模式 (immediate/default mode)。</li>
@@ -278,6 +277,7 @@
             <li>當需要結束作業時，點擊 <code>Stop</code> (停止)。</li>
             <li>作業停止後，點擊 <code>Open CSV</code> (開啟 CSV) 以開啟已完成的 CSV 檔案。</li>
         </ol>
+        <p>當 <code>Expected model</code> 保持在 <code>Auto-detect</code> 時，WebUI 會在 Start 時透過新的 IDN preflight 自動辨識連接中的 34460A 或 34461A。只有在希望 Start 先讀取 IDN，並在不符時阻止啟動時，才選擇 <code>Require 34460A</code> 或 <code>Require 34461A</code>。若明確指定的型號不符，WebUI 會在 setup SCPI 之前提示實際找到的支援型號。</p>
         <p>一次只能執行一個作業。啟動新作業將會清除畫面上前次作業的最近樣本。</p>
 
         <h2 id="trigger-modes">選擇觸發模式</h2>
@@ -293,14 +293,17 @@
         <p>WebUI 會在啟動作業前驗證各項設定。如果 <code>Start</code> 被封鎖無法點擊，請閱讀狀態日誌 (Status log) 並調整其指出的欄位。</p>
 
         <p><code>VISA resource</code> (VISA 資源) 是作業將使用的儀器位址。建議使用透過 <code>Scan Device</code> 找到的資源，或手動輸入由操作人員提供的已知 VISA 資源。當可能連接多台儀器時，請勿用猜測的方式填寫資源。</p>
+        <p>WebUI 使用電腦的預設系統 VISA 執行階段。它不提供 PyVISA backend 選擇器。只有在測試程序明確要求可選的 pyvisa-py 診斷時，才使用 CLI 的進階 <code>--visa-library</code> 選項。</p>
 
-        <p><code>Live resource</code> (即時資源) 顯示最後一次掃描的結果。請先用它來確認是哪台儀器回應，然後再複製或選取資源以進行作業。</p>
+        <p><code>Live resource</code> (即時資源) 顯示最後一次掃描回應的結果。請先用它確認是哪台儀器回應，再複製或選取資源進行作業。</p>
+
+        <p>當掃描辨識出支援的 34460A 或 34461A IDN 時，WebUI 可能會重新載入對應型號的選項以供顯示，但會保持 <code>Expected model</code> 為 Auto-detect。</p>
 
         <p><code>CSV path</code> (CSV 路徑) 是讀值寫入的位置。請使用 <code>Select</code> 選擇資料夾並讓 WebUI 產生帶有時間戳記的檔案名稱，或在點擊 <code>Start</code> 前手動輸入特定的檔案路徑。</p>
 
         <p><strong>執行次數 (Run count)</strong> 與<strong>樣本限制 (sample limit)</strong> 欄位用來限制作業的持續時間。在驗證接線、測量類型與觸發行為時，請為新的設定保持上限限制。</p>
 
-        <p><code>Measurement type</code> (測量類型) 用來選擇 34461A 要測量的項目：直流或交流電壓、直流或交流電流、直流電壓比 (DC voltage ratio)、頻率、週期，或是 2 線/4 線電阻。在啟動作業前，請確保這與儀器的實體接線相符。</p>
+        <p><code>Measurement type</code> (測量類型) 用來選擇儀器要測量的項目：直流或交流電壓、直流或交流電流、直流電壓比 (DC voltage ratio)、頻率、週期，或是 2 線/4 線電阻。在啟動作業前，請確保這與儀器的實體接線相符。</p>
 
         <p><code>Auto Range</code> (自動換檔) 讓儀器自行選擇測量範圍。除非測量程序要求固定範圍，否則首次執行時請保持啟用。</p>
 
