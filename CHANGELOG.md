@@ -6,6 +6,24 @@ Component release notes:
 - [CLI](docs/cli/CHANGELOG.md)
 - [WebUI](docs/webui/CHANGELOG.md)
 
+## v1.6.0
+
+### Release cleanup
+
+- Bumped the single `keysight-logger` distribution version to `1.6.0` across
+  package metadata, fallback version plumbing, lock metadata, and version
+  tests.
+- Refreshed English Core, CLI, and WebUI documentation to describe expected
+  model / IDN-match behavior consistently for live starts and deterministic
+  simulator resources.
+- Updated the bundled Codex skill simulator helper and examples so no-hardware
+  workflows stay tied to explicit `SIM::34460A` or `SIM::34461A` resources.
+
+### Runtime behavior
+
+- No Core, CLI, WebUI, SCPI, VISA, trigger, cleanup, parser, profile, or WebUI
+  runtime behavior changed in this cleanup.
+
 ## v1.5.0
 
 ### Frequency and Period measurements

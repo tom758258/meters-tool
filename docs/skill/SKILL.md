@@ -147,7 +147,7 @@ Typical executable-only use:
 
 ```powershell
 node .agents\skills\keysight-meters-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
-  --exe .\keysight-logger-1.5.0.exe `
+  --exe .\keysight-logger-<version>.exe `
   --out .tmp_tests\meter_sim_software_trigger `
   --resource SIM::34461A `
   --measurement current-dc `

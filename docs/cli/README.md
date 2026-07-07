@@ -71,11 +71,11 @@ Important limitations:
 - This project supports Keysight 34460A and 34461A Truevolt DMM logging. Live
   starts auto-detect the model from the connected instrument IDN when
   `--model` is omitted.
-- Select `--model 34460A` for 34460A limits: no 10 A current range or current
-  terminal selection, 1000 readings of memory, and no base-profile external
-  trigger modes.
-- Select `--model 34461A` to force the 34461A profile. Explicit live mismatches
-  fail before setup SCPI.
+- Select `--model 34460A` when Start must require a 34460A IDN match. This uses
+  34460A limits: no 10 A current range or current terminal selection, 1000
+  readings of memory, and no base-profile external trigger modes.
+- Select `--model 34461A` when Start must require a 34461A IDN match. Explicit
+  live mismatches fail before setup SCPI.
 - The 34460A has a lower maximum reading rate than the 34461A, but the CLI does
   not actively control high-speed reading rate in this release.
 - AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz

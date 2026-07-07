@@ -85,7 +85,7 @@ def test_webui_distribution_uses_adapter_metadata_and_console_script():
     all_dependencies = pyproject["project"]["optional-dependencies"]["all"]
 
     assert project["name"] == "keysight-logger"
-    assert project["version"] == "1.5.0"
+    assert project["version"] == "1.6.0"
     assert project["version"] == FALLBACK_WEBUI_VERSION
     assert "WebUI" in project["description"]
     assert "pyvisa>=1.14.1" in dependencies

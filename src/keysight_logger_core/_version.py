@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 DISTRIBUTION_NAME = "keysight-logger"
-FALLBACK_PACKAGE_VERSION = "1.5.0"
+FALLBACK_PACKAGE_VERSION = "1.6.0"
 
 
 def read_project_version(pyproject_path: Path | None = None) -> str:
@@ -39,11 +39,11 @@ def get_distribution_version(
     fallback: str = FALLBACK_PACKAGE_VERSION,
 ) -> str:
     try:
-        return importlib.metadata.version(distribution_name)
-    except importlib.metadata.PackageNotFoundError:
+        return read_project_version()
+    except (OSError, KeyError, RuntimeError, ValueError):
         pass
 
     try:
-        return read_project_version()
-    except (OSError, KeyError, RuntimeError, ValueError):
+        return importlib.metadata.version(distribution_name)
+    except importlib.metadata.PackageNotFoundError:
         return fallback

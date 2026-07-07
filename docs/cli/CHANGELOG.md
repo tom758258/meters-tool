@@ -1,5 +1,17 @@
 # Changelog
 
+## v1.6.0
+
+- Bumped CLI-visible package/version metadata to `1.6.0` through the shared
+  distribution version plumbing.
+- Refreshed English CLI documentation to describe `--model` as an expected IDN
+  match for live starts and to keep dry-run/simulator examples tied to explicit
+  deterministic simulator resources.
+- Updated the release-skill simulator helper examples to use a version-neutral
+  executable name.
+- Preserved CLI arguments, JSON/JSONL contracts, wrapper behavior, process
+  lifecycle, and exit-code behavior.
+
 ## v1.5.0
 
 - Added `frequency` and `period` CLI measurements with voltage range, AC filter,

@@ -132,11 +132,11 @@ before clicking `Start`.
 Run count and sample limit fields control how long a run can continue. Keep new
 setups bounded while checking wiring, measurement type, and trigger behavior.
 
-`Expected model` is an optional check in `Device options`. Auto-detect starts
-runs with no forced model and lets the backend resolve the connected instrument
-from a fresh IDN preflight. Select `Require 34460A` or `Require 34461A` only
-when you want Start to fail if the connected instrument reports the other
-supported model. With 34460A required, the WebUI hides 10 A current ranges,
+`Expected model` is an optional check in `Device options`. Auto-detect uses a
+fresh IDN preflight at Start to resolve the connected instrument. Select
+`Require 34460A` or `Require 34461A` only when you want Start to read IDN and
+fail unless the connected instrument reports that supported model. With 34460A
+required, the WebUI hides 10 A current ranges,
 current terminal selection, and external trigger modes; custom mode reading
 memory is 1000 readings. The expected model check changes validation and
 capabilities only; it does not change cleanup or trigger sequencing.

@@ -100,6 +100,16 @@ function nonNegativeInteger(name, value) {
   return parsed;
 }
 
+function deterministicSimulatorResource(value) {
+  const normalized = String(value).toUpperCase();
+  if (normalized !== "SIM::34460A" && normalized !== "SIM::34461A") {
+    throw new Error(
+      `--resource must be deterministic SIM::34460A or SIM::34461A for no-hardware simulator validation; got ${value}`,
+    );
+  }
+  return normalized;
+}
+
 function findExe(explicitExe) {
   if (explicitExe) {
     const exe = toAbsolute(explicitExe);
@@ -246,6 +256,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const exe = findExe(options.exe);
   const out = toAbsolute(options.out);
+  const resource = deterministicSimulatorResource(options.resource);
   const port = positiveInteger("--port", options.port);
   const maxSamples = positiveInteger("--max-samples", options.maxSamples);
   const readyTimeoutMs = nonNegativeInteger("--ready-timeout-ms", options.readyTimeoutMs);
@@ -266,7 +277,7 @@ async function main() {
 
   const baseArgs = [
     "--resource",
-    options.resource,
+    resource,
     "--trigger-mode",
     "software",
     "--max-samples",
@@ -296,7 +307,7 @@ async function main() {
   const workerArgs = [
     "start-trigger-record",
     "--resource",
-    options.resource,
+    resource,
     "--simulate",
     "--trigger-mode",
     "software",
@@ -489,7 +500,7 @@ async function main() {
     dry_run_event: dryRunEvent,
     worker_args: [exe, ...workerArgs],
     port,
-    resource: options.resource,
+    resource,
     measurement: options.measurement,
     max_samples: maxSamples,
     clients,

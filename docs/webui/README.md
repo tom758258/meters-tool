@@ -133,9 +133,10 @@ Main areas:
 - Device / Resource row: `VISA resource`, `Live resource`, `Scan Device`, and a
   `Device options` gear for the `Expected model` selector. The row starts
   expanded and can collapse to a resource/model summary.
-- The Expected model selector defaults to `Auto-detect`; explicit
-  `Require 34460A` or `Require 34461A` choices enforce model-specific
-  validation limits.
+- The Expected model selector defaults to `Auto-detect`, which uses the
+  connected instrument IDN at Start. Explicit `Require 34460A` or
+  `Require 34461A` choices still read IDN and start only when it matches, then
+  enforce model-specific validation limits.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
 - Collapsible setup panels for device/resource setup, run configuration,

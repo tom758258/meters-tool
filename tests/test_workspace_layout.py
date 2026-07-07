@@ -48,7 +48,7 @@ def test_root_pyproject_defines_single_distribution():
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'name = "keysight-logger"' in text
-    assert 'version = "1.5.0"' in text
+    assert 'version = "1.6.0"' in text
     assert 'keysight-logger = "keysight_logger_cli.cli:main"' in text
     assert 'keysight-logger-webui = "keysight_logger_webui.web_ui:main"' in text
     assert "[tool.pytest.ini_options]" in text

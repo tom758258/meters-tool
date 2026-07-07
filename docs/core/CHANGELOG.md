@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.6.0
+
+- Bumped the shared `keysight-logger` package version and Core fallback version
+  to `1.6.0`.
+- Refreshed English Core-facing documentation for expected-model auto-detect
+  and deterministic simulator resources.
+- Preserved Core request models, validation paths, SCPI planning, VISA access,
+  trigger behavior, and cleanup behavior.
+
 ## v1.5.0
 
 - Added `frequency` and `period` measurement definitions, profile capabilities,

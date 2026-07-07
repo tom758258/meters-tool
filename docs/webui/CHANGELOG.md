@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.6.0
+
+- Bumped WebUI-visible package/version metadata to `1.6.0` through the shared
+  distribution version plumbing.
+- Refreshed English WebUI documentation and maintainer change rules so
+  `Expected model`, `Auto-detect`, `Require 34460A`, and `Require 34461A`
+  consistently describe Start-time IDN matching.
+- Preserved WebUI endpoints, request payloads, static UI behavior, Core routing,
+  trigger behavior, live-data behavior, and cleanup behavior.
+
 ## v1.5.0
 
 - Added Frequency and Period measurement controls driven by Core capabilities,

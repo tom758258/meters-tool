@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -88,11 +89,13 @@ def test_cli_version_uses_fallback_when_metadata_and_pyproject_are_unavailable(m
 
 def test_cli_script_entry_point_supports_direct_execution():
     cli_path = Path(__file__).resolve().parents[2] / "src" / "keysight_logger_cli" / "cli.py"
+    source_root = cli_path.parents[1]
 
     result = subprocess.run(
-        [sys.executable, str(cli_path), "--version"],
+        [sys.executable, "-S", str(cli_path), "--version"],
         check=False,
         capture_output=True,
+        env={**os.environ, "PYTHONPATH": str(source_root)},
         text=True,
     )
 

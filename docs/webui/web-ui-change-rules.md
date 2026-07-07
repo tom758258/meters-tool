@@ -265,9 +265,9 @@ The UI may look different, but these behaviors must remain true:
 - Scan Device calls `/api/resources?verify=true&live_only=true`.
 - Selecting a live resource copies it into the VISA resource input.
 - Measurement options are populated from `/api/capabilities`.
-- The instrument model override reloads `/api/capabilities?model=<model>` only
+- The Expected model selector reloads `/api/capabilities?model=<model>` only
   for explicit 34460A/34461A choices; Auto sends no `instrument_model` and
-  relies on backend Start preflight.
+  relies on backend Start IDN preflight.
 - Range choices are populated from the selected measurement definition.
 - NPLC choices are populated from the selected measurement definition.
 - NPLC is hidden/disabled when unsupported.
