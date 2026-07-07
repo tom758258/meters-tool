@@ -112,6 +112,15 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('id="resource-select"', resource_section)
         self.assertIn('id="refresh-resources"', resource_section)
 
+        resource_actions = resource_section[
+            resource_section.index('<div class="resource-row-actions">')
+            : resource_section.index('<div id="device-resource-body"')
+        ]
+        self.assertLess(
+            resource_actions.index('id="device-options-toggle"'),
+            resource_actions.index('id="toggle-device-resource"'),
+        )
+
         assert_tag_with_attrs(
             self,
             resource_section,
