@@ -781,9 +781,9 @@ button:focus {
 /* ─── Live Chart ─────────────────────────────────────────────────────────── */
 .live-chart-controls {
   display: grid;
-  grid-template-columns: minmax(160px, 220px) minmax(120px, 160px);
-  gap: 10px;
-  align-items: end;
+  grid-template-columns: minmax(260px, 320px) minmax(120px, 160px);
+  gap: 12px;
+  align-items: start;
 }
 
 .live-chart-scale-info {

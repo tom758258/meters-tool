@@ -464,6 +464,13 @@ class WebUiStaticTests(unittest.TestCase):
 
     def test_static_ui_live_chart_range_step_mode_is_guarded(self):
         index, app_js = load_static_ui()
+        styles = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
+        controls_styles = re.search(
+            r"\.live-chart-controls\s*\{([\s\S]*?)\n\}",
+            styles,
+        )
+        self.assertIsNotNone(controls_styles)
+        controls_css = controls_styles.group(1)
 
         self.assertRegex(
             index,
@@ -497,6 +504,13 @@ class WebUiStaticTests(unittest.TestCase):
             'liveChartScaleModeHelp.classList.toggle("is-hidden", rangeStepAvailable)',
             app_js,
         )
+        self.assertIn(
+            "grid-template-columns: minmax(260px, 320px) minmax(120px, 160px)",
+            controls_css,
+        )
+        self.assertIn("align-items: start", controls_css)
+        self.assertNotIn("minmax(160px, 220px)", controls_css)
+        self.assertNotIn("align-items: end", controls_css)
         self.assertIn(
             "gridStepValue: span / LIVE_CHART_GRID_LINE_COUNT_PER_SIDE",
             app_js,
