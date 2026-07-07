@@ -2,19 +2,23 @@
 
 # Keysight Logger
 
-Keysight Logger 是供 Keysight 34461A 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `keysight-logger`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`keysight_logger_core`、`keysight_logger_cli` 與 `keysight_logger_webui`。
+Keysight Logger 是供 Keysight 34460A 與 34461A Truevolt 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `keysight-logger`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`keysight_logger_core`、`keysight_logger_cli` 與 `keysight_logger_webui`。
 
 本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。每筆擷取的樣本都會寫入 CSV 的一行，包含時間戳記、量測類型、單位、觸發來源與相關 metadata。
 
 ## 功能特性
 
-* 透過 USB 或 LAN 使用 VISA 控制 Keysight 34461A
+* 透過 VISA 控制支援的 Keysight Truevolt DMM
 * 設定量測範圍 (range)、NPLC、Auto Zero、AC 頻寬 (bandwidth)、電流端子 (current terminal) 與 DC 電壓輸入阻抗 (input impedance)
 * 支援 software、timer、external hardware、immediate 與 buffered 觸發工作流程
 * 使用 dry-run 模式預覽儀器命令
 * 使用內建模擬器在沒有硬體的情況下測試工作流程
 * 透過 CLI 或本機 WebUI 進行操作
 * 產生 JSON 與 JSONL 輸出，供自動化、agent 與 orchestrator 使用
+
+Live CLI 與 WebUI 啟動時，如果未指定預期型號，會從連線儀器的 `*IDN?` 自動偵測型號。只有在啟動時必須要求 IDN 符合指定型號時，才選擇 CLI `--model 34460A` / `--model 34461A` 或 WebUI `Require 34460A` / `Require 34461A`；明確指定 live 型號但不相符時，會在 setup SCPI 前失敗。Dry-run 與 simulator 執行需要明確指定型號，除非 simulator resource 能以確定方式編碼型號，例如 `SIM::34460A` 或 `SIM::34461A`。
+
+會開啟 VISA resource 的 CLI 命令，預設會透過 `pyvisa.ResourceManager()` 使用系統 VISA runtime。進階 CLI 診斷可明確選擇 PyVISA library/backend，例如在安裝選用 pyvisa-py 套件後使用 `--visa-library "@py"`，或使用 alias `--backend "@py"`。WebUI 會持續使用預設的系統 VISA runtime。
 
 ## 專案結構
 
@@ -183,17 +187,15 @@ release\<version>\checksums.txt
 
 ## Codex / Agent Skill
 
-本專案提供選用的 Codex Skill 範本，供想要要求 Codex 或其他 agents
-安全遵循 Meters CLI/worker 合約的使用者使用。安裝與使用方式請參考
-[Codex Skill 範本](docs/skill/README.zh-TW.md)。
+本專案提供選用的 Codex skill 範本，供想要要求 Codex 或其他 agents 安全遵循 Meters CLI/worker contracts 的使用者使用。安裝與使用方式請參考 [Codex Skill 範本](docs/skill/README.zh-TW.md)。
 
 ## 文件
 
-* [Core README](docs/core/README.zh-TW.md)
-* [CLI 使用者指南](docs/cli/USER_GUIDE.zh-TW.md)
+* [Core README](docs/core/README.md)
+* [CLI 使用指南](docs/cli/USER_GUIDE.zh-TW.md)
 * [CLI README](docs/cli/README.zh-TW.md)
 * [WebUI README](docs/webui/README.zh-TW.md)
-* [WebUI 使用者指南](docs/webui/USER_GUIDE.zh-TW.md)
+* [WebUI 使用指南](docs/webui/USER_GUIDE.zh-TW.md)
 * [Monorepo 架構](docs/architecture/monorepo-layout.md)
 * [測試指南](docs/testing-guidelines.md)
 * [Codex Skill 範本](docs/skill/README.zh-TW.md)
