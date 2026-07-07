@@ -55,10 +55,9 @@ for terminal commands, validation, and build details.
 
 The WebUI is a local acquisition console. The main areas are:
 
-- `VISA resource`: the instrument address to use for the run.
-- `Live resource`: the instrument detected by a scan.
-- `Scan Device`: searches for connected live instruments.
-- `Device options`: a gear menu for the optional `Expected model` check.
+- `Device / Resource`: the instrument address, last scanned live resource,
+  `Scan Device` button, and `Device options` gear. It starts expanded and can
+  collapse to a short resource/model summary.
 - `Run Setup`: CSV output path and run count settings.
 - `Measurement`: measurement type and related options.
 - `Trigger`: trigger mode and trigger-related options.

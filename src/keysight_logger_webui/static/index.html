@@ -15,53 +15,72 @@
         </div>
       </section>
 
-      <section class="resource-row">
+      <section class="resource-row" id="device-resource-section">
         <div class="resource-row-header">
-          <h2>Device / Resource</h2>
-          <div class="device-options">
+          <div class="resource-row-title">
+            <h2>Device / Resource</h2>
+            <p id="device-resource-summary" class="resource-summary">
+              No resource / not scanned / Auto-detect
+            </p>
+          </div>
+          <div class="resource-row-actions">
             <button
-              id="device-options-toggle"
-              class="device-options-button"
+              id="toggle-device-resource"
+              class="resource-collapse-toggle"
               type="button"
-              title="Device options"
-              aria-label="Device options"
-              aria-controls="device-options-panel"
-              aria-expanded="false"
+              aria-controls="device-resource-body"
+              aria-expanded="true"
+              aria-label="Collapse Device / Resource"
             >
-              <span aria-hidden="true">&#9881;</span>
+              -
             </button>
-            <div
-              id="device-options-panel"
-              class="device-options-panel is-hidden"
-              aria-labelledby="device-options-title"
-            >
-              <h2 id="device-options-title">Device options</h2>
-              <label>
-                Expected model
-                <select name="instrument_model" id="instrument-model" form="run-form">
-                  <option value="">Auto-detect</option>
-                  <option value="34460A">Require 34460A</option>
-                  <option value="34461A">Require 34461A</option>
-                </select>
-              </label>
-              <p class="device-options-help">
-                Auto-detect uses the connected instrument IDN. Select a model only when you want to require a specific one.
-              </p>
+            <div class="device-options">
+              <button
+                id="device-options-toggle"
+                class="device-options-button"
+                type="button"
+                title="Device options"
+                aria-label="Device options"
+                aria-controls="device-options-panel"
+                aria-expanded="false"
+              >
+                <span aria-hidden="true">&#9881;</span>
+              </button>
+              <div
+                id="device-options-panel"
+                class="device-options-panel is-hidden"
+                aria-labelledby="device-options-title"
+              >
+                <h2 id="device-options-title">Device options</h2>
+                <label>
+                  Expected model
+                  <select name="instrument_model" id="instrument-model" form="run-form">
+                    <option value="">Auto-detect</option>
+                    <option value="34460A">Require 34460A</option>
+                    <option value="34461A">Require 34461A</option>
+                  </select>
+                </label>
+                <p class="device-options-help">
+                  Auto-detect uses the connected instrument IDN. Select a model only when you want to require a specific one.
+                </p>
+              </div>
             </div>
           </div>
         </div>
-        <label>
-          VISA resource
-          <input id="resource" name="resource" form="run-form" placeholder="Waiting Scan" required />
-        </label>
-        <div class="live-resource-field">
+        <div id="device-resource-body" class="resource-row-body">
           <label>
-            Live resource
-            <select id="resource-select">
-              <option value="">Scan to load live resources</option>
-            </select>
+            VISA resource
+            <input id="resource" name="resource" form="run-form" placeholder="Waiting Scan" required />
           </label>
-          <button id="refresh-resources" type="button">Scan Device</button>
+          <div class="live-resource-field">
+            <label>
+              Live resource
+              <select id="resource-select">
+                <option value="">Scan to load live resources</option>
+              </select>
+            </label>
+            <button id="refresh-resources" type="button">Scan Device</button>
+          </div>
         </div>
       </section>
 

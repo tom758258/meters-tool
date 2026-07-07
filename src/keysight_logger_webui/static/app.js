@@ -5,6 +5,9 @@ import {
   autoZeroSelect,
   csvInput,
   currentTerminalSelect,
+  deviceResourceBody,
+  deviceResourceSummary,
+  deviceResourceToggleButton,
   deviceOptionsPanel,
   deviceOptionsToggleButton,
   form,
@@ -71,6 +74,19 @@ function setDeviceOptionsExpanded(expanded) {
   deviceOptionsToggleButton.setAttribute("aria-expanded", String(expanded));
 }
 
+function setDeviceResourceExpanded(expanded) {
+  if (!deviceResourceBody || !deviceResourceToggleButton) {
+    return;
+  }
+  deviceResourceBody.classList.toggle("is-hidden", !expanded);
+  deviceResourceToggleButton.setAttribute("aria-expanded", String(expanded));
+  deviceResourceToggleButton.textContent = expanded ? "-" : "+";
+  deviceResourceToggleButton.setAttribute(
+    "aria-label",
+    expanded ? "Collapse Device / Resource" : "Expand Device / Resource"
+  );
+}
+
 function updateMeasurementAndLiveChartScale() {
   updateMeasurementUi();
   refreshLiveChartScaleAvailability("");
@@ -83,6 +99,30 @@ function updateRangeAndLiveChartScale(notice = "") {
 
 let scanMetadataByResource = new Map();
 
+function liveResourceSummary() {
+  if (!resourceSelect.value) {
+    return "not scanned";
+  }
+  const model = scanMetadataByResource.get(resourceSelect.value)?.instrument_model;
+  return model ? `live ${model}` : "live selected";
+}
+
+function expectedModelSummary() {
+  return instrumentModelSelect.selectedOptions[0]?.textContent || "Auto-detect";
+}
+
+function updateDeviceResourceSummary() {
+  if (!deviceResourceSummary) {
+    return;
+  }
+  const resource = resourceInput.value.trim() || "No resource";
+  deviceResourceSummary.textContent = [
+    resource,
+    liveResourceSummary(),
+    expectedModelSummary(),
+  ].join(" / ");
+}
+
 async function applyScannedResource(resource) {
   if (!resource) {
     return;
@@ -92,6 +132,7 @@ async function applyScannedResource(resource) {
   const forcedModel = instrumentModelSelect.value || "";
   resourceInput.value = resource;
   resourceSelect.value = resource;
+  updateDeviceResourceSummary();
   if (!inferredModel) {
     appendStatusLog("Live resource model could not be inferred; Start will auto-detect it.");
     return;
@@ -101,6 +142,7 @@ async function applyScannedResource(resource) {
   updateRangeAndLiveChartScale();
   updateTriggerModeUi();
   updatePanelSummaries();
+  updateDeviceResourceSummary();
 }
 
 async function refreshResources() {
@@ -128,6 +170,7 @@ async function refreshResources() {
   if (!resourceInput.value && result.resources.length > 0) {
     await applyScannedResource(result.resources[0].resource);
   }
+  updateDeviceResourceSummary();
   appendStatusLog(`Live resources found: ${result.resources.length}`);
 }
 
@@ -150,8 +193,12 @@ resourceSelect.addEventListener("change", async () => {
     } catch (error) {
       appendStatusLog(error.message);
     }
+  } else {
+    updateDeviceResourceSummary();
   }
 });
+
+resourceInput.addEventListener("input", updateDeviceResourceSummary);
 
 selectCsvFolderButton.addEventListener("click", async () => {
   try {
@@ -173,6 +220,7 @@ instrumentModelSelect.addEventListener("change", async () => {
   try {
     await loadCapabilities(instrumentModelSelect.value);
     updateRangeAndLiveChartScale();
+    updateDeviceResourceSummary();
   } catch (error) {
     appendStatusLog(error.message);
   }
@@ -207,6 +255,13 @@ swMinIntervalInput.addEventListener("input", validateSwMinInterval);
 for (const button of panelToggles) {
   button.addEventListener("click", () => {
     setPanelExpanded(button, button.getAttribute("aria-expanded") !== "true");
+  });
+}
+if (deviceResourceToggleButton && deviceResourceBody) {
+  deviceResourceToggleButton.addEventListener("click", () => {
+    setDeviceResourceExpanded(
+      deviceResourceToggleButton.getAttribute("aria-expanded") !== "true"
+    );
   });
 }
 if (deviceOptionsToggleButton && deviceOptionsPanel) {
@@ -309,6 +364,8 @@ openCsvButton.addEventListener("click", async () => {
 
 initializeStatusUi();
 initializeLiveDataUi();
+setDeviceResourceExpanded(true);
+updateDeviceResourceSummary();
 for (const button of panelToggles) {
   setPanelExpanded(button, true);
 }
@@ -316,6 +373,7 @@ for (const button of panelToggles) {
 loadCapabilities()
   .then(() => {
     updateRangeAndLiveChartScale();
+    updateDeviceResourceSummary();
     return pollStatus();
   })
   .then(startStatusUpdates)

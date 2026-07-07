@@ -88,6 +88,60 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('event.key === "Escape"', app_js)
         self.assertIn('document.addEventListener("click"', app_js)
 
+    def test_static_ui_device_resource_section_has_collapse_and_summary(self):
+        index, app_js = load_static_ui()
+
+        resource_section = index[
+            index.index('<section class="resource-row"')
+            : index.index('<section class="grid">')
+        ]
+        assert_tag_with_attrs(
+            self,
+            resource_section,
+            "button",
+            {
+                "id": "toggle-device-resource",
+                "type": "button",
+                "aria-controls": "device-resource-body",
+                "aria-expanded": "true",
+            },
+        )
+        self.assertIn('id="device-resource-summary"', resource_section)
+        self.assertIn('id="device-resource-body"', resource_section)
+        self.assertIn('id="resource"', resource_section)
+        self.assertIn('id="resource-select"', resource_section)
+        self.assertIn('id="refresh-resources"', resource_section)
+
+        assert_tag_with_attrs(
+            self,
+            resource_section,
+            "button",
+            {
+                "id": "device-options-toggle",
+                "type": "button",
+                "title": "Device options",
+                "aria-label": "Device options",
+                "aria-controls": "device-options-panel",
+            },
+        )
+        assert_tag_with_attrs(
+            self,
+            resource_section,
+            "select",
+            {"id": "instrument-model", "name": "instrument_model", "form": "run-form"},
+        )
+
+        self.assertIn("setDeviceResourceExpanded", app_js)
+        self.assertIn('deviceResourceBody.classList.toggle("is-hidden", !expanded)', app_js)
+        self.assertIn('deviceResourceToggleButton.setAttribute("aria-expanded"', app_js)
+        self.assertIn("updateDeviceResourceSummary", app_js)
+        self.assertIn(
+            "scanMetadataByResource.get(resourceSelect.value)?.instrument_model",
+            app_js,
+        )
+        self.assertIn('return model ? `live ${model}` : "live selected";', app_js)
+        self.assertIn('resourceInput.addEventListener("input", updateDeviceResourceSummary)', app_js)
+
     def test_static_ui_expected_model_payload_semantics_remain_instrument_model(self):
         index, app_js = load_static_ui()
 

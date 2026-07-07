@@ -170,8 +170,7 @@ button:disabled:hover {
 /* ─── Panels & Resource Row ──────────────────────────────────────────────── */
 .resource-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
   margin-bottom: 14px;
 }
 
@@ -184,8 +183,11 @@ button:disabled:hover {
   box-shadow: var(--shadow-sm);
 }
 
+.resource-row {
+  padding: 14px 16px 16px;
+}
+
 .resource-row-header {
-  grid-column: 1 / -1;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -193,13 +195,61 @@ button:disabled:hover {
   min-width: 0;
 }
 
-.resource-row-header h2 {
+.resource-row-title {
+  min-width: 0;
+}
+
+.resource-row-title h2 {
+  margin-bottom: 3px;
+}
+
+.resource-summary {
+  overflow: hidden;
   margin-bottom: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.resource-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.resource-row-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: end;
+  gap: 12px;
 }
 
 .device-options {
   position: relative;
   flex: 0 0 auto;
+}
+
+.resource-collapse-toggle {
+  width: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--bg);
+  border-color: var(--line);
+  box-shadow: none;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.resource-collapse-toggle:hover {
+  background: #e8e8ed;
+  border-color: #c7c7cc;
+  color: var(--ink);
 }
 
 .device-options-button {
@@ -967,7 +1017,7 @@ pre:empty {
   }
 
   .grid,
-  .resource-row,
+  .resource-row-body,
   .status-strip,
   .live-latest-grid,
   .live-stats-grid,
