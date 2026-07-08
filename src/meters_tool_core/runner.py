@@ -27,7 +27,7 @@ from .start_resolution import resolve_start_profile
 from .storage import CsvWriter
 from .support_policy import validate_start_workflow_support
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
-from .validation import resolve_csv_path, validate_start_request
+from .validation import resolve_csv_path, resolve_trigger_mode, validate_start_request
 
 
 @dataclass(frozen=True)
@@ -53,8 +53,11 @@ def run_start_session(
     dependencies: StartRunnerDependencies | None = None,
 ) -> StartRunResult:
     request, profile = resolve_start_profile(request)
-    validate_start_request(request, trigger_mode, instrument_profile=profile)
-    validate_start_workflow_support(request, trigger_mode, profile)
+    # `trigger_mode` is retained for public API compatibility; the runner
+    # recomputes the effective mode from the resolved request.
+    effective_trigger_mode = resolve_trigger_mode(request)
+    validate_start_request(request, effective_trigger_mode, instrument_profile=profile)
+    validate_start_workflow_support(request, effective_trigger_mode, profile)
 
     deps = dependencies or StartRunnerDependencies()
     active_controls = controls or NoOpStartRunControls()
@@ -182,7 +185,7 @@ def run_start_session(
             nonlocal runtime_fatal_error
             try:
                 engine.run(
-                    trigger_mode=trigger_mode,
+                    trigger_mode=effective_trigger_mode,
                     hardware_trigger_slope=request.hw_trigger_slope,
                 )
             except Exception as exc:

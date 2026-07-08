@@ -344,6 +344,80 @@ class CoreRunnerTests(unittest.TestCase):
         self.assertNotIn("server_start", operations)
         self.assertNotIn("server_stop", operations)
 
+    def test_run_start_session_recomputes_immediate_trigger_mode_from_request(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+
+        result = run_start_session(
+            make_start_request(trigger_mode="immediate"),
+            "external",
+            get_default_instrument_profile(),
+            sink,
+            RecordingControls(operations),
+            control_plane=NoOpControlPlane(),
+            run_id="run-123",
+            dependencies=self._dependencies(operations),
+        )
+
+        self.assertTrue(result.ok)
+        self.assertIn("engine_run:immediate:neg", operations)
+        self.assertNotIn("engine_run:external:neg", operations)
+
+    def test_run_start_session_recomputes_external_trigger_mode_from_request(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+
+        result = run_start_session(
+            make_start_request(trigger_mode="external"),
+            "immediate",
+            get_default_instrument_profile(),
+            sink,
+            RecordingControls(operations),
+            control_plane=NoOpControlPlane(),
+            run_id="run-123",
+            dependencies=self._dependencies(operations),
+        )
+
+        self.assertTrue(result.ok)
+        self.assertIn("engine_run:external:neg", operations)
+        self.assertNotIn("engine_run:immediate:neg", operations)
+
+    def test_live_runner_recomputed_trigger_mode_prevents_34460a_external_bypass(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            trigger_mode="external",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+
+        def fail_factory(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            operations.append("factory")
+            raise AssertionError("backend factory must not be called")
+
+        deps = StartRunnerDependencies(instrument_backend_factory=fail_factory)
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            self.assertRaisesRegex(
+                ValueError,
+                "--trigger-mode external is not supported by 34460A",
+            ),
+        ):
+            run_start_session(
+                request,
+                "immediate",
+                KEYSIGHT_34461A_PROFILE,
+                sink,
+                RecordingControls(operations),
+                dependencies=deps,
+            )
+
+        self.assertEqual([], operations)
+
     def test_live_runner_uses_idn_detected_profile_not_external_profile_argument(self):
         operations: list[str] = []
         sink = RecordingEventSink()
