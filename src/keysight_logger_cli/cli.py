@@ -457,7 +457,7 @@ def _normalize_serial_termination(value: str | None) -> str | None:
 def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
     return StartRequest(
         resource=args.resource,
-        instrument_model=args.instrument_model,
+        instrument_model=_optional_text(args.instrument_model),
         visa_library=_optional_text(args.visa_library),
         csv=args.csv,
         dry_run=args.dry_run,

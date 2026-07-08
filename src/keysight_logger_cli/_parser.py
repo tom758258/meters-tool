@@ -4,7 +4,7 @@ import argparse
 import sys
 
 from keysight_logger_core.measurement import format_measurement_type
-from keysight_logger_core.models import get_default_instrument_profile
+from keysight_logger_core.models import get_default_instrument_profile, supported_instrument_models
 from keysight_logger_core.validation import (
     start_help_epilog as _start_help_epilog,
     supported_measurement_types as _supported_measurement_types,
@@ -115,6 +115,7 @@ def _add_visa_library_argument(parser: argparse.ArgumentParser) -> None:
 
 def build_parser(version_provider) -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
+    supported_models = " or ".join(supported_instrument_models())
     measurement_choices = ", ".join(
         format_measurement_type(value) for value in _supported_measurement_types(default_profile)
     )
@@ -180,11 +181,12 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         "--model",
         "--instrument-model",
         dest="instrument_model",
-        choices=["34460A", "34461A"],
+        metavar="MODEL",
         default=None,
         help=(
-            "optional forced instrument profile. Omit for live auto-detect; "
-            "dry-run requires --model unless the resource is SIM::34460A or SIM::34461A."
+            f"Expected instrument model/model profile, e.g. {supported_models}. "
+            "Omit for live auto-detect. Live runs verify detected IDN; "
+            "dry-run/simulate use the profile."
         ),
     )
     _add_visa_library_argument(start)

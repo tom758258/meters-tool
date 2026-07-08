@@ -64,6 +64,8 @@ convert it before Core sees the request.
 Before constructing `StartRequest`, adapters should:
 
 - Convert empty optional fields to `None`.
+- Trim requested instrument model text without maintaining an adapter-local
+  supported-model list.
 - Convert numeric fields to `int` or `float`.
 - Convert toggles to booleans.
 - Normalize adapter-only aliases.
@@ -130,9 +132,13 @@ warnings = generate_buffer_overflow_warnings(request, trigger_mode, profile)
 
 CLI/WebUI adapters should resolve the start profile once and reuse it for
 validation, warnings, planning, and runtime. For live starts, omitted
-`StartRequest.instrument_model` means IDN auto-detect. For dry-run and
-simulate, omitted model is accepted only when the simulator resource encodes a
-single supported model token:
+`StartRequest.instrument_model` means IDN auto-detect. When a model string is
+present, Core profile logic normalizes and validates it, such as `34461a` to
+`34461A`, and rejects unknown models with the supported profile models listed.
+Live explicit models are expected-model guards only and never override the
+detected IDN-selected profile. For dry-run and simulate, omitted model is
+accepted only when the simulator resource encodes a single supported model
+token:
 
 ```python
 request, profile = resolve_start_profile(request)

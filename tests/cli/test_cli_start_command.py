@@ -228,6 +228,30 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         preflight.assert_not_called()
 
+    def test_start_unsupported_model_fails_core_validation_without_argparse_choices(self):
+        stderr = io.StringIO()
+
+        with (
+            patch("keysight_logger_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            redirect_stderr(stderr),
+        ):
+            rc = main(
+                [
+                    "start-trigger-record",
+                    "--resource",
+                    "USB::FAKE",
+                    "--model",
+                    "BADMODEL",
+                    "--dry-run",
+                ]
+            )
+
+        self.assertEqual(2, rc)
+        self.assertIn("Unsupported instrument model: BADMODEL", stderr.getvalue())
+        self.assertIn("Supported models:", stderr.getvalue())
+        self.assertNotIn("invalid choice", stderr.getvalue())
+        preflight.assert_not_called()
+
     def test_start_live_omitted_model_uses_preflight_profile_for_runner(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -266,6 +290,43 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         request_model, _trigger_mode, profile = runner.call_args.args[:3]
         self.assertEqual("34460A", request_model.instrument_model)
         self.assertEqual("34460A", profile.model)
+        preflight.assert_called_once()
+
+    def test_start_live_selected_model_mismatch_does_not_override_detected_profile(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--model",
+                "34460A",
+                "--csv",
+                "data\\delegate_live.csv",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        stderr = io.StringIO()
+
+        with (
+            patch(
+                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34461A,MY123,1.0",
+            ) as preflight,
+            patch("keysight_logger_cli.cli.run_start_session") as runner,
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(2, rc)
+        self.assertIn(
+            "Selected model 34460A does not match the connected instrument IDN 34461A",
+            stderr.getvalue(),
+        )
+        runner.assert_not_called()
         preflight.assert_called_once()
 
     def test_start_dry_run_jsonl_outputs_one_plan_object(self):
@@ -511,6 +572,15 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         self.assertEqual("34460A", model_args.instrument_model)
         self.assertEqual("34461A", instrument_model_args.instrument_model)
+
+    def test_start_parser_preserves_lowercase_model_for_core_validation(self):
+        parser = build_parser()
+
+        args = parser.parse_args(
+            ["start-trigger-record", "--resource", "USB::FAKE", "--model", "34461a"]
+        )
+
+        self.assertEqual("34461a", args.instrument_model)
 
     def test_start_parser_accepts_visa_library_aliases(self):
         parser = build_parser()

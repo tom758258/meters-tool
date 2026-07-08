@@ -7,6 +7,7 @@ from keysight_logger_core.models import (
     StartRequest,
     find_instrument_profile_by_idn,
     normalize_requested_model,
+    supported_instrument_models,
 )
 from keysight_logger_core.start_resolution import (
     DRY_RUN_AUTO_MODEL_ERROR,
@@ -25,6 +26,17 @@ class StartResolutionTests(unittest.TestCase):
     def test_normalize_requested_model_accepts_supported_models(self):
         self.assertEqual("34460A", normalize_requested_model("34460A"))
         self.assertEqual("34461A", normalize_requested_model("34461A"))
+        self.assertEqual("34460A", normalize_requested_model(" 34460a "))
+        self.assertEqual("34461A", normalize_requested_model("34461a"))
+
+    def test_unsupported_model_error_lists_supported_models(self):
+        with self.assertRaises(ValueError) as exc:
+            normalize_requested_model("BADMODEL")
+
+        message = str(exc.exception)
+        self.assertIn("Unsupported instrument model: BADMODEL", message)
+        for model in supported_instrument_models():
+            self.assertIn(model, message)
 
     def test_idn_matching_accepts_keysight_and_agilent_supported_aliases(self):
         cases = [

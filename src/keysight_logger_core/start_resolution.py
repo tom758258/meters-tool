@@ -10,16 +10,25 @@ from .models import (
     find_instrument_profile_by_idn,
     find_instrument_profile_by_model,
     normalize_requested_model,
+    supported_instrument_models,
 )
+
+
+def _supported_model_option_hint() -> str:
+    return " or ".join(f"--model {model}" for model in supported_instrument_models())
+
+
+def _supported_sim_resource_hint() -> str:
+    return " / ".join(f"SIM::{model}" for model in supported_instrument_models())
 
 
 DRY_RUN_AUTO_MODEL_ERROR = (
     "dry-run cannot auto-detect the instrument model without VISA I/O; "
-    "pass --model 34460A or --model 34461A."
+    f"pass {_supported_model_option_hint()}."
 )
 SIMULATE_AUTO_MODEL_ERROR = (
     "simulate cannot auto-detect the instrument model unless the simulator resource encodes it; "
-    "pass --model 34460A or --model 34461A, or use SIM::34460A / SIM::34461A."
+    f"pass {_supported_model_option_hint()}, or use {_supported_sim_resource_hint()}."
 )
 
 

@@ -50,6 +50,11 @@ resource, resolves the instrument profile through IDN-only auto-detect when
 the local HTTP control server, runs acquisition, and performs the documented
 release/local cleanup. Live runs must keep using explicit resources; wrappers
 must not scan or guess live instrument resources.
+An explicit live model is an expected-model guard only: unsupported model names
+fail Core profile validation, mismatches fail before setup SCPI, and the
+selected model never overrides the detected IDN-selected profile. Dry-run and
+simulate use the selected model profile unless a deterministic simulator
+resource supplies the model.
 When a CLI caller passes an optional PyVISA library/backend value such as
 `--visa-library "@py"`, live resource manager creation uses that backend. If it
 is omitted, live mode uses the system default `pyvisa.ResourceManager()`

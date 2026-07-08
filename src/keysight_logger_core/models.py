@@ -310,6 +310,10 @@ def get_default_instrument_profile() -> InstrumentProfile:
     return DEFAULT_INSTRUMENT_PROFILE
 
 
+def supported_instrument_models() -> tuple[str, ...]:
+    return tuple(sorted(profile.model for profile in INSTRUMENT_PROFILES))
+
+
 def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
     normalized = str(model).strip().upper()
     for profile in INSTRUMENT_PROFILES:
@@ -317,7 +321,8 @@ def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
             alias.upper() == normalized for alias in profile.aliases
         ):
             return profile
-    raise ValueError(f"Unsupported instrument model: {model}")
+    supported = ", ".join(supported_instrument_models())
+    raise ValueError(f"Unsupported instrument model: {model}. Supported models: {supported}")
 
 
 def normalize_requested_model(model: str | None) -> str | None:

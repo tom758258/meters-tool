@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from keysight_logger_cli.cli import build_parser, get_cli_version, main
 
@@ -139,6 +140,10 @@ class CliArgsTests(unittest.TestCase):
         self.assertNotIn("default: 34461A", help_text)
         self.assertIn("Omit for live", help_text)
         self.assertIn("auto-detect", help_text)
+        self.assertIn("--model MODEL", help_text)
+        self.assertIn("--instrument-model MODEL", help_text)
+        self.assertNotIn("{34460A,34461A}", help_text)
+        self.assertNotIn("{34461A,34460A}", help_text)
         for tokens in (
             ("NPLC", "DC", "resistance", "0.02", "0.2", "1", "10", "100"),
             ("current-dc", "0.0001", "0.001", "0.01", "0.1", "1", "3", "10", "A"),
@@ -152,6 +157,36 @@ class CliArgsTests(unittest.TestCase):
         ):
             with self.subTest(tokens=tokens):
                 self.assert_contains_tokens(help_text, tokens)
+
+    def test_start_parser_accepts_model_text_without_argparse_choices(self):
+        parser = build_parser()
+
+        lowercase_args = parser.parse_args(
+            ["start-trigger-record", "--resource", "USB::FAKE", "--model", "34461a"]
+        )
+        unknown_args = parser.parse_args(
+            ["start-trigger-record", "--resource", "USB::FAKE", "--model", "BADMODEL"]
+        )
+
+        self.assertEqual("34461a", lowercase_args.instrument_model)
+        self.assertEqual("BADMODEL", unknown_args.instrument_model)
+
+    def test_start_parser_source_has_no_hard_coded_model_choices(self):
+        parser_source = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "keysight_logger_cli"
+            / "_parser.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotRegex(
+            parser_source,
+            r"choices\s*=\s*(?:\[|\()[^\]\)]*34460A[^\]\)]*34461A[^\]\)]*(?:\]|\))",
+        )
+        self.assertNotRegex(
+            parser_source,
+            r"choices\s*=\s*(?:\[|\()[^\]\)]*34461A[^\]\)]*34460A[^\]\)]*(?:\]|\))",
+        )
 
     def test_start_parses_core_v1_1_measurement_options(self):
         parser = build_parser()

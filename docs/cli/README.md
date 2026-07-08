@@ -71,11 +71,15 @@ Important limitations:
 - This project supports Keysight 34460A and 34461A Truevolt DMM logging. Live
   starts auto-detect the model from the connected instrument IDN when
   `--model` is omitted.
-- Select `--model 34460A` when Start must require a 34460A IDN match. This uses
-  34460A limits: no 10 A current range or current terminal selection, 1000
+- Select `--model 34460A` when Start must require a 34460A IDN match. In live
+  mode this is an expected-model guard only; it does not override the
+  IDN-selected profile. In dry-run or simulate mode it selects the 34460A
+  profile limits: no 10 A current range or current terminal selection, 1000
   readings of memory, and no base-profile external trigger modes.
 - Select `--model 34461A` when Start must require a 34461A IDN match. Explicit
-  live mismatches fail before setup SCPI.
+  live mismatches fail before setup SCPI. Model names are normalized and
+  validated by Core profile logic; unknown models fail validation with the
+  supported models listed.
 - The 34460A has a lower maximum reading rate than the 34461A, but the CLI does
   not actively control high-speed reading rate in this release.
 - AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz
@@ -347,7 +351,8 @@ For a guided operator path with common setting explanations, use the
 
 ### 34460A Profile Examples
 
-Select the 34460A profile explicitly when using a 34460A:
+Use the 34460A expected-model guard when live-starting a 34460A. The same
+`--model` value selects the 34460A profile for dry-run and simulator planning:
 
 ```powershell
 .\.venv\Scripts\keysight-logger.exe start-trigger-record `
@@ -524,7 +529,7 @@ after that many successful timer CSV rows.
 | Option | Required | Default | Description |
 | --- | --- | --- | --- |
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
-| `--model`, `--instrument-model` `34460A\|34461A` | No | auto for live; required for non-deterministic dry-run/simulate | Force the instrument profile used for validation, capabilities, and live IDN matching. Omit for live auto-detect. |
+| `--model MODEL`, `--instrument-model MODEL` | No | auto for live; required for non-deterministic dry-run/simulate | Expected model guard for live runs; model profile selector for dry-run/simulate. Core profile logic normalizes and validates model names, for example `34460A` or `34461A`, and reports unsupported models with the supported list. |
 | `--visa-library TEXT`, `--backend TEXT` | No | system default | Optional PyVISA library/backend argument, such as `@py`. Dry-run and simulator runs accept the option but do not open VISA. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
 | `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |

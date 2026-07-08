@@ -70,9 +70,12 @@ used.
 
 Live starts auto-detect 34460A or 34461A from the connected instrument IDN when
 `--model` is omitted. Add `--model 34460A` or `--model 34461A` only when Start
-must require that IDN match; a live mismatch fails before setup. Dry-run
-commands need `--model` unless the resource is the deterministic simulator
-resource `SIM::34460A` or `SIM::34461A`.
+must require that IDN match; a live mismatch fails before setup, and the
+selected model never overrides the IDN-selected profile. Dry-run and simulate
+commands use the selected model profile and need `--model` unless the resource
+is the deterministic simulator resource `SIM::34460A` or `SIM::34461A`. Model
+names are normalized and validated by Core profile logic, so unknown models
+fail with a clear validation error.
 
 By default, the CLI uses the computer's system VISA runtime, such as Keysight
 IO Libraries Suite or NI-VISA. For advanced pyvisa-py LAN diagnostics, an

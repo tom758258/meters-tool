@@ -27,9 +27,12 @@ unit, trigger source, and related metadata.
 Live CLI and WebUI starts auto-detect the connected model from `*IDN?` when the
 expected model is omitted. Select CLI `--model 34460A` / `--model 34461A` or
 WebUI `Require 34460A` / `Require 34461A` only when the start must require that
-IDN match; explicit live mismatches fail before setup SCPI. Dry-run and
-simulator runs require an explicit model unless the simulator resource encodes
-one deterministically, such as `SIM::34460A` or `SIM::34461A`.
+IDN match; explicit live mismatches fail before setup SCPI, and the selected
+model never overrides the IDN-selected profile. Dry-run and simulator runs use
+the selected model profile and require an explicit model unless the simulator
+resource encodes one deterministically, such as `SIM::34460A` or
+`SIM::34461A`. Model names are normalized and validated by Core profile logic;
+unknown models fail validation with the supported models listed.
 
 CLI commands that open VISA resources use the system VISA runtime by default
 through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a

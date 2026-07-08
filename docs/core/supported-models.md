@@ -14,8 +14,16 @@ Core currently provides these instrument profiles:
 | `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | auto-detected or explicitly selected IDN must match 34460A; operator validation required |
 
 CLI and WebUI live starts auto-detect 34460A/34461A from `*IDN?` when the model
-request is omitted. Explicit model selection forces the profile and fails before
-setup SCPI if the connected IDN reports the other supported model.
+request is omitted. Explicit model selection is an expected-model guard for
+live starts: Core validates it against the detected IDN and fails before setup
+SCPI if the connected IDN reports a different supported model. The selected
+model never overrides the live IDN-selected profile. Dry-run and simulator
+starts use the selected model profile unless the simulator resource encodes a
+single supported model token such as `SIM::34460A` or `SIM::34461A`.
+
+Core profile logic normalizes requested model names, including lowercase input
+such as `34460a` or `34461a`, and rejects unknown models with a validation
+message that lists the supported models from the profile registry.
 
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource.
