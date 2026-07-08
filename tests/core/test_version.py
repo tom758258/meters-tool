@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.metadata
 from pathlib import Path
 
-import keysight_logger_core._version as package_version
+import meters_tool_core._version as package_version
 
 
 def test_read_project_version_reads_project_table(tmp_path: Path):

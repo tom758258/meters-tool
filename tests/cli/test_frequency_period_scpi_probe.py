@@ -103,7 +103,7 @@ def run_frequency_probe(
     model: str | None = None,
 ) -> tuple[dict, list[FakeResourceManager]]:
     factory, managers = resource_manager_factory(sessions)
-    with patch("keysight_logger_core.instrument.time.sleep", return_value=None):
+    with patch("meters_tool_core.instrument.time.sleep", return_value=None):
         result = probe.run_probe(
             resource="USB::FAKE",
             measurement="frequency",
@@ -226,7 +226,7 @@ def test_period_probe_uses_only_planned_commands():
     session = FakeVisaSession()
     factory, managers = resource_manager_factory([session])
 
-    with patch("keysight_logger_core.instrument.time.sleep", return_value=None):
+    with patch("meters_tool_core.instrument.time.sleep", return_value=None):
         result = probe.run_probe(
             resource="USB::FAKE",
             measurement="period",

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger_cli.cli import WindowsConsoleStopHandler, WindowsKeyboardStopPoller
-from keysight_logger_core.runner import StopController
+from meters_tool_cli.cli import WindowsConsoleStopHandler, WindowsKeyboardStopPoller
+from meters_tool_core.runner import StopController
 
 from cli_command_helpers import FakeMsvcrt
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger_core.models import (
+from meters_tool_core.models import (
     DEFAULT_INSTRUMENT_PROFILE,
     INSTRUMENT_PROFILES,
     KEYSIGHT_34460A_CAPABILITIES,

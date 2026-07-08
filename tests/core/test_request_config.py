@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger_core._request_config import acquisition_config_from_start_request
-from keysight_logger_core.models import StartRequest
+from meters_tool_core._request_config import acquisition_config_from_start_request
+from meters_tool_core.models import StartRequest
 
 
 class RequestConfigTests(unittest.TestCase):

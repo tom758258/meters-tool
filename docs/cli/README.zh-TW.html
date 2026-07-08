@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keysight Truevolt CLI Logger 說明書</title>
+    <title>Meters Tool CLI 說明書</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -246,7 +246,7 @@
     </aside>
 
     <main>
-        <h1>Keysight Truevolt CLI Logger</h1>
+        <h1>Meters Tool CLI</h1>
 
         <h2 id="documentation">文件集</h2>
         <ul>
@@ -262,8 +262,8 @@
         </ul>
         <p>適用於 Keysight 34460A 與 34461A Truevolt 數位萬用電表的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率、頻率、週期以及 2 線式或 4 線式電阻量測。它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。</p>
         <p>對於標準操作人員的工作流程，請從 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。</p>
-        <p><code>keysight-logger</code> 是目前的單一 distribution 基準。其套件版本是 root <code>pyproject.toml</code> 內的 <code>[project].version</code>。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>frequency</code>、<code>period</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code>、<code>--gate-time-s</code>、<code>--freq-period-timeout</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
-        <p>Python 整合應從 <code>keysight_logger_core</code> 或 <code>keysight_logger_core.*</code> 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 <code>keysight_logger.measurement</code> 和 <code>keysight_logger.instrument</code>。</p>
+        <p><code>meters-tool</code> 是目前的單一 distribution 基準。其套件版本是 root <code>pyproject.toml</code> 內的 <code>[project].version</code>。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>frequency</code>、<code>period</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code>、<code>--gate-time-s</code>、<code>--freq-period-timeout</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
+        <p>Python 整合應從 <code>meters_tool_core</code> 或 <code>meters_tool_core.*</code> 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 <code>meters_tool.measurement</code> 和 <code>meters_tool.instrument</code>。</p>
 
         <h2 id="current-scope">目前範圍</h2>
         <h3>已實現：</h3>
@@ -303,34 +303,34 @@
 
         <h2 id="development">開發</h2>
         <p>在 PowerShell 中，切換到專案目錄，建立或重複使用本機虛擬環境，安裝包含開發相依套件的套件，然後執行預設測試：</p>
-        <div class="code-wrapper"><pre><code>cd path\to\Keysight
+        <div class="code-wrapper"><pre><code>cd path\to\meters-tool
 uv venv .venv
 uv pip install -e ".[all,dev]"
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider</code></pre></div>
         <p>如果 <code>uv</code> 警告硬連結（hardlinking）失敗並降級為複製檔案，該警告通常不代表安裝失敗。對於跨磁碟結帳或不支援硬連結的環境，請使用以下命令安裝：</p>
         <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]" --link-mode=copy</code></pre></div>
         <p>在 Windows 上，完整的 pytest 執行可能需要系統管理員權限的 PowerShell 視窗，因為 VISA 相關的探測或本機環境存取可能需要系統管理員權限。</p>
-        <p>安裝後，使用 <code>keysight-logger</code> 主控台指令來執行專案命令：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe &lt;command&gt; [options]</code></pre></div>
-        <p><code>.venv\Scripts\keysight-logger.exe</code> 是安裝時產生的，並非受版本控制的專案檔案。如果遺失，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。如果 PowerShell 因執行原則限制而阻擋啟用，請繼續使用本指南中顯示的明確 <code>.\.venv\Scripts\...</code> 命令。</p>
+        <p>安裝後，使用 <code>meters-tool</code> 主控台指令來執行專案命令：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe &lt;command&gt; [options]</code></pre></div>
+        <p><code>.venv\Scripts\meters-tool.exe</code> 是安裝時產生的，並非受版本控制的專案檔案。如果遺失，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。如果 PowerShell 因執行原則限制而阻擋啟用，請繼續使用本指南中顯示的明確 <code>.\.venv\Scripts\...</code> 命令。</p>
         <p>也支援將明確的模組形式作為開發/後備替代方案：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m keysight_logger_cli &lt;command&gt; [options]</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m meters_tool_cli &lt;command&gt; [options]</code></pre></div>
         <p>選用的環境啟用：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\Activate.ps1</code></pre></div>
         <p>如果 PowerShell 因執行原則限制而阻擋啟用，請使用上方顯示的明確 <code>.\.venv\Scripts\python.exe</code> 指令。</p>
 
         <h2 id="standalone-exe">獨立 EXE 建置</h2>
-        <p>安裝的 <code>.venv\Scripts\keysight-logger.exe</code> 是一個 virtualenv 主控台包裝器。對於沒有專案環境的機器，它並非獨立的執行檔。</p>
-        <p>若要建置選用的獨立主控台 exe，請在已安裝 <code>keysight-logger</code> 的環境中使用 PyInstaller。PyInstaller 是本機版本建置工具，而非 CLI 執行階段相依套件，因此在全新機器上重新建置之前，請將其安裝到 venv 中：</p>
+        <p>安裝的 <code>.venv\Scripts\meters-tool.exe</code> 是一個 virtualenv 主控台包裝器。對於沒有專案環境的機器，它並非獨立的執行檔。</p>
+        <p>若要建置選用的獨立主控台 exe，請在已安裝 <code>meters-tool</code> 的環境中使用 PyInstaller。PyInstaller 是本機版本建置工具，而非 CLI 執行階段相依套件，因此在全新機器上重新建置之前，請將其安裝到 venv 中：</p>
         <div class="code-wrapper"><pre><code>uv pip install pyinstaller</code></pre></div>
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_cli_exe.ps1</code></pre></div>
         <p>輸出為：</p>
-        <div class="code-wrapper"><pre><code>dist\keysight-logger.exe</code></pre></div>
+        <div class="code-wrapper"><pre><code>dist\meters-tool.exe</code></pre></div>
         <p>重新建置後執行無硬體的快速功能健檢：</p>
-        <div class="code-wrapper"><pre><code>.\dist\keysight-logger.exe --version
-.\dist\keysight-logger.exe --help
-.\dist\keysight-logger.exe list-resources --dry-run --json
-.\dist\keysight-logger.exe start-trigger-record --resource SIM::34461A --simulate --measurement voltage-dc --trigger-mode immediate --max-samples 1 --csv .tmp_tests\cli_exe_smoke.csv --status-format jsonl</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\dist\meters-tool.exe --version
+.\dist\meters-tool.exe --help
+.\dist\meters-tool.exe list-resources --dry-run --json
+.\dist\meters-tool.exe start-trigger-record --resource SIM::34461A --simulate --measurement voltage-dc --trigger-mode immediate --max-samples 1 --csv .tmp_tests\cli_exe_smoke.csv --status-format jsonl</code></pre></div>
         <p>PyInstaller 會將產生的檔案寫入本機 <code>build\</code> 和 <code>dist\</code> 目錄。除非專案刻意切換為簽入的 PyInstaller spec，否則請勿提交產生的 <code>.spec</code> 檔案。</p>
 
         <h2 id="no-hardware-verification">無硬體驗證</h2>
@@ -338,7 +338,7 @@ uv pip install -e ".[all,dev]"
         <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]"
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.ps1 -Target keysight-34461a
-.\.venv\Scripts\keysight-logger.exe list-resources --dry-run --json</code></pre></div>
+.\.venv\Scripts\meters-tool.exe list-resources --dry-run --json</code></pre></div>
         <p><code>list-resources --dry-run</code> 不會建立 VISA 資源管理員、列出 VISA 資源、開啟資源、查詢 <code>*IDN?</code> 或執行發布/本機清除。如果主控台指令尚未產生，請先安裝套件；上述的模組形式仍可作為開發後備方案。</p>
 
         <h2 id="physical-instrument-verification">實體儀器驗證路徑</h2>
@@ -346,7 +346,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <ol>
             <li>執行上方的無硬體配方。</li>
             <li>探測目前有回應 <code>*IDN?</code> 的資源：
-                <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --live-only --json</code></pre></div>
+                <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --live-only --json</code></pre></div>
             </li>
             <li>從 JSON 輸出中複製一個資源字串。在下方的命令中使用該精確值。實際包裝器絕不會自行掃描或猜測資源。</li>
             <li>產生實際規劃，而不開啟 VISA 或變更儀器：
@@ -424,9 +424,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
 
         <h2 id="command-reference">指令參考</h2>
         <p>使用已安裝的主控台指令：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe &lt;command&gt; [options]</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe &lt;command&gt; [options]</code></pre></div>
         <p>模組形式仍可作為明確的開發/後備替代方案：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m keysight_logger_cli &lt;command&gt; [options]</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m meters_tool_cli &lt;command&gt; [options]</code></pre></div>
 
         <div class="table-container">
             <table>
@@ -479,7 +479,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr><th>選項</th><th>說明</th></tr>
                 </thead>
                 <tbody>
-                    <tr><td><code>--version</code></td><td>列印 <code>keysight-logger &lt;package-version&gt;</code>並退出，不需要子指令。</td></tr>
+                    <tr><td><code>--version</code></td><td>列印 <code>meters-tool &lt;package-version&gt;</code>並退出，不需要子指令。</td></tr>
                 </tbody>
             </table>
         </div>
@@ -633,7 +633,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
 
         <h2 id="agent-friendly-workflow">友善 Agent 的 CLI 工作流程</h2>
         <p>使用 <code>--dry-run</code> 來驗證命令並檢查規劃的 SCPI/讀取路徑，而不接觸實體儀器：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -641,7 +641,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
   --dry-run `
   --status-format jsonl</code></pre></div>
         <p>使用 <code>--simulate</code> 進行工作流程檢查，而不需要實際的 VISA 工作階段：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
   --csv ".\data\simulate.csv" `
   --trigger-mode immediate `
@@ -654,7 +654,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p>有關目前的 schema 和別名規則，請參閱 <a href="../../docs/contracts/meters-cli-jsonl-contract.md">Meters CLI JSON / JSONL 合約</a>。</p>
         <p>有關 Meters 工作器模式、本機控制端點、狀態 payload 以及包裝器產物/報告 schema，請參閱 <a href="../../docs/contracts/meters-worker-contract.md">Meters Worker 合約</a>。</p>
         <p>當工作器執行中，<code>status</code> 會包裝非變更性的 <code>GET /status</code> 並傳回正規化 JSON 以供協調器健康檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe status --port 8765 --json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe status --port 8765 --json</code></pre></div>
         <p>推薦的協調器流程：</p>
         <ol>
             <li>執行 <code>start-trigger-record --dry-run --status-format jsonl</code> 並驗證規劃（plan）物件。</li>
@@ -668,7 +668,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p><code>ready</code> 事件與 <code>wait-ready</code> 代表本機控制面可以接受 <code>/command</code>、<code>/stop</code> 與 <code>/status</code> 請求。它們並不代表第一個樣本已經擷取。使用 JSONL <code>run_id</code> 作為同一次執行的 stdout 執行階段事件、<code>status</code> 或直接 <code>GET /status</code> 以及包裝器產物之間的關聯鍵。</p>
 
         <h3>send-command --format json</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command --port 8765 --format json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe send-command --port 8765 --format json</code></pre></div>
         <p>輸出：</p>
         <div class="code-wrapper"><pre><code>{"command": "software_trigger", "event": "send-command", "http_status": 202,
  "job_id": null, "message": "command accepted", "schema_version": 1,
@@ -676,18 +676,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p>本機驗證和工作器 HTTP <code>400</code> 回應會以代碼 2 退出。HTTP <code>409</code>、<code>429</code>、連線/請求失敗，以及無效或空的成功回應主體會以代碼 3 退出。結構化 JSON 診斷會合併工作器的 <code>command</code>、<code>job_id</code>、<code>reason</code>、<code>error</code> 和 <code>message</code> 欄位（如果可用）。</p>
 
         <h3>stop --format json</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe stop --port 8765 --format json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe stop --port 8765 --format json</code></pre></div>
         <p>輸出：</p>
         <div class="code-wrapper"><pre><code>{"event": "stop", "http_status": 202, "message": "stop accepted",
  "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}</code></pre></div>
         <p>如果端點未在監聽（程序已停止），則以代碼 0 退出，並發出 <code>{"status": "already_stopped", ...}</code>。</p>
 
         <h3>status --format json</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe status --port 8765 --format json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe status --port 8765 --format json</code></pre></div>
         <p>輸出包含 <code>event: "status"</code>、<code>reachable</code>、<code>ok</code>、<code>running</code>、<code>stopping</code>、<code>run_id</code>、工作器 URL、佇列欄位、<code>captured</code>（已擷取數）、<code>errors</code>（錯誤數）以及 <code>fatal_error</code>。<code>ok</code> 是工作器健康狀態：僅在端點可連線且 <code>fatal_error</code> 為 <code>null</code> 時才為 <code>true</code>。</p>
 
         <h3>wait-ready --format json</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe wait-ready --port 8765 --timeout-ms 10000 --format json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe wait-ready --port 8765 --timeout-ms 10000 --format json</code></pre></div>
         <p><code>wait-ready</code> 在收到來自 <code>/status</code> 的任何有效 <code>200</code> JSON 回應時成功，並將 <code>attempts</code>、<code>elapsed_ms</code> 和 <code>timeout_ms</code> 加入正規化的狀態物件中。逾時或無效狀態 JSON 將以代碼 3 退出。</p>
 
         <h3>結束代碼 (Exit Codes)</h3>
@@ -785,16 +785,16 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p>這些範例依照實用驗證路徑排序：先確認作用中資源，然後執行單一樣本快速功能健檢，最後使用符合實驗設計的觸發模式。下方顯示的 USB 資源是專案驗證時使用的 34461A；請替換為適合您儀器和測試執行的資源字串與 CSV 路徑。</p>
 
         <h3>列出 VISA 資源</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources</code></pre></div>
         <p>驗證哪些資源是作用中（live）的：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --verify</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --verify</code></pre></div>
         <p>成功驗證的作用中資源會在掃描工作階段關閉前盡力釋放回本機狀態。未通過 IDN 查詢的過期資源將在不執行釋放 SCPI 的情況下關閉。</p>
         <p>僅顯示作用中資源並隱藏過期的 VISA 快取項目：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --live-only</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --live-only</code></pre></div>
         <p>在腳本中使用 JSON 輸出：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --verify --format json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --verify --format json</code></pre></div>
         <p>預覽探測合約而不接觸 VISA：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --dry-run --live-only --json</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --dry-run --live-only --json</code></pre></div>
         <p>驗證後的文字輸出以 tab 分隔：</p>
         <div class="code-wrapper"><pre><code>live    USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR    Keysight Technologies,34461A,...
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></pre></div>
@@ -842,7 +842,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>DC 電流快速功能健檢</h3>
         <p>單一即時電流樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\current_smoke.csv" `
   --trigger-mode immediate `
@@ -855,7 +855,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>對於電流列，預期 CSV 中的 <code>measurement_type=current_dc</code> 且 <code>unit=A</code>。</p>
 
         <p>Dry-run 10 A 端子檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -867,7 +867,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>模擬 10 A 端子工作流程檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
   --csv ".\data\simulate_current_10a_terminal.csv" `
   --trigger-mode immediate `
@@ -880,7 +880,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>實際 10 A 端子快速功能健檢。僅在操作者確認電流路徑對 10 A 輸入端子和預期電流安全後才可執行：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\current_10a_terminal_smoke.csv" `
   --trigger-mode immediate `
@@ -895,7 +895,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>軟體觸發，限制樣本執行</h3>
         <p>終端機 1，開始記錄並等待五次軟體觸發：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\software_5.csv" `
   --trigger-mode software `
@@ -906,7 +906,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --auto-zero on `
   --nplc 1.0</code></pre></div>
         <p>終端機 2，傳送一次軟體觸發：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command --port 8765</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe send-command --port 8765</code></pre></div>
         <p>執行 <code>send-command</code> 指令五次。記錄器會因為 <code>--max-samples 5</code> 而在成功取得五個樣本後自動停止。</p>
 
         <h3>驗證過的 DC 電壓基本功能健檢</h3>
@@ -914,7 +914,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>在相同的儀器上，額外的電壓觸發檢查也回報正常：軟體觸發 (1-2 列)、軟體計時器 (2-3 列) 以及外接觸發 (單一外接邊緣)。搭配 <code>voltage-dc</code> 的 <code>immediate-custom</code>、<code>software-custom</code> 和 <code>external-custom</code> 粗略檢查也正常。</p>
 
         <p>Dry-run Auto Zero once 檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -924,7 +924,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>模擬 Auto Zero once 工作流程檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
   --csv ".\data\simulate_voltage_auto_zero_once.csv" `
   --trigger-mode immediate `
@@ -935,7 +935,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>自動範圍，單一即時電壓樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_auto_smoke.csv" `
   --trigger-mode immediate `
@@ -946,7 +946,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --max-samples 1</code></pre></div>
 
         <p>手動 10 V 範圍，單一即時電壓樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_range10_smoke.csv" `
   --trigger-mode immediate `
@@ -958,7 +958,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --max-samples 1</code></pre></div>
 
         <p>實際 Auto Zero once 快速功能健檢：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_auto_zero_once_smoke.csv" `
   --trigger-mode immediate `
@@ -972,7 +972,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>對於電壓列，預期 CSV 中的 <code>measurement_type=voltage_dc</code> 且 <code>unit=V</code>。電壓也可以透過 <code>--measurement voltage-dc</code> 來配合自訂/緩衝模式使用；這些路徑使用相同的量測設定以及現有的自訂模式觸發/讀取流程。在信賴電壓緩衝擷取以進行生產前，請先使用操作者提供的 VISA 資源執行較長期的緩衝驗證。</p>
 
         <p>DCV Input Z 快速功能健檢，自動模式：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_dcv_input_z_auto_smoke.csv" `
   --trigger-mode immediate `
@@ -984,7 +984,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --max-samples 1</code></pre></div>
 
         <p>DCV Input Z 快速功能健檢，固定 10 MOhm：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_dcv_input_z_10m_smoke.csv" `
   --trigger-mode immediate `
@@ -1000,7 +1000,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>DCV 比率使用 34461A 的 <code>VOLT:DC:RAT</code> 功能。在進行實際操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。</p>
 
         <p>Dry-run DCV Ratio 檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
@@ -1009,7 +1009,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>模擬 DCV Ratio 工作流程檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
   --csv ".\data\simulate_voltage_dc_ratio.csv" `
   --trigger-mode immediate `
@@ -1019,7 +1019,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>實際 DCV Ratio 快速功能健檢：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_dc_ratio_smoke.csv" `
   --trigger-mode immediate `
@@ -1034,7 +1034,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>AC 電流與 AC 電壓使用與其他純量（scalar）量測相同的觸發/讀取流程。它們設定 34461A 的 AC 功能、自動/手動範圍與選用的 AC 頻寬。對於 AC 量測，CLI 不會寫入 NPLC 或 Auto Zero SCPI。在實際驗證時，請從即時模式、自動範圍開啟與 <code>--max-samples 1</code> 開始，然後對照 CLI CSV 欄位與 34461A 前面板讀數。</p>
 
         <p>Dry-run AC 頻寬檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --trigger-mode immediate `
   --measurement voltage-ac `
@@ -1044,7 +1044,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>模擬 AC 頻寬工作流程檢查：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
   --csv ".\data\simulate_voltage_ac_bw20.csv" `
   --trigger-mode immediate `
@@ -1055,7 +1055,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --status-format jsonl</code></pre></div>
 
         <p>建議的自動範圍 AC 電壓快速功能健檢：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_ac_auto_smoke.csv" `
   --trigger-mode immediate `
@@ -1065,7 +1065,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --max-samples 1</code></pre></div>
 
         <p>建議的手動範圍 AC 電流快速功能健檢：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\current_ac_range100ma_smoke.csv" `
   --trigger-mode immediate `
@@ -1079,7 +1079,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>頻率（Frequency）與週期（Period）共用純量（scalar）<code>READ?</code>、硬體觸發 <code>FETC?</code> 以及緩衝擷取路徑。它們的有效預設值為自動範圍（Auto Range）、<code>20</code> Hz AC 濾波器與 <code>0.1</code> 秒閘門時間（gate time）。頻率預設為自動逾時。週期不會傳送逾時 SCPI，並保持儀器現有的週期逾時狀態不變。</p>
 
         <p>在實機 I/O 前預覽各個設定：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "&lt;VISA_RESOURCE&gt;" `
   --measurement frequency `
   --trigger-mode immediate `
@@ -1087,7 +1087,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --dry-run `
   --status-format jsonl
 
-.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "&lt;VISA_RESOURCE&gt;" `
   --measurement period `
   --trigger-mode immediate `
@@ -1103,7 +1103,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>這兩個電阻指令在真實 34461A 上回報正常：自動範圍、手動 1000 Ohm 範圍，且 CSV 欄位/數值看起來都很正常。</p>
 
         <p>自動範圍，單一即時電阻樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\resistance_2w_auto_smoke.csv" `
   --trigger-mode immediate `
@@ -1114,7 +1114,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --max-samples 1</code></pre></div>
 
         <p>手動 1000 Ohm 範圍，單一即時電阻樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\resistance_2w_range1000_smoke.csv" `
   --trigger-mode immediate `
@@ -1130,7 +1130,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>這些指令使用與其他純量（scalar）量測相同的觸發/讀取流程，但 4 線式 SCPI 功能為 <code>FRES</code>。CLI 不會寫入 <code>FRES:ZERO:AUTO</code>，因為 34461A 在內部處理 4 線電阻的 Auto Zero。移除 <code>FRES:ZERO:AUTO</code> 後，這些快速功能健檢在真實的 34461A 上回報正常。</p>
 
         <p>自動範圍，單一即時 4 線電阻樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\resistance_4w_auto_smoke.csv" `
   --trigger-mode immediate `
@@ -1140,7 +1140,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --max-samples 1</code></pre></div>
 
         <p>手動 1000 Ohm 範圍，單一即時 4 線電阻樣本：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\resistance_4w_range1000_smoke.csv" `
   --trigger-mode immediate `
@@ -1152,13 +1152,13 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>對於 4 線電阻列，預期 CSV 中的 <code>measurement_type=resistance_4w</code> 且 <code>unit=Ohm</code>。請根據所選的前面板或後面板端子，使用 Kelvin 導線或適當的 HI/LO Sense 接線。</p>
 
         <h3>軟體觸發附帶 Metadata</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe send-command `
   --port 8765 `
   --arguments-json "{""metadata"":{""batch"":""A1"",""operator"":""lab""}}"</code></pre></div>
         <p>命令端點接受此 metadata，並以 JSON 物件字串形式寫入 CSV 的 <code>trigger_metadata</code> 欄位。</p>
 
         <h3>軟體觸發速率限制與佇列限制</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\software_limited.csv" `
   --trigger-mode software `
@@ -1168,7 +1168,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>如果觸發送達的速度快於 <code>--sw-min-interval-ms</code>，或者軟體佇列已滿，HTTP 端點將會回報 <code>429</code>。</p>
 
         <h3>軟體計時器，限制樣本執行</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\software_timer_100.csv" `
   --trigger-mode software `
@@ -1181,7 +1181,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>此模式由電腦控制並使用 <code>READ?</code>。它被設計為一個便利型的記錄器，而非無損的精密計時模式。</p>
 
         <h3>外接硬體觸發，限制樣本執行</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\external_10.csv" `
   --trigger-mode external `
@@ -1195,7 +1195,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>每個被接受的外接觸發邊緣都會產生一列 <code>trigger_source=hardware</code> 的 CSV。硬體觸發逾時被視為正常的保護性重新 arm 條件；它本身不會被計為錯誤。</p>
 
         <h3>即時模式，限制樣本執行</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\immediate_100.csv" `
   --trigger-mode immediate `
@@ -1207,7 +1207,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>即時模式不等待 <code>send-command</code> 或外接觸發邊緣。請使用 <code>--max-samples</code> 以避免意外的長時間連續執行。</p>
 
         <h3>即時自訂（Immediate Custom）模式</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\immediate_custom_1000.csv" `
   --trigger-mode immediate-custom `
@@ -1220,7 +1220,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>此模式使用 34461A 讀取記憶體來減少每個樣本 <code>READ?</code> 通訊的開銷。這不是儀器的內部定時模式：樣本步調仍由量測速度、DC/電阻的 NPLC 與 Auto Zero、自動範圍、範圍安定（range settling）以及儀器觸發/樣本行為決定。CSV 的 <code>trigger_metadata</code> 會將自訂列標記為 <code>time_basis=pc_data_remove_time_not_instrument_sample_time</code>。預期列數為 <code>trigger_count * sample_count</code>。除非設定了 <code>--allow-buffer-overflow-risk</code>，否則超過 34461A 的 10,000 筆記憶體限制的請求將會被拒絕。</p>
 
         <h3>軟體自訂（Software Custom）模式</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\software_custom_20.csv" `
   --trigger-mode software-custom `
@@ -1231,12 +1231,12 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --auto-zero off `
   --nplc 1.0</code></pre></div>
         <p>從另一個 PowerShell 視窗，為每次請求的觸發發送一次匯流排觸發：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe send-command
-.\.venv\Scripts\keysight-logger.exe send-command</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe send-command
+.\.venv\Scripts\meters-tool.exe send-command</code></pre></div>
         <p>此模式透過 <code>TRIG:SOUR BUS</code>、<code>TRIG:COUNT</code> 和 <code>SAMP:COUNT</code> 來 arm 萬用電表。每個被接受 HTTP <code>send-command</code> 會傳送一個 <code>*TRG</code>。預期列數仍為 <code>trigger_count * sample_count</code>；<code>trigger_count=2</code> 且 <code>sample_count=10</code> 會產生 20 列 CSV。</p>
 
         <h3>外接自訂（External Custom）模式</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\external_custom_10.csv" `
   --trigger-mode external-custom `
@@ -1251,17 +1251,17 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>此模式以 <code>TRIG:SOUR EXT</code>、<code>TRIG:SLOP</code>、<code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 與 <code>TRIG:DEL</code> 來 arm 萬用電表，然後以 <code>DATA:POINts?</code> / <code>DATA:REMove?</code> 從記憶體中排空已完成的讀數。每個外接觸發邊緣都會推進萬用電表的觸發序列。預期列數為 <code>trigger_count * sample_count</code>；在一次外接邊緣後，<code>trigger_count=1</code> 且 <code>sample_count=10</code> 應產生 10 列 CSV。</p>
 
         <h3>LAN 資源範例</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "TCPIP0::&lt;host&gt;::hislip0::INSTR" `
   --csv ".\data\lan_software.csv" `
   --trigger-mode software `
   --max-samples 5</code></pre></div>
         <p>如果拔除 USB 後 <code>list-resources</code> 仍顯示舊的 USB 資源，請用以下指令僅顯示有回應的資源：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe list-resources --live-only</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --live-only</code></pre></div>
         <p>當您需要檢視過期資源的錯誤以進行診斷時，請使用 <code>list-resources --verify</code>。</p>
 
         <h3>較慢的高精度 DC/電阻設定</h3>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\software_high_accuracy.csv" `
   --trigger-mode software `
@@ -1273,7 +1273,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>VM Comp 斜率</h3>
         <p>除非您需要設定後面板 VM Comp 輸出脈衝斜率，否則請省略 <code>--vm-comp-slope</code>。</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe start-trigger-record `
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\vm_comp_pos.csv" `
   --trigger-mode software `
@@ -1287,7 +1287,7 @@ software stop endpoint: http://127.0.0.1:8765/stop
 software status endpoint: http://127.0.0.1:8765/status
 local stop keys: Ctrl+C, Ctrl+Break, q</code></pre></div>
         <p>從另一個終端機停止：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger.exe stop --port 8765</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe stop --port 8765</code></pre></div>
         <p>其他支援的停止方法：</p>
         <ul>
             <li>在記錄終端機中按 <code>Ctrl+C</code>。</li>
@@ -1339,8 +1339,8 @@ software trigger server stopped</code></pre></div>
         <h2 id="troubleshooting">疑難排解</h2>
         <ul>
             <li>如果 <code>uv</code> 警告硬連結失敗並降級為複製檔案，安裝通常仍已成功。對於跨磁碟或受硬連結限制的環境，請使用 <code>uv pip install -e ".[all,dev]" --link-mode=copy</code> 重新執行安裝。</li>
-            <li>如果缺少 <code>.\.venv\Scripts\keysight-logger.exe</code>，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。主控台指令是安裝產物，而非版本控制下的專案檔案。</li>
-            <li>如果 PowerShell 啟用受阻，請繼續使用明確的 <code>.\.venv\Scripts\python.exe</code> 或 <code>.\.venv\Scripts\keysight-logger.exe</code> 指令，而非啟用虛擬環境。</li>
+            <li>如果缺少 <code>.\.venv\Scripts\meters-tool.exe</code>，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。主控台指令是安裝產物，而非版本控制下的專案檔案。</li>
+            <li>如果 PowerShell 啟用受阻，請繼續使用明確的 <code>.\.venv\Scripts\python.exe</code> 或 <code>.\.venv\Scripts\meters-tool.exe</code> 指令，而非啟用虛擬環境。</li>
             <li>如果未出現 VISA 資源，請確認 VISA 執行階段已安裝，且儀器在廠商連線工具中是可見的。</li>
             <li>如果 <code>list-resources</code> 顯示過期的快取資源，請執行 <code>list-resources --live-only</code> 來隱藏過期的項目。當需要檢查過期資源錯誤時，請使用 <code>list-resources --verify</code>。</li>
             <li>如果 CLI 指示無法開啟 CSV 輸出檔案，請關閉 Excel 或任何其他程序中的該檔案，或選擇不同的 <code>--csv</code> 路徑。</li>

@@ -4,14 +4,14 @@ import threading
 import time
 import unittest
 
-from keysight_logger_core.acquisition import TriggerAcquisitionEngine
-from keysight_logger_core.models import (
+from meters_tool_core.acquisition import TriggerAcquisitionEngine
+from meters_tool_core.models import (
     AcquisitionConfig,
     InstrumentProfile,
     TriggerEvent,
     TriggerSource,
 )
-from keysight_logger_core.trigger import TriggerRouter
+from meters_tool_core.trigger import TriggerRouter
 
 from core_test_helpers import (
     BufferedAvailableFailingMeasurement,

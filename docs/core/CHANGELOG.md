@@ -2,7 +2,9 @@
 
 ## v1.6.0
 
-- Bumped the shared `keysight-logger` package version and Core fallback version
+- Renamed the Core import package from `keysight_logger_core` to
+  `meters_tool_core` as part of the breaking Meters Tool rename.
+- Bumped the shared `meters-tool` package version and Core fallback version
   to `1.6.0`.
 - Refreshed English Core-facing documentation for expected-model auto-detect
   and deterministic simulator resources.

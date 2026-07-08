@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from uuid import uuid4
 
-from keysight_logger_core import (
+from meters_tool_core import (
     NoOpControlPlane,
     StartRequest,
     StartControlPlaneHandle,
@@ -15,8 +15,8 @@ from keysight_logger_core import (
     run_start_session,
     validate_start_request,
 )
-from keysight_logger_core.models import InstrumentConfig, TriggerEvent, TriggerSource
-from keysight_logger_core.simulator import SimulatedVisaInstrument
+from meters_tool_core.models import InstrumentConfig, TriggerEvent, TriggerSource
+from meters_tool_core.simulator import SimulatedVisaInstrument
 
 
 class RecordingEventSink:

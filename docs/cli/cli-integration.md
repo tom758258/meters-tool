@@ -10,7 +10,7 @@ trigger handling, cleanup order, JSON schema, or public API.
 
 ## Adapter Role
 
-`src/keysight_logger_cli/cli.py` owns command-line concerns:
+`src/meters_tool_cli/cli.py` owns command-line concerns:
 
 - `argparse` parser setup and help text.
 - Legacy CLI alias normalization.

@@ -6,10 +6,10 @@ import socket
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
-from keysight_logger_cli.cli import cmd_start
-from keysight_logger_core.instrument import InstrumentError
-from keysight_logger_core.models import TriggerEvent, TriggerSource
-from keysight_logger_core.simulator import SimulatedVisaInstrument
+from meters_tool_cli.cli import cmd_start
+from meters_tool_core.instrument import InstrumentError
+from meters_tool_core.models import TriggerEvent, TriggerSource
+from meters_tool_core.simulator import SimulatedVisaInstrument
 
 class FakeMsvcrt:
     def __init__(self, keys):
@@ -225,17 +225,17 @@ class CliCommandHarnessMixin:
                 metadata=trigger_metadata,
             )
         patches = [
-            patch("keysight_logger_core.runner.SoftwareTriggerAdapter", server_cls),
-            patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
-            patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
-            patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            patch("meters_tool_core.runner.SoftwareTriggerAdapter", server_cls),
+            patch("meters_tool_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
+            patch("meters_tool_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("meters_tool_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
         ]
         if csv_writer is not None:
-            patches.append(patch("keysight_logger_core.runner.CsvWriter", csv_writer))
+            patches.append(patch("meters_tool_core.runner.CsvWriter", csv_writer))
         if instrument_cls is not None:
             patches.append(
                 patch(
-                    "keysight_logger_core.runner.create_instrument_backend",
+                    "meters_tool_core.runner.create_instrument_backend",
                     side_effect=lambda config, *, simulate, measurement_type: instrument_cls(
                         config,
                         measurement_type=measurement_type,

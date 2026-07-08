@@ -8,9 +8,19 @@ Component release notes:
 
 ## v1.6.0
 
+### Breaking rename baseline
+
+- Renamed the project identity from Keysight Logger / `keysight-logger` to
+  Meters Tool / `meters-tool` in one breaking pass.
+- Renamed the import packages to `meters_tool_core`, `meters_tool_cli`, and
+  `meters_tool_webui` without compatibility shims for the old imports.
+- Preserved Keysight hardware profile names, `keysight-34460a` /
+  `keysight-34461a` validation targets, SCPI/VISA behavior, CSV schema,
+  JSON/JSONL fields, WebUI endpoints, and the worker `service` value.
+
 ### Release cleanup
 
-- Bumped the single `keysight-logger` distribution version to `1.6.0` across
+- Bumped the single `meters-tool` distribution version to `1.6.0` across
   package metadata, fallback version plumbing, lock metadata, and version
   tests.
 - Refreshed English Core, CLI, and WebUI documentation to describe expected

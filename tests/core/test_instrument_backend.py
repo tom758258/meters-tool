@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger_core.instrument import VisaInstrument
-from keysight_logger_core.instrument_backend import (
+from meters_tool_core.instrument import VisaInstrument
+from meters_tool_core.instrument_backend import (
     InstrumentBackend,
     create_instrument_backend,
 )
-from keysight_logger_core.models import InstrumentConfig
-from keysight_logger_core.simulator import SimulatedVisaInstrument
+from meters_tool_core.models import InstrumentConfig
+from meters_tool_core.simulator import SimulatedVisaInstrument
 
 
 class FakeVisaSession:

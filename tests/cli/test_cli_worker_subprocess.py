@@ -33,7 +33,7 @@ def subprocess_env() -> dict[str, str]:
 
 def run_client(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [sys.executable, "-m", "keysight_logger_cli", *args],
+        [sys.executable, "-m", "meters_tool_cli", *args],
         cwd=REPO_ROOT,
         env=subprocess_env(),
         text=True,
@@ -78,7 +78,7 @@ def test_simulator_worker_subprocess_control_plane(tmp_path: Path):
             sys.executable,
             "-u",
             "-m",
-            "keysight_logger_cli",
+            "meters_tool_cli",
             "start-trigger-record",
             "--resource",
             "SIM::34461A",

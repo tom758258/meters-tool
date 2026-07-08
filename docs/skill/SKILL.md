@@ -1,11 +1,11 @@
 ---
-name: keysight-meters-cli-orchestration
-description: Use when modifying, testing, reviewing, or orchestrating Keysight_Meters_Logger Meters CLI/worker subprocess workflows, including start-trigger-record, JSON/JSONL contracts, dry-run, simulate, wait-ready, status, send-command, stop, POST /command, GET /status, report.json, CSV, run_id correlation, and live resource safety. Do not use for CSS-only UI styling, general documentation polishing, or unrelated Python refactors.
+name: meters-tool-cli-orchestration
+description: Use when modifying, testing, reviewing, or orchestrating Meters Tool CLI/worker subprocess workflows, including start-trigger-record, JSON/JSONL contracts, dry-run, simulate, wait-ready, status, send-command, stop, POST /command, GET /status, report.json, CSV, run_id correlation, and live resource safety. Do not use for CSS-only UI styling, general documentation polishing, or unrelated Python refactors.
 ---
 
-# Keysight Meters CLI Orchestration
+# Meters Tool CLI Orchestration
 
-This skill helps Codex follow the public Keysight_Meters_Logger Meters
+This skill helps Codex follow the public Meters Tool
 CLI/worker subprocess contracts. It is an instruction-only skill. It does not
 provide an instrument driver, replace the CLI, or authorize live hardware work.
 
@@ -14,14 +14,14 @@ provide an instrument driver, replace the CLI, or authorize live hardware work.
 Before making contract-sensitive decisions, read the relevant contracts in this
 order:
 
-1. If working inside the Keysight_Meters_Logger repository and `docs/contracts/`
+1. If working inside the Meters Tool repository and `docs/contracts/`
    is available, treat those files as the upstream source of truth.
 2. If this skill is installed standalone and has a local `references/` directory,
    read the copied contract files there as a contract snapshot.
 3. If both `docs/contracts/` and `references/` are available and appear to
    differ, warn the user before making contract-sensitive changes.
 
-In executable-only workspaces, such as a folder with `keysight-logger*.exe` but
+In executable-only workspaces, such as a folder with `meters-tool*.exe` but
 no repository `docs/contracts/`, first check this skill package's
 `references/` directory. Read all six contract snapshots before using CLI help.
 If they are not readable, stop and report a missing-contract blocker. CLI help
@@ -57,7 +57,7 @@ Relevant contracts:
 - Do not use existing `run-artifacts` as evidence for a requested fresh
   validation. Dry-run JSON, worker JSONL, client JSON, CSV, summary, `run_id`,
   and exit code must come from the same fresh runtime session.
-- Do not stop, kill, or reuse unrelated pre-existing `keysight-logger`
+- Do not stop, kill, or reuse unrelated pre-existing `meters-tool`
   processes unless the user explicitly approves it. Use a fresh explicit port
   for the owned worker, or report a pre-existing-worker/port blocker.
 
@@ -146,8 +146,8 @@ validation. It does not authorize live resources or VISA discovery.
 Typical executable-only use:
 
 ```powershell
-node .agents\skills\keysight-meters-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
-  --exe .\keysight-logger-<version>.exe `
+node .agents\skills\meters-tool-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
+  --exe .\meters-tool-<version>.exe `
   --out .tmp_tests\meter_sim_software_trigger `
   --resource SIM::34461A `
   --measurement current-dc `

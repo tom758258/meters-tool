@@ -1,7 +1,7 @@
-# Keysight Meters CLI Orchestration Skill Examples
+# Meters Tool CLI Orchestration Skill Examples
 
 This file gives copyable example prompts for the
-`keysight-meters-cli-orchestration` Codex skill. The examples show how to ask an
+`meters-tool-cli-orchestration` Codex skill. The examples show how to ask an
 agent to follow the Meters CLI/worker contracts without guessing resources or
 parsing human-readable text as the machine contract.
 
@@ -99,7 +99,7 @@ Use this for normal planning or validation when you trust the installed Skill an
 contracts to supply the detailed orchestration rules.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 I want to validate the Meters CLI orchestration flow without hardware.
 Plan and run a simulator software-trigger workflow that captures exactly one
@@ -114,7 +114,7 @@ Use this when testing the agent, when the model may skip contract details, or
 when you want the prompt itself to restate the most important safety rules.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 I want to validate the Meters CLI orchestration flow without hardware.
 Plan and run a simulator software-trigger workflow that captures exactly one
@@ -190,7 +190,7 @@ Use this when you want a live workflow plan, but you have not yet supplied the
 real VISA resource and do not want live execution.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Prepare a live one-sample voltage-dc workflow for my Keysight 34461A, but do not
 run any live command yet. Do not guess, scan, rotate, or substitute VISA
@@ -205,7 +205,7 @@ Use this when you want the prompt itself to reinforce the live-resource safety
 boundary and the subprocess orchestration rules.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Prepare a live one-sample voltage_dc measurement workflow for my Keysight
 34461A. Do not guess, scan, rotate, or substitute VISA resources. Ask me to
@@ -271,7 +271,7 @@ Use this for routine contract review when the change is already available in the
 workspace.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Review the current orchestrator or wrapper change against the Meters CLI/worker
 contracts. Focus on JSONL parsing, ready/status handling, POST /command,
@@ -284,7 +284,7 @@ and live VISA resource safety. Do not run live hardware.
 Use this when you want the review scope spelled out more defensively.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Review this orchestrator change against the Meters CLI/worker contracts. Focus
 on JSONL parsing, ready/status handling, POST /command behavior, cooperative
@@ -338,7 +338,7 @@ Use this for normal no-hardware validation when you expect the Skill to supply
 the detailed safety and orchestration rules.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Run the no-hardware simulator software-trigger validation workflow now using
 current-dc, SIM::34461A, software trigger, and exactly one sample. Use dry-run
@@ -352,7 +352,7 @@ Use this when you are testing whether the agent can follow the full contract or
 when you want maximum prompt-level guardrails.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Run the no-hardware simulator software-trigger validation workflow now.
 
@@ -445,7 +445,7 @@ Use this when you want a live command template and no-hardware validation, but
 no actual live execution yet.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Prepare a safe live one-sample voltage-dc workflow, but do not execute live
 hardware. First run or plan no-hardware validation using SIM::34461A, software
@@ -461,7 +461,7 @@ Use this when you want stronger prompt-level protection around the no-live
 boundary.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Prepare the safe live one-sample measurement workflow now, but do not execute
 any live hardware command.
@@ -541,7 +541,7 @@ requiring another confirmation step.
 Use this for normal changed-file or diff review.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Review the current repository changes against the Meters CLI/worker contracts
 now. Focus on machine-output handling, lifecycle ordering, run_id correlation,
@@ -554,7 +554,7 @@ Use this when you want the prompt to spell out exact diff sources, blocker
 conditions, and report shape.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Review the current repository changes against the Meters CLI/worker contracts
 now. Use the current git diff, staged changes, or changed files available in the
@@ -623,7 +623,7 @@ This is the shortest safe live prompt. Do not remove the exact resource,
 explicit authorization, or resource-substitution prohibition.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Run an explicit-resource live one-sample validation workflow. I authorize live
 execution only for this exact VISA resource:
@@ -643,7 +643,7 @@ Use this when actually operating live hardware and you want maximum prompt-level
 safety reinforcement.
 
 ```text
-Use $keysight-meters-cli-orchestration.
+Use $meters-tool-cli-orchestration.
 
 Run an explicit-resource live one-sample validation workflow.
 

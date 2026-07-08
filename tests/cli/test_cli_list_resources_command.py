@@ -15,7 +15,7 @@ from unittest.mock import patch
 from urllib import request
 from urllib.error import HTTPError, URLError
 
-from keysight_logger_cli.cli import (
+from meters_tool_cli.cli import (
     build_parser,
     cmd_list_resources,
     cmd_send_command,
@@ -25,14 +25,14 @@ from keysight_logger_cli.cli import (
     cmd_wait_ready,
     main,
 )
-from keysight_logger_core.models import StartRequest
-from keysight_logger_core.session import StartRunResult
+from meters_tool_core.models import StartRequest
+from meters_tool_core.session import StartRunResult
 
 from cli_command_helpers import CliCommandHarnessMixin
 from cli_command_helpers import *  # noqa: F403
 
 class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_without_verify_prints_resources(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE"]
         lines = []
@@ -47,7 +47,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         mock_visa.verify_resource.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_dry_run_text_outputs_contract_without_discovery(self, mock_visa):
         lines = []
 
@@ -66,7 +66,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         mock_visa.list_resources.assert_not_called()
         mock_visa.verify_resource.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_dry_run_json_outputs_one_contract_without_discovery(self, mock_visa):
         lines = []
 
@@ -130,7 +130,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertTrue(payload["planned_real_run"]["filter_live_only"])
         self.assertTrue(payload["planned_real_run"]["query_idn"])
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_passes_visa_library_to_list(self, mock_visa):
         mock_visa.list_resources.return_value = ["TCPIP::LIVE"]
         lines = []
@@ -145,7 +145,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         mock_visa.verify_resource.assert_not_called()
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_normalizes_blank_visa_library(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE"]
         lines = []
@@ -158,7 +158,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             visa_library=None,
         )
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_verify_marks_live_and_stale(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -183,7 +183,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         self.assertEqual(2, mock_visa.verify_resource.call_count)
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_verify_passes_visa_library_to_list_and_verify(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -204,7 +204,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             ["@py", "@py"],
         )
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_verify_passes_serial_terminations_to_verify(self, mock_visa):
         mock_visa.list_resources.return_value = ["ASRL6::INSTR"]
         mock_visa.verify_resource.return_value = (True, "Keysight Technologies,34461A,MY123,1.0")
@@ -226,7 +226,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             serial_write_termination="\n",
         )
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_verify_json_marks_live_and_stale(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -267,7 +267,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         self.assertTrue(payload["verify"])
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_live_only_prints_only_live_resources(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -284,7 +284,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             lines,
         )
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_live_only_prints_message_when_none_live(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::STALE"]
         mock_visa.verify_resource.return_value = (False, "VisaIOError: timeout")
@@ -295,7 +295,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, rc)
         self.assertEqual(["no live VISA resources found"], lines)
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_live_only_json_filters_stale_resources(self, mock_visa):
         mock_visa.list_resources.return_value = ["USB::LIVE", "USB::STALE"]
         mock_visa.verify_resource.side_effect = [
@@ -327,7 +327,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         self.assertTrue(payload["verify"])
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_live_only_continues_after_first_asrl_stale(self, mock_visa):
         mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
         mock_visa.verify_resource.side_effect = [
@@ -342,7 +342,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(["live\tUSB::LIVE\tKeysight Technologies,34461A,MY123,1.0"], lines)
         self.assertEqual(2, mock_visa.verify_resource.call_count)
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_verify_records_helper_failure_and_continues(self, mock_visa):
         mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
         mock_visa.verify_resource.side_effect = [
@@ -362,7 +362,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             lines,
         )
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_verify_json_includes_stale_asrl_detail(self, mock_visa):
         mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
         mock_visa.verify_resource.side_effect = [
@@ -388,7 +388,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             payload["resources"][0],
         )
 
-    @patch("keysight_logger_cli.cli.VisaInstrument")
+    @patch("meters_tool_cli.cli.VisaInstrument")
     def test_list_resources_live_only_json_filters_stale_asrl(self, mock_visa):
         mock_visa.list_resources.return_value = ["ASRL6::INSTR", "USB::LIVE"]
         mock_visa.verify_resource.side_effect = [
@@ -415,7 +415,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
 
     def test_main_dispatches_list_resources(self):
-        with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
+        with patch("meters_tool_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
             rc = main(["list-resources", "--live-only", "--format", "json"])
 
         self.assertEqual(17, rc)
@@ -430,7 +430,7 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
 
     def test_main_dispatches_list_resources_dry_run_json(self):
-        with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
+        with patch("meters_tool_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
             rc = main(["list-resources", "--dry-run", "--json"])
 
         self.assertEqual(17, rc)
@@ -445,20 +445,20 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
 
     def test_main_dispatches_list_resources_with_visa_library_aliases(self):
-        with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
+        with patch("meters_tool_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
             rc = main(["list-resources", "--visa-library", "@py"])
 
         self.assertEqual(17, rc)
         self.assertEqual("@py", mock_cmd.call_args.kwargs["visa_library"])
 
-        with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=18) as mock_cmd:
+        with patch("meters_tool_cli.cli.cmd_list_resources", return_value=18) as mock_cmd:
             rc = main(["list-resources", "--backend", "@py"])
 
         self.assertEqual(18, rc)
         self.assertEqual("@py", mock_cmd.call_args.kwargs["visa_library"])
 
     def test_main_dispatches_list_resources_with_serial_terminations(self):
-        with patch("keysight_logger_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
+        with patch("meters_tool_cli.cli.cmd_list_resources", return_value=17) as mock_cmd:
             rc = main(
                 [
                     "list-resources",

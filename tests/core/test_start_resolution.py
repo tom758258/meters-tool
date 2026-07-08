@@ -3,13 +3,13 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from keysight_logger_core.models import (
+from meters_tool_core.models import (
     StartRequest,
     find_instrument_profile_by_idn,
     normalize_requested_model,
     supported_instrument_models,
 )
-from keysight_logger_core.start_resolution import (
+from meters_tool_core.start_resolution import (
     DRY_RUN_AUTO_MODEL_ERROR,
     SIMULATE_AUTO_MODEL_ERROR,
     infer_simulator_profile,
@@ -62,7 +62,7 @@ class StartResolutionTests(unittest.TestCase):
 
     def test_dry_run_omitted_model_rejects_non_deterministic_resource_without_visa(self):
         with (
-            patch("keysight_logger_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
             self.assertRaisesRegex(ValueError, DRY_RUN_AUTO_MODEL_ERROR),
         ):
             resolve_start_profile(StartRequest(resource="USB::FAKE", dry_run=True))
@@ -75,7 +75,7 @@ class StartResolutionTests(unittest.TestCase):
 
     def test_live_omitted_model_resolves_from_idn_preflight(self):
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34460A,MY123,1.0",
         ) as preflight:
             request, profile = resolve_start_profile(StartRequest(resource="USB::FAKE"))
@@ -86,7 +86,7 @@ class StartResolutionTests(unittest.TestCase):
 
     def test_live_explicit_model_mismatch_fails_before_runtime(self):
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34460A,MY123,1.0",
         ):
             with self.assertRaisesRegex(

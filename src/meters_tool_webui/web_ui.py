@@ -22,7 +22,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
         'Web UI dependencies are not installed. Run: uv pip install -e ".[webui]" --link-mode=copy'
     ) from exc
 
-from keysight_logger_core import (
+from meters_tool_core import (
     StartControlPlaneHandle,
     StartRequest,
     StartRunEvent,
@@ -34,33 +34,33 @@ from keysight_logger_core import (
     run_start_session,
     validate_start_request,
 )
-from keysight_logger_core._version import (
+from meters_tool_core._version import (
     DISTRIBUTION_NAME,
     FALLBACK_PACKAGE_VERSION,
     get_distribution_version,
 )
-from keysight_logger_core.constants import UTC_PLUS_8
-from keysight_logger_core.command import (
+from meters_tool_core.constants import UTC_PLUS_8
+from meters_tool_core.command import (
     CommandValidationError,
     SoftwareTriggerCommand,
     command_identity,
     command_response,
     parse_command_envelope,
 )
-from keysight_logger_core.instrument import InstrumentError, VisaInstrument
-from keysight_logger_core.measurement import (
+from meters_tool_core.instrument import InstrumentError, VisaInstrument
+from meters_tool_core.measurement import (
     get_measurement_definition,
     registered_measurement_types,
 )
-from keysight_logger_core.models import (
+from meters_tool_core.models import (
     INSTRUMENT_PROFILES,
     TriggerEvent,
     TriggerSource,
     find_instrument_profile_by_idn,
 )
-from keysight_logger_core.runner import StartRunnerDependencies
-from keysight_logger_core.start_resolution import resolve_start_profile
-from keysight_logger_core.validation import (
+from meters_tool_core.runner import StartRunnerDependencies
+from meters_tool_core.start_resolution import resolve_start_profile
+from meters_tool_core.validation import (
     BUFFER_DRAIN_SIZE_RANGE,
     HW_TRIGGER_DELAY_S_RANGE,
     MAX_SAMPLES_RANGE,
@@ -75,12 +75,12 @@ from keysight_logger_core.validation import (
 )
 
 
-PACKAGE_NAME = "keysight-logger-webui"
+PACKAGE_NAME = "meters-tool-webui"
 FALLBACK_WEBUI_VERSION = FALLBACK_PACKAGE_VERSION
 LIVE_SAMPLE_CAPACITY = 5000
 SSE_EVENT_NAME = "run-status"
 SSE_KEEPALIVE_INTERVAL_S = 5.0
-APP_JS_CACHEBUSTER_TOKEN = "__KEYSIGHT_LOGGER_APP_JS_CACHEBUSTER__"
+APP_JS_CACHEBUSTER_TOKEN = "__METERS_TOOL_APP_JS_CACHEBUSTER__"
 
 
 class RunStartRequest(BaseModel):
@@ -491,7 +491,7 @@ class WebRunManager:
             worker = threading.Thread(
                 target=self._run_worker,
                 args=(handle, runtime_request, profile),
-                name=f"keysight-web-run-{run_id}",
+                name=f"meters-tool-web-run-{run_id}",
                 daemon=True,
             )
             handle.worker = worker
@@ -849,7 +849,7 @@ class _NoStoreJavaScriptStaticFiles(StaticFiles):
 def create_app(manager: WebRunManager | None = None) -> FastAPI:
     static_dir = Path(__file__).with_name("static")
     index_html = _render_index_html(static_dir)
-    app = FastAPI(title="Keysight Logger Web UI")
+    app = FastAPI(title="Meters Tool WebUI")
     app.state.manager = manager or WebRunManager()
     app.mount("/static", _NoStoreJavaScriptStaticFiles(directory=static_dir), name="static")
 
@@ -1052,7 +1052,7 @@ def _uvicorn_log_config() -> dict[str, Any]:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="keysight-logger-webui")
+    parser = argparse.ArgumentParser(prog="meters-tool-webui")
     parser.add_argument("--version", action="version", version=f"%(prog)s {get_webui_version()}")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8767)

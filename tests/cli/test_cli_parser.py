@@ -5,7 +5,7 @@ import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
 
-from keysight_logger_cli.cli import build_parser, get_cli_version, main
+from meters_tool_cli.cli import build_parser, get_cli_version, main
 
 class CliArgsTests(unittest.TestCase):
     def assert_contains_tokens(self, text: str, tokens: tuple[str, ...]) -> None:
@@ -39,7 +39,7 @@ class CliArgsTests(unittest.TestCase):
             main(["--version"])
 
         self.assertEqual(0, exc.exception.code)
-        self.assertEqual(f"keysight-logger {get_cli_version()}\n", stdout.getvalue())
+        self.assertEqual(f"meters-tool {get_cli_version()}\n", stdout.getvalue())
 
     def test_subcommand_help_lists_agent_flags(self):
         cases = {
@@ -175,7 +175,7 @@ class CliArgsTests(unittest.TestCase):
         parser_source = (
             Path(__file__).resolve().parents[2]
             / "src"
-            / "keysight_logger_cli"
+            / "meters_tool_cli"
             / "_parser.py"
         ).read_text(encoding="utf-8")
 

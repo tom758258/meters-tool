@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from keysight_logger_core.acquisition import TriggerAcquisitionEngine
-from keysight_logger_core.models import AcquisitionConfig, MeasurementSample
-from keysight_logger_core.trigger import TriggerRouter
+from meters_tool_core.acquisition import TriggerAcquisitionEngine
+from meters_tool_core.models import AcquisitionConfig, MeasurementSample
+from meters_tool_core.trigger import TriggerRouter
 
 
 class CommandRecordingInstrument:

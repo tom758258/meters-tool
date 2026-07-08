@@ -8,7 +8,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from keysight_logger_cli.cli import FALLBACK_CLI_VERSION
+from meters_tool_cli.cli import FALLBACK_CLI_VERSION
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]

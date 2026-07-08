@@ -123,7 +123,7 @@ function Invoke-CapturedStartProcess {
             $stopResult = Invoke-CapturedCommand `
                 -Name "$Name`_timeout_soft_stop" `
                 -FilePath $Python `
-                -Arguments @("-m", "keysight_logger_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -Arguments @("-m", "meters_tool_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
                 -StdOutPath $stopOut `
                 -StdErrPath $stopErr
             $clientResults.Add([pscustomobject]$stopResult) | Out-Null
@@ -174,7 +174,7 @@ function Invoke-SoftTriggerWithRetry {
             -Name "$Name`_attempt_$attempt" `
             -FilePath $Python `
             -Arguments @(
-                "-m", "keysight_logger_cli",
+                "-m", "meters_tool_cli",
                 "send-command",
                 "--format", "json",
                 "--port", [string]$Port,
@@ -209,7 +209,7 @@ function Invoke-ReadinessClientChecks {
     $waitResult = Invoke-CapturedCommand `
         -Name "$Name`_wait_ready" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "wait-ready", "--format", "json", "--port", [string]$Port) `
+        -Arguments @("-m", "meters_tool_cli", "wait-ready", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $waitOut `
         -StdErrPath $waitErr
     if (-not $waitResult.success) {
@@ -221,7 +221,7 @@ function Invoke-ReadinessClientChecks {
     $statusResult = Invoke-CapturedCommand `
         -Name "$Name`_soft_status" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "status", "--format", "json", "--port", [string]$Port) `
+        -Arguments @("-m", "meters_tool_cli", "status", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $statusOut `
         -StdErrPath $statusErr
 
@@ -283,7 +283,7 @@ function New-StartBaseArgs {
         [Parameter(Mandatory = $true)][string]$Port
     )
     return @(
-        "-m", "keysight_logger_cli",
+        "-m", "meters_tool_cli",
         "start-trigger-record",
         "--resource", $Resource,
         "--model", $Model,
@@ -616,7 +616,7 @@ function Invoke-TargetPreflight {
     $softTriggerResult = Invoke-CapturedCommand `
         -Name "soft_trigger_dry_run" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "send-command", "--dry-run", "--format", "json", "--port", "8765", "--arguments-json", '{"source":"preflight"}') `
+        -Arguments @("-m", "meters_tool_cli", "send-command", "--dry-run", "--format", "json", "--port", "8765", "--arguments-json", '{"source":"preflight"}') `
         -StdOutPath $softTriggerJson `
         -StdErrPath (Join-Path $outDir "soft_trigger_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softTriggerResult) | Out-Null
@@ -630,7 +630,7 @@ function Invoke-TargetPreflight {
     $softStopResult = Invoke-CapturedCommand `
         -Name "soft_stop_dry_run" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "stop", "--dry-run", "--format", "json", "--port", "8765") `
+        -Arguments @("-m", "meters_tool_cli", "stop", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStopJson `
         -StdErrPath (Join-Path $outDir "soft_stop_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softStopResult) | Out-Null
@@ -644,7 +644,7 @@ function Invoke-TargetPreflight {
     $softStatusResult = Invoke-CapturedCommand `
         -Name "soft_status_dry_run" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "status", "--dry-run", "--format", "json", "--port", "8765") `
+        -Arguments @("-m", "meters_tool_cli", "status", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStatusJson `
         -StdErrPath (Join-Path $outDir "soft_status_dry_run.stderr.txt")
     $commands.Add([pscustomobject]$softStatusResult) | Out-Null
@@ -660,7 +660,7 @@ function Invoke-TargetPreflight {
     $listResourcesResult = Invoke-CapturedCommand `
         -Name "list_resources_dry_run_json" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "list-resources", "--dry-run", "--live-only", "--json") `
+        -Arguments @("-m", "meters_tool_cli", "list-resources", "--dry-run", "--live-only", "--json") `
         -StdOutPath $listResourcesJson `
         -StdErrPath $listResourcesErr
     $commands.Add([pscustomobject]$listResourcesResult) | Out-Null

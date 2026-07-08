@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-import keysight_logger_core as core
-from keysight_logger_core import (
+import meters_tool_core as core
+from meters_tool_core import (
     CoreCapabilities,
     CoreWarning,
     InstrumentProfile,
@@ -28,7 +28,7 @@ from keysight_logger_core import (
     run_start_session,
     validate_start_request,
 )
-from keysight_logger_core.models import KEYSIGHT_34460A_PROFILE
+from meters_tool_core.models import KEYSIGHT_34460A_PROFILE
 
 
 EXPECTED_PUBLIC_API = {

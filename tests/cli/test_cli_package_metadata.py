@@ -5,8 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-import keysight_logger_core._version as package_version
-from keysight_logger_cli.cli import FALLBACK_CLI_VERSION, get_cli_version, main
+import meters_tool_core._version as package_version
+from meters_tool_cli.cli import FALLBACK_CLI_VERSION, get_cli_version, main
 
 
 def _read_pyproject(pyproject_path: Path) -> dict:
@@ -56,7 +56,7 @@ def _read_pyproject(pyproject_path: Path) -> dict:
     return {"project": project, "project.scripts": scripts}
 
 
-def test_keysight_logger_console_script_points_to_cli_main():
+def test_meters_tool_console_script_points_to_cli_main():
     pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
 
     pyproject = _read_pyproject(pyproject_path)
@@ -64,11 +64,11 @@ def test_keysight_logger_console_script_points_to_cli_main():
     scripts = pyproject.get("project.scripts", project.get("scripts", {}))
     dependencies = project["dependencies"]
 
-    assert project["name"] == "keysight-logger"
+    assert project["name"] == "meters-tool"
     assert project["version"] == FALLBACK_CLI_VERSION
-    assert scripts["keysight-logger"] == "keysight_logger_cli.cli:main"
+    assert scripts["meters-tool"] == "meters_tool_cli.cli:main"
     assert "pyvisa>=1.14.1" in dependencies
-    assert not any(str(item).startswith("keysight-logger-core") for item in dependencies)
+    assert not any(str(item).startswith("meters-tool-core") for item in dependencies)
     assert callable(main)
 
 
@@ -88,7 +88,7 @@ def test_cli_version_uses_fallback_when_metadata_and_pyproject_are_unavailable(m
 
 
 def test_cli_script_entry_point_supports_direct_execution():
-    cli_path = Path(__file__).resolve().parents[2] / "src" / "keysight_logger_cli" / "cli.py"
+    cli_path = Path(__file__).resolve().parents[2] / "src" / "meters_tool_cli" / "cli.py"
     source_root = cli_path.parents[1]
 
     result = subprocess.run(
@@ -100,4 +100,4 @@ def test_cli_script_entry_point_supports_direct_execution():
     )
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == f"keysight-logger {FALLBACK_CLI_VERSION}"
+    assert result.stdout.strip() == f"meters-tool {FALLBACK_CLI_VERSION}"

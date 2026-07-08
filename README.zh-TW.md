@@ -1,8 +1,8 @@
 [English](README.md)
 
-# Keysight Logger
+# Meters Tool
 
-Keysight Logger 是供 Keysight 34460A 與 34461A Truevolt 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `keysight-logger`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`keysight_logger_core`、`keysight_logger_cli` 與 `keysight_logger_webui`。
+Meters Tool 是供 Keysight 34460A 與 34461A Truevolt 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
 
 本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。每筆擷取的樣本都會寫入 CSV 的一行，包含時間戳記、量測類型、單位、觸發來源與相關 metadata。
 
@@ -24,18 +24,18 @@ CLI 中會開啟 VISA 資源的命令預設使用 `pyvisa.ResourceManager()` 與
 
 此 repository 現在使用單一發行套件與單一版本號。在範例中，`<version>` 代表根目錄 `pyproject.toml` 中的 `[project].version`：
 
-* 發行套件 (Distribution)：`keysight-logger` `<version>`
-* Core import：`keysight_logger_core`
-* CLI import：`keysight_logger_cli`
-* WebUI import：`keysight_logger_webui`
+* 發行套件 (Distribution)：`meters-tool` `<version>`
+* Core import：`meters_tool_core`
+* CLI import：`meters_tool_cli`
+* WebUI import：`meters_tool_webui`
 
-import 路徑彼此獨立。請不要使用 `keysight_logger.*` namespace package。
+import 路徑彼此獨立。請不要使用 `meters_tool.*` namespace package。
 
 ```text
 src/
-  keysight_logger_core/
-  keysight_logger_cli/
-  keysight_logger_webui/
+  meters_tool_core/
+  meters_tool_cli/
+  meters_tool_webui/
 tests/
   core/
   cli/
@@ -52,7 +52,7 @@ scripts/
 首先開啟 PowerShell 並進入專案根目錄：
 
 ```powershell
-cd path\to\Keysight_Meters_Logger
+cd path\to\meters-tool
 ```
 
 如果尚未安裝 uv，請先安裝：
@@ -102,9 +102,9 @@ uv venv .venv --python 3.12
 ```
 
 Windows 會建立 virtualenv console wrappers，例如
-`.\.venv\Scripts\keysight-logger.exe`、
-`.\.venv\Scripts\keysight-logger-webui.exe` 與
-`.\.venv\Scripts\keysight-logger-webui-launcher.exe`。
+`.\.venv\Scripts\meters-tool.exe`、
+`.\.venv\Scripts\meters-tool-webui.exe` 與
+`.\.venv\Scripts\meters-tool-webui-launcher.exe`。
 
 ## 建置
 
@@ -117,8 +117,8 @@ Windows 會建立 virtualenv console wrappers，例如
 這只會產生一個 Python 發行套件：
 
 ```text
-dist\keysight_logger-<version>-py3-none-any.whl
-dist\keysight_logger-<version>.tar.gz
+dist\meters_tool-<version>-py3-none-any.whl
+dist\meters_tool-<version>.tar.gz
 ```
 
 獨立執行檔有分開的 PyInstaller 工作流程。在建置 exe 產物之前，請先安裝 PyInstaller：
@@ -143,8 +143,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_ex
 預設情況下，這些命令會產生：
 
 ```text
-dist\keysight-logger.exe
-dist\keysight-logger-webui-launcher.exe
+dist\meters-tool.exe
+dist\meters-tool-webui-launcher.exe
 ```
 
 建置包含 wheel、sdist、獨立執行檔與檢查碼 (checksums) 的發佈資料夾：
@@ -156,10 +156,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.
 這會產生帶有版本號的發佈產物：
 
 ```text
-release\<version>\keysight-logger-<version>.exe
-release\<version>\keysight-logger-webui-launcher-<version>.exe
-release\<version>\keysight_logger-<version>-py3-none-any.whl
-release\<version>\keysight_logger-<version>.tar.gz
+release\<version>\meters-tool-<version>.exe
+release\<version>\meters-tool-webui-launcher-<version>.exe
+release\<version>\meters_tool-<version>-py3-none-any.whl
+release\<version>\meters_tool-<version>.tar.gz
 release\<version>\checksums.txt
 ```
 

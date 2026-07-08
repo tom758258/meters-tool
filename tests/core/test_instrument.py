@@ -4,14 +4,14 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from keysight_logger_core.instrument import (
+from meters_tool_core.instrument import (
     ASRL_VERIFY_TIMEOUT_MS,
     InstrumentError,
     VisaInstrument,
     is_asrl_resource,
     is_pyvisa_timeout_error,
 )
-from keysight_logger_core.models import InstrumentConfig, Transport
+from meters_tool_core.models import InstrumentConfig, Transport
 
 
 class FakeVisaSession:
@@ -102,7 +102,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertEqual("@py", config.visa_library)
 
     def test_pyvisa_unavailable_raises_instrument_error(self):
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             with self.assertRaisesRegex(
                 InstrumentError,
                 r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]"',
@@ -112,7 +112,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_list_resources_injected_factory_works_without_pyvisa_and_closes(self):
         rm = FakeResourceManager(resources=("USB::A", "TCPIP::B"))
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             resources = VisaInstrument.list_resources(resource_manager_factory=lambda: rm)
 
         self.assertEqual(["USB::A", "TCPIP::B"], resources)
@@ -121,7 +121,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_list_resources_injected_factory_closes_when_listing_fails(self):
         rm = FailingListResourceManager()
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             with self.assertRaisesRegex(RuntimeError, "list failed"):
                 VisaInstrument.list_resources(resource_manager_factory=lambda: rm)
 
@@ -131,7 +131,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(resources=("USB::A", "TCPIP::B"))
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             resources = VisaInstrument.list_resources()
 
         self.assertEqual(["USB::A", "TCPIP::B"], resources)
@@ -147,7 +147,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
 
         fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             resources = VisaInstrument.list_resources(visa_library="@py")
 
         self.assertEqual(["TCPIP::A"], resources)
@@ -164,7 +164,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
 
         fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             resources = VisaInstrument.list_resources(visa_library="   ")
 
         self.assertEqual(["USB::A"], resources)
@@ -176,7 +176,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         calls: list[tuple[str, ...]] = []
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda *args: calls.append(args))
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             resources = VisaInstrument.list_resources(
                 resource_manager_factory=lambda: rm,
                 visa_library="@py",
@@ -197,8 +197,8 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             ok, detail = VisaInstrument.verify_resource("USB::FAKE", timeout_ms=1234)
 
@@ -219,7 +219,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             idn = VisaInstrument.preflight_idn("USB::FAKE", timeout_ms=4321)
 
         self.assertEqual("Keysight Technologies,34461A,MY123,1.0", idn)
@@ -235,7 +235,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR", timeout_ms=9999)
 
         self.assertTrue(ok)
@@ -253,7 +253,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, _detail = VisaInstrument.verify_resource(
                 "ASRL6::INSTR",
                 serial_read_termination="\r\n",
@@ -270,8 +270,8 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             ok, _detail = VisaInstrument.verify_resource(
                 "USB::FAKE",
@@ -296,8 +296,8 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         fake_pyvisa = SimpleNamespace(ResourceManager=resource_manager)
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             ok, detail = VisaInstrument.verify_resource(
                 "USB::FAKE",
@@ -317,8 +317,8 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(session=session)
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", None),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", None),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             ok, detail = VisaInstrument.verify_resource(
                 "USB::FAKE",
@@ -341,7 +341,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
             patch.object(
                 VisaInstrument,
                 "_release_session_to_local",
@@ -362,7 +362,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("USB::FAKE")
 
         self.assertFalse(ok)
@@ -379,7 +379,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR")
 
         self.assertFalse(ok)
@@ -403,7 +403,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
             ),
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR")
 
         self.assertFalse(ok)
@@ -416,7 +416,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         session.fail_query = True
         rm = FakeResourceManager(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             ok, detail = VisaInstrument.verify_resource(
                 "USB::FAKE",
                 resource_manager_factory=lambda: rm,
@@ -428,7 +428,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertTrue(rm.closed)
 
     def test_verify_resource_no_factory_with_pyvisa_unavailable_raises_instrument_error(self):
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             with self.assertRaisesRegex(
                 InstrumentError,
                 r'pyvisa is not installed\. Run: uv pip install -e "\.\[dev\]"',
@@ -448,7 +448,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
             ),
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             self.assertTrue(is_pyvisa_timeout_error(FakeVisaIOError(-1073807339)))
 
     def test_pyvisa_timeout_error_classifier_rejects_non_timeout_and_unrelated_errors(self):
@@ -459,7 +459,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
             ),
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             self.assertFalse(is_pyvisa_timeout_error(FakeVisaIOError(-1)))
             self.assertFalse(is_pyvisa_timeout_error(TimeoutError("overall wait")))
             self.assertFalse(is_pyvisa_timeout_error(RuntimeError("other")))
@@ -476,7 +476,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         session = FakeVisaSession()
         instrument, rm, fake_pyvisa = self.make_instrument(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
 
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
@@ -501,7 +501,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
             )
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
 
         self.assertEqual([("@py",)], calls)
@@ -526,7 +526,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
             )
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
 
         self.assertEqual([()], calls)
@@ -551,7 +551,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
                     resource_manager_factory=lambda: rm,
                 )
 
-                with patch("keysight_logger_core.instrument.pyvisa", None):
+                with patch("meters_tool_core.instrument.pyvisa", None):
                     instrument.connect()
 
                 self.assertEqual(["query:*IDN?", "*CLS", "*RST"], session.writes)
@@ -575,7 +575,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
                     resource_manager_factory=lambda: rm,
                 )
 
-                with patch("keysight_logger_core.instrument.pyvisa", None):
+                with patch("meters_tool_core.instrument.pyvisa", None):
                     with self.assertRaisesRegex(
                         InstrumentError,
                         f"expected Keysight/Agilent {expected_model}",
@@ -595,7 +595,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
             resource_manager_factory=lambda: rm,
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             instrument.connect()
 
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
@@ -607,7 +607,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         session.idn_response = "Other Vendor,1234,MY123,1.0"
         instrument, rm, fake_pyvisa = self.make_instrument(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             with self.assertRaisesRegex(InstrumentError, "unsupported instrument identity"):
                 instrument.connect()
 
@@ -621,7 +621,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         session.fail_query = True
         instrument, rm, fake_pyvisa = self.make_instrument(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             with self.assertRaisesRegex(InstrumentError, "failed to validate instrument identity"):
                 instrument.connect()
 
@@ -649,7 +649,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         session.query_response = " 12.5\n"
         instrument, rm, fake_pyvisa = self.make_instrument(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
             instrument.write("CONF:VOLT:DC AUTO")
             instrument.set_timeout_ms(2500)
@@ -671,7 +671,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         session.query_response = "not-a-float"
         instrument, _rm, fake_pyvisa = self.make_instrument(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
             with self.assertRaisesRegex(InstrumentError, "Failed to parse float"):
                 instrument.query_ascii_float("READ?")
@@ -681,7 +681,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         session.query_response = "+0,No error"
         instrument, _rm, fake_pyvisa = self.make_instrument(session=session)
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
             self.assertEqual("+0,No error", instrument.poll_system_error())
             self.assertTrue(instrument.abort_measurement())
@@ -698,8 +698,8 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         instrument, _rm, fake_pyvisa = self.make_instrument(session=session, resource="USB::FAKE")
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             instrument.connect()
             result = instrument.release_to_local()
@@ -720,8 +720,8 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         )
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             instrument.connect()
             result = instrument.release_to_local()
@@ -735,8 +735,8 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         instrument, rm, fake_pyvisa = self.make_instrument(session=session)
 
         with (
-            patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa),
-            patch("keysight_logger_core.instrument.time.sleep", return_value=None),
+            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
+            patch("meters_tool_core.instrument.time.sleep", return_value=None),
         ):
             result = instrument.cleanup_release_to_local(timeout_ms=777)
 
@@ -752,7 +752,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
     def test_cleanup_release_to_local_handles_unavailable_pyvisa(self):
         instrument = VisaInstrument(InstrumentConfig(resource_string="USB::FAKE"))
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             self.assertEqual("pyvisa_unavailable", instrument.cleanup_release_to_local())
     def test_cleanup_release_to_local_with_injected_factory_and_unavailable_pyvisa(self):
         session = FakeVisaSession()
@@ -763,8 +763,8 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
             resource_manager_factory=lambda: rm,
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
-            with patch("keysight_logger_core.instrument.time.sleep", return_value=None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
+            with patch("meters_tool_core.instrument.time.sleep", return_value=None):
                 result = instrument.cleanup_release_to_local(timeout_ms=777)
 
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
@@ -785,7 +785,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
             resource_manager_factory=lambda: rm,
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             with self.assertRaisesRegex(InstrumentError, "unsupported instrument identity"):
                 instrument.connect()
 
@@ -803,7 +803,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
             resource_manager_factory=lambda: rm,
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", None):
+        with patch("meters_tool_core.instrument.pyvisa", None):
             with self.assertRaisesRegex(InstrumentError, "failed to validate instrument identity"):
                 instrument.connect()
 

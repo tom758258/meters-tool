@@ -26,9 +26,9 @@ state, so treat all non-visual changes as high risk.
 
 Preferred editable files:
 
-- `src/keysight_logger_webui/static/index.html`
-- `src/keysight_logger_webui/static/styles.css`
-- `src/keysight_logger_webui/static/*.js`
+- `src/meters_tool_webui/static/index.html`
+- `src/meters_tool_webui/static/styles.css`
+- `src/meters_tool_webui/static/*.js`
 
 Optional, only when a stable UI contract changes or a new public behavior needs
 contract coverage:
@@ -47,14 +47,14 @@ Keep edits surgical. Do not touch unrelated files.
 
 Do not change these files for a visual UI task:
 
-- `src/keysight_logger_core/acquisition.py`
-- `src/keysight_logger_cli/cli.py`
-- `src/keysight_logger_core/instrument.py`
-- `src/keysight_logger_core/measurement.py`
-- `src/keysight_logger_core/models.py`
-- `src/keysight_logger_core/storage.py`
-- `src/keysight_logger_core/command.py`
-- Backend behavior in `src/keysight_logger_webui/web_ui.py`
+- `src/meters_tool_core/acquisition.py`
+- `src/meters_tool_cli/cli.py`
+- `src/meters_tool_core/instrument.py`
+- `src/meters_tool_core/measurement.py`
+- `src/meters_tool_core/models.py`
+- `src/meters_tool_core/storage.py`
+- `src/meters_tool_core/command.py`
+- Backend behavior in `src/meters_tool_webui/web_ui.py`
 
 Do not change any SCPI, VISA, measurement, trigger, timeout, or cleanup
 behavior. Specifically do not change:
@@ -78,7 +78,7 @@ backend/API change as a proposal instead of implementing it.
 Developer runtime entry point:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --port 8767
+.\.venv\Scripts\meters-tool-webui.exe --port 8767
 ```
 
 Operator releases normally start from the built launcher executable documented
@@ -93,8 +93,8 @@ http://127.0.0.1:8767/
 
 The Web UI is intentionally simple:
 
-- Backend: FastAPI/Uvicorn in `src/keysight_logger_webui/web_ui.py`.
-- Frontend: static HTML/CSS/JavaScript in `src/keysight_logger_webui/static/`.
+- Backend: FastAPI/Uvicorn in `src/meters_tool_webui/web_ui.py`.
+- Frontend: static HTML/CSS/JavaScript in `src/meters_tool_webui/static/`.
 - No Node build step.
 - No frontend package manager.
 - No external CDN dependency.
@@ -368,7 +368,7 @@ Run the narrowest relevant checks first:
 If any JavaScript module changed, also run:
 
 ```powershell
-Get-ChildItem src\keysight_logger_webui\static\*.js |
+Get-ChildItem src\meters_tool_webui\static\*.js |
   ForEach-Object { node --check $_.FullName }
 ```
 

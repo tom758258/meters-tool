@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from keysight_logger_webui.launcher import (
+from meters_tool_webui.launcher import (
     DEFAULT_PORT,
     LauncherApp,
     build_local_url,
@@ -32,7 +32,7 @@ class LauncherHelperTests(unittest.TestCase):
         source = (
             Path(__file__).parents[2]
             / "src"
-            / "keysight_logger_webui"
+            / "meters_tool_webui"
             / "launcher.py"
         ).read_text(encoding="utf-8")
 
@@ -80,7 +80,7 @@ class LauncherLifecycleTests(unittest.TestCase):
                 http_checker=lambda _url: False,
             )
 
-            with patch("keysight_logger_webui.launcher.messagebox.showerror") as showerror:
+            with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
                 launcher.start()
                 _drain_tk_events(root, condition=lambda: bool(opened_urls))
 
@@ -122,7 +122,7 @@ class LauncherLifecycleTests(unittest.TestCase):
                 http_checker=lambda _url: False,
             )
 
-            with patch("keysight_logger_webui.launcher.messagebox.showerror") as showerror:
+            with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
                 launcher.start()
                 _drain_tk_events(root)
 
@@ -156,7 +156,7 @@ class LauncherLifecycleTests(unittest.TestCase):
                 http_checker=lambda _url: False,
             )
 
-            with patch("keysight_logger_webui.launcher.messagebox.showerror") as showerror:
+            with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
                 launcher.start()
                 _drain_tk_events(root, condition=lambda: showerror.called)
 
@@ -202,7 +202,7 @@ class LauncherLifecycleTests(unittest.TestCase):
                 http_checker=lambda _url: False,
             )
 
-            with patch("keysight_logger_webui.launcher.messagebox.showerror") as showerror:
+            with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
                 launcher.start()
                 _drain_tk_events(root, condition=lambda: bool(opened_urls))
                 if launcher.server_thread is not None:
@@ -247,7 +247,7 @@ class LauncherLifecycleTests(unittest.TestCase):
                 http_checker=lambda _url: server_started.is_set(),
             )
 
-            with patch("keysight_logger_webui.launcher.messagebox.showerror") as showerror:
+            with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
                 launcher.start()
                 _drain_tk_events(root, condition=lambda: bool(opened_urls))
 
@@ -283,7 +283,7 @@ class LauncherLifecycleTests(unittest.TestCase):
                 http_checker=lambda _url: True,
             )
 
-            with patch("keysight_logger_webui.launcher.messagebox.showerror") as showerror:
+            with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
                 launcher.start()
                 _drain_tk_events(root)
 

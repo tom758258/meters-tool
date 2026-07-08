@@ -9,8 +9,8 @@ from typing import Any
 from urllib import request
 from urllib.error import URLError
 
-from keysight_logger_core.command import CommandValidationError, parse_command_envelope
-from keysight_logger_core.validation import validate_client_port
+from meters_tool_core.command import CommandValidationError, parse_command_envelope
+from meters_tool_core.validation import validate_client_port
 
 
 CLI_EVENT_SCHEMA_VERSION = 1

@@ -27,7 +27,7 @@ function usage() {
     "Usage: node run_meter_sim_workflow.mjs [options]",
     "",
     "Options:",
-    "  --exe <path>                 keysight-logger executable; default: one keysight-logger*.exe in cwd",
+    "  --exe <path>                 meters-tool executable; default: one meters-tool*.exe in cwd",
     "  --out <dir>                  artifact directory; default: .tmp_tests/meter_sim_software_trigger",
     "  --resource <string>          simulator resource; default: SIM::34461A",
     "  --measurement <name>         measurement; default: current-dc",
@@ -120,15 +120,15 @@ function findExe(explicitExe) {
   }
 
   const candidates = readdirSync(process.cwd())
-    .filter((name) => /^keysight-logger.*\.exe$/i.test(name))
+    .filter((name) => /^meters-tool.*\.exe$/i.test(name))
     .map((name) => join(process.cwd(), name));
   if (candidates.length === 1) {
     return candidates[0];
   }
   if (candidates.length === 0) {
-    throw new Error("no keysight-logger*.exe found in cwd; pass --exe");
+    throw new Error("no meters-tool*.exe found in cwd; pass --exe");
   }
-  throw new Error(`multiple keysight-logger executables found; pass --exe: ${candidates.join(", ")}`);
+  throw new Error(`multiple meters-tool executables found; pass --exe: ${candidates.join(", ")}`);
 }
 
 function runCommand(exe, args, timeoutMs) {

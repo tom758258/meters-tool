@@ -111,7 +111,7 @@ function Invoke-CapturedStartProcess {
             $stopResult = Invoke-CapturedCommand `
                 -Name "$Name`_timeout_soft_stop" `
                 -FilePath $Python `
-                -Arguments @("-m", "keysight_logger_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -Arguments @("-m", "meters_tool_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
                 -StdOutPath $stopOut `
                 -StdErrPath $stopErr
             $clientResults.Add([pscustomobject]$stopResult) | Out-Null
@@ -162,7 +162,7 @@ function Invoke-SoftTriggerWithRetry {
             -Name "$Name`_attempt_$attempt" `
             -FilePath $Python `
             -Arguments @(
-                "-m", "keysight_logger_cli",
+                "-m", "meters_tool_cli",
                 "send-command",
                 "--format", "json",
                 "--port", [string]$Port,
@@ -197,7 +197,7 @@ function Invoke-ReadinessClientChecks {
     $waitResult = Invoke-CapturedCommand `
         -Name "$Name`_wait_ready" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "wait-ready", "--format", "json", "--port", [string]$Port) `
+        -Arguments @("-m", "meters_tool_cli", "wait-ready", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $waitOut `
         -StdErrPath $waitErr
     if (-not $waitResult.success) {
@@ -209,7 +209,7 @@ function Invoke-ReadinessClientChecks {
     $statusResult = Invoke-CapturedCommand `
         -Name "$Name`_soft_status" `
         -FilePath $Python `
-        -Arguments @("-m", "keysight_logger_cli", "status", "--format", "json", "--port", [string]$Port) `
+        -Arguments @("-m", "meters_tool_cli", "status", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $statusOut `
         -StdErrPath $statusErr
 
@@ -420,7 +420,7 @@ function New-StartArgs {
     )
 
     return @(
-        "-m", "keysight_logger_cli",
+        "-m", "meters_tool_cli",
         "start-trigger-record",
         "--resource", $Resource,
         "--model", $resolvedCliModel,

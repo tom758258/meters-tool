@@ -2,6 +2,8 @@
 
 ## v1.6.0
 
+- Renamed the CLI command from `keysight-logger` to `meters-tool` and the CLI
+  import package from `keysight_logger_cli` to `meters_tool_cli`.
 - Bumped CLI-visible package/version metadata to `1.6.0` through the shared
   distribution version plumbing.
 - Refreshed English CLI documentation to describe `--model` as an expected IDN

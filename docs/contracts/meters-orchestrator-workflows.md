@@ -16,9 +16,9 @@ The Meters contracts define CLI/worker subprocess behavior, not a required
 binary packaging format. A conforming worker may be launched through any
 equivalent subprocess command, including:
 
-- `keysight-logger ...` from an installed Python package.
-- `keysight-logger.exe ...` from a packaged Windows executable.
-- `python -m keysight_logger_cli ...` in a development checkout.
+- `meters-tool ...` from an installed Python package.
+- `meters-tool.exe ...` from a packaged Windows executable.
+- `python -m meters_tool_cli ...` in a development checkout.
 
 The invocation form is valid only when it preserves the documented stdout
 JSON/JSONL behavior, local control endpoints, process exit codes, artifacts,
@@ -45,7 +45,7 @@ worker = subprocess.Popen(
         sys.executable,
         "-u",
         "-m",
-        "keysight_logger_cli",
+        "meters_tool_cli",
         "start-trigger-record",
         "--resource",
         "SIM::34461A",
@@ -80,7 +80,7 @@ try:
         [
             sys.executable,
             "-m",
-            "keysight_logger_cli",
+            "meters_tool_cli",
             "wait-ready",
             "--port",
             str(port),
@@ -96,7 +96,7 @@ try:
         [
             sys.executable,
             "-m",
-            "keysight_logger_cli",
+            "meters_tool_cli",
             "status",
             "--port",
             str(port),
@@ -112,7 +112,7 @@ try:
         [
             sys.executable,
             "-m",
-            "keysight_logger_cli",
+            "meters_tool_cli",
             "send-command",
             "--port",
             str(port),
@@ -140,7 +140,7 @@ finally:
             [
                 sys.executable,
                 "-m",
-                "keysight_logger_cli",
+                "meters_tool_cli",
                 "stop",
                 "--port",
                 str(port),

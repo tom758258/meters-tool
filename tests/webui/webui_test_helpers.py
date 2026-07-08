@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 
-STATIC_DIR = Path(__file__).parents[2] / "src" / "keysight_logger_webui" / "static"
+STATIC_DIR = Path(__file__).parents[2] / "src" / "meters_tool_webui" / "static"
 
 
 def load_static_ui():

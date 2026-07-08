@@ -1,4 +1,4 @@
-# Keysight Logger Core
+# Meters Tool Core
 
 Core contains the public API and acquisition runtime contract used by the CLI
 and WebUI components for supported Keysight Truevolt DMM integrations.
@@ -6,8 +6,8 @@ and WebUI components for supported Keysight Truevolt DMM integrations.
 Core owns the shared request model, validation, dry-run planning, runtime
 session orchestration, event/result types, control-plane interfaces, profile
 metadata, and safety rules for the Keysight 34460A/34461A acquisition runtime. It is
-shipped inside the single `keysight-logger` distribution while preserving the
-`keysight_logger_core` import boundary.
+shipped inside the single `meters-tool` distribution while preserving the
+`meters_tool_core` import boundary.
 
 Core can carry an optional `visa_library` value through `StartRequest` and
 `InstrumentConfig`. When it is unset, live VISA sessions use
@@ -21,8 +21,8 @@ an explicit model unless the simulator resource deterministically names one,
 such as `SIM::34460A` or `SIM::34461A`.
 
 The CLI and WebUI components own their command-line, web, wrapper, and
-serialization layers. Core must not import `keysight_logger_cli` or
-`keysight_logger_webui`.
+serialization layers. Core must not import `meters_tool_cli` or
+`meters_tool_webui`.
 
 ## Validation
 

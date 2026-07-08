@@ -1,4 +1,4 @@
-# Keysight Logger WebUI 說明文件
+# Meters Tool WebUI 說明文件
 
 本文件是 WebUI 元件的 WebUI 行為、API、驗證與維護者指南。對於一般的操作人員工作流程與欄位說明，請參閱 [WebUI 使用者指南](USER_GUIDE.zh-TW.md)。
 
@@ -6,12 +6,12 @@
 
 ## 目的
 
-WebUI 配接器 (adapter) 圍繞 `keysight_logger_core` 中共享的 Core 執行階段 (runtime)，提供本機 FastAPI 和瀏覽器介面。
+WebUI 配接器 (adapter) 圍繞 `meters_tool_core` 中共享的 Core 執行階段 (runtime)，提供本機 FastAPI 和瀏覽器介面。
 
 WebUI 擁有以下內容的擁有權：
 
-- 位於 `src/keysight_logger_webui/static/` 的瀏覽器介面。
-- 位於 `src/keysight_logger_webui/web_ui.py` 的 FastAPI 路由結構。
+- 位於 `src/meters_tool_webui/static/` 的瀏覽器介面。
+- 位於 `src/meters_tool_webui/web_ui.py` 的 FastAPI 路由結構。
 - 面向瀏覽器的請求和回應序列化 (serialization)。
 - 從 Core 樣本事件衍生而來的即時數據 (Live data) 顯示狀態。
 - 資源掃描顯示。
@@ -39,19 +39,19 @@ Core 會驗證量測請求並保護儀器端的限制。WebUI 使用者指南以
 WebUI 隨附於單一發行套件 (distribution) 中：
 
 ```text
-keysight-logger
+meters-tool
 ```
 
 Windows 主控台包裝器 (wrapper) 為：
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe
+.\.venv\Scripts\meters-tool-webui.exe
 ```
 
 Windows GUI 啟動器包裝器為：
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui-launcher.exe
+.\.venv\Scripts\meters-tool-webui-launcher.exe
 ```
 
 預設的本機伺服器為：
@@ -73,25 +73,25 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 檢查包裝器：
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --version
+.\.venv\Scripts\meters-tool-webui.exe --version
 ```
 
 預期版本格式：
 
 ```text
-keysight-logger-webui <package-version>
+meters-tool-webui <package-version>
 ```
 
 啟動伺服器：
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --port 8767
+.\.venv\Scripts\meters-tool-webui.exe --port 8767
 ```
 
 或啟動雙擊執行的啟動器：
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui-launcher.exe
+.\.venv\Scripts\meters-tool-webui-launcher.exe
 ```
 
 啟動器預設為 `127.0.0.1:8767`。當勾選 `Use default port 8767` 時，會停用連接埠 (port) 欄位，並在點擊 Start (啟動) 後開啟瀏覽器，且保持視窗可用，以便透過 Quit 停止本機 Uvicorn 伺服器。
@@ -105,7 +105,7 @@ http://127.0.0.1:8767/
 選用的 host 與 port 旗標：
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --host 127.0.0.1 --port 8767
+.\.venv\Scripts\meters-tool-webui.exe --host 127.0.0.1 --port 8767
 ```
 
 除非有刻意的原因需要將伺服器公開至本機以外，否則請保持預設的 host 為 `127.0.0.1`。
@@ -116,7 +116,7 @@ http://127.0.0.1:8767/
 
 主要區域：
 
-- 標頭：`Keysight Meters` 和 `Local acquisition console`。
+- 標頭：`Meters Tool` 和 `Local acquisition console`。
 - `Device / Resource` 列：`VISA resource`、`Live resource`、`Scan Device`，以及 `Device options` 齒輪中的 `Expected model` 選擇器。此列預設展開，可收合成資源/型號摘要。
 - `Expected model` 選擇器預設為 `Auto-detect`，會在 Start 時使用連接中的儀器 IDN。若明確選擇 `Require 34460A` 或 `Require 34461A`，仍會讀取 IDN，只有在符合時才啟動，並套用對應的型號驗證限制。
 - 狀態列 (Status strip)：`State`、`Captured`、`Errors` 和 `CSV`。
@@ -437,14 +437,14 @@ POST /api/runs/current/open-csv
 
 偏好的 WebUI 前端檔案：
 
-- `src/keysight_logger_webui/static/index.html`
-- `src/keysight_logger_webui/static/styles.css`
-- `src/keysight_logger_webui/static/*.js`
+- `src/meters_tool_webui/static/index.html`
+- `src/meters_tool_webui/static/styles.css`
+- `src/meters_tool_webui/static/*.js`
 
 後端配接器檔案：
 
-- `src/keysight_logger_webui/web_ui.py`
-- `src/keysight_logger_webui/launcher.py`
+- `src/meters_tool_webui/web_ui.py`
+- `src/meters_tool_webui/launcher.py`
 
 測試：
 
@@ -462,7 +462,7 @@ POST /api/runs/current/open-csv
 編輯前端模組後的 JavaScript 語法檢查：
 
 ```powershell
-Get-ChildItem src\keysight_logger_webui\static\*.js |
+Get-ChildItem src\meters_tool_webui\static\*.js |
   ForEach-Object { node --check $_.FullName }
 ```
 
@@ -472,7 +472,7 @@ Get-ChildItem src\keysight_logger_webui\static\*.js |
 .\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_package_metadata.py tests/webui/test_webui_api.py tests/webui/test_webui_static.py tests/webui/test_launcher.py -q -p no:cacheprovider
 ```
 
-在使用已安裝 `keysight-logger` 的環境中，使用 PyInstaller 建置選用的本機啟動器執行檔 (launcher exe)。PyInstaller 是本機版本建置工具，並非 WebUI 執行階段的相依套件，因此在全新機器上重建前，請先將其安裝至 venv：
+在使用已安裝 `meters-tool` 的環境中，使用 PyInstaller 建置選用的本機啟動器執行檔 (launcher exe)。PyInstaller 是本機版本建置工具，並非 WebUI 執行階段的相依套件，因此在全新機器上重建前，請先將其安裝至 venv：
 
 ```powershell
 uv pip install pyinstaller
@@ -527,7 +527,7 @@ uv run pytest tests -q -p no:cacheprovider
 包裝器 (Wrapper) 遺失：
 
 - 重新執行 `uv pip install -e ".[all,dev]" --link-mode=copy`。
-- 確認 `.venv\Scripts\keysight-logger-webui.exe` 存在。
+- 確認 `.venv\Scripts\meters-tool-webui.exe` 存在。
 
 連接埠 (Port) 已被佔用：
 

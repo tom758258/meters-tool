@@ -44,14 +44,14 @@ def test_webui_docs_are_package_local():
 def test_webui_readme_uses_webui_entrypoint_not_cli_workflow():
     text = read_doc("README.md")
 
-    assert "keysight-logger.exe" not in text
-    assert "python -m keysight_logger_cli" not in text
-    assert "python -m keysight_logger_webui.web_ui" not in text
+    assert "meters-tool.exe" not in text
+    assert "python -m meters_tool_cli" not in text
+    assert "python -m meters_tool_webui.web_ui" not in text
     assert "pip install -r" not in text
     assert "requirements.txt" not in text
     assert "uv sync" not in text
     assert "start-trigger-record" not in text
-    assert "keysight-logger-webui" in text
+    assert "meters-tool-webui" in text
 
 
 def test_webui_docs_point_to_new_import_and_static_paths():
@@ -63,9 +63,9 @@ def test_webui_docs_point_to_new_import_and_static_paths():
         )
     )
 
-    assert "keysight_logger_webui" in text
-    assert "keysight_logger_core" in text
-    assert "src/keysight_logger_webui/static" in text
+    assert "meters_tool_webui" in text
+    assert "meters_tool_core" in text
+    assert "src/meters_tool_webui/static" in text
 
 
 def test_webui_changelog_contains_only_webui_release_headings():

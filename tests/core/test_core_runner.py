@@ -3,14 +3,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 import unittest
 
-from keysight_logger_core.instrument import InstrumentError
-from keysight_logger_core.models import StartRequest, get_default_instrument_profile
-from keysight_logger_core.runner import (
+from meters_tool_core.instrument import InstrumentError
+from meters_tool_core.models import StartRequest, get_default_instrument_profile
+from meters_tool_core.runner import (
     StartRunnerDependencies,
     StopController,
     run_start_session,
 )
-from keysight_logger_core.session import NoOpControlPlane, StartRunEvent
+from meters_tool_core.session import NoOpControlPlane, StartRunEvent
 
 
 def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003

@@ -7,18 +7,18 @@ import signal
 import sys
 from datetime import datetime, timezone
 
-from keysight_logger_core._version import (
+from meters_tool_core._version import (
     DISTRIBUTION_NAME,
     FALLBACK_PACKAGE_VERSION,
     get_distribution_version,
 )
-from keysight_logger_core.instrument import InstrumentError, VisaInstrument
-from keysight_logger_core.models import StartRequest
-from keysight_logger_core.runner import StopController, run_start_session
-from keysight_logger_core.run_plan import StartPlan, build_start_plan
-from keysight_logger_core.session import StartRunEvent, new_run_id
-from keysight_logger_core.start_resolution import resolve_start_profile
-from keysight_logger_core.validation import (
+from meters_tool_core.instrument import InstrumentError, VisaInstrument
+from meters_tool_core.models import StartRequest
+from meters_tool_core.runner import StopController, run_start_session
+from meters_tool_core.run_plan import StartPlan, build_start_plan
+from meters_tool_core.session import StartRunEvent, new_run_id
+from meters_tool_core.start_resolution import resolve_start_profile
+from meters_tool_core.validation import (
     generate_buffer_overflow_warnings,
     resolve_trigger_mode,
     validate_start_request,
@@ -35,15 +35,15 @@ try:
         validate_client_timeout_ms,
     )
     from ._parser import (
-        KeysightArgumentParser,
-        KeysightHelpFormatter,
+        MetersArgumentParser,
+        MetersHelpFormatter,
         build_parser as _build_parser,
         parse_auto_zero,
         parse_dcv_input_impedance,
         parse_on_off,
     )
 except ImportError:  # pragma: no cover - PyInstaller script entry point
-    from keysight_logger_cli._client_commands import (
+    from meters_tool_cli._client_commands import (
         CommandResponsePayloadError,
         StatusPayloadError,
         _validate_client_port_and_timeout,
@@ -53,9 +53,9 @@ except ImportError:  # pragma: no cover - PyInstaller script entry point
         cmd_wait_ready,
         validate_client_timeout_ms,
     )
-    from keysight_logger_cli._parser import (
-        KeysightArgumentParser,
-        KeysightHelpFormatter,
+    from meters_tool_cli._parser import (
+        MetersArgumentParser,
+        MetersHelpFormatter,
         build_parser as _build_parser,
         parse_auto_zero,
         parse_dcv_input_impedance,

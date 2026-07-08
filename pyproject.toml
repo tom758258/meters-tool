@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "keysight-logger"
+name = "meters-tool"
 version = "1.6.0"
-description = "Keysight 34461A acquisition toolkit with Core, CLI, and WebUI components"
+description = "Meters Tool acquisition toolkit with Core, CLI, and WebUI components for supported Keysight Truevolt DMMs"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -28,9 +28,9 @@ all = [
 ]
 
 [project.scripts]
-keysight-logger = "keysight_logger_cli.cli:main"
-keysight-logger-webui = "keysight_logger_webui.web_ui:main"
-keysight-logger-webui-launcher = "keysight_logger_webui.launcher:main"
+meters-tool = "meters_tool_cli.cli:main"
+meters-tool-webui = "meters_tool_webui.web_ui:main"
+meters-tool-webui-launcher = "meters_tool_webui.launcher:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -38,13 +38,13 @@ package-dir = {"" = "src"}
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
-    "keysight_logger_core*",
-    "keysight_logger_cli*",
-    "keysight_logger_webui*",
+    "meters_tool_core*",
+    "meters_tool_cli*",
+    "meters_tool_webui*",
 ]
 
 [tool.setuptools.package-data]
-keysight_logger_webui = [
+meters_tool_webui = [
     "static/*.html",
     "static/*.css",
     "static/*.js",

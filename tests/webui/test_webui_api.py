@@ -19,9 +19,9 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
     TestClient = None
 
 if TestClient is not None:
-    from keysight_logger_core.instrument import InstrumentError
-    from keysight_logger_core.runner import StartRunnerDependencies
-    from keysight_logger_webui.web_ui import (
+    from meters_tool_core.instrument import InstrumentError
+    from meters_tool_core.runner import StartRunnerDependencies
+    from meters_tool_webui.web_ui import (
         APP_JS_CACHEBUSTER_TOKEN,
         CsvFolderSelectionUnavailable,
         FALLBACK_WEBUI_VERSION,
@@ -69,7 +69,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         payload = response.json()
         self.assertEqual(
-            {"name": "keysight-logger-webui", "version": get_webui_version()},
+            {"name": "meters-tool-webui", "version": get_webui_version()},
             payload["app"],
         )
         self.assertEqual("34461A", payload["instrument_profile"]["model"])
@@ -209,11 +209,11 @@ class WebUiApiTests(unittest.TestCase):
     def test_capabilities_use_fallback_version_when_package_metadata_is_unavailable(self):
         with (
             patch(
-                "keysight_logger_core._version.importlib.metadata.version",
+                "meters_tool_core._version.importlib.metadata.version",
                 side_effect=importlib.metadata.PackageNotFoundError,
             ),
             patch(
-                "keysight_logger_core._version.read_project_version",
+                "meters_tool_core._version.read_project_version",
                 side_effect=FileNotFoundError("pyproject.toml"),
             ),
         ):
@@ -222,7 +222,7 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(
-            {"name": "keysight-logger-webui", "version": FALLBACK_WEBUI_VERSION},
+            {"name": "meters-tool-webui", "version": FALLBACK_WEBUI_VERSION},
             response.json()["app"],
         )
 
@@ -231,11 +231,11 @@ class WebUiApiTests(unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                "meters_tool_webui.web_ui.VisaInstrument.list_resources",
                 return_value=["USB::METER"],
             ),
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.verify_resource",
+                "meters_tool_webui.web_ui.VisaInstrument.verify_resource",
                 return_value=(True, "Keysight Technologies,34460A,MY123,1.0"),
             ),
         ):
@@ -254,11 +254,11 @@ class WebUiApiTests(unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                "meters_tool_webui.web_ui.VisaInstrument.list_resources",
                 return_value=["USB::METER"],
             ),
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.verify_resource",
+                "meters_tool_webui.web_ui.VisaInstrument.verify_resource",
                 return_value=(True, "Keysight Technologies,34461A,MY123,1.0"),
             ),
         ):
@@ -277,11 +277,11 @@ class WebUiApiTests(unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                "meters_tool_webui.web_ui.VisaInstrument.list_resources",
                 return_value=["USB::UNKNOWN"],
             ),
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.verify_resource",
+                "meters_tool_webui.web_ui.VisaInstrument.verify_resource",
                 return_value=(True, "Other Vendor,1234,ABC,1.0"),
             ),
         ):
@@ -297,10 +297,10 @@ class WebUiApiTests(unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_webui.web_ui.VisaInstrument.list_resources",
+                "meters_tool_webui.web_ui.VisaInstrument.list_resources",
                 return_value=["USB::METER"],
             ),
-            patch("keysight_logger_webui.web_ui.VisaInstrument.verify_resource") as verify,
+            patch("meters_tool_webui.web_ui.VisaInstrument.verify_resource") as verify,
         ):
             response = client.get("/api/resources")
 
@@ -313,7 +313,7 @@ class WebUiApiTests(unittest.TestCase):
         static_dir = (
             Path(__file__).resolve().parents[2]
             / "src"
-            / "keysight_logger_webui"
+            / "meters_tool_webui"
             / "static"
         )
         hasher = hashlib.sha256()
@@ -909,7 +909,7 @@ class WebUiApiTests(unittest.TestCase):
         client = self.make_client_with_manager(manager)
 
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34460A,MY123,1.0",
         ):
             response = client.post(
@@ -943,7 +943,7 @@ class WebUiApiTests(unittest.TestCase):
         client = self.make_client_with_manager(manager)
 
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34460A,MY123,1.0",
         ):
             response = client.post(
@@ -1030,7 +1030,7 @@ class WebUiApiTests(unittest.TestCase):
         client = self.make_client_with_manager(manager)
 
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34460A,MY123,1.0",
         ) as preflight:
             response = client.post(
@@ -1055,7 +1055,7 @@ class WebUiApiTests(unittest.TestCase):
         client = self.make_client_with_manager(manager)
 
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             side_effect=InstrumentError("failed to query instrument identity: boom"),
         ):
             response = client.post(
@@ -1148,7 +1148,7 @@ class WebUiApiTests(unittest.TestCase):
         client = self.make_client_with_manager(manager)
 
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34461A,MY123,1.0",
         ):
             response = client.post(
@@ -1183,7 +1183,7 @@ class WebUiApiTests(unittest.TestCase):
         client = self.make_client_with_manager(manager)
 
         with patch(
-            "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
             return_value="Keysight Technologies,34460A,MY123,1.0",
         ):
             response = client.post(
@@ -1236,17 +1236,17 @@ class WebUiApiTests(unittest.TestCase):
                 main(["--version"])
 
         self.assertEqual(0, raised.exception.code)
-        self.assertIn("keysight-logger-webui", output.getvalue())
+        self.assertIn("meters-tool-webui", output.getvalue())
         self.assertIn(get_webui_version(), output.getvalue())
 
     def test_webui_version_uses_fallback_when_metadata_and_project_are_unavailable(self):
         with (
             patch(
-                "keysight_logger_core._version.importlib.metadata.version",
+                "meters_tool_core._version.importlib.metadata.version",
                 side_effect=importlib.metadata.PackageNotFoundError,
             ),
             patch(
-                "keysight_logger_core._version.read_project_version",
+                "meters_tool_core._version.read_project_version",
                 side_effect=FileNotFoundError("pyproject.toml"),
             ),
         ):

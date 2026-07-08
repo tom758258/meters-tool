@@ -7,7 +7,7 @@ import unittest
 from urllib import request
 from urllib.error import HTTPError
 
-from keysight_logger_core.trigger import SoftwareTriggerAdapter, TriggerRouter
+from meters_tool_core.trigger import SoftwareTriggerAdapter, TriggerRouter
 
 
 class SoftwareTriggerAdapterTests(unittest.TestCase):

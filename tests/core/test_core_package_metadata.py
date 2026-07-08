@@ -45,16 +45,16 @@ def test_core_distribution_has_no_console_script():
     project = pyproject["project"]
     scripts = pyproject.get("project.scripts", project.get("scripts", {}))
 
-    assert project["name"] == "keysight-logger"
+    assert project["name"] == "meters-tool"
     assert project["version"] == "1.6.0"
-    assert scripts["keysight-logger"] == "keysight_logger_cli.cli:main"
-    assert scripts["keysight-logger-webui"] == "keysight_logger_webui.web_ui:main"
-    assert importlib.util.find_spec("keysight_logger") is None
+    assert scripts["meters-tool"] == "meters_tool_cli.cli:main"
+    assert scripts["meters-tool-webui"] == "meters_tool_webui.web_ui:main"
+    assert importlib.util.find_spec("meters_tool") is None
 
 
 def test_core_source_does_not_import_adapters():
-    source_root = Path(__file__).resolve().parents[2] / "src" / "keysight_logger_core"
-    forbidden = ("keysight_logger_cli", "keysight_logger_webui")
+    source_root = Path(__file__).resolve().parents[2] / "src" / "meters_tool_core"
+    forbidden = ("meters_tool_cli", "meters_tool_webui")
     violations = []
 
     for path in source_root.glob("*.py"):

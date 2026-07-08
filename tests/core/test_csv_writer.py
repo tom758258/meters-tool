@@ -1,8 +1,8 @@
 import csv
 from datetime import datetime, timezone
 
-from keysight_logger_core.models import MeasurementSample
-from keysight_logger_core.storage import CsvWriter
+from meters_tool_core.models import MeasurementSample
+from meters_tool_core.storage import CsvWriter
 
 
 def test_csv_writer_writes_header_and_row(tmp_path):

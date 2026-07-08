@@ -2,6 +2,10 @@
 
 ## v1.6.0
 
+- Renamed the WebUI commands from `keysight-logger-webui` /
+  `keysight-logger-webui-launcher` to `meters-tool-webui` /
+  `meters-tool-webui-launcher`, and renamed the WebUI import package from
+  `keysight_logger_webui` to `meters_tool_webui`.
 - Bumped WebUI-visible package/version metadata to `1.6.0` through the shared
   distribution version plumbing.
 - Refreshed English WebUI documentation and maintainer change rules so

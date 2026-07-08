@@ -7,8 +7,8 @@ import sys
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from keysight_logger_core.instrument import VisaInstrument
-from keysight_logger_core.models import InstrumentConfig
+from meters_tool_core.instrument import VisaInstrument
+from meters_tool_core.models import InstrumentConfig
 
 
 MAX_ERROR_RESPONSES = 10

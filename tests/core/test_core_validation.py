@@ -7,13 +7,13 @@ from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 
-from keysight_logger_core.models import (
+from meters_tool_core.models import (
     KEYSIGHT_34460A_PROFILE,
     InstrumentProfile,
     MeasurementOptions,
     StartRequest,
 )
-from keysight_logger_core.validation import (
+from meters_tool_core.validation import (
     CoreWarning,
     generate_buffer_overflow_warning_details,
     generate_buffer_overflow_warnings,
@@ -112,7 +112,7 @@ class CoreValidationTests(unittest.TestCase):
         self.assertEqual(Path("out.csv"), resolve_csv_path("out.csv"))
 
     def test_validation_does_not_import_storage(self):
-        source = Path("src/keysight_logger_core/validation.py").read_text(encoding="utf-8")
+        source = Path("src/meters_tool_core/validation.py").read_text(encoding="utf-8")
         tree = ast.parse(source)
 
         forbidden_imports = []
@@ -126,7 +126,7 @@ class CoreValidationTests(unittest.TestCase):
                     module in {"storage", ".storage"}
                     or module.endswith(".storage")
                     or (node.level > 0 and "storage" in imported_names)
-                    or (module == "keysight_logger_core" and "storage" in imported_names)
+                    or (module == "meters_tool_core" and "storage" in imported_names)
                 ):
                     forbidden_imports.append(module)
 

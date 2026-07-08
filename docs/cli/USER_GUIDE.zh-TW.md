@@ -1,19 +1,19 @@
-# Keysight Logger CLI 使用者指南
+# Meters Tool CLI 使用者指南
 
-本指南適用於取得已建置之 CLI 執行檔或已安裝的 `keysight-logger` 指令，並使用它來記錄支援的 Keysight Truevolt DMM 量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
+本指南適用於取得已建置之 CLI 執行檔或已安裝的 `meters-tool` 指令，並使用它來記錄支援的 Keysight Truevolt DMM 量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
 
 ## 啟動 CLI
 
 在包含 CLI 執行檔的資料夾下開啟 PowerShell，並檢查它：
 
 ```powershell
-.\keysight-logger.exe --version
+.\meters-tool.exe --version
 ```
 
 發佈資料夾可能包含帶有版本號的執行檔名稱，例如：
 
 ```text
-keysight-logger-<version>.exe
+meters-tool-<version>.exe
 ```
 
 如果您的發佈資料夾使用帶有版本號的執行檔，請在下方的指令中使用該檔案名稱。開發人員或從原始碼簽出 (source-checkout) 的使用者，應參閱 [CLI README](README.zh-TW.md) 以取得虛擬環境、模組、驗證與建置指令。
@@ -26,14 +26,14 @@ keysight-logger-<version>.exe
 2. 列出目前能回應 `*IDN?` 指令的資源：
 
 ```powershell
-.\keysight-logger.exe list-resources --live-only
+.\meters-tool.exe list-resources --live-only
 ```
 
 3. 複製儀器的資源字串。
 4. 執行一次有界限的即時模式 (immediate-mode) 樣本：
 
 ```powershell
-.\keysight-logger.exe start-trigger-record `
+.\meters-tool.exe start-trigger-record `
   --resource "<VISA_RESOURCE>" `
   --measurement voltage-dc `
   --trigger-mode immediate `
@@ -74,7 +74,7 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 當作業需要等待軟體觸發指令時，請使用 `--trigger-mode software`。在一個終端機啟動記錄器 (logger)，然後從另一個終端機發送觸發訊號：
 
 ```powershell
-.\keysight-logger.exe send-command
+.\meters-tool.exe send-command
 ```
 
 當作業需要按排程進行軟體觸發讀取時，請使用計時器擷取 (timer capture)。請明確設定計時器間隔，並在驗證設定時保持作業具備有界限 (bounded) 的特性。
@@ -134,14 +134,14 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 - 從另一個終端機執行 stop 指令：
 
 ```powershell
-.\keysight-logger.exe stop
+.\meters-tool.exe stop
 ```
 
 停止後，請確認指令已乾淨地退出，並且 CSV 中包含預期的資料列。
 
 ## 常見問題
 
-如果缺少 `keysight-logger.exe`，請確認您正處於包含 CLI 執行檔的發佈資料夾中。如果您的發佈版本使用帶有版本號的名稱，如 `keysight-logger-<version>.exe`，請在指令中使用該檔案名稱。
+如果缺少 `meters-tool.exe`，請確認您正處於包含 CLI 執行檔的發佈資料夾中。如果您的發佈版本使用帶有版本號的名稱，如 `meters-tool-<version>.exe`，請在指令中使用該檔案名稱。
 
 如果 `list-resources` 顯示過期的資源，請使用 `list-resources --verify` 來查看哪些資源有回應，以及其他資源失敗的原因。如果您只想要對 `*IDN?` 做出回應的資源，請使用 `--live-only`。
 

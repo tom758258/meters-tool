@@ -1,7 +1,7 @@
-# Keysight Logger CLI User Guide
+# Meters Tool CLI User Guide
 
 This guide is for operators who receive the built CLI executable or an
-already-installed `keysight-logger` command and use it to record measurements
+already-installed `meters-tool` command and use it to record measurements
 from a supported Keysight Truevolt DMM. It focuses on the normal measurement workflow and
 common settings. For developer setup, validation scripts, JSON/JSONL output,
 and automation contracts, see the [CLI README](README.md).
@@ -11,13 +11,13 @@ and automation contracts, see the [CLI README](README.md).
 Open PowerShell in the folder that contains the CLI executable and check it:
 
 ```powershell
-.\keysight-logger.exe --version
+.\meters-tool.exe --version
 ```
 
 Release folders may include a versioned executable name, such as:
 
 ```text
-keysight-logger-<version>.exe
+meters-tool-<version>.exe
 ```
 
 Use that file name in the commands below if your release folder uses a
@@ -34,7 +34,7 @@ instrument setup.
 2. List resources that currently answer `*IDN?`:
 
 ```powershell
-.\keysight-logger.exe list-resources --live-only
+.\meters-tool.exe list-resources --live-only
 ```
 
 3. Copy the resource string for the instrument and set it once for this
@@ -50,7 +50,7 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
 4. Run one bounded immediate-mode sample:
 
 ```powershell
-.\keysight-logger.exe start-trigger-record `
+.\meters-tool.exe start-trigger-record `
   --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
@@ -113,7 +113,7 @@ Use `--trigger-mode software` when the run should wait for software trigger
 commands. Start the logger in one terminal, then send triggers from another:
 
 ```powershell
-.\keysight-logger.exe send-command
+.\meters-tool.exe send-command
 ```
 
 Use timer capture when the run should take software-triggered readings on a
@@ -211,7 +211,7 @@ For a running worker, use one of these stop paths:
 - run the stop command from another terminal:
 
 ```powershell
-.\keysight-logger.exe stop
+.\meters-tool.exe stop
 ```
 
 After stopping, confirm the command exits cleanly and the CSV contains the
@@ -219,9 +219,9 @@ expected rows.
 
 ## Common Problems
 
-If `keysight-logger.exe` is missing, confirm you are in the release folder that
+If `meters-tool.exe` is missing, confirm you are in the release folder that
 contains the CLI executable. If your release uses a versioned name such as
-`keysight-logger-<version>.exe`, use that file name in the commands.
+`meters-tool-<version>.exe`, use that file name in the commands.
 
 If `list-resources` shows stale resources, use `list-resources --verify` to see
 which resources answer and why others failed. Use `--live-only` when you only

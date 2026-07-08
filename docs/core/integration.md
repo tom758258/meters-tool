@@ -5,7 +5,7 @@ defines the stable package-root API, request boundary, validation flow, dry-run
 plan, runtime events/results, control plane, and safety rules for acquisition
 runtime integration.
 
-Adapters such as CLI and WebUI consume Core through `keysight_logger_core` and
+Adapters such as CLI and WebUI consume Core through `meters_tool_core` and
 the package contracts documented here, then maintain their own package-local
 documentation and user-facing workflows. Core does not maintain
 adapter-specific JSON, terminal, websocket, wrapper, or UI contracts.
@@ -16,10 +16,10 @@ behavior.
 
 ## Public Imports
 
-Prefer package-root imports from `keysight_logger_core`:
+Prefer package-root imports from `meters_tool_core`:
 
 ```python
-from keysight_logger_core import (
+from meters_tool_core import (
     CoreCapabilities,
     CoreWarning,
     InstrumentProfile,

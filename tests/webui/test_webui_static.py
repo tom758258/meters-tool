@@ -7,7 +7,7 @@ from pathlib import Path
 from webui_test_helpers import STATIC_DIR, assert_tag_with_attrs, load_static_ui
 
 
-APP_JS_CACHEBUSTER_TOKEN = "__KEYSIGHT_LOGGER_APP_JS_CACHEBUSTER__"
+APP_JS_CACHEBUSTER_TOKEN = "__METERS_TOOL_APP_JS_CACHEBUSTER__"
 
 
 class WebUiStaticTests(unittest.TestCase):

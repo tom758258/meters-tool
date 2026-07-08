@@ -3,8 +3,8 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from keysight_logger_core.models import StartRequest, get_default_instrument_profile
-from keysight_logger_core.run_plan import StartPlan, build_start_plan
+from meters_tool_core.models import StartRequest, get_default_instrument_profile
+from meters_tool_core.run_plan import StartPlan, build_start_plan
 
 
 def assert_contains_tokens(testcase: unittest.TestCase, text: str, tokens: tuple[str, ...]) -> None:

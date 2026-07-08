@@ -1,4 +1,4 @@
-# Keysight Logger WebUI README
+# Meters Tool WebUI README
 
 This document is the WebUI behavior, API, validation, and maintainer guide for
 the WebUI component. For normal operator workflows and field explanations, use
@@ -11,12 +11,12 @@ WebUI behavior and maintainer boundaries.
 ## Purpose
 
 The WebUI adapter provides a local FastAPI and browser interface around the
-shared Core runtime in `keysight_logger_core`.
+shared Core runtime in `meters_tool_core`.
 
 The WebUI owns:
 
-- Browser interface in `src/keysight_logger_webui/static/`.
-- FastAPI route shape in `src/keysight_logger_webui/web_ui.py`.
+- Browser interface in `src/meters_tool_webui/static/`.
+- FastAPI route shape in `src/meters_tool_webui/web_ui.py`.
 - Browser-facing request and response serialization.
 - Live data display state derived from Core sample events.
 - Resource scanning display.
@@ -47,19 +47,19 @@ API, validation, and maintainer boundaries in one place.
 The WebUI ships inside the single distribution:
 
 ```text
-keysight-logger
+meters-tool
 ```
 
 The Windows console wrapper is:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe
+.\.venv\Scripts\meters-tool-webui.exe
 ```
 
 The Windows GUI launcher wrapper is:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui-launcher.exe
+.\.venv\Scripts\meters-tool-webui-launcher.exe
 ```
 
 The default local server is:
@@ -83,25 +83,25 @@ uv pip install -e ".[all,dev]" --link-mode=copy
 Check the wrapper:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --version
+.\.venv\Scripts\meters-tool-webui.exe --version
 ```
 
 Expected version format:
 
 ```text
-keysight-logger-webui <package-version>
+meters-tool-webui <package-version>
 ```
 
 Start the server:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --port 8767
+.\.venv\Scripts\meters-tool-webui.exe --port 8767
 ```
 
 Or start the double-click launcher:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui-launcher.exe
+.\.venv\Scripts\meters-tool-webui-launcher.exe
 ```
 
 The launcher defaults to `127.0.0.1:8767`, disables the port field while
@@ -117,7 +117,7 @@ http://127.0.0.1:8767/
 Optional host and port flags:
 
 ```powershell
-.\.venv\Scripts\keysight-logger-webui.exe --host 127.0.0.1 --port 8767
+.\.venv\Scripts\meters-tool-webui.exe --host 127.0.0.1 --port 8767
 ```
 
 Keep the default host as `127.0.0.1` unless there is a deliberate reason to
@@ -129,7 +129,7 @@ The current WebUI layout is a direct acquisition console, not a landing page.
 
 Main areas:
 
-- Header: `Keysight Meters` and `Local acquisition console`.
+- Header: `Meters Tool` and `Local acquisition console`.
 - Device / Resource row: `VISA resource`, `Live resource`, `Scan Device`, and a
   `Device options` gear for the `Expected model` selector. The row starts
   expanded and can collapse to a resource/model summary.
@@ -555,14 +555,14 @@ on, and a small bounded sample count.
 
 Preferred WebUI frontend files:
 
-- `src/keysight_logger_webui/static/index.html`
-- `src/keysight_logger_webui/static/styles.css`
-- `src/keysight_logger_webui/static/*.js`
+- `src/meters_tool_webui/static/index.html`
+- `src/meters_tool_webui/static/styles.css`
+- `src/meters_tool_webui/static/*.js`
 
 Backend adapter file:
 
-- `src/keysight_logger_webui/web_ui.py`
-- `src/keysight_logger_webui/launcher.py`
+- `src/meters_tool_webui/web_ui.py`
+- `src/meters_tool_webui/launcher.py`
 
 Tests:
 
@@ -584,7 +584,7 @@ Run the narrowest relevant checks first.
 For JavaScript syntax after editing frontend modules:
 
 ```powershell
-Get-ChildItem src\keysight_logger_webui\static\*.js |
+Get-ChildItem src\meters_tool_webui\static\*.js |
   ForEach-Object { node --check $_.FullName }
 ```
 
@@ -595,7 +595,7 @@ Focused WebUI/Core no-hardware validation:
 ```
 
 Build the optional local launcher exe with PyInstaller from an environment that
-already has `keysight-logger` installed. PyInstaller is a local release-build tool,
+already has `meters-tool` installed. PyInstaller is a local release-build tool,
 not a WebUI runtime dependency, so install it into the venv before rebuilding on
 a fresh machine:
 
@@ -663,7 +663,7 @@ For Frequency and Period real-instrument inspection:
 Wrapper is missing:
 
 - Re-run `uv pip install -e ".[all,dev]" --link-mode=copy`.
-- Confirm `.venv\Scripts\keysight-logger-webui.exe` exists.
+- Confirm `.venv\Scripts\meters-tool-webui.exe` exists.
 
 Port is already in use:
 

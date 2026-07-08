@@ -24,8 +24,8 @@ protocol.
 ## CLI/Worker Subprocess Boundary
 
 This contract is defined at the CLI/worker subprocess boundary, not at a
-specific packaging boundary. `keysight-logger`, `keysight-logger.exe`, and
-`python -m keysight_logger_cli` are equivalent invocation forms only when they
+specific packaging boundary. `meters-tool`, `meters-tool.exe`, and
+`python -m meters_tool_cli` are equivalent invocation forms only when they
 preserve the documented stdout JSON/JSONL behavior, local control HTTP
 endpoints, process exit codes, artifacts, and `run_id` correlation semantics.
 
@@ -72,10 +72,10 @@ Use this order for agent-controlled runs:
 3. Start live `start-trigger-record` with an explicit `--resource`. Live
    wrappers must not scan for resources or guess a VISA address.
 4. Wait for either the JSONL `ready` event or
-   `keysight-logger wait-ready --port <port> --json`. `ready` and
+   `meters-tool wait-ready --port <port> --json`. `ready` and
    `wait-ready` are control-plane readiness only; they do not mean a
    measurement has completed.
-5. Call `keysight-logger status --port <port> --json` or direct
+5. Call `meters-tool status --port <port> --json` or direct
    `GET /status` and verify the returned `run_id` matches stdout JSONL.
 6. Use `POST /command` for Meters software-triggered measurement requests. Use
    `POST /stop` for graceful stop.
@@ -177,9 +177,9 @@ trigger, request stop, mutate queues, trigger measurement, or touch VISA. It is
 safe for non-mutating readiness and progress checks. Unknown `GET` paths return
 `404`.
 
-`keysight-logger status` is the CLI client wrapper for this endpoint. It
+`meters-tool status` is the CLI client wrapper for this endpoint. It
 normalizes the worker status into the CLI single-response JSON contract without
-mutating worker state. `keysight-logger wait-ready` polls this same endpoint
+mutating worker state. `meters-tool wait-ready` polls this same endpoint
 until any successful `200` JSON status response is reachable or its deadline
 expires.
 

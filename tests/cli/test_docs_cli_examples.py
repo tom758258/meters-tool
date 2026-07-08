@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 RUNNABLE_MODULE_PATTERNS = (
-    r".\.venv\Scripts\python.exe -m keysight_logger_cli ",
-    "python -m keysight_logger_cli ",
+    r".\.venv\Scripts\python.exe -m meters_tool_cli ",
+    "python -m meters_tool_cli ",
 )
 
 

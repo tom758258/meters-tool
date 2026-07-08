@@ -1,19 +1,19 @@
-# Keysight Meters CLI Orchestration Skill
+# Meters Tool CLI Orchestration Skill
 
 This directory publishes a Codex skill template for the
-Keysight_Meters_Logger project. The skill helps Codex follow the documented
+Meters Tool project. The skill helps Codex follow the documented
 Meters CLI/worker subprocess lifecycle, JSON/JSONL contracts, dry-run and
 simulator validation order, `run_id` correlation rules, and live resource
 safety constraints.
 
 `docs/skill/SKILL.md` is a template. Codex will not discover it while it stays
 in this documentation directory. To use it, copy it into a Codex skill
-directory such as `.agents/skills/keysight-meters-cli-orchestration/` or
-`~/.agents/skills/keysight-meters-cli-orchestration/`.
+directory such as `.agents/skills/meters-tool-cli-orchestration/` or
+`~/.agents/skills/meters-tool-cli-orchestration/`.
 
 ## Scope
 
-This skill is a project companion for Keysight_Meters_Logger. It is not a
+This skill is a project companion for Meters Tool. It is not a
 Keysight driver, does not replace the CLI, and does not automatically control
 hardware.
 
@@ -43,7 +43,7 @@ repository or from a local `references/` snapshot:
 - `meters-cli-jsonl-contract.md`
 - `meters-orchestrator-workflows.md`
 
-When the skill is used inside the Keysight_Meters_Logger repository,
+When the skill is used inside the Meters Tool repository,
 `docs/contracts/` is the upstream source of truth. When the skill is installed
 standalone, copy the contract files into the installed skill's `references/`
 directory.
@@ -54,15 +54,15 @@ upstream `docs/contracts/` changes.
 ## Repo-level installation
 
 Use repo-level installation when you want the skill available only inside a
-specific checkout or fork of Keysight_Meters_Logger.
+specific checkout or fork of Meters Tool.
 
 Expected installed layout:
 
 ```text
-Keysight_Meters_Logger/
+meters-tool/
   .agents/
     skills/
-      keysight-meters-cli-orchestration/
+      meters-tool-cli-orchestration/
         SKILL.md
         references/
           common-worker-protocol.md
@@ -78,7 +78,7 @@ Keysight_Meters_Logger/
 PowerShell from the repository root:
 
 ```powershell
-$skill = ".agents\skills\keysight-meters-cli-orchestration"
+$skill = ".agents\skills\meters-tool-cli-orchestration"
 New-Item -ItemType Directory -Force "$skill\references", "$skill\scripts" | Out-Null
 
 Copy-Item "docs\skill\SKILL.md" "$skill\SKILL.md"
@@ -94,7 +94,7 @@ Copy-Item "docs\contracts\meters-orchestrator-workflows.md" "$skill\references\"
 Bash from the repository root:
 
 ```bash
-skill=".agents/skills/keysight-meters-cli-orchestration"
+skill=".agents/skills/meters-tool-cli-orchestration"
 mkdir -p "$skill/references" "$skill/scripts"
 
 cp docs/skill/SKILL.md "$skill/SKILL.md"
@@ -122,7 +122,7 @@ Expected installed layout:
 ```text
 ~/.agents/
   skills/
-    keysight-meters-cli-orchestration/
+    meters-tool-cli-orchestration/
       SKILL.md
       references/
         common-worker-protocol.md
@@ -135,10 +135,10 @@ Expected installed layout:
         run_meter_sim_workflow.mjs
 ```
 
-PowerShell from a Keysight_Meters_Logger checkout:
+PowerShell from a Meters Tool checkout:
 
 ```powershell
-$skill = Join-Path $HOME ".agents\skills\keysight-meters-cli-orchestration"
+$skill = Join-Path $HOME ".agents\skills\meters-tool-cli-orchestration"
 New-Item -ItemType Directory -Force (Join-Path $skill "references"), (Join-Path $skill "scripts") | Out-Null
 
 Copy-Item "docs\skill\SKILL.md" (Join-Path $skill "SKILL.md")
@@ -151,10 +151,10 @@ Copy-Item "docs\contracts\meters-cli-jsonl-contract.md" (Join-Path $skill "refer
 Copy-Item "docs\contracts\meters-orchestrator-workflows.md" (Join-Path $skill "references")
 ```
 
-Bash from a Keysight_Meters_Logger checkout:
+Bash from a Meters Tool checkout:
 
 ```bash
-skill="$HOME/.agents/skills/keysight-meters-cli-orchestration"
+skill="$HOME/.agents/skills/meters-tool-cli-orchestration"
 mkdir -p "$skill/references" "$skill/scripts"
 
 cp docs/skill/SKILL.md "$skill/SKILL.md"
@@ -168,7 +168,7 @@ cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 ```
 
 For user-level installation, keep the `references/` files synchronized with the
-upstream `docs/contracts/` files in the Keysight_Meters_Logger repository.
+upstream `docs/contracts/` files in the Meters Tool repository.
 
 ## Bundled simulator helper
 
@@ -180,11 +180,11 @@ contract is not satisfied. Do not use this helper for live resources; changing
 `--resource` to a live VISA address such as `USB0::...` does not make it a live
 validation path.
 
-Example from a workspace that contains a `keysight-logger*.exe` executable:
+Example from a workspace that contains a `meters-tool*.exe` executable:
 
 ```powershell
-node .agents\skills\keysight-meters-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
-  --exe .\keysight-logger-<version>.exe `
+node .agents\skills\meters-tool-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
+  --exe .\meters-tool-<version>.exe `
   --out .tmp_tests\meter_sim_software_trigger `
   --resource SIM::34461A `
   --measurement current-dc `
@@ -209,15 +209,15 @@ orchestrator change against the Meters CLI/worker contracts.
 Explicitly invoke the skill when the task is contract-sensitive:
 
 ```text
-Use $keysight-meters-cli-orchestration to review this change against the Meters JSONL contract.
+Use $meters-tool-cli-orchestration to review this change against the Meters JSONL contract.
 ```
 
 ```text
-Use $keysight-meters-cli-orchestration to plan simulator validation for start-trigger-record.
+Use $meters-tool-cli-orchestration to plan simulator validation for start-trigger-record.
 ```
 
 ```text
-Use $keysight-meters-cli-orchestration to check whether this orchestrator workflow respects run_id correlation and live resource safety.
+Use $meters-tool-cli-orchestration to check whether this orchestrator workflow respects run_id correlation and live resource safety.
 ```
 
 ## Safety notes

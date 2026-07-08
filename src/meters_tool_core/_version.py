@@ -4,7 +4,7 @@ import importlib.metadata
 from pathlib import Path
 
 
-DISTRIBUTION_NAME = "keysight-logger"
+DISTRIBUTION_NAME = "meters-tool"
 FALLBACK_PACKAGE_VERSION = "1.6.0"
 
 

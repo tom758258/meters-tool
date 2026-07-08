@@ -226,7 +226,7 @@ wheels = [
 ]
 
 [[package]]
-name = "keysight-logger"
+name = "meters-tool"
 version = "1.6.0"
 source = { editable = "." }
 dependencies = [

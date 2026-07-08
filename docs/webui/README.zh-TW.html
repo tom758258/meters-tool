@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Keysight Logger WebUI 說明文件</title>
+    <title>Meters Tool WebUI 說明文件</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -206,18 +206,18 @@
     </aside>
 
     <main>
-        <h1>Keysight Logger WebUI 說明文件</h1>
+        <h1>Meters Tool WebUI 說明文件</h1>
         <p>本文件是 WebUI 元件的 WebUI 行為、API、驗證與維護者指南。對於一般的操作人員工作流程與欄位說明，請參閱 <a href="USER_GUIDE.zh-TW.md">WebUI 使用者指南</a>。</p>
 
         <p>關於版本發佈說明，請參閱套件變更日誌 (changelog)。關於 Core API 和擁有權規則，請參閱 Core 整合指南。請將本指南專注於長期的公開 WebUI 行為與維護者邊界。</p>
 
         <h2>目的</h2>
-        <p>WebUI 配接器 (adapter) 圍繞 <code>keysight_logger_core</code> 中共享的 Core 執行階段 (runtime)，提供本機 FastAPI 和瀏覽器介面。</p>
+        <p>WebUI 配接器 (adapter) 圍繞 <code>meters_tool_core</code> 中共享的 Core 執行階段 (runtime)，提供本機 FastAPI 和瀏覽器介面。</p>
 
         <p>WebUI 擁有以下內容的擁有權：</p>
         <ul>
-            <li>位於 <code>src/keysight_logger_webui/static/</code> 的瀏覽器介面。</li>
-            <li>位於 <code>src/keysight_logger_webui/web_ui.py</code> 的 FastAPI 路由結構。</li>
+            <li>位於 <code>src/meters_tool_webui/static/</code> 的瀏覽器介面。</li>
+            <li>位於 <code>src/meters_tool_webui/web_ui.py</code> 的 FastAPI 路由結構。</li>
             <li>面向瀏覽器的請求和回應序列化 (serialization)。</li>
             <li>從 Core 樣本事件衍生而來的即時數據 (Live data) 顯示狀態。</li>
             <li>資源掃描顯示。</li>
@@ -244,13 +244,13 @@
 
         <h2>套件與進入點 (Entry Point)</h2>
         <p>WebUI 隨附於單一發行套件 (distribution) 中：</p>
-        <div class="code-wrapper"><pre><code>keysight-logger</code></pre></div>
+        <div class="code-wrapper"><pre><code>meters-tool</code></pre></div>
 
         <p>Windows 主控台包裝器 (wrapper) 為：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui.exe</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe</code></pre></div>
 
         <p>Windows GUI 啟動器包裝器為：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui-launcher.exe</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui-launcher.exe</code></pre></div>
 
         <p>預設的本機伺服器為：</p>
         <div class="code-wrapper"><pre><code>http://127.0.0.1:8767/</code></pre></div>
@@ -262,16 +262,16 @@
         <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]" --link-mode=copy</code></pre></div>
 
         <p>檢查包裝器：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui.exe --version</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe --version</code></pre></div>
 
         <p>預期版本格式：</p>
-        <div class="code-wrapper"><pre><code>keysight-logger-webui &lt;package-version&gt;</code></pre></div>
+        <div class="code-wrapper"><pre><code>meters-tool-webui &lt;package-version&gt;</code></pre></div>
 
         <p>啟動伺服器：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui.exe --port 8767</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe --port 8767</code></pre></div>
 
         <p>或啟動雙擊執行的啟動器：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui-launcher.exe</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui-launcher.exe</code></pre></div>
 
         <p>啟動器預設為 <code>127.0.0.1:8767</code>。當勾選 <code>Use default port 8767</code> 時，會停用連接埠 (port) 欄位，並在點擊 Start (啟動) 後開啟瀏覽器，且保持視窗可用，以便透過 Quit 停止本機 Uvicorn 伺服器。</p>
 
@@ -279,7 +279,7 @@
         <div class="code-wrapper"><pre><code>http://127.0.0.1:8767/</code></pre></div>
 
         <p>選用的 host 與 port 旗標：</p>
-        <div class="code-wrapper"><pre><code>.\.venv\Scripts\keysight-logger-webui.exe --host 127.0.0.1 --port 8767</code></pre></div>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe --host 127.0.0.1 --port 8767</code></pre></div>
 
         <p>除非有刻意的原因需要將伺服器公開至本機以外，否則請保持預設的 host 為 <code>127.0.0.1</code>。</p>
 
@@ -288,7 +288,7 @@
 
         <p>主要區域：</p>
         <ul>
-            <li>標頭：<code>Keysight Meters</code> 和 <code>Local acquisition console</code>。</li>
+            <li>標頭：<code>Meters Tool</code> 和 <code>Local acquisition console</code>。</li>
             <li><code>Device / Resource</code> 列：<code>VISA resource</code>、<code>Live resource</code>、<code>Scan Device</code>，以及 <code>Device options</code> 齒輪中的 <code>Expected model</code> 選擇器。此列預設展開，可收合成資源/型號摘要。</li>
             <li><code>Expected model</code> 選擇器預設為 <code>Auto-detect</code>，會在 Start 時使用連接中的儀器 IDN。若明確選擇 <code>Require 34460A</code> 或 <code>Require 34461A</code>，仍會讀取 IDN，只有在符合時才啟動，並套用對應的型號驗證限制。</li>
             <li>狀態列 (Status strip)：<code>State</code>、<code>Captured</code>、<code>Errors</code> 和 <code>CSV</code>。</li>
@@ -573,15 +573,15 @@
         <h2>開發邊界</h2>
         <p>偏好的 WebUI 前端檔案：</p>
         <ul>
-            <li><code>src/keysight_logger_webui/static/index.html</code></li>
-            <li><code>src/keysight_logger_webui/static/styles.css</code></li>
-            <li><code>src/keysight_logger_webui/static/*.js</code></li>
+            <li><code>src/meters_tool_webui/static/index.html</code></li>
+            <li><code>src/meters_tool_webui/static/styles.css</code></li>
+            <li><code>src/meters_tool_webui/static/*.js</code></li>
         </ul>
 
         <p>後端配接器檔案：</p>
         <ul>
-            <li><code>src/keysight_logger_webui/web_ui.py</code></li>
-            <li><code>src/keysight_logger_webui/launcher.py</code></li>
+            <li><code>src/meters_tool_webui/web_ui.py</code></li>
+            <li><code>src/meters_tool_webui/launcher.py</code></li>
         </ul>
 
         <p>測試：</p>
@@ -598,13 +598,13 @@
         <p>請先執行最窄的相關檢查。</p>
 
         <p>編輯前端模組後的 JavaScript 語法檢查：</p>
-        <div class="code-wrapper"><pre><code>Get-ChildItem src\keysight_logger_webui\static\*.js |
+        <div class="code-wrapper"><pre><code>Get-ChildItem src\meters_tool_webui\static\*.js |
   ForEach-Object { node --check $_.FullName }</code></pre></div>
 
         <p>針對 WebUI/Core 的無硬體專注驗證：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_package_metadata.py tests/webui/test_webui_api.py tests/webui/test_webui_static.py tests/webui/test_launcher.py -q -p no:cacheprovider</code></pre></div>
 
-        <p>在使用已安裝 <code>keysight-logger</code> 的環境中，使用 PyInstaller 建置選用的本機啟動器執行檔 (launcher exe)。PyInstaller 是本機版本建置工具，並非 WebUI 執行階段的相依套件，因此在全新機器上重建前，請先將其安裝至 venv：</p>
+        <p>在使用已安裝 <code>meters-tool</code> 的環境中，使用 PyInstaller 建置選用的本機啟動器執行檔 (launcher exe)。PyInstaller 是本機版本建置工具，並非 WebUI 執行階段的相依套件，因此在全新機器上重建前，請先將其安裝至 venv：</p>
         <div class="code-wrapper"><pre><code>uv pip install pyinstaller</code></pre></div>
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_exe.ps1</code></pre></div>
 
@@ -650,7 +650,7 @@
         <p>包裝器 (Wrapper) 遺失：</p>
         <ul>
             <li>重新執行 <code>uv pip install -e ".[all,dev]" --link-mode=copy</code>。</li>
-            <li>確認 <code>.venv\Scripts\keysight-logger-webui.exe</code> 存在。</li>
+            <li>確認 <code>.venv\Scripts\meters-tool-webui.exe</code> 存在。</li>
         </ul>
 
         <p>連接埠 (Port) 已被佔用：</p>

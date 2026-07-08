@@ -14,7 +14,7 @@ from typing import Any, Callable
 try:
     from .web_ui import PACKAGE_NAME, WebRunManager, create_uvicorn_server
 except ImportError:  # pragma: no cover - PyInstaller script entry point
-    from keysight_logger_webui.web_ui import (
+    from meters_tool_webui.web_ui import (
         PACKAGE_NAME,
         WebRunManager,
         create_uvicorn_server,
@@ -67,7 +67,7 @@ class LauncherApp:
         self._url_value = tk.StringVar(value=build_local_url(DEFAULT_PORT))
         self._status_value = tk.StringVar(value="Ready")
 
-        self._root.title("Keysight Logger WebUI Launcher")
+        self._root.title("Meters Tool WebUI Launcher")
         self._root.protocol("WM_DELETE_WINDOW", self.quit)
 
         frame = tk.Frame(self._root, padx=16, pady=14)
@@ -152,14 +152,14 @@ class LauncherApp:
             self._server = self._server_factory(self._manager, port)
             self._server_thread = threading.Thread(
                 target=self._run_server,
-                name="keysight-webui-launcher-server",
+                name="meters-tool-webui-launcher-server",
                 daemon=True,
             )
             self._server_thread.start()
             self._startup_thread = threading.Thread(
                 target=self._wait_for_startup,
                 args=(port,),
-                name="keysight-webui-launcher-startup",
+                name="meters-tool-webui-launcher-startup",
                 daemon=True,
             )
             self._startup_thread.start()
@@ -274,7 +274,7 @@ def _server_is_ready(url: str) -> bool:
                 return False
             payload = json.loads(response.read().decode("utf-8"))
             app = payload.get("app", {}) if isinstance(payload, dict) else {}
-            return app.get("name") == "keysight-logger-webui"
+            return app.get("name") == "meters-tool-webui"
     except (OSError, URLError, ValueError, json.JSONDecodeError):
         return False
 

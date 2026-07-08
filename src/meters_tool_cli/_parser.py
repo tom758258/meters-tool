@@ -3,22 +3,22 @@ from __future__ import annotations
 import argparse
 import sys
 
-from keysight_logger_core.measurement import format_measurement_type
-from keysight_logger_core.models import get_default_instrument_profile, supported_instrument_models
-from keysight_logger_core.validation import (
+from meters_tool_core.measurement import format_measurement_type
+from meters_tool_core.models import get_default_instrument_profile, supported_instrument_models
+from meters_tool_core.validation import (
     start_help_epilog as _start_help_epilog,
     supported_measurement_types as _supported_measurement_types,
 )
 
 
-class KeysightHelpFormatter(
+class MetersHelpFormatter(
     argparse.ArgumentDefaultsHelpFormatter,
     argparse.RawDescriptionHelpFormatter,
 ):
     pass
 
 
-class KeysightArgumentParser(argparse.ArgumentParser):
+class MetersArgumentParser(argparse.ArgumentParser):
     def parse_args(self, args=None, namespace=None):  # noqa: ANN001
         raw_args = list(sys.argv[1:] if args is None else args)
         parsed = super().parse_args(args, namespace)
@@ -119,20 +119,20 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     measurement_choices = ", ".join(
         format_measurement_type(value) for value in _supported_measurement_types(default_profile)
     )
-    parser = KeysightArgumentParser(
-        prog="keysight-logger",
-        formatter_class=KeysightHelpFormatter,
+    parser = MetersArgumentParser(
+        prog="meters-tool",
+        formatter_class=MetersHelpFormatter,
     )
     parser.add_argument(
         "--version",
         action="version",
-        version=f"keysight-logger {version_provider()}",
+        version=f"meters-tool {version_provider()}",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     list_resources = sub.add_parser(
         "list-resources",
-        formatter_class=KeysightHelpFormatter,
+        formatter_class=MetersHelpFormatter,
     )
     list_resources.add_argument(
         "--verify",
@@ -173,7 +173,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
 
     start = sub.add_parser(
         "start-trigger-record",
-        formatter_class=KeysightHelpFormatter,
+        formatter_class=MetersHelpFormatter,
         epilog=_start_help_epilog(default_profile),
     )
     start.add_argument("--resource", required=True, help="VISA resource string")
@@ -380,7 +380,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         help="VM Comp rear-panel output pulse slope; omit to leave unchanged",
     )
 
-    send_command = sub.add_parser("send-command", formatter_class=KeysightHelpFormatter)
+    send_command = sub.add_parser("send-command", formatter_class=MetersHelpFormatter)
     send_command.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     send_command.add_argument(
         "--timeout-ms",
@@ -409,7 +409,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     )
     send_command.add_argument("--json", action="store_true", help="alias for --format json")
     send_command.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
-    stop = sub.add_parser("stop", formatter_class=KeysightHelpFormatter)
+    stop = sub.add_parser("stop", formatter_class=MetersHelpFormatter)
     stop.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     stop.add_argument(
         "--timeout-ms",
@@ -427,7 +427,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     stop.add_argument("--json", action="store_true", help="alias for --format json")
     stop.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
 
-    status = sub.add_parser("status", formatter_class=KeysightHelpFormatter)
+    status = sub.add_parser("status", formatter_class=MetersHelpFormatter)
     status.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     status.add_argument(
         "--timeout-ms",
@@ -445,7 +445,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     status.add_argument("--json", action="store_true", help="alias for --format json")
     status.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
 
-    wait = sub.add_parser("wait-ready", formatter_class=KeysightHelpFormatter)
+    wait = sub.add_parser("wait-ready", formatter_class=MetersHelpFormatter)
     wait.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
     wait.add_argument(
         "--timeout-ms",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from keysight_logger_core.measurement import (
+from meters_tool_core.measurement import (
     CurrentAcMeasurement,
     CurrentDcMeasurement,
     CurrentMeasurement,
@@ -20,7 +20,7 @@ from keysight_logger_core.measurement import (
     normalize_measurement_type,
     registered_measurement_types,
 )
-from keysight_logger_core.models import AcquisitionConfig, TriggerEvent, TriggerSource
+from meters_tool_core.models import AcquisitionConfig, TriggerEvent, TriggerSource
 
 from core_test_helpers import CommandRecordingInstrument as FakeInstrument
 

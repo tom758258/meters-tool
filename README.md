@@ -1,12 +1,12 @@
 [繁體中文](README.zh-TW.md)
 
-# Keysight Logger
+# Meters Tool
 
-Keysight Logger is a Python data acquisition and logging toolkit for
+Meters Tool is a Python data acquisition and logging toolkit for
 Keysight 34460A and 34461A Truevolt digital multimeters. It provides one installable distribution,
-`keysight-logger`, with the package version defined by the root
+`meters-tool`, with the package version defined by the root
 `pyproject.toml`, while preserving three import packages:
-`keysight_logger_core`, `keysight_logger_cli`, and `keysight_logger_webui`.
+`meters_tool_core`, `meters_tool_cli`, and `meters_tool_webui`.
 
 The project supports DC and AC current, DC and AC voltage, DC voltage ratio,
 frequency, period, and 2-wire or 4-wire resistance measurements over VISA. Each
@@ -45,19 +45,19 @@ WebUI keeps using the default system VISA runtime.
 The repository now has one distribution and one version number. In examples,
 `<version>` means `[project].version` from the root `pyproject.toml`:
 
-* Distribution: `keysight-logger` `<version>`
-* Core import: `keysight_logger_core`
-* CLI import: `keysight_logger_cli`
-* WebUI import: `keysight_logger_webui`
+* Distribution: `meters-tool` `<version>`
+* Core import: `meters_tool_core`
+* CLI import: `meters_tool_cli`
+* WebUI import: `meters_tool_webui`
 
-The import paths remain independent. Do not use a `keysight_logger.*`
+The import paths remain independent. Do not use a `meters_tool.*`
 namespace package.
 
 ```text
 src/
-  keysight_logger_core/
-  keysight_logger_cli/
-  keysight_logger_webui/
+  meters_tool_core/
+  meters_tool_cli/
+  meters_tool_webui/
 tests/
   core/
   cli/
@@ -74,7 +74,7 @@ scripts/
 Open PowerShell and enter the project root first:
 
 ```powershell
-cd path\to\Keysight_Meters_Logger
+cd path\to\meters-tool
 ```
 
 Install uv if it is not already available:
@@ -127,9 +127,9 @@ If you need pip directly, use the virtual environment's Python:
 ```
 
 Windows creates virtualenv console wrappers such as
-`.\.venv\Scripts\keysight-logger.exe`,
-`.\.venv\Scripts\keysight-logger-webui.exe`, and
-`.\.venv\Scripts\keysight-logger-webui-launcher.exe`.
+`.\.venv\Scripts\meters-tool.exe`,
+`.\.venv\Scripts\meters-tool-webui.exe`, and
+`.\.venv\Scripts\meters-tool-webui-launcher.exe`.
 
 ## Build
 
@@ -143,8 +143,8 @@ the `dev` extra installed above:
 This produces only one Python distribution:
 
 ```text
-dist\keysight_logger-<version>-py3-none-any.whl
-dist\keysight_logger-<version>.tar.gz
+dist\meters_tool-<version>-py3-none-any.whl
+dist\meters_tool-<version>.tar.gz
 ```
 
 Standalone executables are separate PyInstaller workflows. Install PyInstaller
@@ -170,8 +170,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_ex
 By default, these commands produce:
 
 ```text
-dist\keysight-logger.exe
-dist\keysight-logger-webui-launcher.exe
+dist\meters-tool.exe
+dist\meters-tool-webui-launcher.exe
 ```
 
 Build a release folder with wheel, sdist, standalone executables, and checksums:
@@ -183,10 +183,10 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.
 This produces versioned release artifacts:
 
 ```text
-release\<version>\keysight-logger-<version>.exe
-release\<version>\keysight-logger-webui-launcher-<version>.exe
-release\<version>\keysight_logger-<version>-py3-none-any.whl
-release\<version>\keysight_logger-<version>.tar.gz
+release\<version>\meters-tool-<version>.exe
+release\<version>\meters-tool-webui-launcher-<version>.exe
+release\<version>\meters_tool-<version>-py3-none-any.whl
+release\<version>\meters_tool-<version>.tar.gz
 release\<version>\checksums.txt
 ```
 

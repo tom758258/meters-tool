@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import keysight_logger_core as core
+import meters_tool_core as core
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -45,14 +45,14 @@ def test_core_integration_names_public_core_api():
     for name in core.__all__:
         assert name in text
 
-    assert "keysight_logger_core" in text
+    assert "meters_tool_core" in text
 
 
 def test_core_integration_uses_package_boundary_wording():
     text = read_doc("integration.md")
 
     assert "Core package public contract" in text
-    assert "keysight_logger_core" in text
+    assert "meters_tool_core" in text
 
     obsolete_branch_terms = (
         "Core branch",
@@ -78,7 +78,7 @@ def test_core_docs_do_not_document_adapter_schema_as_core_contract():
 
     assert "CLI JSONL" not in core_docs
     assert "wrapper artifacts" not in core_docs
-    assert "keysight-logger.exe" not in core_docs
+    assert "meters-tool.exe" not in core_docs
     assert "measurement_cli_name" not in core_docs
 
 

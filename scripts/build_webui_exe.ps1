@@ -1,6 +1,6 @@
 param(
     [string]$DistPath = "dist",
-    [string]$Name = "keysight-logger-webui-launcher"
+    [string]$Name = "meters-tool-webui-launcher"
 )
 
 Set-StrictMode -Version Latest
@@ -35,8 +35,8 @@ if (-not (
     --workpath (Join-Path $RepoRoot "build\pyinstaller-webui") `
     --specpath (Join-Path $RepoRoot "build\pyinstaller-specs") `
     --paths (Join-Path $RepoRoot "src") `
-    --add-data "$(Join-Path $RepoRoot 'src\keysight_logger_webui\static');keysight_logger_webui\static" `
-    (Join-Path $RepoRoot "src\keysight_logger_webui\launcher.py")
+    --add-data "$(Join-Path $RepoRoot 'src\meters_tool_webui\static');meters_tool_webui\static" `
+    (Join-Path $RepoRoot "src\meters_tool_webui\launcher.py")
 
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE

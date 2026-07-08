@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
-from keysight_logger_webui.web_ui import FALLBACK_WEBUI_VERSION
+from meters_tool_webui.web_ui import FALLBACK_WEBUI_VERSION
 
 
 def _read_pyproject(pyproject_path: Path) -> dict:
@@ -84,21 +84,21 @@ def test_webui_distribution_uses_adapter_metadata_and_console_script():
     dev_dependencies = pyproject["project"]["optional-dependencies"]["dev"]
     all_dependencies = pyproject["project"]["optional-dependencies"]["all"]
 
-    assert project["name"] == "keysight-logger"
+    assert project["name"] == "meters-tool"
     assert project["version"] == "1.6.0"
     assert project["version"] == FALLBACK_WEBUI_VERSION
     assert "WebUI" in project["description"]
     assert "pyvisa>=1.14.1" in dependencies
-    assert not any(str(item).startswith("keysight-logger-core") for item in dependencies)
+    assert not any(str(item).startswith("meters-tool-core") for item in dependencies)
     assert any(str(item).startswith("fastapi") for item in webui_dependencies)
     assert any(str(item).startswith("uvicorn") for item in webui_dependencies)
     assert all_dependencies == webui_dependencies
     assert any(str(item).startswith("httpx") for item in dev_dependencies)
-    assert scripts["keysight-logger"] == "keysight_logger_cli.cli:main"
-    assert scripts["keysight-logger-webui"] == "keysight_logger_webui.web_ui:main"
-    assert scripts["keysight-logger-webui-launcher"] == "keysight_logger_webui.launcher:main"
+    assert scripts["meters-tool"] == "meters_tool_cli.cli:main"
+    assert scripts["meters-tool-webui"] == "meters_tool_webui.web_ui:main"
+    assert scripts["meters-tool-webui-launcher"] == "meters_tool_webui.launcher:main"
     assert pyproject["tool"]["setuptools"]["package-data"] == {
-        "keysight_logger_webui": ["static/*.html", "static/*.css", "static/*.js"]
+        "meters_tool_webui": ["static/*.html", "static/*.css", "static/*.js"]
     }
-    assert importlib.util.find_spec("keysight_logger") is None
-    assert importlib.util.find_spec("keysight_logger_webui") is not None
+    assert importlib.util.find_spec("meters_tool") is None
+    assert importlib.util.find_spec("meters_tool_webui") is not None

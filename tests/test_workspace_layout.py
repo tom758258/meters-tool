@@ -31,26 +31,26 @@ def read_project_version() -> str:
 
 
 def test_root_has_no_legacy_source_package():
-    assert not (REPO_ROOT / "src" / "keysight_logger").exists()
+    assert not (REPO_ROOT / "src" / "meters_tool").exists()
 
 
 def test_legacy_import_package_is_absent():
-    assert importlib.util.find_spec("keysight_logger") is None
+    assert importlib.util.find_spec("meters_tool") is None
 
 
 def test_new_import_packages_are_discoverable():
-    assert importlib.util.find_spec("keysight_logger_core") is not None
-    assert importlib.util.find_spec("keysight_logger_cli") is not None
-    assert importlib.util.find_spec("keysight_logger_webui") is not None
+    assert importlib.util.find_spec("meters_tool_core") is not None
+    assert importlib.util.find_spec("meters_tool_cli") is not None
+    assert importlib.util.find_spec("meters_tool_webui") is not None
 
 
 def test_root_pyproject_defines_single_distribution():
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
-    assert 'name = "keysight-logger"' in text
+    assert 'name = "meters-tool"' in text
     assert 'version = "1.6.0"' in text
-    assert 'keysight-logger = "keysight_logger_cli.cli:main"' in text
-    assert 'keysight-logger-webui = "keysight_logger_webui.web_ui:main"' in text
+    assert 'meters-tool = "meters_tool_cli.cli:main"' in text
+    assert 'meters-tool-webui = "meters_tool_webui.web_ui:main"' in text
     assert "[tool.pytest.ini_options]" in text
     assert 'pythonpath = ["src"]' in text
 
@@ -66,9 +66,9 @@ def test_package_pyprojects_are_removed():
 
 def test_component_layout_is_rooted():
     for path in (
-        REPO_ROOT / "src" / "keysight_logger_core",
-        REPO_ROOT / "src" / "keysight_logger_cli",
-        REPO_ROOT / "src" / "keysight_logger_webui",
+        REPO_ROOT / "src" / "meters_tool_core",
+        REPO_ROOT / "src" / "meters_tool_cli",
+        REPO_ROOT / "src" / "meters_tool_webui",
         REPO_ROOT / "tests" / "core",
         REPO_ROOT / "tests" / "cli",
         REPO_ROOT / "tests" / "webui",
@@ -170,18 +170,18 @@ def test_public_package_versions_match_package_metadata():
     )
     version = read_project_version()
 
-    assert "`keysight-logger` `<version>`" in readme
+    assert "`meters-tool` `<version>`" in readme
     assert "`[project].version`" in readme
     for import_name in (
-        "keysight_logger_core",
-        "keysight_logger_cli",
-        "keysight_logger_webui",
+        "meters_tool_core",
+        "meters_tool_cli",
+        "meters_tool_webui",
     ):
         assert f"`{import_name}`" in readme
         assert f"`{import_name}`" in architecture
     assert version
     assert "`[project].version`" in architecture
-    assert "| Distribution | `keysight-logger` | `<version>` |" in architecture
+    assert "| Distribution | `meters-tool` | `<version>` |" in architecture
     assert "distribution version" in architecture
 
 

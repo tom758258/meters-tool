@@ -15,7 +15,7 @@ from unittest.mock import patch
 from urllib import request
 from urllib.error import HTTPError, URLError
 
-from keysight_logger_cli.cli import (
+from meters_tool_cli.cli import (
     build_parser,
     cmd_list_resources,
     cmd_send_command,
@@ -25,8 +25,8 @@ from keysight_logger_cli.cli import (
     cmd_wait_ready,
     main,
 )
-from keysight_logger_core.models import StartRequest
-from keysight_logger_core.session import StartRunResult
+from meters_tool_core.models import StartRequest
+from meters_tool_core.session import StartRunResult
 
 from cli_command_helpers import CliCommandHarnessMixin
 from cli_command_helpers import *  # noqa: F403
@@ -87,20 +87,20 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         fake_backend = FakeStartInstrument(None)
 
         with (
-            patch("keysight_logger_core.runner.create_instrument_backend", return_value=fake_backend),
-            patch("keysight_logger_core.runner.SoftwareTriggerAdapter", FakeStartServer),
-            patch("keysight_logger_core.runner.CsvWriter", PermissionDeniedCsvWriter),
+            patch("meters_tool_core.runner.create_instrument_backend", return_value=fake_backend),
+            patch("meters_tool_core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("meters_tool_core.runner.CsvWriter", PermissionDeniedCsvWriter),
             patch(
-                "keysight_logger_core.runner.create_measurement_plugin",
+                "meters_tool_core.runner.create_measurement_plugin",
                 return_value=FakeStartMeasurement(),
             ),
             patch(
-                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
                 return_value="Keysight Technologies,34461A,MY123,1.0",
             ),
-            patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
-            patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
-            patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            patch("meters_tool_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
+            patch("meters_tool_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("meters_tool_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
@@ -137,15 +137,15 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         fake_backend = ConnectFailingStartInstrument(None)
 
         with (
-            patch("keysight_logger_core.runner.create_instrument_backend", return_value=fake_backend),
-            patch("keysight_logger_core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("meters_tool_core.runner.create_instrument_backend", return_value=fake_backend),
+            patch("meters_tool_core.runner.SoftwareTriggerAdapter", FakeStartServer),
             patch(
-                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
                 return_value="Keysight Technologies,34461A,MY123,1.0",
             ),
-            patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
-            patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
-            patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            patch("meters_tool_cli.cli.WindowsConsoleStopHandler", InstalledConsoleHandler),
+            patch("meters_tool_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("meters_tool_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
@@ -182,8 +182,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         stdout = io.StringIO()
 
         with (
-            patch("keysight_logger_core.runner.create_instrument_backend") as mock_factory,
-            patch("keysight_logger_core.runner.SoftwareTriggerAdapter") as mock_server,
+            patch("meters_tool_core.runner.create_instrument_backend") as mock_factory,
+            patch("meters_tool_core.runner.SoftwareTriggerAdapter") as mock_server,
             redirect_stdout(stdout),
         ):
             rc = cmd_start(args)
@@ -216,7 +216,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         stderr = io.StringIO()
 
         with (
-            patch("keysight_logger_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
             redirect_stderr(stderr),
         ):
             rc = cmd_start(args)
@@ -232,7 +232,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         stderr = io.StringIO()
 
         with (
-            patch("keysight_logger_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
             redirect_stderr(stderr),
         ):
             rc = main(
@@ -279,10 +279,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
                 return_value="Keysight Technologies,34460A,MY123,1.0",
             ) as preflight,
-            patch("keysight_logger_cli.cli.run_start_session", return_value=fake_result) as runner,
+            patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner,
         ):
             rc = cmd_start(args)
 
@@ -313,10 +313,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
                 return_value="Keysight Technologies,34461A,MY123,1.0",
             ) as preflight,
-            patch("keysight_logger_cli.cli.run_start_session") as runner,
+            patch("meters_tool_cli.cli.run_start_session") as runner,
             redirect_stderr(stderr),
         ):
             rc = cmd_start(args)
@@ -431,7 +431,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         with (
             patch(
-                "keysight_logger_core.instrument.VisaInstrument.connect"
+                "meters_tool_core.instrument.VisaInstrument.connect"
             ) as mock_connect,
             redirect_stderr(stderr),
         ):
@@ -724,7 +724,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         with (
             redirect_stdout(stdout),
-            patch("keysight_logger_cli.cli.run_start_session", return_value=fake_result) as mock_runner,
+            patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as mock_runner,
         ):
             rc = cmd_start(args)
 
@@ -779,7 +779,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             fatal_error=None,
             csv_path="data\\delegate.csv",
         )
-        with patch("keysight_logger_cli.cli.run_start_session", return_value=fake_result) as mock_runner:
+        with patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as mock_runner:
             rc = cmd_start(args)
 
         self.assertEqual(0, rc)
@@ -855,9 +855,9 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         fake_backend = ConnectFailingStartInstrument(None)
 
         with (
-            patch("keysight_logger_core.runner.create_instrument_backend", return_value=fake_backend),
+            patch("meters_tool_core.runner.create_instrument_backend", return_value=fake_backend),
             patch(
-                "keysight_logger_core.start_resolution.VisaInstrument.preflight_idn",
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
                 return_value="Keysight Technologies,34461A,MY123,1.0",
             ),
             redirect_stdout(stdout),
@@ -895,11 +895,11 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         stderr = io.StringIO()
 
         with (
-            patch("keysight_logger_core.runner.SoftwareTriggerAdapter", FakeStartServer),
-            patch("keysight_logger_core.runner.CsvWriter", FakeCapturingCsvWriter),
-            patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
-            patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
-            patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            patch("meters_tool_core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("meters_tool_core.runner.CsvWriter", FakeCapturingCsvWriter),
+            patch("meters_tool_cli.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("meters_tool_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("meters_tool_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
             redirect_stdout(stdout),
             redirect_stderr(stderr),
         ):
@@ -1013,10 +1013,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         def run_command() -> None:
             try:
                 with (
-                    patch("keysight_logger_core.runner.CsvWriter", FakeCapturingCsvWriter),
-                    patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
-                    patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
-                    patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+                    patch("meters_tool_core.runner.CsvWriter", FakeCapturingCsvWriter),
+                    patch("meters_tool_cli.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+                    patch("meters_tool_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+                    patch("meters_tool_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
                     redirect_stdout(stdout),
                     redirect_stderr(stderr),
                 ):
@@ -1596,11 +1596,11 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         stdout = io.StringIO()
 
         with (
-            patch("keysight_logger_core.runner.SoftwareTriggerAdapter", FakeStartServer),
-            patch("keysight_logger_core.runner.CsvWriter", FakeCapturingCsvWriter),
-            patch("keysight_logger_cli.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
-            patch("keysight_logger_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
-            patch("keysight_logger_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
+            patch("meters_tool_core.runner.SoftwareTriggerAdapter", FakeStartServer),
+            patch("meters_tool_core.runner.CsvWriter", FakeCapturingCsvWriter),
+            patch("meters_tool_cli.cli.WindowsConsoleStopHandler", FakeStartConsoleHandler),
+            patch("meters_tool_cli.cli.WindowsKeyboardStopPoller", FakeStartKeyboardPoller),
+            patch("meters_tool_cli.cli.signal.signal", side_effect=lambda _sig, _handler: None),
             redirect_stdout(stdout),
         ):
             rc = cmd_start(args)
@@ -1609,7 +1609,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertIn("captured=6 errors=0", stdout.getvalue())
 
     def test_main_dispatches_start_trigger_record(self):
-        with patch("keysight_logger_cli.cli.cmd_start", return_value=23) as mock_cmd:
+        with patch("meters_tool_cli.cli.cmd_start", return_value=23) as mock_cmd:
             rc = main(["start-trigger-record", "--resource", "USB::FAKE"])
 
         self.assertEqual(23, rc)

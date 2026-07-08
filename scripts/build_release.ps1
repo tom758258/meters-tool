@@ -40,18 +40,18 @@ if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_cli_exe.ps1") -DistPath $versionDir -Name "keysight-logger-$Version"
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_cli_exe.ps1") -DistPath $versionDir -Name "meters-tool-$Version"
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_webui_exe.ps1") -DistPath $versionDir -Name "keysight-logger-webui-launcher-$Version"
+& powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot "build_webui_exe.ps1") -DistPath $versionDir -Name "meters-tool-webui-launcher-$Version"
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }
 
-Copy-Item -LiteralPath (Join-Path $RepoRoot "dist\keysight_logger-$Version-py3-none-any.whl") -Destination $versionDir -Force
-Copy-Item -LiteralPath (Join-Path $RepoRoot "dist\keysight_logger-$Version.tar.gz") -Destination $versionDir -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot "dist\meters_tool-$Version-py3-none-any.whl") -Destination $versionDir -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot "dist\meters_tool-$Version.tar.gz") -Destination $versionDir -Force
 
 $checksums = foreach (
     $artifact in Get-ChildItem -LiteralPath $versionDir -File |

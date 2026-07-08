@@ -3,8 +3,8 @@ import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from keysight_logger_core.models import TriggerEvent, TriggerSource
-from keysight_logger_core.trigger import HardwareTriggerAdapter, TriggerRouter
+from meters_tool_core.models import TriggerEvent, TriggerSource
+from meters_tool_core.trigger import HardwareTriggerAdapter, TriggerRouter
 
 
 class FakeHardwareInstrument:
@@ -119,7 +119,7 @@ class HardwareTriggerAdapterTests(unittest.TestCase):
             ),
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             event = adapter.wait_and_read_triggered(
                 timeout_ms=1000,
                 poll_interval_ms=1,
@@ -143,7 +143,7 @@ class HardwareTriggerAdapterTests(unittest.TestCase):
             ),
         )
 
-        with patch("keysight_logger_core.instrument.pyvisa", fake_pyvisa):
+        with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             adapter.wait_and_read_triggered(
                 timeout_ms=1000,
                 poll_interval_ms=1,

@@ -1,4 +1,4 @@
-# Keysight Logger WebUI User Guide
+# Meters Tool WebUI User Guide
 
 This guide is for operators who receive the built WebUI launcher and use it to
 record measurements from a supported Keysight Truevolt DMM. It avoids developer details and
@@ -25,13 +25,13 @@ For normal use, double-click the WebUI launcher provided with the release or
 local build:
 
 ```text
-keysight-logger-webui-launcher.exe
+meters-tool-webui-launcher.exe
 ```
 
 Release folders may include a versioned launcher name, such as:
 
 ```text
-keysight-logger-webui-launcher-<version>.exe
+meters-tool-webui-launcher-<version>.exe
 ```
 
 In the launcher window:
