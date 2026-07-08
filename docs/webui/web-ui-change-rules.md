@@ -268,6 +268,15 @@ The UI may look different, but these behaviors must remain true:
 - The Expected model selector reloads `/api/capabilities?model=<model>` only
   for explicit 34460A/34461A choices; Auto sends no `instrument_model` and
   relies on backend Start IDN preflight.
+- The selector wording stays `Expected model`, `Auto-detect`, `Require 34460A`,
+  and `Require 34461A`.
+- Scanned live resource metadata may reload capabilities while Auto is
+  selected, but it must not overwrite an explicitly selected expected model.
+- `/api/capabilities?model=34460A` must surface the limited 34460A profile:
+  no external trigger modes, no current terminal choices, no 10 A current
+  range, and a 1000-reading memory limit.
+- Direct `POST /api/runs` must still be rejected through Core validation for
+  unsupported 34460A combinations, even when frontend controls are bypassed.
 - Range choices are populated from the selected measurement definition.
 - NPLC choices are populated from the selected measurement definition.
 - NPLC is hidden/disabled when unsupported.

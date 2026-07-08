@@ -787,6 +787,31 @@ class WebUiApiTests(unittest.TestCase):
                 "sample_count": 1001,
             },
         )
+        external_response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "instrument_model": "34460A",
+                "measurement": "current-dc",
+                "trigger_mode": "external",
+                "max_samples": 1,
+            },
+        )
+        current_terminal_response = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "csv": str(csv_path),
+                "simulate": True,
+                "instrument_model": "34460A",
+                "measurement": "current-dc",
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+                "current_terminal": 3,
+            },
+        )
         allowed_response = client.post(
             "/api/runs",
             json={
@@ -806,6 +831,16 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("--range 10 is not valid", range_response.json()["detail"])
         self.assertEqual(422, overflow_response.status_code)
         self.assertIn("34460A reading memory 1000", overflow_response.json()["detail"])
+        self.assertEqual(422, external_response.status_code)
+        self.assertIn(
+            "--trigger-mode external is not supported by 34460A",
+            external_response.json()["detail"],
+        )
+        self.assertEqual(422, current_terminal_response.status_code)
+        self.assertIn(
+            "--current-terminal can only be used with --measurement current-dc or current-ac",
+            current_terminal_response.json()["detail"],
+        )
         self.assertEqual(200, allowed_response.status_code)
         client.post("/api/runs/current/stop")
         self.wait_until_inactive(client)

@@ -33,6 +33,21 @@ It no longer supports old root-level Core module import paths.
 validation, dry-run planning, or non-dry-run runtime orchestration, the CLI
 must convert parsed arguments into `StartRequest`.
 
+`--model` / `--instrument-model` remains free text at the argparse boundary.
+The parser must not use supported-model `choices`; unknown values such as
+`BADMODEL` are accepted by argparse and then rejected by Core profile
+validation with the supported models listed. This keeps model aliases and
+support policy centralized in Core.
+
+For live starts, omitted `--model` means Core resolves the profile from `*IDN?`.
+Supplying `--model` is only an expected-model guard: a mismatch between the
+selected model and connected IDN fails before `run_start_session(...)`, and the
+selected model must never override the IDN-selected profile. For `--dry-run`
+and `--simulate`, the selected model chooses the planning/simulator profile;
+omitted model is accepted only for deterministic simulator resources such as
+`SIM::34460A` or `SIM::34461A`, and those modes must not perform VISA IDN
+preflight.
+
 CLI-only fields such as output format, JSON aliases, terminal behavior, and
 wrapper compatibility details should not be added to `StartRequest` unless they
 are truly shared Core behavior.

@@ -136,9 +136,15 @@ validation, warnings, planning, and runtime. For live starts, omitted
 present, Core profile logic normalizes and validates it, such as `34461a` to
 `34461A`, and rejects unknown models with the supported profile models listed.
 Live explicit models are expected-model guards only and never override the
-detected IDN-selected profile. For dry-run and simulate, omitted model is
+detected IDN-selected profile. A selected/detected mismatch must fail before
+`run_start_session(...)`, `run_start_session(...)` must receive the
+IDN-resolved profile when live model selection is omitted, and no setup/write
+SCPI should be emitted from a mismatched selected model.
+
+For dry-run and simulate, a selected model chooses the planning/simulator
+profile and must not trigger a live VISA identity preflight. Omitted model is
 accepted only when the simulator resource encodes a single supported model
-token:
+token, such as `SIM::34460A` or `SIM::34461A`:
 
 ```python
 request, profile = resolve_start_profile(request)
@@ -147,6 +153,15 @@ request, profile = resolve_start_profile(request)
 `resolve_instrument_profile(None)` remains a compatibility helper that returns
 the default 34461A profile; do not use it to interpret omitted CLI/WebUI live
 start model requests.
+
+The final Core validation gate is profile-specific. In the base 34460A profile,
+Core rejects external and external-custom trigger modes, current terminal
+selection, 10 A current range requests, and custom trigger plans with more than
+1000 expected readings unless `allow_buffer_overflow_risk` is true. Validated
+34461A behavior remains allowed through the 34461A profile. Adapters should
+surface capabilities for user convenience, but direct adapter calls must still
+delegate unsupported combinations to Core validation instead of trusting UI or
+CLI affordances.
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user

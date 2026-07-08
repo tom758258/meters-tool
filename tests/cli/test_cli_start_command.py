@@ -252,6 +252,15 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertNotIn("invalid choice", stderr.getvalue())
         preflight.assert_not_called()
 
+    def test_start_parser_accepts_bad_model_as_free_text(self):
+        parser = build_parser()
+
+        args = parser.parse_args(
+            ["start-trigger-record", "--resource", "USB::FAKE", "--model", "BADMODEL"]
+        )
+
+        self.assertEqual("BADMODEL", args.instrument_model)
+
     def test_start_live_omitted_model_uses_preflight_profile_for_runner(self):
         parser = build_parser()
         args = parser.parse_args(
@@ -328,6 +337,44 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         )
         runner.assert_not_called()
         preflight.assert_called_once()
+
+    def test_start_simulate_selected_model_does_not_run_visa_preflight(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "SIM::34460A",
+                "--model",
+                "34460A",
+                "--csv",
+                "data\\simulate_no_preflight.csv",
+                "--simulate",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\simulate_no_preflight.csv",
+        )
+
+        with (
+            patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner,
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        preflight.assert_not_called()
+        self.assertEqual("34460A", runner.call_args.args[2].model)
 
     def test_start_dry_run_jsonl_outputs_one_plan_object(self):
         parser = build_parser()

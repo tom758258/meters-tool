@@ -69,9 +69,54 @@ class StartResolutionTests(unittest.TestCase):
 
         preflight.assert_not_called()
 
+    def test_dry_run_omitted_model_accepts_deterministic_sim_resource_without_visa(self):
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            request, profile = resolve_start_profile(
+                StartRequest(resource="SIM::34460A", dry_run=True)
+            )
+
+        self.assertEqual("34460A", request.instrument_model)
+        self.assertEqual("34460A", profile.model)
+        preflight.assert_not_called()
+
+    def test_dry_run_selected_model_uses_selected_profile_without_visa(self):
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            request, profile = resolve_start_profile(
+                StartRequest(resource="USB::FAKE", instrument_model="34460A", dry_run=True)
+            )
+
+        self.assertEqual("34460A", request.instrument_model)
+        self.assertEqual("34460A", profile.model)
+        preflight.assert_not_called()
+
     def test_simulate_omitted_model_rejects_non_deterministic_resource(self):
-        with self.assertRaisesRegex(ValueError, SIMULATE_AUTO_MODEL_ERROR):
+        with (
+            patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight,
+            self.assertRaisesRegex(ValueError, SIMULATE_AUTO_MODEL_ERROR),
+        ):
             resolve_start_profile(StartRequest(resource="SIM::INSTR", simulate=True))
+
+        preflight.assert_not_called()
+
+    def test_simulate_omitted_model_accepts_deterministic_sim_resource_without_visa(self):
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            request, profile = resolve_start_profile(
+                StartRequest(resource="SIM::34461A", simulate=True)
+            )
+
+        self.assertEqual("34461A", request.instrument_model)
+        self.assertEqual("34461A", profile.model)
+        preflight.assert_not_called()
+
+    def test_simulate_selected_model_uses_selected_profile_without_visa(self):
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            request, profile = resolve_start_profile(
+                StartRequest(resource="SIM::34461A", instrument_model="34460A", simulate=True)
+            )
+
+        self.assertEqual("34460A", request.instrument_model)
+        self.assertEqual("34460A", profile.model)
+        preflight.assert_not_called()
 
     def test_live_omitted_model_resolves_from_idn_preflight(self):
         with patch(
@@ -96,6 +141,19 @@ class StartResolutionTests(unittest.TestCase):
                 resolve_start_profile(
                     StartRequest(resource="USB::FAKE", instrument_model="34461A")
                 )
+
+    def test_live_explicit_model_match_returns_connected_idn_profile(self):
+        with patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ) as preflight:
+            request, profile = resolve_start_profile(
+                StartRequest(resource="USB::FAKE", instrument_model="34460A")
+            )
+
+        self.assertEqual("34460A", request.instrument_model)
+        self.assertEqual("34460A", profile.model)
+        preflight.assert_called_once()
 
 
 if __name__ == "__main__":
