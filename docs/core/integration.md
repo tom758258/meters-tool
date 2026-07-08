@@ -32,6 +32,7 @@ from meters_tool_core import (
     StartRunEvent,
     StartRunEventSink,
     StartRunResult,
+    StartWorkflowSupport,
     StopController,
     build_start_plan,
     generate_buffer_overflow_warning_details,
@@ -41,7 +42,9 @@ from meters_tool_core import (
     resolve_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
+    start_workflow_support,
     validate_start_request,
+    validate_start_workflow_support,
 )
 ```
 
@@ -127,6 +130,7 @@ starting a run:
 profile = get_default_instrument_profile()
 trigger_mode = resolve_trigger_mode(request)
 validate_start_request(request, trigger_mode, instrument_profile=profile)
+validate_start_workflow_support(request, trigger_mode, profile)
 warnings = generate_buffer_overflow_warnings(request, trigger_mode, profile)
 ```
 
@@ -162,6 +166,18 @@ selection, 10 A current range requests, and custom trigger plans with more than
 surface capabilities for user convenience, but direct adapter calls must still
 delegate unsupported combinations to Core validation instead of trusting UI or
 CLI affordances.
+
+`validate_start_workflow_support()` is the Core-owned live support policy gate
+for `start-trigger-record`. Call it after profile-specific request validation
+and before dry-run planning or `run_start_session(...)`. In live mode it uses
+the detected IDN profile, not the selected expected-model guard. In dry-run and
+simulate modes it leaves profile-supported planning/simulation open while hard
+profile limits remain enforced by `validate_start_request(...)`.
+
+Adapters that need additive capability metadata can use
+`start_workflow_support(profile)` and its `StartWorkflowSupport` values. The
+status field is normalized, for example `live_validated_full_suite`, with
+transport and backend scope carried separately.
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user

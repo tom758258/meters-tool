@@ -18,6 +18,7 @@ from meters_tool_core.runner import StopController, run_start_session
 from meters_tool_core.run_plan import StartPlan, build_start_plan
 from meters_tool_core.session import StartRunEvent, new_run_id
 from meters_tool_core.start_resolution import resolve_start_profile
+from meters_tool_core.support_policy import validate_start_workflow_support
 from meters_tool_core.validation import (
     generate_buffer_overflow_warnings,
     resolve_trigger_mode,
@@ -642,6 +643,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         request_model, instrument_profile = resolve_start_profile(request_model)
         trigger_mode = resolve_trigger_mode(request_model)
         validate_start_request(request_model, trigger_mode, instrument_profile=instrument_profile)
+        validate_start_workflow_support(request_model, trigger_mode, instrument_profile)
     except ValueError as exc:
         emitter.error(str(exc), rc=2)
         return 2

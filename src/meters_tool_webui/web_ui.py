@@ -32,7 +32,9 @@ from meters_tool_core import (
     resolve_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
+    start_workflow_support,
     validate_start_request,
+    validate_start_workflow_support,
 )
 from meters_tool_core._version import (
     DISTRIBUTION_NAME,
@@ -376,6 +378,17 @@ class WebRunManager:
                 "supports_external_trigger": profile.supports_external_trigger,
                 "supports_sample_timer": profile.supports_sample_timer,
             },
+            "support": {
+                command: {
+                    mode: {
+                        "validation_status": support.validation_status,
+                        "transport_scope": support.transport_scope,
+                        "backend_scope": support.backend_scope,
+                    }
+                    for mode, support in modes.items()
+                }
+                for command, modes in start_workflow_support(profile).items()
+            },
             "available_profiles": [
                 {"model": profile.model, "vendor": profile.vendor}
                 for profile in INSTRUMENT_PROFILES
@@ -469,6 +482,7 @@ class WebRunManager:
                 trigger_mode,
                 instrument_profile=profile,
             )
+            validate_start_workflow_support(start_request, trigger_mode, profile)
             warnings = generate_buffer_overflow_warnings(start_request, trigger_mode, profile)
             plan = build_start_plan(
                 start_request,

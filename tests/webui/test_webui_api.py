@@ -149,6 +149,10 @@ class WebUiApiTests(unittest.TestCase):
         self.assertTrue(measurements["frequency"]["supports_freq_period_timeout"])
         self.assertEqual([], measurements["period"]["freq_period_timeout_options"])
         self.assertFalse(measurements["period"]["supports_freq_period_timeout"])
+        support = payload["support"]["start-trigger-record"]["live"]
+        self.assertEqual("live_validated_full_suite", support["validation_status"])
+        self.assertEqual("usb", support["transport_scope"])
+        self.assertEqual("system_visa", support["backend_scope"])
 
         limits = payload["limits"]
         self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
@@ -1239,6 +1243,127 @@ class WebUiApiTests(unittest.TestCase):
             "Select 34460A or omit --model to auto-detect.",
             response.json()["detail"],
         )
+
+    def test_direct_live_post_34460a_allowed_workflow_reaches_runner(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+        fake_result = SimpleNamespace(
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path=csv_path,
+        )
+
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            patch("meters_tool_webui.web_ui.run_start_session", return_value=fake_result) as runner,
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB0::FAKE::INSTR",
+                    "instrument_model": "34460A",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "measurement": "frequency",
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        self.assertEqual(200, response.status_code)
+        runner.assert_called_once()
+        request_arg, trigger_mode, profile = runner.call_args.args[:3]
+        self.assertEqual("34460A", request_arg.instrument_model)
+        self.assertEqual("immediate", trigger_mode)
+        self.assertEqual("34460A", profile.model)
+
+    def test_direct_live_post_34460a_policy_closed_workflow_fails_before_runner(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+        cases = [
+            (
+                {
+                    "resource": "USB0::FAKE::INSTR",
+                    "instrument_model": "34460A",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "measurement": "voltage-dc-ratio",
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+                "34460A live support for --measurement voltage-dc-ratio is not validated",
+            ),
+            (
+                {
+                    "resource": "TCPIP0::host::inst0::INSTR",
+                    "instrument_model": "34460A",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "measurement": "voltage-dc",
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+                "transport=tcpip, backend=system_visa is pending",
+            ),
+        ]
+
+        for payload, expected in cases:
+            with self.subTest(expected=expected):
+                with (
+                    patch(
+                        "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                        return_value="Keysight Technologies,34460A,MY123,1.0",
+                    ),
+                    patch("meters_tool_webui.web_ui.run_start_session") as runner,
+                ):
+                    response = client.post("/api/runs", json=payload)
+
+                self.assertEqual(422, response.status_code)
+                self.assertIn(expected, response.json()["detail"])
+                runner.assert_not_called()
+
+    def test_selected_model_does_not_unlock_against_detected_live_model(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            patch("meters_tool_webui.web_ui.run_start_session") as runner,
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB0::FAKE::INSTR",
+                    "instrument_model": "34461A",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "measurement": "voltage-dc-ratio",
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        self.assertEqual(422, response.status_code)
+        self.assertIn(
+            "Selected model 34461A does not match the connected instrument IDN 34460A",
+            response.json()["detail"],
+        )
+        runner.assert_not_called()
 
     def test_manager_can_build_default_request_model(self):
         request = RunStartRequest(resource="USB::FAKE")

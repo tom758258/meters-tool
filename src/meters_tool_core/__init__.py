@@ -18,6 +18,11 @@ from .session import (
     StartRunResult,
     StopController,
 )
+from .support_policy import (
+    StartWorkflowSupport,
+    start_workflow_support,
+    validate_start_workflow_support,
+)
 from .validation import (
     CoreWarning,
     generate_buffer_overflow_warning_details,
@@ -33,6 +38,7 @@ __all__ = [
     "CoreWarning",
     "InstrumentProfile",
     "StartRequest",
+    "StartWorkflowSupport",
     "get_default_instrument_profile",
     "resolve_instrument_profile",
     "StartPlan",
@@ -41,6 +47,8 @@ __all__ = [
     "generate_buffer_overflow_warnings",
     "resolve_trigger_mode",
     "validate_start_request",
+    "start_workflow_support",
+    "validate_start_workflow_support",
     "StartRunEvent",
     "StartRunEventSink",
     "StartRunResult",

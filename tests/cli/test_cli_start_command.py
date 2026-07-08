@@ -338,6 +338,115 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         runner.assert_not_called()
         preflight.assert_called_once()
 
+    def test_start_live_34460a_full_suite_workflow_reaches_runner(self):
+        parser = build_parser()
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\delegate_live.csv",
+        )
+        cases = [
+            ("current-dc", "immediate", ["--max-samples", "1"]),
+            ("current-ac", "immediate", ["--max-samples", "1"]),
+            ("resistance-2w", "immediate", ["--max-samples", "1"]),
+            ("voltage-dc", "software", ["--timer-interval-s", "1.0", "--max-samples", "1"]),
+            ("voltage-dc", "immediate-custom", ["--trigger-count", "1", "--sample-count", "1"]),
+            ("frequency", "immediate", ["--max-samples", "1"]),
+            ("period", "immediate", ["--max-samples", "1"]),
+        ]
+
+        for measurement, trigger_mode, extra_args in cases:
+            with self.subTest(measurement=measurement, trigger_mode=trigger_mode):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--resource",
+                        "USB0::FAKE::INSTR",
+                        "--model",
+                        "34460A",
+                        "--csv",
+                        "data\\delegate_live.csv",
+                        "--measurement",
+                        measurement,
+                        "--trigger-mode",
+                        trigger_mode,
+                        *extra_args,
+                    ]
+                )
+                with (
+                    patch(
+                        "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                        return_value="Keysight Technologies,34460A,MY123,1.0",
+                    ),
+                    patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner,
+                ):
+                    rc = cmd_start(args)
+
+                self.assertEqual(0, rc)
+                runner.assert_called_once()
+
+    def test_start_live_34460a_policy_closed_workflow_fails_before_runner(self):
+        parser = build_parser()
+        cases = [
+            (
+                [
+                    "--measurement",
+                    "voltage-dc-ratio",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                ],
+                "34460A live support for --measurement voltage-dc-ratio is not validated",
+            ),
+            (
+                [
+                    "--visa-library",
+                    "@py",
+                    "--measurement",
+                    "voltage-dc",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                ],
+                "transport=usb, backend=pyvisa_py is pending",
+            ),
+        ]
+
+        for extra_args, expected in cases:
+            with self.subTest(expected=expected):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--resource",
+                        "USB0::FAKE::INSTR",
+                        "--model",
+                        "34460A",
+                        "--csv",
+                        "data\\delegate_live.csv",
+                        *extra_args,
+                    ]
+                )
+                stderr = io.StringIO()
+                with (
+                    patch(
+                        "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                        return_value="Keysight Technologies,34460A,MY123,1.0",
+                    ),
+                    patch("meters_tool_cli.cli.run_start_session") as runner,
+                    redirect_stderr(stderr),
+                ):
+                    rc = cmd_start(args)
+
+                self.assertEqual(2, rc)
+                self.assertIn(expected, stderr.getvalue())
+                runner.assert_not_called()
+
     def test_start_simulate_selected_model_does_not_run_visa_preflight(self):
         parser = build_parser()
         args = parser.parse_args(
