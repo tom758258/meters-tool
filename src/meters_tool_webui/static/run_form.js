@@ -547,7 +547,17 @@ function renderSupportSummary(summary) {
   const validationStatus = summary?.validation_status || "unknown";
   const transport = summary?.transport_scope || "unspecified transport";
   const backend = summary?.backend_scope || "unspecified backend";
-  modelSupportStatus.textContent = `${model}: ${statusText} (${validationStatus}, ${transport}/${backend})`;
+  if (summary?.is_fallback_capability_view) {
+    const capabilityProfile = summary?.capability_profile || model;
+    const runtimeNote =
+      summary?.runtime_driver_note || "Live runtime driver remains detected IDN.";
+    modelSupportStatus.textContent =
+      `Auto-detect: showing ${capabilityProfile} fallback capability view ` +
+      `until Start or Scan detects IDN. ${runtimeNote} ` +
+      `(${validationStatus}, ${transport}/${backend})`;
+  } else {
+    modelSupportStatus.textContent = `${model}: ${statusText} (${validationStatus}, ${transport}/${backend})`;
+  }
   modelSupportOpen.textContent = listSummary(summary?.open_workflows);
   modelSupportLimits.textContent = listSummary(summary?.limits);
   modelSupportPending.textContent = listSummary(summary?.pending);

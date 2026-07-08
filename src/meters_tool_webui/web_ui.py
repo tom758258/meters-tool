@@ -389,7 +389,10 @@ class WebRunManager:
                 }
                 for command, modes in start_workflow_support(profile).items()
             },
-            "support_summary": _support_summary(profile),
+            "support_summary": _support_summary(
+                profile,
+                auto_unresolved=auto_unresolved,
+            ),
             "available_profiles": [
                 {"model": profile.model, "vendor": profile.vendor}
                 for profile in INSTRUMENT_PROFILES
@@ -1018,11 +1021,18 @@ def _resource_model_metadata(idn_detail: str | None) -> dict[str, Any]:
     }
 
 
-def _support_summary(profile) -> dict[str, Any]:  # noqa: ANN001
+def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str, Any]:
     live_support = start_workflow_support(profile)["start-trigger-record"]["live"]
     common_pending = ["LAN/TCPIP validation", "pyvisa-py @py validation"]
+    common = {
+        "display_model": "Auto-detect" if auto_unresolved else profile.model,
+        "capability_profile": profile.model,
+        "is_fallback_capability_view": auto_unresolved,
+        "runtime_driver_note": "Live runtime model is selected from detected *IDN?.",
+    }
     if profile.model == "34460A":
         return {
+            **common,
             "model": "34460A",
             "validation_status": live_support.validation_status,
             "transport_scope": live_support.transport_scope,
@@ -1047,6 +1057,7 @@ def _support_summary(profile) -> dict[str, Any]:  # noqa: ANN001
         }
     if profile.model == "34461A":
         return {
+            **common,
             "model": "34461A",
             "validation_status": live_support.validation_status,
             "transport_scope": live_support.transport_scope,
@@ -1065,6 +1076,7 @@ def _support_summary(profile) -> dict[str, Any]:  # noqa: ANN001
             "pending": common_pending,
         }
     return {
+        **common,
         "model": profile.model,
         "validation_status": live_support.validation_status,
         "transport_scope": live_support.transport_scope,

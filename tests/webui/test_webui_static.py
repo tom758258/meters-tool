@@ -112,6 +112,10 @@ class WebUiStaticTests(unittest.TestCase):
             "transport_scope",
             "backend_scope",
             "open_workflows",
+            "is_fallback_capability_view",
+            "fallback capability view",
+            "runtime_driver_note",
+            "Live runtime driver remains detected IDN.",
             "modelSupportLimits",
             "modelSupportPending",
         ]:

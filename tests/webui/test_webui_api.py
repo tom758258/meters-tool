@@ -156,6 +156,11 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("system_visa", support["backend_scope"])
         summary = payload["support_summary"]
         self.assertEqual("34461A", summary["model"])
+        self.assertEqual("Auto-detect", summary["display_model"])
+        self.assertEqual("34461A", summary["capability_profile"])
+        self.assertTrue(summary["is_fallback_capability_view"])
+        self.assertIn("detected *IDN?", summary["runtime_driver_note"])
+        self.assertIn("runtime model", summary["runtime_driver_note"])
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
@@ -198,6 +203,9 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("software-custom", payload["trigger_modes"])
         summary = payload["support_summary"]
         self.assertEqual("34460A", summary["model"])
+        self.assertEqual("34460A", summary["display_model"])
+        self.assertEqual("34460A", summary["capability_profile"])
+        self.assertFalse(summary["is_fallback_capability_view"])
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
@@ -230,6 +238,14 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(10000, payload["instrument_profile"]["reading_memory_limit"])
         self.assertIn("external", payload["trigger_modes"])
         self.assertIn("external-custom", payload["trigger_modes"])
+        summary = payload["support_summary"]
+        self.assertEqual("34461A", summary["model"])
+        self.assertEqual("34461A", summary["display_model"])
+        self.assertEqual("34461A", summary["capability_profile"])
+        self.assertFalse(summary["is_fallback_capability_view"])
+        self.assertIn("external trigger workflows", summary["open_workflows"])
+        self.assertIn("LAN/TCPIP validation", summary["pending"])
+        self.assertIn("pyvisa-py @py validation", summary["pending"])
         measurements = {item["name"]: item for item in payload["measurements"]}
         self.assertIn(10.0, [item["value"] for item in measurements["current-dc"]["range_options"]])
         self.assertEqual([3, 10], measurements["current-dc"]["current_terminal_options"])

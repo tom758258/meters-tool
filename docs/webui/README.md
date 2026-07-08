@@ -216,6 +216,9 @@ When `model` is omitted, `/api/capabilities` returns the compatibility
 34461A-shaped capability surface with `defaults.instrument_model = null` and
 `model_resolution.resolved = false`. The browser sends no `instrument_model`
 for Auto; explicit Expected model choices send `"34460A"` or `"34461A"`.
+In Auto-detect mode, capability controls and support summaries use that
+fallback capability profile until a live IDN is detected. Live runs still use
+the detected IDN-selected profile as the runtime driver.
 
 `/api/capabilities` also includes additive support metadata. The browser uses
 it to show model live support status, current validation scope, hard limits,
