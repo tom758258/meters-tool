@@ -131,12 +131,17 @@ Main areas:
 
 - Header: `Meters Tool` and `Local acquisition console`.
 - Device / Resource row: `VISA resource`, `Live resource`, `Scan Device`, and a
-  `Device options` gear for the `Expected model` selector. The row starts
-  expanded and can collapse to a resource/model summary.
+  `Device options` gear for the `Expected model` selector and model support
+  summary. The row starts expanded and can collapse to a resource/model
+  summary.
 - The Expected model selector defaults to `Auto-detect`, which uses the
   connected instrument IDN at Start. Explicit `Require 34460A` or
   `Require 34461A` choices still read IDN and start only when it matches. The
   detected IDN-selected profile remains the live profile.
+- The model support summary displays validation status, open workflow groups,
+  model limits, and pending transport/backend scopes from `/api/capabilities`.
+  This is operator-facing visibility only; Core still rejects unsupported
+  direct backend submissions.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
 - Collapsible setup panels for device/resource setup, run configuration,
@@ -211,6 +216,11 @@ When `model` is omitted, `/api/capabilities` returns the compatibility
 34461A-shaped capability surface with `defaults.instrument_model = null` and
 `model_resolution.resolved = false`. The browser sends no `instrument_model`
 for Auto; explicit Expected model choices send `"34460A"` or `"34461A"`.
+
+`/api/capabilities` also includes additive support metadata. The browser uses
+it to show model live support status, current validation scope, hard limits,
+and pending LAN/TCPIP or pyvisa-py `@py` validation. Existing measurement,
+trigger, range, and limit fields remain the source of truth for the controls.
 
 The Expected model check is optional. Core validates the connected instrument
 identity at Start. If an explicit expected model does not match the fresh IDN

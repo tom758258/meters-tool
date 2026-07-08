@@ -4,14 +4,18 @@ This file is the Core profile and model capability reference. Update it when
 Core profile data, supported measurements, validation bounds, or live
 validation expectations change.
 
+This public document summarizes stable user-facing support behavior. The
+internal model live support policy remains the source of truth for validation
+evidence, implementation status, and future promotion decisions.
+
 ## Model Profiles
 
 Core currently provides these instrument profiles:
 
 | Profile | Instrument | Reading memory | Current max | External trigger | Live validation |
 | --- | --- | ---: | ---: | --- | --- |
-| `keysight-34461a` | Keysight 34461A | 10000 | 10 A with 10A terminal | supported | auto-detected or explicitly selected IDN must match 34461A |
-| `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | auto-detected or explicitly selected IDN must match 34460A; operator validation required |
+| `keysight-34461a` | Keysight 34461A | 10000 | 10 A with 10A terminal | supported | `live_validated_full_suite` for currently implemented profile-supported suite coverage |
+| `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | `live_validated_full_suite` for USB/system-VISA suite-covered profile-supported workflows |
 
 CLI and WebUI live starts auto-detect 34460A/34461A from `*IDN?` when the model
 request is omitted. Explicit model selection is an expected-model guard for
@@ -28,6 +32,53 @@ message that lists the supported models from the profile registry.
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource.
 
+## Validation-Scoped Live Support
+
+Live support is validation-scope based. A workflow is live-open only when an
+operator-approved hardware validation pass covers that model, workflow, mode,
+transport, and backend scope. Full-suite validation opens only the workflows in
+that suite and only where the selected model profile supports the capability.
+It does not override hard model/profile limits and does not promote untested
+interfaces or VISA backends.
+
+In live mode, CLI `--model` and WebUI `Expected model` are expected-model
+guards only. The runtime driver/profile is selected from the connected
+instrument `*IDN?`. A selected/detected mismatch fails before setup SCPI.
+Dry-run and simulator runs use the selected/no-hardware planning profile and
+do not query live hardware.
+
+34461A live support:
+
+- Status: `live_validated_full_suite`.
+- Open for currently implemented 34461A profile-supported full-suite workflows,
+  including immediate, software, software timer, custom buffered, Frequency,
+  Period, external simple, and external custom workflows.
+- Documented validated manual option smokes, such as DCV Ratio and 10 A
+  current-terminal workflows, remain available where the profile supports them
+  and the operator setup is safe.
+
+34460A live support:
+
+- Status: `live_validated_full_suite` for USB/system-VISA scope.
+- Open only for 34460A profile-supported workflows covered by the 2026-07-08
+  USB full live CLI suite: immediate DC current, immediate DC voltage,
+  immediate AC current, immediate AC voltage, immediate 2-wire resistance,
+  immediate 4-wire resistance, software trigger, software timer, immediate
+  custom buffered workflow, software custom buffered workflow, Frequency, and
+  Period.
+- Hard limits remain blocked: no 10 A current path, no current-terminal
+  selection, 1000-reading memory limit, no buffer drain size above 1000, no
+  base-profile external simple trigger, no base-profile external custom
+  trigger, and no 34460A DCV Ratio live support unless a separate 34460A DCV
+  Ratio validation artifact promotes it later.
+
+Transport/backend pending status:
+
+- USB/system-VISA validation does not validate LAN/TCPIP.
+- USB/system-VISA validation does not validate pyvisa-py `@py`.
+- LAN/TCPIP and pyvisa-py `@py` remain pending until separate
+  operator-approved validation artifacts promote those scopes.
+
 ## VISA Backend Selection
 
 VISA backend selection is not a model capability. When `visa_library` is unset,
@@ -43,6 +94,11 @@ For pyvisa-py diagnostics, LAN/TCPIP is the recommended first path to try.
 USBTMC on Windows may require WinUSB/libusb setup. The `PYVISA_LIBRARY`
 environment variable remains PyVISA-level behavior, but explicit CLI
 `--visa-library "@py"` is preferred for reproducible tests.
+
+LAN/TCPIP and pyvisa-py `@py` remain separate validation scopes. They are not
+promoted by USB/system-VISA full-suite results and should be treated as pending
+for live support until a separate operator-approved validation artifact records
+that scope.
 
 ## Measurement Capability
 

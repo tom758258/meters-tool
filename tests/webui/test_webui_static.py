@@ -78,7 +78,8 @@ class WebUiStaticTests(unittest.TestCase):
             "Require 34461A",
             (
                 "Auto-detect uses the connected instrument IDN. Select a model only "
-                "when you want to require a specific one."
+                "when you want to require a specific one. In live mode, the detected "
+                "IDN model remains the runtime driver."
             ),
         ]:
             with self.subTest(expected=expected):
@@ -87,6 +88,35 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("setDeviceOptionsExpanded", app_js)
         self.assertIn('event.key === "Escape"', app_js)
         self.assertIn('document.addEventListener("click"', app_js)
+
+    def test_static_ui_displays_validation_scoped_model_support(self):
+        index, app_js = load_static_ui()
+
+        for expected in [
+            'id="model-support-summary"',
+            'id="model-support-status"',
+            'id="model-support-open"',
+            'id="model-support-limits"',
+            'id="model-support-pending"',
+            "Model support",
+            "Open",
+            "Limits",
+            "Pending",
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, index)
+
+        for expected in [
+            "renderSupportSummary(capabilities.support_summary)",
+            "validation_status",
+            "transport_scope",
+            "backend_scope",
+            "open_workflows",
+            "modelSupportLimits",
+            "modelSupportPending",
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, app_js)
 
     def test_static_ui_device_resource_section_has_collapse_and_summary(self):
         index, app_js = load_static_ui()

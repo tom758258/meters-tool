@@ -389,6 +389,7 @@ class WebRunManager:
                 }
                 for command, modes in start_workflow_support(profile).items()
             },
+            "support_summary": _support_summary(profile),
             "available_profiles": [
                 {"model": profile.model, "vendor": profile.vendor}
                 for profile in INSTRUMENT_PROFILES
@@ -1014,6 +1015,64 @@ def _resource_model_metadata(idn_detail: str | None) -> dict[str, Any]:
     return {
         "instrument_model": profile.model,
         "matched_profile": {"vendor": profile.vendor, "model": profile.model},
+    }
+
+
+def _support_summary(profile) -> dict[str, Any]:  # noqa: ANN001
+    live_support = start_workflow_support(profile)["start-trigger-record"]["live"]
+    common_pending = ["LAN/TCPIP validation", "pyvisa-py @py validation"]
+    if profile.model == "34460A":
+        return {
+            "model": "34460A",
+            "validation_status": live_support.validation_status,
+            "transport_scope": live_support.transport_scope,
+            "backend_scope": live_support.backend_scope,
+            "status_text": "USB/system-VISA full-suite validated.",
+            "open_workflows": [
+                "immediate",
+                "software",
+                "software timer",
+                "custom buffered",
+                "Frequency",
+                "Period",
+            ],
+            "limits": [
+                "no 10 A current path",
+                "no current-terminal selection",
+                "1000-reading memory limit",
+                "no base-profile external trigger support",
+                "no 34460A DCV Ratio live support",
+            ],
+            "pending": common_pending,
+        }
+    if profile.model == "34461A":
+        return {
+            "model": "34461A",
+            "validation_status": live_support.validation_status,
+            "transport_scope": live_support.transport_scope,
+            "backend_scope": live_support.backend_scope,
+            "status_text": "Full-suite validated for profile-supported workflows.",
+            "open_workflows": [
+                "immediate",
+                "software",
+                "software timer",
+                "custom buffered",
+                "Frequency",
+                "Period",
+                "external trigger workflows",
+            ],
+            "limits": [],
+            "pending": common_pending,
+        }
+    return {
+        "model": profile.model,
+        "validation_status": live_support.validation_status,
+        "transport_scope": live_support.transport_scope,
+        "backend_scope": live_support.backend_scope,
+        "status_text": "Live support is not open for this profile.",
+        "open_workflows": [],
+        "limits": [],
+        "pending": common_pending,
     }
 
 

@@ -47,6 +47,10 @@ export const deviceResourceSummary = document.querySelector("#device-resource-su
 export const deviceResourceToggleButton = document.querySelector("#toggle-device-resource");
 export const deviceOptionsToggleButton = document.querySelector("#device-options-toggle");
 export const deviceOptionsPanel = document.querySelector("#device-options-panel");
+export const modelSupportStatus = document.querySelector("#model-support-status");
+export const modelSupportOpen = document.querySelector("#model-support-open");
+export const modelSupportLimits = document.querySelector("#model-support-limits");
+export const modelSupportPending = document.querySelector("#model-support-pending");
 export const csvInput = document.querySelector("[name='csv']");
 export const selectCsvFolderButton = document.querySelector("#select-csv-folder");
 export const startRunButton = document.querySelector("#start-run");

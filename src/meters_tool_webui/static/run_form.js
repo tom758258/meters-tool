@@ -16,6 +16,10 @@ import {
   measurementRangeInput,
   measurementScopedControls,
   measurementSelect,
+  modelSupportLimits,
+  modelSupportOpen,
+  modelSupportPending,
+  modelSupportStatus,
   modeScopedControls,
   nplcField,
   nplcSelect,
@@ -534,6 +538,26 @@ function applyAppMetadata(app) {
   subtitle.textContent = version ? `Unofficial Tool v${version}` : "Unofficial Tool";
 }
 
+function renderSupportSummary(summary) {
+  if (!modelSupportStatus) {
+    return;
+  }
+  const model = summary?.model || "selected model";
+  const statusText = summary?.status_text || "Support status unavailable.";
+  const validationStatus = summary?.validation_status || "unknown";
+  const transport = summary?.transport_scope || "unspecified transport";
+  const backend = summary?.backend_scope || "unspecified backend";
+  modelSupportStatus.textContent = `${model}: ${statusText} (${validationStatus}, ${transport}/${backend})`;
+  modelSupportOpen.textContent = listSummary(summary?.open_workflows);
+  modelSupportLimits.textContent = listSummary(summary?.limits);
+  modelSupportPending.textContent = listSummary(summary?.pending);
+}
+
+function listSummary(items) {
+  const values = Array.isArray(items) ? items.filter(Boolean) : [];
+  return values.length ? values.join(", ") : "None";
+}
+
 export async function loadCapabilities(model = null) {
   const selectedModel = textOrNull(model || instrumentModelSelect?.value);
   const url = selectedModel
@@ -544,6 +568,7 @@ export async function loadCapabilities(model = null) {
   const capabilities = await api(url);
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
+  renderSupportSummary(capabilities.support_summary);
   if (instrumentModelSelect) {
     const forcedModel = textOrNull(instrumentModelSelect.value);
     const profileOptions = [...(capabilities.available_profiles || [])].sort((a, b) =>

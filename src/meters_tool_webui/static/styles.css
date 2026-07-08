@@ -296,6 +296,46 @@ button:disabled:hover {
   line-height: 1.45;
 }
 
+.model-support-summary {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.model-support-summary strong {
+  font-size: 12px;
+}
+
+.model-support-summary p,
+.model-support-summary dl,
+.model-support-summary dd {
+  margin: 0;
+}
+
+.model-support-summary dl {
+  display: grid;
+  gap: 6px;
+}
+
+.model-support-summary div {
+  display: grid;
+  gap: 2px;
+}
+
+.model-support-summary dt {
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.model-support-summary dd,
+.model-support-summary p {
+  color: var(--muted);
+}
+
 .live-resource-field {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

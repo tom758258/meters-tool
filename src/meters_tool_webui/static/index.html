@@ -51,8 +51,26 @@
                   </select>
                 </label>
                 <p class="device-options-help">
-                  Auto-detect uses the connected instrument IDN. Select a model only when you want to require a specific one.
+                  Auto-detect uses the connected instrument IDN. Select a model only when you want to require a specific one. In live mode, the detected IDN model remains the runtime driver.
                 </p>
+                <div id="model-support-summary" class="model-support-summary" aria-live="polite">
+                  <strong>Model support</strong>
+                  <p id="model-support-status">Loading support status</p>
+                  <dl>
+                    <div>
+                      <dt>Open</dt>
+                      <dd id="model-support-open">--</dd>
+                    </div>
+                    <div>
+                      <dt>Limits</dt>
+                      <dd id="model-support-limits">--</dd>
+                    </div>
+                    <div>
+                      <dt>Pending</dt>
+                      <dd id="model-support-pending">--</dd>
+                    </div>
+                  </dl>
+                </div>
               </div>
             </div>
             <button

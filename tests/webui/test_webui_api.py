@@ -154,6 +154,14 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("live_validated_full_suite", support["validation_status"])
         self.assertEqual("usb", support["transport_scope"])
         self.assertEqual("system_visa", support["backend_scope"])
+        summary = payload["support_summary"]
+        self.assertEqual("34461A", summary["model"])
+        self.assertEqual("live_validated_full_suite", summary["validation_status"])
+        self.assertEqual("usb", summary["transport_scope"])
+        self.assertEqual("system_visa", summary["backend_scope"])
+        self.assertIn("external trigger workflows", summary["open_workflows"])
+        self.assertIn("LAN/TCPIP validation", summary["pending"])
+        self.assertIn("pyvisa-py @py validation", summary["pending"])
 
         limits = payload["limits"]
         self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
@@ -188,6 +196,21 @@ class WebUiApiTests(unittest.TestCase):
         self.assertNotIn("external", payload["trigger_modes"])
         self.assertNotIn("external-custom", payload["trigger_modes"])
         self.assertIn("software-custom", payload["trigger_modes"])
+        summary = payload["support_summary"]
+        self.assertEqual("34460A", summary["model"])
+        self.assertEqual("live_validated_full_suite", summary["validation_status"])
+        self.assertEqual("usb", summary["transport_scope"])
+        self.assertEqual("system_visa", summary["backend_scope"])
+        self.assertIn("custom buffered", summary["open_workflows"])
+        self.assertIn("Frequency", summary["open_workflows"])
+        self.assertIn("Period", summary["open_workflows"])
+        self.assertIn("no 10 A current path", summary["limits"])
+        self.assertIn("no current-terminal selection", summary["limits"])
+        self.assertIn("1000-reading memory limit", summary["limits"])
+        self.assertIn("no base-profile external trigger support", summary["limits"])
+        self.assertIn("no 34460A DCV Ratio live support", summary["limits"])
+        self.assertIn("LAN/TCPIP validation", summary["pending"])
+        self.assertIn("pyvisa-py @py validation", summary["pending"])
         measurements = {item["name"]: item for item in payload["measurements"]}
         for name in ("current-dc", "current-ac"):
             with self.subTest(name=name):
