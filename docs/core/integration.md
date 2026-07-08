@@ -134,6 +134,19 @@ validate_start_workflow_support(request, trigger_mode, profile)
 warnings = generate_buffer_overflow_warnings(request, trigger_mode, profile)
 ```
 
+The model field has mode-specific meaning:
+
+- Dry-run and simulate: `StartRequest.instrument_model` is a no-hardware
+  planning profile. It selects the profile used for validation, planning, and
+  simulation without live VISA identity preflight.
+- Live: `StartRequest.instrument_model` is an expected-model guard only. The
+  live runtime profile comes from the connected instrument `*IDN?`; the
+  selected model must never override detected IDN or unlock capabilities for a
+  different instrument.
+- Safety boundary: Core support policy and the `run_start_session()` runner
+  final gate use the resolved profile and remain the final gate for CLI,
+  WebUI backend, and direct Core/API submissions.
+
 CLI/WebUI adapters should resolve the start profile once and reuse it for
 validation, warnings, planning, and runtime. For live starts, omitted
 `StartRequest.instrument_model` means IDN auto-detect. When a model string is

@@ -277,6 +277,16 @@ The UI may look different, but these behaviors must remain true:
   range, and a 1000-reading memory limit.
 - Direct `POST /api/runs` must still be rejected through Core validation for
   unsupported 34460A combinations, even when frontend controls are bypassed.
+- The selected Expected model must remain an expected-model guard and display
+  context only. Do not treat it as a live feature unlock or let it override the
+  detected `*IDN?` profile.
+- Disabled or hidden frontend controls are UX only. Core support policy and
+  the `run_start_session()` runner final gate must remain the safety boundary
+  for browser, WebUI backend, and direct API submissions.
+- Do not expose a PyVISA backend selector in the WebUI without a future
+  explicit product decision. Backend selection remains CLI-only.
+- Do not promote LAN/TCPIP or pyvisa-py `@py` support from USB/system-VISA
+  validation. They require separate operator-approved validation artifacts.
 - Range choices are populated from the selected measurement definition.
 - NPLC choices are populated from the selected measurement definition.
 - NPLC is hidden/disabled when unsupported.

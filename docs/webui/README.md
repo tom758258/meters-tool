@@ -137,11 +137,11 @@ Main areas:
 - The Expected model selector defaults to `Auto-detect`, which uses the
   connected instrument IDN at Start. Explicit `Require 34460A` or
   `Require 34461A` choices still read IDN and start only when it matches. The
-  detected IDN-selected profile remains the live profile.
+  detected IDN-selected profile remains the live runtime profile.
 - The model support summary displays validation status, open workflow groups,
   model limits, and pending transport/backend scopes from `/api/capabilities`.
   This is operator-facing visibility only; Core still rejects unsupported
-  direct backend submissions.
+  direct backend submissions through the support policy and runner final gate.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
 - Collapsible setup panels for device/resource setup, run configuration,
@@ -217,8 +217,9 @@ When `model` is omitted, `/api/capabilities` returns the compatibility
 `model_resolution.resolved = false`. The browser sends no `instrument_model`
 for Auto; explicit Expected model choices send `"34460A"` or `"34461A"`.
 In Auto-detect mode, capability controls and support summaries use that
-fallback capability profile until a live IDN is detected. Live runs still use
-the detected IDN-selected profile as the runtime driver.
+fallback capability view until Start or Scan detects IDN. This display context
+does not select the live driver; live runs still use the detected IDN-selected
+profile as the runtime driver.
 
 `/api/capabilities` also includes additive support metadata. The browser uses
 it to show model live support status, current validation scope, hard limits,
@@ -229,6 +230,10 @@ The Expected model check is optional. Core validates the connected instrument
 identity at Start. If an explicit expected model does not match the fresh IDN
 preflight, the WebUI reports which model was selected and which supported model
 was found in the IDN.
+
+The selected WebUI model must not be treated as a feature unlock. Disabled or
+hidden controls are UX only; the Core support policy and `run_start_session()`
+runner final gate remain the safety boundary for WebUI backend submissions.
 
 Currently surfaced measurement modes include:
 

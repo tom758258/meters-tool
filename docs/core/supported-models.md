@@ -30,14 +30,16 @@ such as `34460a` or `34461a`, and rejects unknown models with a validation
 message that lists the supported models from the profile registry.
 
 Live validation must use the explicit VISA resource supplied by the operator.
-Core component validation must not scan, guess, or auto-select a resource.
+Core component validation must not scan, guess, or auto-select a resource. A
+selected model in live mode is never a feature unlock; Core support policy and
+the `run_start_session()` final gate use the detected `*IDN?` profile.
 
 ## Validation-Scoped Live Support
 
 Live support is validation-scope based. A workflow is live-open only when an
 operator-approved hardware validation pass covers that model, workflow, mode,
 transport, and backend scope. Full-suite validation opens only the workflows in
-that suite and only where the selected model profile supports the capability.
+that suite and only where the detected live profile supports the capability.
 It does not override hard model/profile limits and does not promote untested
 interfaces or VISA backends.
 
@@ -47,15 +49,30 @@ instrument `*IDN?`. A selected/detected mismatch fails before setup SCPI.
 Dry-run and simulator runs use the selected/no-hardware planning profile and
 do not query live hardware.
 
+| Capability / workflow | 34461A | 34460A |
+| --- | --- | --- |
+| Immediate DC/AC voltage/current | Open | Open for USB/system-VISA suite-covered scope |
+| 2W/4W resistance | Open | Open for USB/system-VISA suite-covered scope |
+| Software trigger/timer | Open | Open for USB/system-VISA suite-covered scope |
+| Custom buffered workflows | Open | Open, limited by 1000-reading memory |
+| Frequency | Open | Open for USB/system-VISA suite-covered scope |
+| Period | Open, no Period timeout SCPI | Open, no Period timeout SCPI |
+| External simple/custom | Open | Not open in base 34460A profile |
+| DCV Ratio | Open for validated 34461A scope | Not promoted without separate 34460A artifact |
+| 10 A / current-terminal | Open with operator-confirmed wiring | Not supported |
+| Buffer drain above profile memory | Up to 10000 readings | Not supported above 1000 |
+| LAN/TCPIP | Pending unless separately validated | Pending unless separately validated |
+| pyvisa-py `@py` | Pending unless separately validated | Pending unless separately validated |
+
 34461A live support:
 
 - Status: `live_validated_full_suite`.
 - Open for currently implemented 34461A profile-supported full-suite workflows,
   including immediate, software, software timer, custom buffered, Frequency,
   Period, external simple, and external custom workflows.
-- Documented validated manual option smokes, such as DCV Ratio and 10 A
-  current-terminal workflows, remain available where the profile supports them
-  and the operator setup is safe.
+- Documented validated manual option smokes, including DCV Ratio and the 10 A
+  current-terminal path, remain available where the profile supports them and
+  the operator confirms safe wiring.
 
 34460A live support:
 

@@ -28,17 +28,27 @@ Live CLI and WebUI starts auto-detect the connected model from `*IDN?` when the
 expected model is omitted. Select CLI `--model 34460A` / `--model 34461A` or
 WebUI `Require 34460A` / `Require 34461A` only when the start must require that
 IDN match; explicit live mismatches fail before setup SCPI, and the selected
-model never overrides the IDN-selected profile. Dry-run and simulator runs use
-the selected model profile and require an explicit model unless the simulator
-resource encodes one deterministically, such as `SIM::34460A` or
+model never overrides the IDN-selected runtime profile or unlocks capabilities
+for a different instrument. Dry-run and simulator runs use the selected model
+as a no-hardware planning profile and require an explicit model unless the
+simulator resource encodes one deterministically, such as `SIM::34460A` or
 `SIM::34461A`. Model names are normalized and validated by Core profile logic;
 unknown models fail validation with the supported models listed.
+
+Live feature enablement is validation-scope based. A model, workflow, mode,
+transport, and backend are live-open only when operator-approved hardware
+validation covers that exact scope, subject to hard profile limits. The Core
+support policy and `run_start_session()` final gate are the safety boundary for
+CLI, WebUI, and direct Core/API submissions; WebUI disabled controls are
+operator-facing UX only.
 
 CLI commands that open VISA resources use the system VISA runtime by default
 through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a
 PyVISA library/backend explicitly, for example `--visa-library "@py"` or the
 alias `--backend "@py"` after installing optional pyvisa-py packages. The
-WebUI keeps using the default system VISA runtime.
+WebUI keeps using the default system VISA runtime and does not expose backend
+selection. LAN/TCPIP and pyvisa-py `@py` remain separate pending validation
+scopes unless a future operator-approved validation artifact promotes them.
 
 ## Project Structure
 

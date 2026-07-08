@@ -57,6 +57,25 @@ period. Users must select simple external hardware triggering with
 `--trigger-mode external`. Do not reintroduce this flag in Core models or
 adapter contracts that do not parse CLI arguments.
 
+## VISA Backend Selection
+
+`--visa-library` and its alias `--backend` are CLI-only advanced backend
+selectors for commands that directly open VISA resources. Omitting them keeps
+the default system VISA runtime through `pyvisa.ResourceManager()`. Passing a
+value such as `@py` changes only PyVISA resource-manager creation; it must not
+change SCPI setup, trigger behavior, cleanup order, CSV schema, JSON/JSONL
+contracts, model validation, or the support policy gate.
+
+pyvisa-py `@py` remains pending live validation and optional; do not make it a
+required dependency from CLI documentation or tests. LAN/TCPIP also remains a
+separate pending transport scope unless a future operator-approved validation
+artifact promotes it. USB/system-VISA full-suite validation does not validate
+LAN/TCPIP or pyvisa-py `@py`.
+
+The WebUI intentionally does not expose backend selection. Keep backend
+diagnostics in the CLI unless a future explicit product decision changes that
+boundary.
+
 ## Dry-Run Formatting
 
 Core returns a neutral `StartPlan` from `build_start_plan(...)`. The CLI may

@@ -138,8 +138,10 @@ fresh IDN preflight at Start to resolve the connected instrument. Select
 fail unless the connected instrument reports that supported model. With 34460A
 required, the WebUI hides 10 A current ranges,
 current terminal selection, and external trigger modes; custom mode reading
-memory is 1000 readings. The expected model check changes validation and
-capabilities only; it does not change cleanup or trigger sequencing.
+memory is 1000 readings. These disabled controls are guidance only. The
+selected model is an expected-model guard and display context; it does not
+override the detected IDN, unlock capabilities for another instrument, or
+replace the Core safety checks.
 
 `Measurement type` selects what the instrument measures: DC or AC voltage, DC
 or AC current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
