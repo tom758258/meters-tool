@@ -675,14 +675,21 @@ def cmd_start(args: argparse.Namespace) -> int:
         else:
             emitter.line(warning)
 
-    result = run_start_session(
-        request_model,
-        trigger_mode,
-        instrument_profile,
-        event_sink,
-        CliStartRunControls(),
-        run_id=runtime_run_id,
-    )
+    try:
+        result = run_start_session(
+            request_model,
+            trigger_mode,
+            instrument_profile,
+            event_sink,
+            CliStartRunControls(),
+            run_id=runtime_run_id,
+        )
+    except ValueError as exc:
+        emitter.error(str(exc), rc=2)
+        return 2
+    except InstrumentError as exc:
+        emitter.error(str(exc), rc=3)
+        return 3
     return 0 if result.ok else 3
 
 def main(argv: list[str] | None = None) -> int:

@@ -2,9 +2,15 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from meters_tool_core.instrument import InstrumentError
-from meters_tool_core.models import StartRequest, get_default_instrument_profile
+from meters_tool_core.models import (
+    KEYSIGHT_34460A_PROFILE,
+    KEYSIGHT_34461A_PROFILE,
+    StartRequest,
+    get_default_instrument_profile,
+)
 from meters_tool_core.runner import (
     StartRunnerDependencies,
     StopController,
@@ -180,6 +186,39 @@ class CoreRunnerTests(unittest.TestCase):
             sleep=lambda _seconds: None,
         )
 
+    def _live_dependencies(
+        self,
+        operations: list[str],
+        *,
+        expected_model: str,
+        expected_resource: str = "USB0::FAKE::INSTR",
+        expected_visa_library: str | None = None,
+    ) -> StartRunnerDependencies:
+        def instrument_factory(config, *, simulate, measurement_type):  # noqa: ANN001
+            self.assertEqual(expected_resource, config.resource_string)
+            self.assertEqual(expected_model, config.expected_model)
+            self.assertEqual(expected_visa_library, config.visa_library)
+            self.assertFalse(simulate)
+            self.assertEqual("voltage_dc", measurement_type)
+            operations.append(f"factory:{config.expected_model}")
+            return RecordingInstrument(operations)
+
+        def engine_factory(**_kwargs):  # noqa: ANN003
+            return RecordingEngine(operations=operations)
+
+        def server_factory(*args, **kwargs):  # noqa: ANN002, ANN003
+            return RecordingServer(operations, *args, **kwargs)
+
+        return StartRunnerDependencies(
+            instrument_backend_factory=instrument_factory,
+            storage_factory=RecordingStorage,
+            measurement_factory=lambda _measurement_type: object(),
+            engine_factory=engine_factory,
+            server_factory=server_factory,
+            thread_factory=CompletedThread,
+            sleep=lambda _seconds: None,
+        )
+
     def test_run_start_session_delegates_runtime_components_and_cleans_up_success(self):
         operations: list[str] = []
         sink = RecordingEventSink()
@@ -304,6 +343,256 @@ class CoreRunnerTests(unittest.TestCase):
         self.assertEqual([], sink.by_type("ready"))
         self.assertNotIn("server_start", operations)
         self.assertNotIn("server_stop", operations)
+
+    def test_live_runner_uses_idn_detected_profile_not_external_profile_argument(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            trigger_mode="immediate",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+
+        with patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ) as preflight:
+            result = run_start_session(
+                request,
+                "immediate",
+                KEYSIGHT_34461A_PROFILE,
+                sink,
+                RecordingControls(operations),
+                control_plane=NoOpControlPlane(),
+                run_id="run-live",
+                dependencies=self._live_dependencies(
+                    operations,
+                    expected_model="34460A",
+                ),
+            )
+
+        self.assertTrue(result.ok)
+        self.assertIn("factory:34460A", operations)
+        preflight.assert_called_once()
+
+    def test_live_runner_omitted_model_uses_detected_34461a_profile(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            trigger_mode="immediate",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+
+        with patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34461A,MY123,1.0",
+        ):
+            result = run_start_session(
+                request,
+                "immediate",
+                KEYSIGHT_34460A_PROFILE,
+                sink,
+                RecordingControls(operations),
+                control_plane=NoOpControlPlane(),
+                run_id="run-live",
+                dependencies=self._live_dependencies(
+                    operations,
+                    expected_model="34461A",
+                ),
+            )
+
+        self.assertTrue(result.ok)
+        self.assertIn("factory:34461A", operations)
+
+    def test_live_runner_expected_model_mismatch_fails_before_backend_factory(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            instrument_model="34461A",
+            trigger_mode="immediate",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+
+        def fail_factory(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            operations.append("factory")
+            raise AssertionError("backend factory must not be called")
+
+        deps = StartRunnerDependencies(instrument_backend_factory=fail_factory)
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            self.assertRaisesRegex(
+                ValueError,
+                "Selected model 34461A does not match the connected instrument IDN 34460A",
+            ),
+        ):
+            run_start_session(
+                request,
+                "immediate",
+                KEYSIGHT_34461A_PROFILE,
+                sink,
+                RecordingControls(operations),
+                dependencies=deps,
+            )
+
+        self.assertEqual([], operations)
+
+    def test_live_runner_rejects_detected_34460a_unsupported_workflows_before_backend_factory(self):
+        cases = [
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    trigger_mode="external",
+                    measurement="voltage-dc",
+                    max_samples=1,
+                ),
+                "--trigger-mode external is not supported by 34460A",
+            ),
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    trigger_mode="external-custom",
+                    measurement="voltage-dc",
+                    trigger_count=1,
+                    sample_count=1,
+                ),
+                "--trigger-mode external-custom is not supported by 34460A",
+            ),
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    trigger_mode="immediate",
+                    measurement="voltage-dc-ratio",
+                    max_samples=1,
+                ),
+                "--measurement voltage-dc-ratio is not validated",
+            ),
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    trigger_mode="immediate",
+                    measurement="current-dc",
+                    max_samples=1,
+                    auto_range=False,
+                    measurement_range=10.0,
+                ),
+                "--range 10 is not valid",
+            ),
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    trigger_mode="immediate",
+                    measurement="current-dc",
+                    max_samples=1,
+                    current_terminal=10,
+                ),
+                "--current-terminal can only be used",
+            ),
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    trigger_mode="immediate-custom",
+                    measurement="voltage-dc",
+                    trigger_count=1,
+                    sample_count=1,
+                    buffer_drain_size=1001,
+                ),
+                "--buffer-drain-size 1001 is outside the 34460A reading-memory range 1-1000",
+            ),
+            (
+                StartRequest(
+                    resource="TCPIP0::host::inst0::INSTR",
+                    trigger_mode="immediate",
+                    measurement="voltage-dc",
+                    max_samples=1,
+                ),
+                "transport=tcpip, backend=system_visa is pending",
+            ),
+            (
+                StartRequest(
+                    resource="USB0::FAKE::INSTR",
+                    visa_library="@py",
+                    trigger_mode="immediate",
+                    measurement="voltage-dc",
+                    max_samples=1,
+                ),
+                "transport=usb, backend=pyvisa_py is pending",
+            ),
+        ]
+
+        for request, expected in cases:
+            with self.subTest(expected=expected):
+                operations: list[str] = []
+                sink = RecordingEventSink()
+
+                def fail_factory(*_args, **_kwargs):  # noqa: ANN002, ANN003
+                    operations.append("factory")
+                    raise AssertionError("backend factory must not be called")
+
+                deps = StartRunnerDependencies(instrument_backend_factory=fail_factory)
+                with (
+                    patch(
+                        "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                        return_value="Keysight Technologies,34460A,MY123,1.0",
+                    ),
+                    self.assertRaises(ValueError) as exc,
+                ):
+                    run_start_session(
+                        request,
+                        request.trigger_mode or "software",
+                        KEYSIGHT_34461A_PROFILE,
+                        sink,
+                        RecordingControls(operations),
+                        dependencies=deps,
+                    )
+
+                self.assertIn(expected, str(exc.exception))
+                self.assertEqual([], operations)
+
+    def test_dry_run_and_simulate_runner_resolution_do_not_query_live_idn(self):
+        dry_run_request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            dry_run=True,
+            trigger_mode="immediate",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            with self.assertRaisesRegex(
+                ValueError,
+                "dry-run cannot auto-detect the instrument model without VISA I/O",
+            ):
+                run_start_session(
+                    dry_run_request,
+                    "immediate",
+                    KEYSIGHT_34461A_PROFILE,
+                    RecordingEventSink(),
+                    RecordingControls([]),
+                )
+        preflight.assert_not_called()
+
+        simulate_request = make_start_request(resource="SIM::34461A", simulate=True)
+        operations: list[str] = []
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            result = run_start_session(
+                simulate_request,
+                "immediate",
+                KEYSIGHT_34461A_PROFILE,
+                RecordingEventSink(),
+                RecordingControls(operations),
+                control_plane=NoOpControlPlane(),
+                dependencies=self._dependencies(operations),
+            )
+
+        self.assertTrue(result.ok)
+        preflight.assert_not_called()
 
 
 if __name__ == "__main__":

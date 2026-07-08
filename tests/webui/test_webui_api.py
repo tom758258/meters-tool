@@ -20,6 +20,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
 
 if TestClient is not None:
     from meters_tool_core.instrument import InstrumentError
+    from meters_tool_core.models import KEYSIGHT_34461A_PROFILE
     from meters_tool_core.runner import StartRunnerDependencies
     from meters_tool_webui.web_ui import (
         APP_JS_CACHEBUSTER_TOKEN,
@@ -1085,7 +1086,7 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual(200, response.status_code)
         self.assertEqual(["34460A"], seen_expected_models)
-        preflight.assert_called_once()
+        self.assertEqual(2, preflight.call_count)
 
     def test_live_preflight_instrument_error_returns_503_and_resets_starting(self):
         self.tempdir = tempfile.TemporaryDirectory()
@@ -1364,6 +1365,42 @@ class WebUiApiTests(unittest.TestCase):
             response.json()["detail"],
         )
         runner.assert_not_called()
+
+    def test_direct_post_runner_final_gate_rejects_if_adapter_resolution_is_wrong(self):
+        self.tempdir = tempfile.TemporaryDirectory()
+        csv_path = Path(self.tempdir.name) / "out.csv"
+        manager = WebRunManager()
+        client = self.make_client_with_manager(manager)
+
+        def wrong_adapter_resolution(request_model):  # noqa: ANN001
+            return request_model, KEYSIGHT_34461A_PROFILE
+
+        with (
+            patch("meters_tool_webui.web_ui.resolve_start_profile", side_effect=wrong_adapter_resolution),
+            patch("meters_tool_webui.web_ui.validate_start_request"),
+            patch("meters_tool_webui.web_ui.validate_start_workflow_support"),
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+        ):
+            response = client.post(
+                "/api/runs",
+                json={
+                    "resource": "USB0::FAKE::INSTR",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "measurement": "voltage-dc-ratio",
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                },
+            )
+
+        self.assertEqual(422, response.status_code)
+        self.assertIn(
+            "34460A live support for --measurement voltage-dc-ratio is not validated",
+            response.json()["detail"],
+        )
 
     def test_manager_can_build_default_request_model(self):
         request = RunStartRequest(resource="USB::FAKE")

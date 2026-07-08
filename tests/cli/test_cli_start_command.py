@@ -25,7 +25,7 @@ from meters_tool_cli.cli import (
     cmd_wait_ready,
     main,
 )
-from meters_tool_core.models import StartRequest
+from meters_tool_core.models import KEYSIGHT_34461A_PROFILE, StartRequest
 from meters_tool_core.session import StartRunResult
 
 from cli_command_helpers import CliCommandHarnessMixin
@@ -446,6 +446,46 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 self.assertEqual(2, rc)
                 self.assertIn(expected, stderr.getvalue())
                 runner.assert_not_called()
+
+    def test_start_runner_final_gate_surfaces_error_if_adapter_resolution_is_wrong(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--csv",
+                "data\\delegate_live.csv",
+                "--measurement",
+                "voltage-dc-ratio",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        stderr = io.StringIO()
+
+        def wrong_adapter_resolution(request_model):  # noqa: ANN001
+            return request_model, KEYSIGHT_34461A_PROFILE
+
+        with (
+            patch("meters_tool_cli.cli.resolve_start_profile", side_effect=wrong_adapter_resolution),
+            patch("meters_tool_cli.cli.validate_start_request"),
+            patch("meters_tool_cli.cli.validate_start_workflow_support"),
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(2, rc)
+        self.assertIn(
+            "34460A live support for --measurement voltage-dc-ratio is not validated",
+            stderr.getvalue(),
+        )
 
     def test_start_simulate_selected_model_does_not_run_visa_preflight(self):
         parser = build_parser()

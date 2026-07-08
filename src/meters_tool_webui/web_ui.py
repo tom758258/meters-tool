@@ -527,6 +527,10 @@ class WebRunManager:
                             profile.model,
                         )
                     )
+                if result is not None and not result.ok and result.reason == "validation_error":
+                    self._active = None
+                    self._publish_status_locked(status)
+                    raise RunValidationError(result.fatal_error or "validation_error")
             return status
         except ValueError as exc:
             with self._lock:
@@ -723,6 +727,22 @@ class WebRunManager:
                     handle.latest_status = result.fatal_error
                 else:
                     handle.latest_status = result.reason
+                self._publish_status_locked(handle)
+        except ValueError as exc:
+            result = StartRunResult(
+                run_id=handle.run_id,
+                ok=False,
+                reason="validation_error",
+                captured=0,
+                errors=0,
+                fatal_error=str(exc),
+                csv_path=str(handle.csv_path),
+            )
+            with self._lock:
+                handle.result = result
+                handle.fatal_error = result.fatal_error
+                handle.latest_status = result.fatal_error or result.reason
+                handle.state = "error"
                 self._publish_status_locked(handle)
         except Exception as exc:  # pragma: no cover - defensive runtime boundary
             with self._lock:

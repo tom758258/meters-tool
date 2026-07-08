@@ -141,9 +141,10 @@ present, Core profile logic normalizes and validates it, such as `34461a` to
 `34461A`, and rejects unknown models with the supported profile models listed.
 Live explicit models are expected-model guards only and never override the
 detected IDN-selected profile. A selected/detected mismatch must fail before
-`run_start_session(...)`, `run_start_session(...)` must receive the
-IDN-resolved profile when live model selection is omitted, and no setup/write
-SCPI should be emitted from a mismatched selected model.
+instrument-affecting setup/write SCPI. Adapters should pass the IDN-resolved
+profile to `run_start_session(...)`, but the runner also re-resolves the start
+profile from Core-owned request state as the final safety gate before opening
+the runtime backend.
 
 For dry-run and simulate, a selected model chooses the planning/simulator
 profile and must not trigger a live VISA identity preflight. Omitted model is
@@ -170,9 +171,12 @@ CLI affordances.
 `validate_start_workflow_support()` is the Core-owned live support policy gate
 for `start-trigger-record`. Call it after profile-specific request validation
 and before dry-run planning or `run_start_session(...)`. In live mode it uses
-the detected IDN profile, not the selected expected-model guard. In dry-run and
-simulate modes it leaves profile-supported planning/simulation open while hard
-profile limits remain enforced by `validate_start_request(...)`.
+the detected IDN profile, not the selected expected-model guard. The runner
+performs the same final validation/support gate after live IDN detection and
+before backend connect/setup, so direct Core callers cannot use a selected or
+externally supplied profile as a feature unlock. In dry-run and simulate modes
+it leaves profile-supported planning/simulation open while hard profile limits
+remain enforced by `validate_start_request(...)`.
 
 Adapters that need additive capability metadata can use
 `start_workflow_support(profile)` and its `StartWorkflowSupport` values. The
@@ -223,8 +227,11 @@ print(plan.option_summary)
 ## Runtime Session
 
 `run_start_session(...)` owns non-dry-run start orchestration. It accepts the
-validated request, resolved trigger mode, profile, optional event sink,
-optional controls, and optional control plane.
+request, resolved trigger mode, adapter-resolved profile, optional event sink,
+optional controls, and optional control plane. Before creating the runtime
+backend, it resolves the effective start profile again: live uses the detected
+`*IDN?` profile, while simulate uses the no-hardware simulator profile. It then
+reruns request validation and support policy checks with that resolved profile.
 
 Runtime status is emitted as typed `StartRunEvent` objects. Final state is
 returned as `StartRunResult`, including `ok`, `reason`, `captured`, `errors`,

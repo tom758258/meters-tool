@@ -23,9 +23,11 @@ from .session import (
     StopController,
     new_run_id,
 )
+from .start_resolution import resolve_start_profile
 from .storage import CsvWriter
+from .support_policy import validate_start_workflow_support
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
-from .validation import resolve_csv_path
+from .validation import resolve_csv_path, validate_start_request
 
 
 @dataclass(frozen=True)
@@ -50,6 +52,10 @@ def run_start_session(
     run_id: str | None = None,
     dependencies: StartRunnerDependencies | None = None,
 ) -> StartRunResult:
+    request, profile = resolve_start_profile(request)
+    validate_start_request(request, trigger_mode, instrument_profile=profile)
+    validate_start_workflow_support(request, trigger_mode, profile)
+
     deps = dependencies or StartRunnerDependencies()
     active_controls = controls or NoOpStartRunControls()
     active_control_plane = control_plane or SoftwareTriggerControlPlane(deps.server_factory)
