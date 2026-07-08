@@ -38,6 +38,13 @@ def test_legacy_import_package_is_absent():
     assert importlib.util.find_spec("meters_tool") is None
 
 
+def test_old_keysight_import_packages_are_absent():
+    assert importlib.util.find_spec("keysight_logger") is None
+    assert importlib.util.find_spec("keysight_logger_core") is None
+    assert importlib.util.find_spec("keysight_logger_cli") is None
+    assert importlib.util.find_spec("keysight_logger_webui") is None
+
+
 def test_new_import_packages_are_discoverable():
     assert importlib.util.find_spec("meters_tool_core") is not None
     assert importlib.util.find_spec("meters_tool_cli") is not None

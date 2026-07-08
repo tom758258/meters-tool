@@ -5,9 +5,6 @@ on:
   push:
     branches:
       - main
-      - Core
-      - Cli
-      - Webui
 
 permissions:
   contents: read
@@ -46,9 +43,9 @@ jobs:
 
       - name: Smoke commands
         run: |
-          ./.venv/bin/python -c "import keysight_logger_core; import keysight_logger_cli; import keysight_logger_webui"
-          ./.venv/bin/keysight-logger --help
-          ./.venv/bin/keysight-logger-webui --help
+          ./.venv/bin/python -c "import meters_tool_core; import meters_tool_cli; import meters_tool_webui"
+          ./.venv/bin/meters-tool --help
+          ./.venv/bin/meters-tool-webui --help
 
       - name: Run tests
         run: ./.venv/bin/python -m pytest tests -q -p no:cacheprovider
@@ -85,9 +82,9 @@ jobs:
 
       - name: Smoke commands
         run: |
-          .\.venv\Scripts\python.exe -c "import keysight_logger_core; import keysight_logger_cli; import keysight_logger_webui"
-          .\.venv\Scripts\keysight-logger.exe --help
-          .\.venv\Scripts\keysight-logger-webui.exe --help
+          .\.venv\Scripts\python.exe -c "import meters_tool_core; import meters_tool_cli; import meters_tool_webui"
+          .\.venv\Scripts\meters-tool.exe --help
+          .\.venv\Scripts\meters-tool-webui.exe --help
 
       - name: Run tests
         run: .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider

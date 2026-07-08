@@ -3,7 +3,7 @@
 These instructions guide coding agents working in this repository. They are
 long-term project rules, not a project status log. Global agent rules cover
 general communication, planning, simplicity, and surgical-edit discipline; keep
-this file focused on Keysight Logger-specific boundaries.
+this file focused on Meters Tool-specific boundaries.
 
 ## 1. Project Context To Read
 
@@ -38,7 +38,7 @@ this file focused on Keysight Logger-specific boundaries.
 ## 3. Package Metadata Boundary
 
 - The root `pyproject.toml` is the single distribution metadata boundary for
-  `keysight-logger`.
+  `meters-tool`.
 - Do not recreate legacy component-local `packages/*/pyproject.toml` metadata
   or split Core, CLI, and WebUI back into separate distributions without
   explicit user approval.
@@ -50,29 +50,29 @@ this file focused on Keysight Logger-specific boundaries.
 - Do not rename the distribution, add or remove console scripts, or change
   dependency relationships as part of unrelated Core, CLI, WebUI, test, or
   documentation work.
-- Preserve the current import boundaries: `keysight_logger_core`,
-  `keysight_logger_cli`, and `keysight_logger_webui`.
+- Preserve the current import boundaries: `meters_tool_core`,
+  `meters_tool_cli`, and `meters_tool_webui`.
 
 ## 4. Monorepo Structure and Import Boundaries
 
 This repository is organized as a single-distribution monorepo for
-`keysight-logger` under the root `src/` directory:
+`meters-tool` under the root `src/` directory:
 
-- `src/keysight_logger_core`: Core instrument, VISA/SCPI, logging, trigger, and
+- `src/meters_tool_core`: Core instrument, VISA/SCPI, logging, trigger, and
   runtime layer.
-- `src/keysight_logger_cli`: Command line interface adapter.
-- `src/keysight_logger_webui`: WebUI adapter, launcher, and static UI.
+- `src/meters_tool_cli`: Command line interface adapter.
+- `src/meters_tool_webui`: WebUI adapter, launcher, and static UI.
 
-- Never let `keysight_logger_core` import from `keysight_logger_cli` or
-  `keysight_logger_webui`.
-- Never let `keysight_logger_cli` import from `keysight_logger_webui`.
-- Never let `keysight_logger_webui` import from `keysight_logger_cli`.
+- Never let `meters_tool_core` import from `meters_tool_cli` or
+  `meters_tool_webui`.
+- Never let `meters_tool_cli` import from `meters_tool_webui`.
+- Never let `meters_tool_webui` import from `meters_tool_cli`.
 - CLI and WebUI may depend on Core through the existing
-  `keysight_logger_core` import package.
-- CLI commands are invoked via `keysight-logger` or
-  `python -m keysight_logger_cli.cli`.
-- WebUI commands are invoked via `keysight-logger-webui` or
-  `keysight-logger-webui-launcher`.
+  `meters_tool_core` import package.
+- CLI commands are invoked via `meters-tool` or
+  `python -m meters_tool_cli`.
+- WebUI commands are invoked via `meters-tool-webui` or
+  `meters-tool-webui-launcher`.
 
 ## 5. Instrument Safety Rules
 
