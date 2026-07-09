@@ -209,6 +209,8 @@ remain blocked for browser starts until reviewed artifacts promote public
 support through Core support metadata and documentation. Disabled WebUI
 controls are UX only; Core validation, the support policy gate, and the
 `run_start_session()` final gate remain the safety boundary.
+34460A LAN/TCPIP pending scopes are future validation paths only and remain
+product-closed in the WebUI.
 
 ## Measurement Modes
 

@@ -484,6 +484,32 @@ def test_live_plan_only_backend_alias_forwards_visa_library_to_start_args():
     assert args[args.index("--visa-library") + 1] == "@py"
 
 
+def test_live_plan_only_kebab_visa_library_alias_forwards_visa_library_to_start_args():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "keysight-34460a",
+        "-Connection",
+        "lan",
+        "-Resource",
+        "TCPIP0::host::inst0::INSTR",
+        "-Suite",
+        "minimal",
+        "-visa-library",
+        "@py",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    assert report["visa_library"] == "@py"
+    assert report["backend"] == "@py"
+    args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
+    assert "--validation-allow-pending-live-support" in args
+    assert "--visa-library" in args
+    assert args[args.index("--visa-library") + 1] == "@py"
+
+
 def test_live_plan_only_34460a_basic_suite_supported_cases():
     result = run_wrapper(
         "scripts/live-cli-check.ps1",

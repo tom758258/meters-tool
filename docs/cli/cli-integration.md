@@ -86,9 +86,22 @@ Core can execute known pending transport/backend scopes and collect evidence.
 The flag is intentionally hidden from normal CLI help and must not be
 documented as a general `--force` option.
 
+Use `-VisaLibrary "@py"` or `-Backend "@py"` to validate the optional
+pyvisa-py backend. The wrapper also accepts `-visa-library "@py"` as a
+convenience alias matching the CLI option name. When omitted, the wrapper uses
+system VISA and records `visa_library`/`backend` as `system_visa`. If wrapper
+output says `VISA library/backend: system_visa`, that run is not an `@py`
+validation artifact.
+
 Normal CLI starts remain in product support-policy mode. Pending scopes such as
 34460A LAN/TCPIP system-VISA and 34460A LAN/TCPIP pyvisa-py `@py` continue to
 reject when users call `meters-tool start-trigger-record` directly.
+
+For 34460A, LAN/TCPIP validation remains a future path for a LAN/LXI-capable
+unit or contributor-provided reviewed artifact. The currently validated 34460A
+product scope remains USB/system-VISA. Do not treat 34460A LAN/TCPIP pending
+scopes as current maintainer validation debt when the available 34460A unit
+does not support LAN/LXI.
 
 Validation mode is still bounded by Core model/profile limits. It must not
 enable 34460A external or external-custom workflows, 34460A DCV Ratio, 10 A or

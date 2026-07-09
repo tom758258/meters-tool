@@ -240,6 +240,11 @@ Use that mode only from reviewed validation harnesses. Public support promotion
 requires reviewed artifacts plus an explicit support metadata and documentation
 update.
 
+Validation mode does not imply maintainers must validate every pending scope
+immediately. Pending 34460A LAN/TCPIP scopes are future evidence-collection
+paths for matching LAN/LXI hardware or contributors. Without matching hardware,
+they remain pending and product-closed.
+
 Adapters that need stable warning codes can use the structured helper:
 
 ```python

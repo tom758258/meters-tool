@@ -7,7 +7,7 @@ param(
 
     [string]$Resource,
 
-    [Alias("Backend")]
+    [Alias("Backend", "visa-library")]
     [string]$VisaLibrary,
 
     [ValidateSet("minimal", "basic", "frequency-period", "external", "full")]

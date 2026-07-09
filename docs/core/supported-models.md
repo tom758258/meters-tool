@@ -110,6 +110,10 @@ do not query live hardware.
 - The live validation harness may collect artifacts for the known pending
   34460A LAN/TCPIP system-VISA and LAN/TCPIP pyvisa-py `@py` scopes. This does
   not make those scopes product-open.
+- These 34460A LAN/TCPIP scopes are retained as future validation paths for a
+  LAN/LXI-capable 34460A unit or contributor-provided reviewed artifact. They
+  are not current maintainer validation debt for the available USB-only 34460A
+  unit, and they are not release blockers.
 - Hard limits remain closed during validation: base-profile 34460A external
   and external-custom workflows remain closed, 34460A DCV Ratio remains
   closed, the 10 A/current-terminal path remains unsupported, and buffer drain
@@ -125,7 +129,8 @@ Transport/backend scope status:
 - 34461A LAN/TCPIP with optional CLI-only pyvisa-py `@py` is validated for the
   currently implemented suite-covered 34461A workflows.
 - 34460A LAN/TCPIP and 34460A LAN/`@py` remain pending/not open for the
-  currently available unit.
+  currently available unit. USB/system-VISA is the current validated 34460A
+  product scope, and USB validation does not promote LAN/TCPIP.
 
 Promotion from pending to `live_validated_full_suite` requires reviewed
 artifacts and an explicit support metadata/docs update. Do not mark a scope

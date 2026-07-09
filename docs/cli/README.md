@@ -308,10 +308,14 @@ intended. For `-Target keysight-34460a`, `-Suite full` is `basic` plus
 not support external trigger modes.
 
 For validation of an optional PyVISA backend, pass `-VisaLibrary "@py"` to the
-wrapper. `-Backend "@py"` is accepted as an alias. The wrapper forwards this to
-CLI `--visa-library` and records the backend in the artifacts. Pending 34460A
-LAN/TCPIP validation remains evidence collection only; it does not make normal
-34460A LAN/TCPIP product starts open.
+wrapper. `-Backend "@py"` is accepted as an alias, and `-visa-library "@py"`
+is accepted as a convenience alias matching the CLI option name. The wrapper
+forwards this to CLI `--visa-library` and records the backend in the artifacts.
+When omitted, the wrapper uses system VISA and records `visa_library`/`backend`
+as `system_visa`. If wrapper output says `VISA library/backend: system_visa`,
+the run is not an `@py` validation artifact. Pending 34460A LAN/TCPIP
+validation remains evidence collection only; it does not make normal 34460A
+LAN/TCPIP product starts open.
 
 Pending support means not open for product use yet, not impossible to validate.
 Validation-mode execution remains limited to known pending transport/backend
@@ -320,6 +324,10 @@ limits. The 34460A base profile still keeps external/external-custom closed,
 keeps DCV Ratio closed, rejects 10 A/current-terminal requests, and preserves
 the 1000-reading buffer limits. LAN/TCPIP or pyvisa-py validation does not
 override those limits.
+For 34460A, LAN/TCPIP system-VISA and LAN/TCPIP pyvisa-py `@py` are future
+validation paths for a LAN/LXI-capable unit or contributor-provided reviewed
+artifact. They are not current maintainer validation debt for the available
+USB-only 34460A unit and are not release blockers.
 
 Preview the Frequency/Period live suite without opening VISA:
 
