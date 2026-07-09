@@ -481,6 +481,57 @@ class CoreRunnerTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertIn("factory:34461A", operations)
 
+    def test_live_runner_allows_validated_34461a_lan_scopes_before_backend_factory(self):
+        cases = [
+            (
+                StartRequest(
+                    resource="TCPIP0::host::inst0::INSTR",
+                    trigger_mode="immediate",
+                    measurement="voltage-dc",
+                    max_samples=1,
+                ),
+                None,
+            ),
+            (
+                StartRequest(
+                    resource="TCPIP::host::INSTR",
+                    visa_library="@py",
+                    trigger_mode="immediate",
+                    measurement="voltage-dc",
+                    max_samples=1,
+                ),
+                "@py",
+            ),
+        ]
+
+        for request, expected_visa_library in cases:
+            with self.subTest(visa_library=expected_visa_library):
+                operations: list[str] = []
+                sink = RecordingEventSink()
+
+                with patch(
+                    "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                    return_value="Keysight Technologies,34461A,MY123,1.0",
+                ):
+                    result = run_start_session(
+                        request,
+                        "immediate",
+                        KEYSIGHT_34461A_PROFILE,
+                        sink,
+                        RecordingControls(operations),
+                        control_plane=NoOpControlPlane(),
+                        run_id="run-live",
+                        dependencies=self._live_dependencies(
+                            operations,
+                            expected_model="34461A",
+                            expected_resource=request.resource,
+                            expected_visa_library=expected_visa_library,
+                        ),
+                    )
+
+                self.assertTrue(result.ok)
+                self.assertIn("factory:34461A", operations)
+
     def test_live_runner_expected_model_mismatch_fails_before_backend_factory(self):
         operations: list[str] = []
         sink = RecordingEventSink()
@@ -598,6 +649,16 @@ class CoreRunnerTests(unittest.TestCase):
                     max_samples=1,
                 ),
                 "transport=usb, backend=pyvisa_py is pending",
+            ),
+            (
+                StartRequest(
+                    resource="TCPIP::host::INSTR",
+                    visa_library="@py",
+                    trigger_mode="immediate",
+                    measurement="voltage-dc",
+                    max_samples=1,
+                ),
+                "transport=tcpip, backend=pyvisa_py is pending",
             ),
         ]
 

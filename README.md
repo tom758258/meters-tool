@@ -47,8 +47,11 @@ through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a
 PyVISA library/backend explicitly, for example `--visa-library "@py"` or the
 alias `--backend "@py"` after installing optional pyvisa-py packages. The
 WebUI keeps using the default system VISA runtime and does not expose backend
-selection. LAN/TCPIP and pyvisa-py `@py` remain separate pending validation
-scopes unless a future operator-approved validation artifact promotes them.
+selection. Keysight 34461A LAN/TCPIP is validated with the default system VISA
+runtime, and 34461A LAN/TCPIP is also validated through optional CLI-only
+pyvisa-py `@py`. Keysight 34460A LAN/TCPIP and LAN/`@py` remain unopened for
+the currently available unit unless a future LAN/LXI-enabled 34460A is
+validated.
 
 ## Project Structure
 

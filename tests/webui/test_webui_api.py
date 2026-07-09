@@ -154,6 +154,22 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("live_validated_full_suite", support["validation_status"])
         self.assertEqual("usb", support["transport_scope"])
         self.assertEqual("system_visa", support["backend_scope"])
+        support_scopes = {
+            (scope["transport_scope"], scope["backend_scope"]): scope
+            for scope in support["scopes"]
+        }
+        self.assertEqual(
+            "live_validated_full_suite",
+            support_scopes[("tcpip", "system_visa")]["validation_status"],
+        )
+        self.assertEqual(
+            "reviewed_artifact_correction",
+            support_scopes[("tcpip", "system_visa")]["evidence"],
+        )
+        self.assertEqual(
+            "live_validated_full_suite",
+            support_scopes[("tcpip", "pyvisa_py")]["validation_status"],
+        )
         summary = payload["support_summary"]
         self.assertEqual("34461A", summary["model"])
         self.assertEqual("Auto-detect", summary["display_model"])
@@ -165,8 +181,19 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
         self.assertIn("external trigger workflows", summary["open_workflows"])
-        self.assertIn("LAN/TCPIP validation", summary["pending"])
-        self.assertIn("pyvisa-py @py validation", summary["pending"])
+        self.assertEqual([], summary["pending"])
+        summary_scopes = {
+            (scope["transport_scope"], scope["backend_scope"]): scope
+            for scope in summary["scopes"]
+        }
+        self.assertEqual(
+            "live_validated_full_suite",
+            summary_scopes[("tcpip", "system_visa")]["validation_status"],
+        )
+        self.assertEqual(
+            "live_validated_full_suite",
+            summary_scopes[("tcpip", "pyvisa_py")]["validation_status"],
+        )
 
         limits = payload["limits"]
         self.assertEqual({"min": 100, "max": 600000}, limits["timeout_ms"])
@@ -217,8 +244,20 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("1000-reading memory limit", summary["limits"])
         self.assertIn("no base-profile external trigger support", summary["limits"])
         self.assertIn("no 34460A DCV Ratio live support", summary["limits"])
-        self.assertIn("LAN/TCPIP validation", summary["pending"])
-        self.assertIn("pyvisa-py @py validation", summary["pending"])
+        self.assertIn("LAN/TCPIP system-VISA validation", summary["pending"])
+        self.assertIn("LAN/TCPIP pyvisa-py @py validation", summary["pending"])
+        summary_scopes = {
+            (scope["transport_scope"], scope["backend_scope"]): scope
+            for scope in summary["scopes"]
+        }
+        self.assertEqual(
+            "transport_pending",
+            summary_scopes[("tcpip", "system_visa")]["validation_status"],
+        )
+        self.assertEqual(
+            "transport_pending",
+            summary_scopes[("tcpip", "pyvisa_py")]["validation_status"],
+        )
         measurements = {item["name"]: item for item in payload["measurements"]}
         for name in ("current-dc", "current-ac"):
             with self.subTest(name=name):
@@ -244,8 +283,19 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("34461A", summary["capability_profile"])
         self.assertFalse(summary["is_fallback_capability_view"])
         self.assertIn("external trigger workflows", summary["open_workflows"])
-        self.assertIn("LAN/TCPIP validation", summary["pending"])
-        self.assertIn("pyvisa-py @py validation", summary["pending"])
+        self.assertEqual([], summary["pending"])
+        summary_scopes = {
+            (scope["transport_scope"], scope["backend_scope"]): scope
+            for scope in summary["scopes"]
+        }
+        self.assertEqual(
+            "live_validated_full_suite",
+            summary_scopes[("tcpip", "system_visa")]["validation_status"],
+        )
+        self.assertEqual(
+            "live_validated_full_suite",
+            summary_scopes[("tcpip", "pyvisa_py")]["validation_status"],
+        )
         measurements = {item["name"]: item for item in payload["measurements"]}
         self.assertIn(10.0, [item["value"] for item in measurements["current-dc"]["range_options"]])
         self.assertEqual([3, 10], measurements["current-dc"]["current_terminal_options"])

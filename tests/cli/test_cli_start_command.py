@@ -389,6 +389,77 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 self.assertEqual(0, rc)
                 runner.assert_called_once()
 
+    def test_start_live_34461a_validated_lan_scopes_reach_runner(self):
+        parser = build_parser()
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\delegate_live.csv",
+        )
+        cases = [
+            (
+                [
+                    "--resource",
+                    "TCPIP0::host::inst0::INSTR",
+                ],
+                None,
+            ),
+            (
+                [
+                    "--resource",
+                    "TCPIP::host::INSTR",
+                    "--visa-library",
+                    "@py",
+                ],
+                "@py",
+            ),
+            (
+                [
+                    "--resource",
+                    "TCPIP::host::INSTR",
+                    "--backend",
+                    "@py",
+                ],
+                "@py",
+            ),
+        ]
+
+        for resource_args, expected_visa_library in cases:
+            with self.subTest(visa_library=expected_visa_library):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        *resource_args,
+                        "--model",
+                        "34461A",
+                        "--csv",
+                        "data\\delegate_live.csv",
+                        "--measurement",
+                        "voltage-dc",
+                        "--trigger-mode",
+                        "immediate",
+                        "--max-samples",
+                        "1",
+                    ]
+                )
+                with (
+                    patch(
+                        "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                        return_value="Keysight Technologies,34461A,MY123,1.0",
+                    ),
+                    patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner,
+                ):
+                    rc = cmd_start(args)
+
+                self.assertEqual(0, rc)
+                request_model = runner.call_args.args[0]
+                self.assertEqual(expected_visa_library, request_model.visa_library)
+                runner.assert_called_once()
+
     def test_start_live_34460a_policy_closed_workflow_fails_before_runner(self):
         parser = build_parser()
         cases = [
@@ -416,6 +487,34 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 ],
                 "transport=usb, backend=pyvisa_py is pending",
             ),
+            (
+                [
+                    "--resource",
+                    "TCPIP0::host::inst0::INSTR",
+                    "--measurement",
+                    "voltage-dc",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                ],
+                "transport=tcpip, backend=system_visa is pending",
+            ),
+            (
+                [
+                    "--resource",
+                    "TCPIP::host::INSTR",
+                    "--backend",
+                    "@py",
+                    "--measurement",
+                    "voltage-dc",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                ],
+                "transport=tcpip, backend=pyvisa_py is pending",
+            ),
         ]
 
         for extra_args, expected in cases:
@@ -423,12 +522,12 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 args = parser.parse_args(
                     [
                         "start-trigger-record",
-                        "--resource",
-                        "USB0::FAKE::INSTR",
                         "--model",
                         "34460A",
                         "--csv",
                         "data\\delegate_live.csv",
+                        "--resource",
+                        "USB0::FAKE::INSTR",
                         *extra_args,
                     ]
                 )

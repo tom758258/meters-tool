@@ -384,6 +384,7 @@ class WebRunManager:
                         "validation_status": support.validation_status,
                         "transport_scope": support.transport_scope,
                         "backend_scope": support.backend_scope,
+                        "scopes": [_support_scope_payload(scope) for scope in support.scopes],
                     }
                     for mode, support in modes.items()
                 }
@@ -1023,12 +1024,13 @@ def _resource_model_metadata(idn_detail: str | None) -> dict[str, Any]:
 
 def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str, Any]:
     live_support = start_workflow_support(profile)["start-trigger-record"]["live"]
-    common_pending = ["LAN/TCPIP validation", "pyvisa-py @py validation"]
+    scopes = [_support_scope_payload(scope) for scope in live_support.scopes]
     common = {
         "display_model": "Auto-detect" if auto_unresolved else profile.model,
         "capability_profile": profile.model,
         "is_fallback_capability_view": auto_unresolved,
         "runtime_driver_note": "Live runtime model is selected from detected *IDN?.",
+        "scopes": scopes,
     }
     if profile.model == "34460A":
         return {
@@ -1053,7 +1055,10 @@ def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str
                 "no base-profile external trigger support",
                 "no 34460A DCV Ratio live support",
             ],
-            "pending": common_pending,
+            "pending": [
+                "LAN/TCPIP system-VISA validation",
+                "LAN/TCPIP pyvisa-py @py validation",
+            ],
         }
     if profile.model == "34461A":
         return {
@@ -1062,7 +1067,10 @@ def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str
             "validation_status": live_support.validation_status,
             "transport_scope": live_support.transport_scope,
             "backend_scope": live_support.backend_scope,
-            "status_text": "Full-suite validated for profile-supported workflows.",
+            "status_text": (
+                "Full-suite validated for profile-supported workflows on "
+                "USB/system-VISA, LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
+            ),
             "open_workflows": [
                 "immediate",
                 "software",
@@ -1073,7 +1081,7 @@ def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str
                 "external trigger workflows",
             ],
             "limits": [],
-            "pending": common_pending,
+            "pending": [],
         }
     return {
         **common,
@@ -1084,8 +1092,23 @@ def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str
         "status_text": "Live support is not open for this profile.",
         "open_workflows": [],
         "limits": [],
-        "pending": common_pending,
+        "pending": [],
     }
+
+
+def _support_scope_payload(scope: Any) -> dict[str, Any]:
+    payload = {
+        "validation_status": scope.validation_status,
+        "transport_scope": scope.transport_scope,
+        "backend_scope": scope.backend_scope,
+    }
+    if getattr(scope, "evidence", None):
+        payload["evidence"] = scope.evidence
+    if getattr(scope, "artifact", None):
+        payload["artifact"] = scope.artifact
+    if getattr(scope, "note", None):
+        payload["note"] = scope.note
+    return payload
 
 
 def _webui_connection_error_message(message: str, selected_model: str) -> str:

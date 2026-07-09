@@ -139,7 +139,7 @@ Main areas:
   `Require 34461A` choices still read IDN and start only when it matches. The
   detected IDN-selected profile remains the live runtime profile.
 - The model support summary displays validation status, open workflow groups,
-  model limits, and pending transport/backend scopes from `/api/capabilities`.
+  model limits, and transport/backend scope status from `/api/capabilities`.
   This is operator-facing visibility only; Core still rejects unsupported
   direct backend submissions through the support policy and runner final gate.
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
@@ -199,8 +199,10 @@ The user can still type a resource manually and can require a specific Expected
 model from `Device options` after scanning.
 
 The WebUI uses the default system VISA runtime through Core. It does not expose
-a PyVISA backend selector in the browser. Use the CLI-only `--visa-library`
-advanced option when optional pyvisa-py backend diagnostics are required.
+a PyVISA backend selector in the browser. 34461A LAN/TCPIP is validated through
+this default system VISA path. Use the CLI-only `--visa-library` advanced
+option when optional pyvisa-py backend diagnostics are required; the validated
+optional `@py` acquisition scope is 34461A LAN/TCPIP.
 
 ## Measurement Modes
 
@@ -223,8 +225,11 @@ profile as the runtime driver.
 
 `/api/capabilities` also includes additive support metadata. The browser uses
 it to show model live support status, current validation scope, hard limits,
-and pending LAN/TCPIP or pyvisa-py `@py` validation. Existing measurement,
-trigger, range, and limit fields remain the source of truth for the controls.
+and transport/backend scope status. For 34461A this includes validated
+USB/system-VISA, LAN/system-VISA, and optional CLI-only LAN/pyvisa-py `@py`
+scopes. For 34460A, LAN/TCPIP and LAN/`@py` remain not open for the currently
+available unit. Existing measurement, trigger, range, and limit fields remain
+the source of truth for the controls.
 
 The Expected model check is optional. Core validates the connected instrument
 identity at Start. If an explicit expected model does not match the fresh IDN

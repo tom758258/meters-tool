@@ -66,11 +66,12 @@ value such as `@py` changes only PyVISA resource-manager creation; it must not
 change SCPI setup, trigger behavior, cleanup order, CSV schema, JSON/JSONL
 contracts, model validation, or the support policy gate.
 
-pyvisa-py `@py` remains pending live validation and optional; do not make it a
-required dependency from CLI documentation or tests. LAN/TCPIP also remains a
-separate pending transport scope unless a future operator-approved validation
-artifact promotes it. USB/system-VISA full-suite validation does not validate
-LAN/TCPIP or pyvisa-py `@py`.
+pyvisa-py `@py` remains optional; do not make it a required dependency from
+CLI documentation or tests. The current validated optional backend scope is
+34461A LAN/TCPIP with `@py`. USB/system-VISA full-suite validation does not
+validate other LAN/TCPIP or pyvisa-py scopes. 34460A LAN/TCPIP and 34460A
+LAN/`@py` remain pending/not open until a LAN/LXI-enabled 34460A TCPIP
+resource and operator-approved validation artifact exist.
 
 The WebUI intentionally does not expose backend selection. Keep backend
 diagnostics in the CLI unless a future explicit product decision changes that

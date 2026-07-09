@@ -20,14 +20,51 @@ BACKEND_CUSTOM = "custom_visa"
 
 
 @dataclass(frozen=True)
+class StartWorkflowSupportScope:
+    validation_status: str
+    transport_scope: str
+    backend_scope: str
+    evidence: str | None = None
+    artifact: str | None = None
+    note: str | None = None
+
+
+@dataclass(frozen=True)
 class StartWorkflowSupport:
     validation_status: str
     transport_scope: str | None = None
     backend_scope: str | None = None
+    scopes: tuple[StartWorkflowSupportScope, ...] = ()
 
 
 def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, StartWorkflowSupport]]:
-    if profile.model in {"34460A", "34461A"}:
+    if profile.model == "34461A":
+        live_scopes = (
+            StartWorkflowSupportScope(
+                VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+                TRANSPORT_USB,
+                BACKEND_SYSTEM_VISA,
+            ),
+            StartWorkflowSupportScope(
+                VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+                TRANSPORT_TCPIP,
+                BACKEND_SYSTEM_VISA,
+                evidence="reviewed_artifact_correction",
+                artifact=".tmp_tests/cli_live/keysight-34461a/usb/Full/20260708-211944/summary.md",
+                note=(
+                    "Full suite used a TCPIP resource through system VISA; "
+                    "the wrapper connection label was corrected from usb to lan."
+                ),
+            ),
+            StartWorkflowSupportScope(
+                VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+                TRANSPORT_TCPIP,
+                BACKEND_PYVISA_PY,
+                evidence="operator_full_suite",
+                artifact=".tmp_tests/cli_live/keysight-34461a/lan/full/20260709-112406/summary.md",
+                note="Optional CLI-only pyvisa-py @py backend validation.",
+            ),
+        )
         return {
             "start-trigger-record": {
                 "dry_run": StartWorkflowSupport(VALIDATION_STATUS_PROFILE_VALIDATED),
@@ -36,6 +73,39 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                     VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
                     transport_scope=TRANSPORT_USB,
                     backend_scope=BACKEND_SYSTEM_VISA,
+                    scopes=live_scopes,
+                ),
+            }
+        }
+    if profile.model == "34460A":
+        live_scopes = (
+            StartWorkflowSupportScope(
+                VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+                TRANSPORT_USB,
+                BACKEND_SYSTEM_VISA,
+            ),
+            StartWorkflowSupportScope(
+                VALIDATION_STATUS_TRANSPORT_PENDING,
+                TRANSPORT_TCPIP,
+                BACKEND_SYSTEM_VISA,
+                note="Pending a LAN/LXI-enabled 34460A TCPIP resource and validation artifact.",
+            ),
+            StartWorkflowSupportScope(
+                VALIDATION_STATUS_TRANSPORT_PENDING,
+                TRANSPORT_TCPIP,
+                BACKEND_PYVISA_PY,
+                note="Pending a LAN/LXI-enabled 34460A TCPIP resource and validation artifact.",
+            ),
+        )
+        return {
+            "start-trigger-record": {
+                "dry_run": StartWorkflowSupport(VALIDATION_STATUS_PROFILE_VALIDATED),
+                "simulate": StartWorkflowSupport(VALIDATION_STATUS_PROFILE_VALIDATED),
+                "live": StartWorkflowSupport(
+                    VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+                    transport_scope=TRANSPORT_USB,
+                    backend_scope=BACKEND_SYSTEM_VISA,
+                    scopes=live_scopes,
                 ),
             }
         }
@@ -84,19 +154,23 @@ def validate_start_workflow_support(
     effective_backend = backend_scope or infer_backend_scope(request.visa_library)
     measurement_type = normalize_measurement_type(request.measurement)
 
-    if detected_profile.model == "34461A":
-        return
-    if detected_profile.model != "34460A":
+    if detected_profile.model not in {"34460A", "34461A"}:
         raise ValueError(
             f"start-trigger-record live is not supported by {detected_profile.model}"
         )
 
-    if effective_transport != TRANSPORT_USB or effective_backend != BACKEND_SYSTEM_VISA:
+    live_support = start_workflow_support(detected_profile)["start-trigger-record"]["live"]
+    scope_support = _find_scope_support(live_support, effective_transport, effective_backend)
+    if (
+        scope_support is None
+        or scope_support.validation_status != VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE
+    ):
         raise ValueError(
-            "34460A live support for start-trigger-record is validated only for "
-            "usb/system_visa; "
+            f"{detected_profile.model} live support for start-trigger-record is not open for "
             f"transport={effective_transport}, backend={effective_backend} is pending."
         )
+    if detected_profile.model == "34461A":
+        return
     if trigger_mode in {"external", "external-custom"}:
         raise ValueError(
             f"34460A live support for --trigger-mode {trigger_mode} is not open; "
@@ -115,3 +189,23 @@ def _start_mode(request: StartRequest) -> str:
     if request.simulate:
         return "simulate"
     return "live"
+
+
+def _find_scope_support(
+    support: StartWorkflowSupport,
+    transport_scope: str,
+    backend_scope: str,
+) -> StartWorkflowSupportScope | None:
+    for scope in support.scopes:
+        if scope.transport_scope == transport_scope and scope.backend_scope == backend_scope:
+            return scope
+    if (
+        support.transport_scope == transport_scope
+        and support.backend_scope == backend_scope
+    ):
+        return StartWorkflowSupportScope(
+            support.validation_status,
+            transport_scope,
+            backend_scope,
+        )
+    return None

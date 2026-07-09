@@ -8,9 +8,12 @@ from meters_tool_core.models import (
     StartRequest,
 )
 from meters_tool_core.support_policy import (
+    BACKEND_PYVISA_PY,
     BACKEND_SYSTEM_VISA,
+    TRANSPORT_TCPIP,
     TRANSPORT_USB,
     VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+    VALIDATION_STATUS_TRANSPORT_PENDING,
     start_workflow_support,
     validate_start_workflow_support,
 )
@@ -41,17 +44,77 @@ class StartSupportPolicyTests(unittest.TestCase):
             validate_start_workflow_support(request, trigger_mode, profile)
         self.assertIn(expected, str(exc.exception))
 
-    def test_support_metadata_uses_normalized_status_and_scope(self):
+    def test_34460a_support_metadata_uses_normalized_status_and_scope(self):
         support = start_workflow_support(KEYSIGHT_34460A_PROFILE)["start-trigger-record"]["live"]
 
         self.assertEqual(VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE, support.validation_status)
         self.assertEqual(TRANSPORT_USB, support.transport_scope)
         self.assertEqual(BACKEND_SYSTEM_VISA, support.backend_scope)
         self.assertNotEqual("live_validated_full_suite_usb", support.validation_status)
+        scopes = {
+            (scope.transport_scope, scope.backend_scope): scope
+            for scope in support.scopes
+        }
+        self.assertEqual(
+            VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+            scopes[(TRANSPORT_USB, BACKEND_SYSTEM_VISA)].validation_status,
+        )
+        self.assertEqual(
+            VALIDATION_STATUS_TRANSPORT_PENDING,
+            scopes[(TRANSPORT_TCPIP, BACKEND_SYSTEM_VISA)].validation_status,
+        )
+        self.assertEqual(
+            VALIDATION_STATUS_TRANSPORT_PENDING,
+            scopes[(TRANSPORT_TCPIP, BACKEND_PYVISA_PY)].validation_status,
+        )
+
+    def test_34461a_support_metadata_promotes_validated_lan_scopes(self):
+        support = start_workflow_support(KEYSIGHT_34461A_PROFILE)["start-trigger-record"]["live"]
+
+        self.assertEqual(VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE, support.validation_status)
+        self.assertEqual(TRANSPORT_USB, support.transport_scope)
+        self.assertEqual(BACKEND_SYSTEM_VISA, support.backend_scope)
+        scopes = {
+            (scope.transport_scope, scope.backend_scope): scope
+            for scope in support.scopes
+        }
+        self.assertEqual(
+            VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
+            scopes[(TRANSPORT_USB, BACKEND_SYSTEM_VISA)].validation_status,
+        )
+        lan_system = scopes[(TRANSPORT_TCPIP, BACKEND_SYSTEM_VISA)]
+        self.assertEqual(VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE, lan_system.validation_status)
+        self.assertEqual("reviewed_artifact_correction", lan_system.evidence)
+        self.assertEqual(
+            ".tmp_tests/cli_live/keysight-34461a/usb/Full/20260708-211944/summary.md",
+            lan_system.artifact,
+        )
+        lan_pyvisa = scopes[(TRANSPORT_TCPIP, BACKEND_PYVISA_PY)]
+        self.assertEqual(VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE, lan_pyvisa.validation_status)
+        self.assertEqual("operator_full_suite", lan_pyvisa.evidence)
+        self.assertEqual(
+            ".tmp_tests/cli_live/keysight-34461a/lan/full/20260709-112406/summary.md",
+            lan_pyvisa.artifact,
+        )
 
     def test_34461a_live_representative_full_suite_workflows_are_supported(self):
         cases = [
             make_request(instrument_model="34461A", measurement="current-dc", trigger_mode="immediate", max_samples=1),
+            make_request(
+                instrument_model="34461A",
+                resource="TCPIP0::host::inst0::INSTR",
+                measurement="voltage-dc",
+                trigger_mode="immediate",
+                max_samples=1,
+            ),
+            make_request(
+                instrument_model="34461A",
+                resource="TCPIP::host::INSTR",
+                visa_library="@py",
+                measurement="voltage-dc",
+                trigger_mode="immediate",
+                max_samples=1,
+            ),
             make_request(instrument_model="34461A", measurement="voltage-dc-ratio", trigger_mode="immediate", max_samples=1),
             make_request(instrument_model="34461A", measurement="frequency", trigger_mode="software", max_samples=1),
             make_request(instrument_model="34461A", measurement="period", trigger_mode="immediate", max_samples=1),
@@ -138,6 +201,10 @@ class StartSupportPolicyTests(unittest.TestCase):
         self.assert_policy_rejects(
             make_request(visa_library="@py"),
             "transport=usb, backend=pyvisa_py is pending",
+        )
+        self.assert_policy_rejects(
+            make_request(resource="TCPIP::host::INSTR", visa_library="@py"),
+            "transport=tcpip, backend=pyvisa_py is pending",
         )
 
     def test_34460a_live_still_rejects_hard_profile_limits(self):

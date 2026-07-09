@@ -286,7 +286,9 @@ The UI may look different, but these behaviors must remain true:
 - Do not expose a PyVISA backend selector in the WebUI without a future
   explicit product decision. Backend selection remains CLI-only.
 - Do not promote LAN/TCPIP or pyvisa-py `@py` support from USB/system-VISA
-  validation. They require separate operator-approved validation artifacts.
+  validation alone. They require separate operator-approved validation
+  artifacts; the current promoted optional `@py` scope is 34461A LAN/TCPIP and
+  remains CLI-only.
 - Range choices are populated from the selected measurement definition.
 - NPLC choices are populated from the selected measurement definition.
 - NPLC is hidden/disabled when unsupported.

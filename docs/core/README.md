@@ -12,7 +12,11 @@ shipped inside the single `meters-tool` distribution while preserving the
 Core can carry an optional `visa_library` value through `StartRequest` and
 `InstrumentConfig`. When it is unset, live VISA sessions use
 `pyvisa.ResourceManager()` and therefore the system default VISA runtime. CLI
-diagnostics may pass values such as `@py`; WebUI runs leave it unset.
+diagnostics may pass values such as `@py`; WebUI runs leave it unset. Current
+validated 34461A transport/backend scopes include USB/system-VISA,
+LAN/TCPIP with system VISA, and LAN/TCPIP with optional CLI-only pyvisa-py
+`@py`. Current 34460A LAN/TCPIP scopes remain pending/not open for the
+currently available unit.
 
 For CLI/WebUI starts, `StartRequest.instrument_model = None` means auto-detect
 for live resources. Adapters resolve the connected profile with an IDN-only

@@ -116,6 +116,10 @@ not a required dependency. Install optional backend packages only when needed:
 uv pip install pyvisa-py pyserial psutil zeroconf
 ```
 
+The validated optional pyvisa-py acquisition scope is 34461A over LAN/TCPIP.
+34460A LAN/TCPIP and 34460A LAN/`@py` remain not open for the currently
+available unit unless a future LAN/LXI-enabled 34460A is validated.
+
 ## Development
 
 From PowerShell, change into the project directory, create or reuse the local
@@ -409,7 +413,7 @@ option is intended for CLI diagnostics and optional backend validation. The
 WebUI uses the default system VISA runtime and does not expose a backend
 selector.
 
-LAN/TCPIP is the best first pyvisa-py path to try. USBTMC on Windows may need
+LAN/TCPIP is the validated 34461A pyvisa-py path. USBTMC on Windows may need
 WinUSB/libusb setup and is often not simpler than Keysight IO Libraries Suite
 or NI-VISA. RS-232/ASRL with pyvisa-py and pyserial is usually straightforward
 when a supported instrument uses serial I/O, but the current Meters profiles

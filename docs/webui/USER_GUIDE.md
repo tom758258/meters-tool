@@ -116,8 +116,10 @@ test procedure. Do not guess a resource when more than one instrument may be
 connected.
 
 The WebUI uses the computer's default system VISA runtime. It does not include
-a PyVISA backend selector. Use the CLI advanced `--visa-library` option only
-when a test procedure explicitly requires optional pyvisa-py diagnostics.
+a PyVISA backend selector. 34461A LAN/TCPIP is validated through this default
+system VISA path. Use the CLI advanced `--visa-library` option only when a test
+procedure explicitly requires optional pyvisa-py diagnostics; the validated
+optional `@py` acquisition scope is 34461A LAN/TCPIP.
 
 `Live resource` shows the result of the last scan. Use it to confirm which
 instrument answered before copying or selecting a resource for the run. When

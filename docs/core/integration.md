@@ -194,10 +194,13 @@ remain enforced by `validate_start_request(...)`.
 Adapters that need additive capability metadata can use
 `start_workflow_support(profile)` and its `StartWorkflowSupport` values. The
 status field is normalized, for example `live_validated_full_suite`, with
-transport and backend scope carried separately. WebUI `/api/capabilities`
-exposes these facts along with display-oriented model support summaries so the
-browser can show validation status, limits, and pending transport/backend
-scopes without changing the Core runtime gate.
+transport and backend scope carried separately. Current validated 34461A live
+scopes include USB/system-VISA, LAN/TCPIP with system VISA, and LAN/TCPIP with
+optional CLI-only pyvisa-py `@py`. Current 34460A LAN/TCPIP scopes remain
+pending/not open. WebUI `/api/capabilities` exposes these facts along with
+display-oriented model support summaries so the browser can show validation
+status, limits, and transport/backend scope status without changing the Core
+runtime gate.
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user

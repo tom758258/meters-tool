@@ -81,7 +81,9 @@ By default, the CLI uses the computer's system VISA runtime, such as Keysight
 IO Libraries Suite or NI-VISA. For advanced pyvisa-py LAN diagnostics, an
 operator may install optional backend packages and add `--visa-library "@py"`
 to `list-resources` or `start-trigger-record`. The alias `--backend "@py"` is
-also accepted. Normal WebUI runs use the default system VISA runtime.
+also accepted. The validated optional `@py` acquisition scope is 34461A over
+LAN/TCPIP; 34460A LAN/`@py` is not open for the currently available unit.
+Normal WebUI runs use the default system VISA runtime.
 
 ## Choosing A Measurement
 
@@ -135,7 +137,8 @@ the selected instrument.
 
 `--visa-library` is an advanced CLI-only PyVISA backend selector. Omit it for
 normal use. Use `--visa-library "@py"` only when intentionally testing with an
-optional pyvisa-py backend; LAN/TCPIP is usually the best first path to try.
+optional pyvisa-py backend; the current validated `@py` path is 34461A
+LAN/TCPIP.
 
 `list-resources --verify` opens discovered VISA resources and queries `*IDN?`.
 `list-resources --live-only` implies verification and hides stale entries.

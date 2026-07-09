@@ -61,8 +61,8 @@ do not query live hardware.
 | DCV Ratio | Open for validated 34461A scope | Not promoted without separate 34460A artifact |
 | 10 A / current-terminal | Open with operator-confirmed wiring | Not supported |
 | Buffer drain above profile memory | Up to 10000 readings | Not supported above 1000 |
-| LAN/TCPIP | Pending unless separately validated | Pending unless separately validated |
-| pyvisa-py `@py` | Pending unless separately validated | Pending unless separately validated |
+| LAN/TCPIP with system VISA | Open for validated 34461A scope | Not open for the currently available unit |
+| LAN/TCPIP with pyvisa-py `@py` | Open for optional CLI-only validated 34461A LAN scope | Not open for the currently available unit |
 
 34461A live support:
 
@@ -70,6 +70,9 @@ do not query live hardware.
 - Open for currently implemented 34461A profile-supported full-suite workflows,
   including immediate, software, software timer, custom buffered, Frequency,
   Period, external simple, and external custom workflows.
+- Validated transport/backend scopes are USB/system-VISA, LAN/TCPIP with the
+  default system VISA runtime, and LAN/TCPIP with optional CLI-only pyvisa-py
+  `@py`.
 - Documented validated manual option smokes, including DCV Ratio and the 10 A
   current-terminal path, remain available where the profile supports them and
   the operator confirms safe wiring.
@@ -88,13 +91,21 @@ do not query live hardware.
   base-profile external simple trigger, no base-profile external custom
   trigger, and no 34460A DCV Ratio live support unless a separate 34460A DCV
   Ratio validation artifact promotes it later.
+- LAN/TCPIP with system VISA and LAN/TCPIP with pyvisa-py `@py` are not open
+  for the currently available 34460A unit. Open those scopes only after a
+  LAN/LXI-enabled 34460A TCPIP resource and operator-approved validation
+  artifact exist.
 
-Transport/backend pending status:
+Transport/backend scope status:
 
 - USB/system-VISA validation does not validate LAN/TCPIP.
 - USB/system-VISA validation does not validate pyvisa-py `@py`.
-- LAN/TCPIP and pyvisa-py `@py` remain pending until separate
-  operator-approved validation artifacts promote those scopes.
+- 34461A LAN/TCPIP with system VISA is validated for the currently implemented
+  suite-covered 34461A workflows.
+- 34461A LAN/TCPIP with optional CLI-only pyvisa-py `@py` is validated for the
+  currently implemented suite-covered 34461A workflows.
+- 34460A LAN/TCPIP and 34460A LAN/`@py` remain pending/not open for the
+  currently available unit.
 
 ## VISA Backend Selection
 
@@ -113,9 +124,10 @@ environment variable remains PyVISA-level behavior, but explicit CLI
 `--visa-library "@py"` is preferred for reproducible tests.
 
 LAN/TCPIP and pyvisa-py `@py` remain separate validation scopes. They are not
-promoted by USB/system-VISA full-suite results and should be treated as pending
-for live support until a separate operator-approved validation artifact records
-that scope.
+promoted by USB/system-VISA full-suite results. The current validated optional
+backend scope is 34461A LAN/TCPIP with CLI-only pyvisa-py `@py`; pyvisa-py is
+not required for normal system VISA usage, and the WebUI does not expose a
+backend selector.
 
 ## Measurement Capability
 
