@@ -43,6 +43,18 @@ that suite and only where the detected live profile supports the capability.
 It does not override hard model/profile limits and does not promote untested
 interfaces or VISA backends.
 
+Validation tooling is separate from product support. The
+`scripts/live-cli-check.ps1` harness may execute known pending live
+transport/backend scopes with an exact operator-provided VISA resource to
+collect evidence. Passing validation artifacts do not by themselves promote
+public support. Normal CLI, WebUI, and direct Core live entry points remain
+product-gated until reviewed artifacts are accepted and the support metadata
+and documentation are updated.
+
+Pending support means not open for product use yet, not impossible to validate.
+Validation-mode execution is limited to known pending transport/backend scopes.
+It cannot bypass unsupported-by-model workflows or hard profile limits.
+
 In live mode, CLI `--model` and WebUI `Expected model` are expected-model
 guards only. The runtime driver/profile is selected from the connected
 instrument `*IDN?`. A selected/detected mismatch fails before setup SCPI.
@@ -95,6 +107,14 @@ do not query live hardware.
   for the currently available 34460A unit. Open those scopes only after a
   LAN/LXI-enabled 34460A TCPIP resource and operator-approved validation
   artifact exist.
+- The live validation harness may collect artifacts for the known pending
+  34460A LAN/TCPIP system-VISA and LAN/TCPIP pyvisa-py `@py` scopes. This does
+  not make those scopes product-open.
+- Hard limits remain closed during validation: base-profile 34460A external
+  and external-custom workflows remain closed, 34460A DCV Ratio remains
+  closed, the 10 A/current-terminal path remains unsupported, and buffer drain
+  size remains capped by the 1000-reading profile limit. LAN/TCPIP or
+  pyvisa-py validation does not override those limits.
 
 Transport/backend scope status:
 
@@ -106,6 +126,12 @@ Transport/backend scope status:
   currently implemented suite-covered 34461A workflows.
 - 34460A LAN/TCPIP and 34460A LAN/`@py` remain pending/not open for the
   currently available unit.
+
+Promotion from pending to `live_validated_full_suite` requires reviewed
+artifacts and an explicit support metadata/docs update. Do not mark a scope
+`live_validated_full_suite` in the same change that merely enables
+validation-mode execution unless an actual reviewed artifact is already
+provided and approved.
 
 ## VISA Backend Selection
 

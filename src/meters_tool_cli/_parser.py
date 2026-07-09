@@ -205,6 +205,11 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     start.add_argument("--dry-run", action="store_true", help="validate and print the execution plan")
     start.add_argument("--simulate", action="store_true", help="run against a deterministic simulator")
     start.add_argument(
+        "--validation-allow-pending-live-support",
+        action="store_true",
+        help=argparse.SUPPRESS,
+    )
+    start.add_argument(
         "--timeout-ms",
         type=int,
         default=5000,

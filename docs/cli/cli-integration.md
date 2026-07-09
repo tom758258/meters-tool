@@ -77,6 +77,25 @@ The WebUI intentionally does not expose backend selection. Keep backend
 diagnostics in the CLI unless a future explicit product decision changes that
 boundary.
 
+## Live Validation Harness Boundary
+
+`scripts/live-cli-check.ps1` is a validation harness, not a normal product
+usage interface. It may pass the hidden
+`--validation-allow-pending-live-support` flag to `start-trigger-record` so
+Core can execute known pending transport/backend scopes and collect evidence.
+The flag is intentionally hidden from normal CLI help and must not be
+documented as a general `--force` option.
+
+Normal CLI starts remain in product support-policy mode. Pending scopes such as
+34460A LAN/TCPIP system-VISA and 34460A LAN/TCPIP pyvisa-py `@py` continue to
+reject when users call `meters-tool start-trigger-record` directly.
+
+Validation mode is still bounded by Core model/profile limits. It must not
+enable 34460A external or external-custom workflows, 34460A DCV Ratio, 10 A or
+current-terminal paths, or buffer drain sizes above the selected profile
+reading memory. Promotion from pending to `live_validated_full_suite` requires
+reviewed artifacts and a separate support metadata/docs update.
+
 ## Dry-Run Formatting
 
 Core returns a neutral `StartPlan` from `build_start_plan(...)`. The CLI may

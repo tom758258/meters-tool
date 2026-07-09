@@ -204,6 +204,12 @@ this default system VISA path. Use the CLI-only `--visa-library` advanced
 option when optional pyvisa-py backend diagnostics are required; the validated
 optional `@py` acquisition scope is 34461A LAN/TCPIP.
 
+The WebUI does not expose validation mode. Pending transport/backend scopes
+remain blocked for browser starts until reviewed artifacts promote public
+support through Core support metadata and documentation. Disabled WebUI
+controls are UX only; Core validation, the support policy gate, and the
+`run_start_session()` final gate remain the safety boundary.
+
 ## Measurement Modes
 
 Measurement options are loaded from Core through:
@@ -239,6 +245,9 @@ was found in the IDN.
 The selected WebUI model must not be treated as a feature unlock. Disabled or
 hidden controls are UX only; the Core support policy and `run_start_session()`
 runner final gate remain the safety boundary for WebUI backend submissions.
+The WebUI should not add a pyvisa-py backend selector as part of validation
+tooling work; backend diagnostics remain CLI-only unless a later product
+decision changes that boundary.
 
 Currently surfaced measurement modes include:
 

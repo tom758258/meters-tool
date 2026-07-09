@@ -27,6 +27,7 @@ from meters_tool_cli.cli import (
 )
 from meters_tool_core.models import KEYSIGHT_34461A_PROFILE, StartRequest
 from meters_tool_core.session import StartRunResult
+from meters_tool_core.support_policy import SUPPORT_POLICY_MODE_VALIDATION
 
 from cli_command_helpers import CliCommandHarnessMixin
 from cli_command_helpers import *  # noqa: F403
@@ -545,6 +546,62 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 self.assertEqual(2, rc)
                 self.assertIn(expected, stderr.getvalue())
                 runner.assert_not_called()
+
+    def test_hidden_validation_flag_allows_pending_34460a_lan_and_passes_mode_to_runner(self):
+        parser = build_parser()
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\delegate_live.csv",
+        )
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--validation-allow-pending-live-support",
+                "--resource",
+                "TCPIP0::host::inst0::INSTR",
+                "--model",
+                "34460A",
+                "--csv",
+                "data\\delegate_live.csv",
+                "--measurement",
+                "voltage-dc",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner,
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        runner.assert_called_once()
+        self.assertEqual(
+            SUPPORT_POLICY_MODE_VALIDATION,
+            runner.call_args.kwargs["support_policy_mode"],
+        )
+
+    def test_hidden_validation_flag_is_not_in_start_help(self):
+        parser = build_parser()
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout), self.assertRaises(SystemExit) as exc:
+            parser.parse_args(["start-trigger-record", "--help"])
+
+        self.assertEqual(0, exc.exception.code)
+        self.assertNotIn("--validation-allow-pending-live-support", stdout.getvalue())
 
     def test_start_runner_final_gate_surfaces_error_if_adapter_resolution_is_wrong(self):
         parser = build_parser()

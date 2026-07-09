@@ -7,6 +7,9 @@ param(
 
     [string]$Resource,
 
+    [Alias("Backend")]
+    [string]$VisaLibrary,
+
     [ValidateSet("minimal", "basic", "frequency-period", "external", "full")]
     [string]$Suite = "minimal",
 
@@ -419,9 +422,10 @@ function New-StartArgs {
         [Parameter(Mandatory = $true)][int]$Port
     )
 
-    return @(
+    $args = @(
         "-m", "meters_tool_cli",
         "start-trigger-record",
+        "--validation-allow-pending-live-support",
         "--resource", $Resource,
         "--model", $resolvedCliModel,
         "--csv", $CsvPath,
@@ -430,7 +434,11 @@ function New-StartArgs {
         "--auto-zero", "off",
         "--nplc", "1.0",
         "--status-format", "jsonl"
-    ) + $Case.mode_args
+    )
+    if (-not [string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) {
+        $args += @("--visa-library", $resolvedVisaLibrary)
+    }
+    return $args + $Case.mode_args
 }
 
 function Invoke-LiveDryRun {
@@ -514,6 +522,9 @@ function Invoke-FrequencyPeriodScpiProbe {
         "--measurement", $measurement,
         "--timeout-ms", "5000"
     )
+    if (-not [string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) {
+        $args += @("--visa-library", $resolvedVisaLibrary)
+    }
     foreach ($scpiCommand in @($CaseInfo.plan.scpi_commands)) {
         $args += @("--command", [string]$scpiCommand)
     }
@@ -740,6 +751,10 @@ function Write-LiveArtifacts {
         schema_version = 1
         target = $resolvedTarget
         connection = $resolvedConnection
+        visa_library = if ([string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) { "system_visa" } else { $resolvedVisaLibrary }
+        backend = if ([string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) { "system_visa" } else { $resolvedVisaLibrary }
+        support_policy_mode = "validation"
+        pending_live_support_allowed = $true
         suite = $Suite
         resource = $Resource
         generated_at = (Get-Date).ToUniversalTime().ToString("o")
@@ -767,6 +782,9 @@ function Write-LiveArtifacts {
         "",
         "- Target: $resolvedTarget",
         "- Connection: $resolvedConnection",
+        "- VISA library/backend: $($report.visa_library)",
+        "- Support policy mode: $($report.support_policy_mode)",
+        "- Pending live support allowed: $($report.pending_live_support_allowed)",
         "- Suite: $Suite",
         "- Resource: $Resource",
         "- Status: $Status",
@@ -848,6 +866,7 @@ if ([string]::IsNullOrWhiteSpace($Resource)) {
 $resolvedTarget = Resolve-Target -Value $Target
 $resolvedCliModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget
 $resolvedConnection = Resolve-Connection -Value $Connection
+$resolvedVisaLibrary = if ([string]::IsNullOrWhiteSpace($VisaLibrary)) { $null } else { $VisaLibrary.Trim() }
 $cases = @(Get-LiveCases -SelectedSuite $Suite -ResolvedTarget $resolvedTarget)
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
@@ -902,6 +921,7 @@ Write-Host ""
 Write-Host "Live CLI check"
 Write-Host "Target: $resolvedTarget"
 Write-Host "Connection: $resolvedConnection"
+Write-Host "VISA library/backend: $(if ([string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) { 'system_visa' } else { $resolvedVisaLibrary })"
 Write-Host "Suite: $Suite"
 Write-Host "Resource: $Resource"
 Write-Host "Output directory: $runDir"

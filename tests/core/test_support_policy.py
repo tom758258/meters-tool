@@ -10,6 +10,7 @@ from meters_tool_core.models import (
 from meters_tool_core.support_policy import (
     BACKEND_PYVISA_PY,
     BACKEND_SYSTEM_VISA,
+    SUPPORT_POLICY_MODE_VALIDATION,
     TRANSPORT_TCPIP,
     TRANSPORT_USB,
     VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
@@ -33,15 +34,34 @@ def make_request(**overrides) -> StartRequest:  # noqa: ANN003
 
 
 class StartSupportPolicyTests(unittest.TestCase):
-    def assert_policy_allows(self, request: StartRequest, profile=KEYSIGHT_34460A_PROFILE) -> None:  # noqa: ANN001
+    def assert_policy_allows(
+        self,
+        request: StartRequest,
+        profile=KEYSIGHT_34460A_PROFILE,  # noqa: ANN001
+        *,
+        support_policy_mode: str | None = None,
+    ) -> None:
         trigger_mode = resolve_trigger_mode(request)
         validate_start_request(request, trigger_mode, instrument_profile=profile)
-        validate_start_workflow_support(request, trigger_mode, profile)
+        kwargs = {}
+        if support_policy_mode is not None:
+            kwargs["support_policy_mode"] = support_policy_mode
+        validate_start_workflow_support(request, trigger_mode, profile, **kwargs)
 
-    def assert_policy_rejects(self, request: StartRequest, expected: str, profile=KEYSIGHT_34460A_PROFILE) -> None:  # noqa: ANN001
+    def assert_policy_rejects(
+        self,
+        request: StartRequest,
+        expected: str,
+        profile=KEYSIGHT_34460A_PROFILE,  # noqa: ANN001
+        *,
+        support_policy_mode: str | None = None,
+    ) -> None:
         trigger_mode = resolve_trigger_mode(request)
+        kwargs = {}
+        if support_policy_mode is not None:
+            kwargs["support_policy_mode"] = support_policy_mode
         with self.assertRaises(ValueError) as exc:
-            validate_start_workflow_support(request, trigger_mode, profile)
+            validate_start_workflow_support(request, trigger_mode, profile, **kwargs)
         self.assertIn(expected, str(exc.exception))
 
     def test_34460a_support_metadata_uses_normalized_status_and_scope(self):
@@ -206,6 +226,77 @@ class StartSupportPolicyTests(unittest.TestCase):
             make_request(resource="TCPIP::host::INSTR", visa_library="@py"),
             "transport=tcpip, backend=pyvisa_py is pending",
         )
+
+    def test_validation_mode_allows_known_34460a_pending_lan_scopes(self):
+        cases = [
+            make_request(resource="TCPIP0::host::inst0::INSTR"),
+            make_request(
+                resource="TCPIP::host::INSTR",
+                visa_library="@py",
+                measurement="current-dc",
+            ),
+        ]
+
+        for request in cases:
+            with self.subTest(resource=request.resource, visa_library=request.visa_library):
+                self.assert_policy_allows(
+                    request,
+                    support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+                )
+
+    def test_validation_mode_still_rejects_34460a_hard_workflow_closures(self):
+        cases = [
+            (
+                make_request(
+                    resource="TCPIP0::host::inst0::INSTR",
+                    trigger_mode="external",
+                    max_samples=1,
+                ),
+                "--trigger-mode external",
+            ),
+            (
+                make_request(
+                    resource="TCPIP0::host::inst0::INSTR",
+                    trigger_mode="external-custom",
+                    max_samples=None,
+                    trigger_count=1,
+                    sample_count=1,
+                ),
+                "--trigger-mode external-custom",
+            ),
+            (
+                make_request(
+                    resource="TCPIP0::host::inst0::INSTR",
+                    measurement="voltage-dc-ratio",
+                ),
+                "--measurement voltage-dc-ratio is not validated",
+            ),
+        ]
+
+        for request, expected in cases:
+            with self.subTest(expected=expected):
+                self.assert_policy_rejects(
+                    request,
+                    expected,
+                    support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+                )
+
+    def test_validation_mode_does_not_allow_unknown_or_custom_backend_scope(self):
+        self.assert_policy_rejects(
+            make_request(resource="TCPIP0::host::inst0::INSTR", visa_library="custom"),
+            "transport=tcpip, backend=custom_visa is pending",
+            support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+        )
+
+    def test_invalid_support_policy_mode_rejects(self):
+        request = make_request()
+        with self.assertRaisesRegex(ValueError, "unsupported support policy mode"):
+            validate_start_workflow_support(
+                request,
+                resolve_trigger_mode(request),
+                KEYSIGHT_34460A_PROFILE,
+                support_policy_mode="bad",
+            )
 
     def test_34460a_live_still_rejects_hard_profile_limits(self):
         cases = [

@@ -252,6 +252,14 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
 The value can be any live VISA resource returned by discovery, including USB
 or TCPIP/LAN resources.
 
+The live wrapper is a validation harness, not a product usage interface. It may
+execute known pending live transport/backend scopes with the exact
+operator-provided resource so artifacts can be collected. A passing
+`report.json` or `summary.md` does not by itself promote public support.
+Normal CLI starts, the WebUI, and direct Core live calls remain product-gated
+until reviewed artifacts are accepted and support metadata plus documentation
+are updated.
+
 4. Generate the live plan without opening VISA or changing the instrument:
 
 ```powershell
@@ -299,6 +307,20 @@ intended. For `-Target keysight-34460a`, `-Suite full` is `basic` plus
 `frequency-period`; `external` is rejected because the base 34460A profile does
 not support external trigger modes.
 
+For validation of an optional PyVISA backend, pass `-VisaLibrary "@py"` to the
+wrapper. `-Backend "@py"` is accepted as an alias. The wrapper forwards this to
+CLI `--visa-library` and records the backend in the artifacts. Pending 34460A
+LAN/TCPIP validation remains evidence collection only; it does not make normal
+34460A LAN/TCPIP product starts open.
+
+Pending support means not open for product use yet, not impossible to validate.
+Validation-mode execution remains limited to known pending transport/backend
+scopes and cannot bypass unsupported-by-model workflows or hard profile
+limits. The 34460A base profile still keeps external/external-custom closed,
+keeps DCV Ratio closed, rejects 10 A/current-terminal requests, and preserves
+the 1000-reading buffer limits. LAN/TCPIP or pyvisa-py validation does not
+override those limits.
+
 Preview the Frequency/Period live suite without opening VISA:
 
 ```powershell
@@ -340,6 +362,12 @@ The CLI package has three wrapper scripts:
 | `scripts\preflight-cli.ps1` | No hardware | Runs target-aware dry-run, simulator, client dry-run, mocked `list-resources`, and wrapper contract checks. Use this before live work. |
 | `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs target-aware live-wrapper plans and, with interactive confirmation, bounded live validation cases against the explicit `-Resource`. Frequency/Period cases first run per-command SCPI error diagnostics. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`; 34460A rejects `external` and its `full` suite excludes external cases. |
 | `scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
+
+Promotion from pending to `live_validated_full_suite` requires reviewed
+artifacts and an explicit support metadata/docs update. Do not mark a pending
+scope as public live support in the same change that merely enables
+validation-mode execution unless a reviewed artifact is already provided and
+approved.
 
 ## Basic Workflow
 

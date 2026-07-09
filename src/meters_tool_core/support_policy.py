@@ -11,6 +11,9 @@ VALIDATION_STATUS_PROFILE_VALIDATED = "profile_validated"
 VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE = "live_validated_full_suite"
 VALIDATION_STATUS_TRANSPORT_PENDING = "transport_pending"
 
+SUPPORT_POLICY_MODE_PRODUCT = "product"
+SUPPORT_POLICY_MODE_VALIDATION = "validation"
+
 TRANSPORT_USB = "usb"
 TRANSPORT_TCPIP = "tcpip"
 TRANSPORT_UNKNOWN = "unknown"
@@ -143,7 +146,14 @@ def validate_start_workflow_support(
     *,
     transport_scope: str | None = None,
     backend_scope: str | None = None,
+    support_policy_mode: str = SUPPORT_POLICY_MODE_PRODUCT,
 ) -> None:
+    if support_policy_mode not in {
+        SUPPORT_POLICY_MODE_PRODUCT,
+        SUPPORT_POLICY_MODE_VALIDATION,
+    }:
+        raise ValueError(f"unsupported support policy mode: {support_policy_mode}")
+
     effective_mode = mode or _start_mode(request)
     if effective_mode in {"dry_run", "simulate"}:
         return
@@ -161,16 +171,13 @@ def validate_start_workflow_support(
 
     live_support = start_workflow_support(detected_profile)["start-trigger-record"]["live"]
     scope_support = _find_scope_support(live_support, effective_transport, effective_backend)
-    if (
-        scope_support is None
-        or scope_support.validation_status != VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE
-    ):
+    if detected_profile.model == "34461A":
+        if _scope_allowed_for_support_policy(scope_support, support_policy_mode):
+            return
         raise ValueError(
             f"{detected_profile.model} live support for start-trigger-record is not open for "
             f"transport={effective_transport}, backend={effective_backend} is pending."
         )
-    if detected_profile.model == "34461A":
-        return
     if trigger_mode in {"external", "external-custom"}:
         raise ValueError(
             f"34460A live support for --trigger-mode {trigger_mode} is not open; "
@@ -181,6 +188,29 @@ def validate_start_workflow_support(
             "34460A live support for --measurement voltage-dc-ratio is not validated; "
             "34460A DCV Ratio remains closed unless separately validated."
         )
+    if _scope_allowed_for_support_policy(scope_support, support_policy_mode):
+        return
+    raise ValueError(
+        f"{detected_profile.model} live support for start-trigger-record is not open for "
+        f"transport={effective_transport}, backend={effective_backend} is pending."
+    )
+
+
+def _scope_allowed_for_support_policy(
+    scope_support: StartWorkflowSupportScope | None,
+    support_policy_mode: str,
+) -> bool:
+    if scope_support is None:
+        return False
+    if scope_support.validation_status == VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE:
+        return True
+    if support_policy_mode == SUPPORT_POLICY_MODE_PRODUCT:
+        return False
+    if scope_support.validation_status == VALIDATION_STATUS_TRANSPORT_PENDING:
+        return True
+    if scope_support.validation_status == VALIDATION_STATUS_NOT_SUPPORTED_BY_MODEL:
+        return False
+    return False
 
 
 def _start_mode(request: StartRequest) -> str:

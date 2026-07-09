@@ -33,6 +33,8 @@ from meters_tool_core import (
     StartRunEventSink,
     StartRunResult,
     StartWorkflowSupport,
+    SUPPORT_POLICY_MODE_PRODUCT,
+    SUPPORT_POLICY_MODE_VALIDATION,
     StopController,
     build_start_plan,
     generate_buffer_overflow_warning_details,
@@ -205,6 +207,38 @@ runtime gate.
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user
 confirmation and the user declines.
+
+### Validation Harness Support Policy Mode
+
+Normal product integrations should use the default support policy mode,
+`SUPPORT_POLICY_MODE_PRODUCT`. In that mode, CLI, WebUI, and direct Core live
+starts remain gated to scopes marked `live_validated_full_suite`.
+
+`SUPPORT_POLICY_MODE_VALIDATION` exists only for validation tooling such as
+`scripts/live-cli-check.ps1`. It allows known pending live transport/backend
+scopes to execute so an operator can collect artifacts with an exact
+operator-provided VISA resource. It does not promote public support, and it
+does not bypass unsupported-by-model workflows or hard profile limits. The
+34460A base profile still rejects external/external-custom workflows, DCV
+Ratio, the 10 A/current-terminal path, and buffer drain sizes above the
+profile reading-memory limit.
+
+The runner has the same final gate:
+
+```python
+result = run_start_session(
+    request,
+    trigger_mode,
+    profile,
+    EventSink(),
+    controls=None,
+    support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+)
+```
+
+Use that mode only from reviewed validation harnesses. Public support promotion
+requires reviewed artifacts plus an explicit support metadata and documentation
+update.
 
 Adapters that need stable warning codes can use the structured helper:
 

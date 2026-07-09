@@ -17,6 +17,7 @@ from meters_tool_core.runner import (
     run_start_session,
 )
 from meters_tool_core.session import NoOpControlPlane, StartRunEvent
+from meters_tool_core.support_policy import SUPPORT_POLICY_MODE_VALIDATION
 
 
 def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
@@ -690,6 +691,39 @@ class CoreRunnerTests(unittest.TestCase):
 
                 self.assertIn(expected, str(exc.exception))
                 self.assertEqual([], operations)
+
+    def test_live_runner_validation_mode_allows_pending_34460a_lan_before_backend_factory(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        request = StartRequest(
+            resource="TCPIP0::host::inst0::INSTR",
+            trigger_mode="immediate",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+
+        with patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ):
+            result = run_start_session(
+                request,
+                "immediate",
+                KEYSIGHT_34461A_PROFILE,
+                sink,
+                RecordingControls(operations),
+                control_plane=NoOpControlPlane(),
+                run_id="run-live",
+                dependencies=self._live_dependencies(
+                    operations,
+                    expected_model="34460A",
+                    expected_resource="TCPIP0::host::inst0::INSTR",
+                ),
+                support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+            )
+
+        self.assertTrue(result.ok)
+        self.assertIn("factory:34460A", operations)
 
     def test_dry_run_and_simulate_runner_resolution_do_not_query_live_idn(self):
         dry_run_request = StartRequest(

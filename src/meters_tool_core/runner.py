@@ -25,7 +25,7 @@ from .session import (
 )
 from .start_resolution import resolve_start_profile
 from .storage import CsvWriter
-from .support_policy import validate_start_workflow_support
+from .support_policy import SUPPORT_POLICY_MODE_PRODUCT, validate_start_workflow_support
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 from .validation import resolve_csv_path, resolve_trigger_mode, validate_start_request
 
@@ -51,13 +51,20 @@ def run_start_session(
     control_plane: StartControlPlane | None = None,
     run_id: str | None = None,
     dependencies: StartRunnerDependencies | None = None,
+    *,
+    support_policy_mode: str = SUPPORT_POLICY_MODE_PRODUCT,
 ) -> StartRunResult:
     request, profile = resolve_start_profile(request)
     # `trigger_mode` is retained for public API compatibility; the runner
     # recomputes the effective mode from the resolved request.
     effective_trigger_mode = resolve_trigger_mode(request)
     validate_start_request(request, effective_trigger_mode, instrument_profile=profile)
-    validate_start_workflow_support(request, effective_trigger_mode, profile)
+    validate_start_workflow_support(
+        request,
+        effective_trigger_mode,
+        profile,
+        support_policy_mode=support_policy_mode,
+    )
 
     deps = dependencies or StartRunnerDependencies()
     active_controls = controls or NoOpStartRunControls()

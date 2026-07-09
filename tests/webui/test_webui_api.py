@@ -1405,6 +1405,19 @@ class WebUiApiTests(unittest.TestCase):
                 },
                 "transport=tcpip, backend=system_visa is pending",
             ),
+            (
+                {
+                    "resource": "TCPIP0::host::inst0::INSTR",
+                    "instrument_model": "34460A",
+                    "csv": str(csv_path),
+                    "simulate": False,
+                    "measurement": "voltage-dc",
+                    "trigger_mode": "immediate",
+                    "max_samples": 1,
+                    "validation_allow_pending_live_support": True,
+                },
+                "transport=tcpip, backend=system_visa is pending",
+            ),
         ]
 
         for payload, expected in cases:

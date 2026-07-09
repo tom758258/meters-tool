@@ -19,6 +19,8 @@ from .session import (
     StopController,
 )
 from .support_policy import (
+    SUPPORT_POLICY_MODE_PRODUCT,
+    SUPPORT_POLICY_MODE_VALIDATION,
     StartWorkflowSupport,
     start_workflow_support,
     validate_start_workflow_support,
@@ -39,6 +41,8 @@ __all__ = [
     "InstrumentProfile",
     "StartRequest",
     "StartWorkflowSupport",
+    "SUPPORT_POLICY_MODE_PRODUCT",
+    "SUPPORT_POLICY_MODE_VALIDATION",
     "get_default_instrument_profile",
     "resolve_instrument_profile",
     "StartPlan",

@@ -137,6 +137,7 @@ def _run_session(
     commands: Sequence[str],
     timeout_ms: int,
     model: str | None,
+    visa_library: str | None,
     resource_manager_factory: Callable[[], object] | None,
     include_read: bool,
 ) -> dict[str, Any]:
@@ -145,6 +146,7 @@ def _run_session(
             resource_string=resource,
             timeout_ms=timeout_ms,
             expected_model=model,
+            visa_library=visa_library,
         ),
         resource_manager_factory=resource_manager_factory,
     )
@@ -202,6 +204,7 @@ def run_probe(
     commands: Sequence[str],
     timeout_ms: int = 5000,
     model: str | None = None,
+    visa_library: str | None = None,
     resource_manager_factory: Callable[[], object] | None = None,
 ) -> dict[str, Any]:
     if not resource.strip():
@@ -216,6 +219,7 @@ def run_probe(
         commands=commands,
         timeout_ms=timeout_ms,
         model=model,
+        visa_library=visa_library,
         resource_manager_factory=resource_manager_factory,
         include_read=True,
     )
@@ -224,6 +228,7 @@ def run_probe(
             "schema_version": 1,
             "resource": resource,
             "measurement": measurement,
+            "visa_library": visa_library,
         }
     )
 
@@ -240,6 +245,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--command", action="append", dest="commands", required=True)
     parser.add_argument("--timeout-ms", type=int, default=5000)
     parser.add_argument("--model", choices=("34460A", "34461A"))
+    parser.add_argument("--visa-library", "--backend", dest="visa_library", default=None)
     return parser
 
 
@@ -252,12 +258,14 @@ def main(argv: Sequence[str] | None = None) -> int:
             commands=args.commands,
             timeout_ms=args.timeout_ms,
             model=args.model,
+            visa_library=args.visa_library,
         )
     except Exception as exc:
         result = {
             "schema_version": 1,
             "resource": args.resource,
             "measurement": args.measurement,
+            "visa_library": args.visa_library,
             "status": "failed",
             "all_scpi_error_responses_zero": False,
             "idn": None,

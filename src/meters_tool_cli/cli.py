@@ -18,7 +18,11 @@ from meters_tool_core.runner import StopController, run_start_session
 from meters_tool_core.run_plan import StartPlan, build_start_plan
 from meters_tool_core.session import StartRunEvent, new_run_id
 from meters_tool_core.start_resolution import resolve_start_profile
-from meters_tool_core.support_policy import validate_start_workflow_support
+from meters_tool_core.support_policy import (
+    SUPPORT_POLICY_MODE_PRODUCT,
+    SUPPORT_POLICY_MODE_VALIDATION,
+    validate_start_workflow_support,
+)
 from meters_tool_core.validation import (
     generate_buffer_overflow_warnings,
     resolve_trigger_mode,
@@ -637,13 +641,23 @@ def cmd_list_resources(
 
 def cmd_start(args: argparse.Namespace) -> int:
     emitter = CliEventEmitter(print_fn=print, output_format=args.status_format)
+    support_policy_mode = (
+        SUPPORT_POLICY_MODE_VALIDATION
+        if getattr(args, "validation_allow_pending_live_support", False)
+        else SUPPORT_POLICY_MODE_PRODUCT
+    )
     request_model: StartRequest
     try:
         request_model = _start_request_from_args(args)
         request_model, instrument_profile = resolve_start_profile(request_model)
         trigger_mode = resolve_trigger_mode(request_model)
         validate_start_request(request_model, trigger_mode, instrument_profile=instrument_profile)
-        validate_start_workflow_support(request_model, trigger_mode, instrument_profile)
+        validate_start_workflow_support(
+            request_model,
+            trigger_mode,
+            instrument_profile,
+            support_policy_mode=support_policy_mode,
+        )
     except ValueError as exc:
         emitter.error(str(exc), rc=2)
         return 2
@@ -683,6 +697,7 @@ def cmd_start(args: argparse.Namespace) -> int:
             event_sink,
             CliStartRunControls(),
             run_id=runtime_run_id,
+            support_policy_mode=support_policy_mode,
         )
     except ValueError as exc:
         emitter.error(str(exc), rc=2)

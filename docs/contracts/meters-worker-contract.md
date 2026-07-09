@@ -284,6 +284,10 @@ Live `report.json` fields:
 - `schema_version`
 - `target`
 - `connection`
+- `visa_library`
+- `backend`
+- `support_policy_mode`
+- `pending_live_support_allowed`
 - `suite`
 - `resource`
 - `generated_at`
@@ -302,6 +306,13 @@ Live `report.json` fields:
 - `scpi_diagnostics`: Frequency/Period probe records. This is empty for
   `-PlanOnly` and suites without Frequency/Period cases.
 - `commands`: captured command result objects.
+
+For `scripts/live-cli-check.ps1`, `support_policy_mode` is `validation` and
+`pending_live_support_allowed` is `true`. These fields identify the wrapper as
+a validation harness that may execute known pending transport/backend scopes to
+collect artifacts. They do not promote public product support. When
+`visa_library` or `backend` is omitted by the operator, the report records the
+default system VISA runtime as `system_visa`.
 
 Interactive live and `-PlanOnly` wrapper runs execute preflight before case
 planning. Redirected-stdin live wrapper runs do not run acquisition; they
