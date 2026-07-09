@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from meters_tool_core.models import StartRequest, get_default_instrument_profile
 from meters_tool_core.run_plan import StartPlan, build_start_plan
@@ -102,6 +103,31 @@ class CoreRunPlanTests(unittest.TestCase):
         self.assertIn("SAMP:COUNT 1", plan.scpi_commands)
         self.assertIn("TRIG:DEL 1.5", plan.scpi_commands)
         assert_any_note_contains_tokens(self, plan.notes, ("hardware", "INIT", "FETC?"))
+
+    def test_external_simple_plan_does_not_construct_runtime_trigger_adapter(self):
+        with patch(
+            "meters_tool_core.trigger.HardwareTriggerAdapter",
+            side_effect=AssertionError("dry-run must not construct runtime trigger adapter"),
+        ):
+            plan = self.build_plan(
+                "external",
+                make_start_request(
+                    trigger_mode="external",
+                    max_samples=1,
+                    hw_trigger_slope="pos",
+                    hw_trigger_delay_s=1.5,
+                ),
+            )
+
+        self.assertEqual("FETC?", plan.read_path)
+        self.assertIn("TRIG:SOUR EXT", plan.scpi_commands)
+        self.assertIn("TRIG:SLOP POS", plan.scpi_commands)
+        self.assertIn("TRIG:DEL 1.5", plan.scpi_commands)
+
+    def test_run_plan_does_not_import_runtime_trigger_adapter(self):
+        source = Path("src/meters_tool_core/run_plan.py").read_text(encoding="utf-8")
+
+        self.assertNotIn("HardwareTriggerAdapter", source)
 
     def test_immediate_custom_plan_uses_buffered_read_path(self):
         plan = self.build_plan(

@@ -12,6 +12,7 @@ from .command import CommandValidationError, command_response, parse_command_env
 from .instrument import is_pyvisa_timeout_error
 from .instrument_backend import InstrumentBackend
 from .models import TriggerEvent, TriggerSource
+from .trigger_plan import external_trigger_setup_commands
 
 
 class TriggerRouter:
@@ -61,12 +62,8 @@ class HardwareTriggerAdapter:
         self._instrument = instrument
 
     def configure_external_trigger(self, slope: str = "NEG", delay_s: float = 0.0) -> None:
-        slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
-        self._instrument.write("TRIG:SOUR EXT")
-        self._instrument.write(f"TRIG:SLOP {slope_cmd}")
-        self._instrument.write("TRIG:COUNT 1")
-        self._instrument.write("SAMP:COUNT 1")
-        self._instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
+        for command in external_trigger_setup_commands(slope=slope, delay_s=delay_s):
+            self._instrument.write(command)
 
     def wait_and_read_triggered(
         self,

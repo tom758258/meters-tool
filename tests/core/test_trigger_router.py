@@ -93,6 +93,23 @@ class TriggerRouterTests(unittest.TestCase):
 
 
 class HardwareTriggerAdapterTests(unittest.TestCase):
+    def test_configure_external_trigger_writes_existing_command_sequence(self):
+        instrument = FakeHardwareInstrument()
+        adapter = HardwareTriggerAdapter(instrument)  # type: ignore[arg-type]
+
+        adapter.configure_external_trigger(slope="pos", delay_s=1.5)
+
+        self.assertEqual(
+            [
+                "TRIG:SOUR EXT",
+                "TRIG:SLOP POS",
+                "TRIG:COUNT 1",
+                "SAMP:COUNT 1",
+                "TRIG:DEL 1.5",
+            ],
+            instrument.commands,
+        )
+
     def test_wait_can_be_interrupted_by_stop_event(self):
         instrument = FakeHardwareInstrument()
         adapter = HardwareTriggerAdapter(instrument)  # type: ignore[arg-type]

@@ -9,7 +9,7 @@ from .measurement import (
     normalize_measurement_type,
 )
 from .models import InstrumentProfile, StartRequest
-from .trigger import HardwareTriggerAdapter
+from .trigger_plan import external_trigger_setup_commands
 from .validation import resolve_csv_path, resolve_measurement_range
 
 
@@ -150,9 +150,11 @@ def build_start_plan(
     recorder = _PlanRecorder()
     measurement.configure(recorder, config)
     if trigger_mode == "external":
-        HardwareTriggerAdapter(recorder).configure_external_trigger(
-            slope=args.hw_trigger_slope,
-            delay_s=args.hw_trigger_delay_s,
+        recorder.commands.extend(
+            external_trigger_setup_commands(
+                slope=args.hw_trigger_slope,
+                delay_s=args.hw_trigger_delay_s,
+            )
         )
     elif trigger_mode == "immediate-custom":
         measurement.configure_immediate_custom(

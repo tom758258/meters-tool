@@ -229,6 +229,10 @@ generate_buffer_overflow_warning_details(...)]`.
 `build_start_plan(...)` returns a `StartPlan` after validation succeeds. It is
 the Core dry-run preview contract for resource, CSV path, trigger mode,
 measurement, SCPI plan, read path, cleanup steps, and buffer warnings.
+Dry-run planning is pure Core planning: it does not open VISA, construct
+runtime trigger adapters, start control servers, or wait for hardware trigger
+events. External-trigger dry-run previews are computed from Core planning data;
+runtime trigger adapters remain responsible for non-dry-run execution only.
 
 `StartPlan` uses Core-neutral fields such as `measurement_name`.
 Adapters may derive their own display or compatibility fields, but those fields
