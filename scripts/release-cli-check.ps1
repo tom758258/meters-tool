@@ -1,10 +1,10 @@
 param(
-    [ValidateSet("keysight-34461a")]
+    [ValidateSet("keysight-34461a", "keysight-34460a")]
     [string]$Target = "keysight-34461a",
 
     [string]$Release,
 
-    [string]$Resource = "SIM::34461A",
+    [string]$Resource,
 
     [string]$OutputRoot = ".tmp_tests\cli_release"
 )
@@ -16,6 +16,14 @@ $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 . (Join-Path $PSScriptRoot "_validation_helpers.ps1")
+
+if ([string]::IsNullOrWhiteSpace($Resource)) {
+    $targetModel = Get-TargetCliModel -ResolvedTarget $Target
+    Assert-Condition `
+        -Condition (-not [string]::IsNullOrWhiteSpace($targetModel)) `
+        -Message "Unsupported release target: $Target"
+    $Resource = "SIM::$targetModel"
+}
 
 if (-not (Test-Path -LiteralPath $Python)) {
     throw "Python executable not found: $Python"
