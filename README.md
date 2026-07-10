@@ -24,35 +24,11 @@ unit, trigger source, and related metadata.
 * Operate through either the CLI or local WebUI
 * Produce JSON and JSONL output for automation, agents, and orchestrators
 
-Live CLI and WebUI starts auto-detect the connected model from `*IDN?` when the
-expected model is omitted. Select CLI `--model 34460A` / `--model 34461A` or
-WebUI `Require 34460A` / `Require 34461A` only when the start must require that
-IDN match; explicit live mismatches fail before setup SCPI, and the selected
-model never overrides the IDN-selected runtime profile or unlocks capabilities
-for a different instrument. Dry-run and simulator runs use the selected model
-as a no-hardware planning profile and require an explicit model unless the
-simulator resource encodes one deterministically, such as `SIM::34460A` or
-`SIM::34461A`. Model names are normalized and validated by Core profile logic;
-unknown models fail validation with the supported models listed.
-
-Live feature enablement is validation-scope based. A model, workflow, exact
-transport/backend connection, measurement, and trigger mode are live-open only
-when operator-approved hardware validation covers every required layer,
-subject to hard profile limits. Missing connection or feature metadata fails
-closed. The Core support policy and `run_start_session()` final gate are the
-safety boundary for CLI, WebUI, and direct Core/API submissions; WebUI disabled
-controls are operator-facing UX only.
-
-CLI commands that open VISA resources use the system VISA runtime by default
-through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a
-PyVISA library/backend explicitly, for example `--visa-library "@py"` or the
-alias `--backend "@py"` after installing optional pyvisa-py packages. The
-WebUI keeps using the default system VISA runtime and does not expose backend
-selection. Keysight 34461A LAN/TCPIP is validated with the default system VISA
-runtime, and 34461A LAN/TCPIP is also validated through optional CLI-only
-pyvisa-py `@py`. Keysight 34460A LAN/TCPIP and LAN/`@py` remain unopened for
-the currently available unit unless a future LAN/LXI-enabled 34460A is
-validated.
+Live starts auto-detect the connected model from `*IDN?`; an explicitly selected
+model is an expected-model guard and does not unlock capabilities for another
+instrument. Exact live support uses a fail-closed policy; see [Supported Models](docs/core/supported-models.md)
+and the component documentation for model, transport/backend, measurement, and
+trigger-mode status.
 
 ## Project Structure
 
@@ -237,6 +213,7 @@ guidance.
 ## Documentation
 
 * [Core README](docs/core/README.md)
+* [Supported Models](docs/core/supported-models.md)
 * [CLI User Guide](docs/cli/USER_GUIDE.md)
 * [CLI README](docs/cli/README.md)
 * [WebUI README](docs/webui/README.md)
