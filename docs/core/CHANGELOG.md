@@ -6,10 +6,26 @@
   `meters_tool_core` as part of the breaking Meters Tool rename.
 - Bumped the shared `meters-tool` package version and Core fallback version
   to `1.6.0`.
+- Added distinct 34460A and 34461A profiles, normalized model selection, and
+  live `*IDN?` profile detection. Explicit live model selection is an
+  expected-model guard, and mismatches fail before setup SCPI.
+- Added a fail-closed product support policy for the exact model,
+  transport/backend connection scope, measurement feature, and trigger-mode
+  feature, plus a validation-only mode for explicitly registered pending
+  scopes.
+- Registered reviewed 34461A USB/system-VISA, LAN/system-VISA, and CLI-only
+  LAN/pyvisa-py support, and reviewed 34460A USB/system-VISA support, without
+  carrying evidence across connection scopes.
+- Preserved 34460A profile limits: DCV Ratio remains feature-pending, LAN
+  scopes remain transport-pending, and external triggers, the 10 A terminal,
+  and buffer sizes above 1000 remain closed.
+- Consolidated live-start resolution on the detected profile and recomputed
+  trigger routing after profile resolution so final support validation and
+  execution use the same live identity.
 - Refreshed English Core-facing documentation for expected-model auto-detect
   and deterministic simulator resources.
-- Preserved Core request models, validation paths, SCPI planning, VISA access,
-  trigger behavior, and cleanup behavior.
+- The final release-preparation change updates release notes only and does not
+  change Core runtime behavior.
 
 ## v1.5.0
 

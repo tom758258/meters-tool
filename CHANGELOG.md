@@ -8,7 +8,7 @@ Component release notes:
 
 ## v1.6.0
 
-### Breaking rename baseline
+### Breaking changes
 
 - Renamed the project identity from Keysight Logger / `keysight-logger` to
   Meters Tool / `meters-tool` in one breaking pass.
@@ -18,7 +18,44 @@ Component release notes:
   `keysight-34461a` validation targets, SCPI/VISA behavior, CSV schema,
   JSON/JSONL fields, WebUI endpoints, and the worker `service` value.
 
-### Release cleanup
+### Model profiles and live support policy
+
+- Added distinct 34460A and 34461A Core profiles and made live starts select
+  the runtime profile from `*IDN?`. An explicitly selected model is now an
+  expected-model guard; a mismatch fails before setup SCPI instead of
+  unlocking the selected profile's capabilities.
+- Added a fail-closed live support policy that evaluates the exact model,
+  transport/backend connection scope, measurement feature, and trigger-mode
+  feature. Missing, unknown, pending, or model-unsupported entries remain
+  closed in normal product mode.
+- Opened the reviewed 34461A USB/system-VISA, LAN/system-VISA, and optional
+  CLI-only LAN/pyvisa-py scopes for their registered profile-supported
+  workflows, including external trigger support where applicable.
+- Opened the reviewed 34460A USB/system-VISA scope for its suite-covered
+  profile-supported workflows. DCV Ratio remains feature-pending, external
+  triggers and 34461A-only limits remain unsupported, and the 34460A
+  LAN/system-VISA and LAN/pyvisa-py scopes remain pending future validation.
+
+### Adapters, validation, and maintenance
+
+- Added `--backend` as an alias for the CLI `--visa-library` option and allowed
+  the live validation wrapper to accept `-VisaLibrary`, `-visa-library`, or
+  `-Backend` while continuing to record the effective backend scope.
+- Added WebUI support-status UX driven by Core capabilities, including the
+  auto-detect fallback view, expected-model guidance, exact support status,
+  open workflows, limits, and pending scopes. The WebUI continues to use the
+  system VISA runtime and does not expose the optional CLI backend selector.
+- Extended the no-hardware and live validation harnesses for both model
+  targets, explicit backend forwarding, plan-only gates, and validation-only
+  execution of registered pending scopes without promoting product support.
+- Split and streamlined CLI parser/client helpers, WebUI payload helpers, and
+  shared PowerShell validation helpers while preserving public CLI, HTTP, and
+  report contracts.
+- Updated development checks to Ruff `0.15.20` or newer and `httpx2`, and
+  layered CI into a fast static/focused gate plus Linux and Windows Python
+  matrices and a full-suite job.
+
+### Release preparation
 
 - Bumped the single `meters-tool` distribution version to `1.6.0` across
   package metadata, fallback version plumbing, lock metadata, and version
@@ -28,11 +65,9 @@ Component release notes:
   simulator resources.
 - Updated the bundled Codex skill simulator helper and examples so no-hardware
   workflows stay tied to explicit `SIM::34460A` or `SIM::34461A` resources.
-
-### Runtime behavior
-
-- No Core, CLI, WebUI, SCPI, VISA, trigger, cleanup, parser, profile, or WebUI
-  runtime behavior changed in this cleanup.
+- The final release-preparation change updates release notes and artifacts only;
+  it does not change Core, CLI, WebUI, SCPI, VISA, trigger, or cleanup runtime
+  behavior.
 
 ## v1.5.0
 

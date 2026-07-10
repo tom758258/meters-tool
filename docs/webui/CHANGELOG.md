@@ -8,11 +8,22 @@
   `keysight_logger_webui` to `meters_tool_webui`.
 - Bumped WebUI-visible package/version metadata to `1.6.0` through the shared
   distribution version plumbing.
+- Applied Core's live `*IDN?` profile selection and exact fail-closed support
+  policy to WebUI starts. `Expected model` is an identity guard and does not
+  override the detected instrument profile.
+- Added capability-driven support UX showing the auto-detect fallback view,
+  validation status, transport/backend scope, open workflows, model limits,
+  and pending features.
+- Reflected reviewed 34461A USB and LAN support and reviewed 34460A USB support
+  while keeping 34460A LAN scopes, DCV Ratio, and model-unsupported features
+  visibly closed. The WebUI continues to use the system VISA runtime.
 - Refreshed English WebUI documentation and maintainer change rules so
   `Expected model`, `Auto-detect`, `Require 34460A`, and `Require 34461A`
   consistently describe Start-time IDN matching.
-- Preserved WebUI endpoints, request payloads, static UI behavior, Core routing,
-  trigger behavior, live-data behavior, and cleanup behavior.
+- Extracted WebUI request-payload mapping into focused helpers while preserving
+  HTTP endpoints and request payload contracts.
+- The final release-preparation change updates release notes only and does not
+  change WebUI runtime behavior.
 
 ## v1.5.0
 

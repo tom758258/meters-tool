@@ -6,13 +6,29 @@
   import package from `keysight_logger_cli` to `meters_tool_cli`.
 - Bumped CLI-visible package/version metadata to `1.6.0` through the shared
   distribution version plumbing.
+- Added `--instrument-model` as an alias for `--model` and `--backend` as an
+  alias for `--visa-library`; live model selection is an expected `*IDN?`
+  match rather than a capability override.
+- Applied the Core-owned exact connection, measurement, and trigger-mode
+  support gate to live CLI starts, including product rejection of pending or
+  unsupported scopes.
+- Extended the preflight, live, and release wrappers for both 34460A and
+  34461A targets, explicit backend forwarding, plan-only release gates, and
+  validation-only execution of registered pending scopes. The live wrapper
+  accepts `-VisaLibrary`, `-visa-library`, and `-Backend`.
+- Recorded reviewed 34461A USB/system-VISA, LAN/system-VISA, and optional
+  LAN/pyvisa-py support plus reviewed 34460A USB/system-VISA support; 34460A
+  LAN scopes and DCV Ratio remain pending and product-closed.
 - Refreshed English CLI documentation to describe `--model` as an expected IDN
   match for live starts and to keep dry-run/simulator examples tied to explicit
   deterministic simulator resources.
 - Updated the release-skill simulator helper examples to use a version-neutral
   executable name.
-- Preserved CLI arguments, JSON/JSONL contracts, wrapper behavior, process
+- Split parser and client-command helpers and shared the PowerShell validation
+  helpers while preserving JSON/JSONL schemas, report schemas, process
   lifecycle, and exit-code behavior.
+- The final release-preparation change updates release notes only and does not
+  change CLI runtime behavior.
 
 ## v1.5.0
 
