@@ -52,8 +52,8 @@ Component release notes:
   shared PowerShell validation helpers while preserving public CLI, HTTP, and
   report contracts.
 - Updated development checks to Ruff `0.15.20` or newer and `httpx2`, and
-  layered CI into a fast static/focused gate plus Linux and Windows Python
-  matrices and a full-suite job.
+  layered CI into Ruff, Linux and Windows Python matrices, and a dedicated
+  Windows wrapper-contract job.
 
 ### Release preparation
 
