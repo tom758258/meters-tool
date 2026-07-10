@@ -18,7 +18,7 @@ meters-tool-<version>.exe
 
 如果您的發佈資料夾使用帶有版本號的執行檔，請在下方的指令中使用該檔案名稱。開發人員或從原始碼簽出 (source-checkout) 的使用者，應參閱 [CLI README](README.zh-TW.md) 以取得虛擬環境、模組、驗證與建置指令。
 
-## 首次實機執行 (First Live Run)
+## 首次實機執行
 
 在檢查新的電腦、VISA 執行階段、連線或儀器設定時，請使用此流程。
 
@@ -29,12 +29,19 @@ meters-tool-<version>.exe
 .\meters-tool.exe list-resources --live-only
 ```
 
-3. 複製儀器的資源字串。
+3. 複製儀器的資源字串並在目前的 PowerShell 工作階段中設定一次：
+
+```powershell
+$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
+```
+
+   此值可以是任何由探測傳回的作用中 VISA 資源，包括 USB 或 TCPIP/LAN 資源。
+
 4. 執行一次有界限的即時模式 (immediate-mode) 樣本：
 
 ```powershell
 .\meters-tool.exe start-trigger-record `
-  --resource "<VISA_RESOURCE>" `
+  --resource "$env:KEYSIGHT_METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -44,11 +51,11 @@ meters-tool-<version>.exe
 5. 確認指令正常退出、CSV 檔案已存在，且 CSV 包含一筆資料列。
 6. 在信任較長期的擷取之前，請將 CSV 數值與前面板讀數進行對比。
 
-Live 啟動在省略 `--model` 時會透過已連接儀器的 IDN 自動偵測 34460A 或 34461A。只有在 Start 必須要求該 IDN 相符時，才加入 `--model 34460A` 或 `--model 34461A`；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 指令需要 `--model`，除非資源是可確定型號的 simulator resource，例如 `SIM::34460A` 或 `SIM::34461A`。
+進行實機擷取時請使用明確的 `--resource` 值。傳遞 `"$env:KEYSIGHT_METER_RESOURCE"` 仍會為 CLI 提供明確的資源；請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。
 
-CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。進階的 pyvisa-py LAN 診斷可以安裝可選的 backend 套件，並在 `list-resources` 或 `start-trigger-record` 中加入 `--visa-library "@py"`；`--backend "@py"` 也接受作為別名。一般 WebUI 執行則使用預設的系統 VISA 執行階段。
+實機啟動在省略 `--model` 時會透過已連接儀器的 IDN 自動偵測 34460A 或 34461A。只有在 Start 必須要求該 IDN 相符時，才加入 `--model 34460A` 或 `--model 34461A`；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 和模擬指令使用選定的型號設定檔，且需要 `--model`，除非資源是可確定型號的 simulator resource，例如 `SIM::34460A` 或 `SIM::34461A`。型號名稱由 Core 設定檔邏輯進行標準化與驗證，因此未知的型號會以清楚的驗證錯誤失敗。
 
-進行實機擷取時請使用明確的資源字串。請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。
+CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。進階的 pyvisa-py LAN 診斷可以安裝可選的 backend 套件，並在 `list-resources` 或 `start-trigger-record` 中加入 `--visa-library "@py"`；`--backend "@py"` 也接受作為別名。已驗證的選用 `@py` 擷取範圍是 LAN/TCPIP 上的 34461A；目前可用的儀器尚未開放 34460A LAN/`@py`。一般的 WebUI 執行則使用預設的系統 VISA 執行階段。
 
 ## 選擇量測類型
 
@@ -83,9 +90,11 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 
 ## 常見設定
 
-`--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。
+`--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 `$env:KEYSIGHT_METER_RESOURCE` 並傳遞 `--resource "$env:KEYSIGHT_METER_RESOURCE"`，以便複製的命令能繼續使用選定的儀器。
 
-`--visa-library` 是進階 CLI 專用的 PyVISA backend 選擇器。一般情況下請省略它。只有在刻意使用可選的 pyvisa-py backend 測試時，才使用 `--visa-library "@py"`；LAN/TCPIP 通常是最先嘗試的最佳路徑。
+`--visa-library` 是進階 CLI 專用的 PyVISA backend 選擇器。一般情況下請省略它。只有在刻意使用可選的 pyvisa-py backend 測試時，才使用 `--visa-library "@py"`；目前驗證的 `@py` 路徑是 34461A LAN/TCPIP。
+
+`list-resources --verify` 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。
 
 `--csv` 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。
 
@@ -95,7 +104,7 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 
 當自動範圍停用時，使用 `--range` 來選擇手動範圍。請選擇一個能安全涵蓋預期訊號的範圍。
 
-`--nplc` 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式只接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。
+`--nplc` 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式僅接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。
 
 `--auto-zero` (自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。AC、頻率與週期模式不會寫入 Auto Zero SCPI 指令。
 
@@ -143,7 +152,7 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 
 如果缺少 `meters-tool.exe`，請確認您正處於包含 CLI 執行檔的發佈資料夾中。如果您的發佈版本使用帶有版本號的名稱，如 `meters-tool-<version>.exe`，請在指令中使用該檔案名稱。
 
-如果 `list-resources` 顯示過期的資源，請使用 `list-resources --verify` 來查看哪些資源有回應，以及其他資源失敗的原因。如果您只想要對 `*IDN?` 做出回應的資源，請使用 `--live-only`。
+如果 `list-resources` 顯示過期的資源，請使用 `list-resources --verify` 來查看哪些資源有回應，以及其他資源失敗的原因。如果您只想要對 `*IDN?` 做出回應的資源，請使用 `--live-only`。如果 ASRL/RS-232 資源回報了與結束字元相關的過期結果，請使用 `--serial-read-termination` 或 `--serial-write-termination` 重試偵測；這些選項僅影響 ASRL 驗證。
 
 如果找不到任何作用中 (live) 的資源，請檢查儀器電源、USB/LAN/GPIB 連線、VISA 驅動程式的可見度，以及是否有其他程式正在佔用該儀器。
 

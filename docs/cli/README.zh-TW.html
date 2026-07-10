@@ -251,7 +251,7 @@
         <h2 id="documentation">文件集</h2>
         <ul>
             <li><a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> - 操作人員工作流程與常見設定指引。</li>
-            <li><a href="README.zh-TW.md">CLI README</a> - 詳細的 CLI 參考、驗證與自動化指南。</li>
+            <li><a href="README.zh-TW.html">CLI README</a> - 詳細的 CLI 參考、驗證與自動化指南。</li>
             <li><a href="CHANGELOG.md">Changelog</a> - 版本發布說明與歷史紀錄。</li>
             <li><a href="cli-integration.md">CLI 整合</a> - CLI 配接器維護邊界。</li>
             <li><a href="../contracts/common-cli-jsonl-contract.md">通用 CLI JSON / JSONL 合約</a> - 共享命令列 JSON 外殼規則。</li>
@@ -286,11 +286,16 @@
         </ul>
         <h3>重要限制：</h3>
         <ul>
-            <li>本專案目前專注於 Keysight 34461A 的電流、電壓、DCV 比率、頻率、週期以及 2 線或 4 線電阻記錄。</li>
-            <li>AC、頻率與週期模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作者提供的 VISA 資源執行低風險的實際資源基本功能驗證（即快速健檢），並將 CLI 資料列與 34461A 前面板讀數進行對比。</li>
-            <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為這些模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。</li>
+            <li>本專案目前支援 Keysight 34460A 與 34461A Truevolt DMM 記錄。若省略 <code>--model</code>，實機啟動將從已連接之儀器的 IDN 自動偵測型號。</li>
+            <li>當 Start 必須要求 34460A IDN 相符時，請選擇 <code>--model 34460A</code>。在實機模式下，這僅作為預期型號防護 (expected-model guard)，並不會覆寫由 IDN 決定的設定檔。在 dry-run 或模擬模式下，它會選擇 34460A 的設定檔限制：無 10 A 電流範圍或電流端子選擇、1000 筆讀數的記憶體，且無基礎設定檔外接觸發模式。</li>
+            <li>當 Start 必須要求 34461A IDN 相符時，請選擇 <code>--model 34461A</code>。明確的實機不符會在 setup SCPI 之前失敗。型號名稱由 Core 設定檔邏輯進行標準化與驗證；未知的型號驗證會失敗，並列出支援的型號。</li>
+            <li>實機產品支援具備功能感知 (feature-aware) 且範圍精確 (exact-scope)：對於偵測到的型號與確切的傳輸/VISA 後端，連線、量測與實際的觸發模式必須均為 <code>live_validated_full_suite</code>。缺少的功能 metadata 會以預設關閉 (fail-closed) 處理，而非繼承其他範圍的支援。</li>
+            <li>34460A DCV Ratio 已實作且在設定檔中為已知，但在 USB/system-VISA 上為 <code>feature_pending</code>。一般的 CLI 啟動會拒絕它。隱藏的貢獻者驗證模式可以執行有界限的證據請求，但不會提升產品支援狀態。</li>
+            <li>34460A 的最大讀數速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀數速率。</li>
+            <li>AC、頻率與週期模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀數進行對比。</li>
+            <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為 these 模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。</li>
             <li>不支援在同一次執行中混合使用軟體和硬體擷取。</li>
-            <li>單純呼叫 <code>list-resources</code> 會直接調用 VISA 探測，可能會顯示 VISA 執行階段快取的過期資源。使用 <code>list-resources --verify</code> 開啟每個資源並查詢 <code>*IDN?</code>；驗證成功的資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 <code>list-resources --live-only</code>。</li>
+            <li>單純呼叫 <code>list-resources</code> 會列出由探測傳回的 VISA 資源，可能包含過期的快取項目。使用 <code>list-resources --verify</code> 開啟每個資源並查詢 <code>*IDN?</code>；驗證成功的非 ASRL 資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 <code>list-resources --live-only</code>。ASRL/RS-232 驗證使用短暫的有界限開啟與查詢逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。</li>
             <li><code>immediate</code>（即時）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 <code>--max-samples</code>。</li>
         </ul>
 
@@ -298,7 +303,7 @@
         <ul>
             <li>Python 3.10 或更新版本。</li>
             <li>VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。</li>
-            <li>透過 USB 或 LAN 對 VISA 可見的 Keysight 34461A。</li>
+            <li>透過 USB 或 LAN 對 VISA 可見的 Keysight Truevolt DMM。</li>
         </ul>
 
         <h2 id="development">開發</h2>
@@ -349,22 +354,25 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                 <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --live-only --json</code></pre></div>
             </li>
             <li>從 JSON 輸出中複製一個資源字串。在下方的命令中使用該精確值。實際包裝器絕不會自行掃描或猜測資源。</li>
-            <li>產生實際規劃，而不開啟 VISA 或變更儀器：
-                <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
+        </ol>
+
+        <p>實際包裝器是驗證 harness，而非產品使用介面。它可以針對明確由操作人員提供的資源，執行明確註冊的 <code>transport_pending</code> 連線範圍以及 <code>feature_pending</code> 量測/觸發模式項目，以便收集產物 (artifacts)。通過的 <code>report.json</code> 或 <code>summary.md</code> 本身並不會提升公開支援狀態。一般的 CLI 啟動、WebUI 以及直接的 Core 實機呼叫仍會受到產品限制，直到審核過的產物被接受，且支援的 metadata 與說明文件更新為止。</p>
+
+        <p>4. 產生實際規劃，而不開啟 VISA 或變更儀器：</p>
+        <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
   -Resource "&lt;VISA_RESOURCE&gt;" `
   -Suite minimal `
   -PlanOnly</code></pre></div>
-            </li>
-            <li>如果規劃看起來正確，請執行最小限度的實際功能驗證（快速健檢）。包裝器會先執行 preflight，列印規劃的儀器狀態變更，並在實際擷取前要求互動式的 Enter 確認：
-                <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
+            
+        <p>5. 如果規劃看起來正確，請執行最小限度的實際功能驗證（快速健檢）。包裝器會先執行 preflight，列印規劃的儀器狀態變更，並在實際擷取前要求互動式的 Enter 確認：</p>
+        <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
   -Resource "&lt;VISA_RESOURCE&gt;" `
   -Suite minimal</code></pre></div>
-            </li>
-        </ol>
+            
         <p>最小套件會擷取一個受限的即時模式樣本。它會將 <code>report.json</code>、<code>summary.md</code>、指令 stdout/stderr 檔案以及測試案例 CSV 寫入 <code>.tmp_tests\cli_live\...</code>。請先檢查 <code>summary.md</code>；通過的測試案例應顯示 <code>captured=1</code>、<code>errors=0</code>，且至少有一列 CSV 數據。在信任較長期的擷取之前，請將 CSV 數值與 34461A 前面板進行對比。</p>
         <p>若要獲得更廣泛的實際覆蓋範圍，請在最小套件通過後使用 <code>-Suite basic</code>。該套件涵蓋即時量測和軟體觸發路徑。當連接了穩定的輸入訊號，且頻率（Frequency）與週期（Period）各需要擷取一個即時自動範圍（Auto Range）樣本時，請使用 <code>-Suite frequency-period</code>。僅當操作者可以安全提供所需的外接觸發邊緣時，才使用 <code>-Suite external</code>。僅當同時需要 basic、Frequency/Period 與 external 覆蓋範圍時，才使用 <code>-Suite full</code>。</p>
 
@@ -379,6 +387,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         在每個正式的 CLI 案例之前，一個私有的診斷工作階段會傳送規劃的 SCPI 指令，並在每個指令後及 <code>READ?</code> 後檢查 <code>SYST:ERR?</code>。報告包含 IDN、韌體版本、個別指令的錯誤回應，以及診斷的 JSON 路徑。探測（probe）錯誤會使該案例失敗並跳過其重複的正式執行，同時允許診斷另一個量測。請將報告的數值和 CSV 資料列與 34461A 前面板進行對比。在韌體版本為 A.03.03 的 34461A 上，這兩個探測皆在沒有 SCPI 錯誤的情況下完成，且在省略週期逾時指令後，每個正式案例都產生了一個樣本和 CSV 資料列。<a href="https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf" target="_blank">Keysight Truevolt Series DMM Operating and Service Guide</a>，第 10 版，2024 年 5 月，包含了模糊的逾時語法；對於不支援的 Period 標頭，應以觀察到的儀器行為為準。</p>
 
         <p>如果 stdin 被重新導向且未設定 <code>-PlanOnly</code>，<code>live-cli-check.ps1</code> 將拒絕實際擷取並寫入 <code>confirmation_required</code> 報告。這是預期行為：實際儀器執行需要互動式確認。</p>
+
+        <p>若要驗證選用的 PyVISA 後端，請向包裝器傳遞 <code>-VisaLibrary "@py"</code>。<code>-Backend "@py"</code> 可作為別名接受，而 <code>-visa-library "@py"</code> 則作為與 CLI 選項名稱相符的便利別名接受。包裝器會將此轉寄給 CLI <code>--visa-library</code> 並將後端記錄在產物中。省略時，包裝器使用系統 VISA，並將 <code>visa_library</code>/<code>backend</code> 記錄為 <code>system_visa</code>。若包裝器輸出顯示 <code>VISA library/backend: system_visa</code>，則該執行不是 <code>@py</code> 驗證產物。待定的 34460A LAN/TCPIP 驗證僅為證據收集，並不會使一般的 34460A LAN/TCPIP 產品啟動開啟。</p>
+
+        <p>待定支援意指尚未開放供產品使用，但非無法驗證。包裝器使用隱藏的 <code>--validation-allow-pending-live-support</code> Core 原則選擇器。它僅允許明確註冊的 <code>transport_pending</code> 和 <code>feature_pending</code> 項目；它不是一般的強制選項。缺少範圍/功能 metadata、未知型號、不支援的設定檔能力、無效請求以及硬性安全限制仍會被拒絕。34460A 基礎設定檔仍保持外接/外接自訂關閉，拒絕 10 A/電流端子請求，並保留 1000 筆讀數的緩衝區限制。其 USB/system-VISA DCV Ratio 項目是明確的 <code>feature_pending</code> 路徑，有界限的驗證可能會使用到它。LAN/TCPIP 或 pyvisa-py 驗證不會覆寫硬性限制。<br>
+        對於 34460A，LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py <code>@py</code> 是未來針對具備 LAN/LXI 能力之單元或貢獻者提供之經審核產物的驗證路徑。它們不是目前維護者針對現有 USB-only 34460A 單元的驗證債務，且非發布阻擋因素。</p>
 
         <h2 id="cli-scripts">CLI 驗證指令腳本</h2>
         <p>CLI 套件有三個包裝器腳本：</p>
@@ -400,7 +413,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr>
                         <td><code>scripts\live-cli-check.ps1</code></td>
                         <td>實體硬體（除非設定了 <code>-PlanOnly</code>）</td>
-                        <td>執行實際包裝器規劃，並在互動確認後，針對明確的 <code>-Resource</code> 執行有限的實際驗證案例（快速健檢）。頻率/週期案例會先執行個別指令的 SCPI 錯誤診斷。套件包含 <code>minimal</code>, <code>basic</code>, <code>frequency-period</code>, <code>external</code>, 和 <code>full</code>。</td>
+                        <td>執行實際包裝器規劃，並在互動確認後，針對明確的 <code>-Resource</code> 執行有界限的實際驗證案例。頻率/週期案例會先執行個別指令的 SCPI 錯誤診斷。套件包含 <code>minimal</code>、<code>basic</code>、<code>frequency-period</code>、<code>external</code> 與 <code>full</code>；34460A 拒絕 <code>external</code>，且其 <code>full</code> 套件排除外接案例。</td>
                     </tr>
                     <tr>
                         <td><code>scripts\release-cli-check.ps1</code></td>
@@ -410,6 +423,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                 </tbody>
             </table>
         </div>
+
+        <p>從 <code>transport_pending</code> 或 <code>feature_pending</code> 提升為 <code>live_validated_full_suite</code> 需要經審核的產物以及明確的精確範圍支援 metadata/說明文件更新。除非已經提供並核准了經審核的產物，否則請勿在僅啟用驗證模式執行的同一次變更中，將待定的範圍或功能標記為公開實機支援。</p>
 
         <h2 id="basic-workflow">基本工作流程</h2>
         <p>對於包含常見設定說明的引導式操作人員路徑，請參閱 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a>。簡要參考流程如下：</p>
@@ -610,26 +625,27 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr><td><code>--sample-count N</code></td><td>僅限自訂模式</td><td>無</td><td>每次觸發的儀器樣本計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td></tr>
                     <tr><td><code>--timer-interval-s SECONDS</code></td><td>否</td><td>無</td><td>啟用固定延遲的軟體計時器擷取。支援範圍：<code>0.5</code> 到 <code>86400</code> 秒。僅在 <code>--trigger-mode software</code> 時有效；當省略 <code>--trigger-mode</code> 時也有效（因為預設為 software）。可與 <code>--max-samples</code> 結合以限制計時器執行次數。</td></tr>
                     <tr><td><code>--buffer-drain-size N</code></td><td>僅限自訂模式</td><td>無</td><td>每次緩衝區排空移除的最大讀數。支援範圍：<code>1</code> 到 <code>10000</code>，受儀器設定檔讀取記憶體限制。進階選項，僅在自訂模式下有效；不會變更 <code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 或儀器讀取記憶體容量。</td></tr>
-                    <tr><td><code>--allow-buffer-overflow-risk</code></td><td>否</td><td>關閉</td><td>允許自訂模式請求超過 34461A 的 10,000 個讀數記憶體限制。這取決於排空讀數的速度是否夠快，可能會遺失數據或產生 SCPI 錯誤。</td></tr>
+                    <tr><td><code>--allow-buffer-overflow-risk</code></td><td>否</td><td>關閉</td><td>允許自訂模式請求超過設定檔讀取記憶體限制（如 34461A 的 10,000 筆或 34460A 的 1,000 筆）。這取決於排空讀數的速度是否夠快，可能會遺失數據或產生 SCPI 錯誤。</td></tr>
                     <tr><td><code>--hw-trigger-slope pos|neg</code></td><td>否</td><td><code>neg</code></td><td>外接觸發邊緣極性。</td></tr>
                     <tr><td><code>--hw-trigger-delay-s SECONDS</code></td><td>否</td><td><code>0.0</code></td><td>硬體觸發延遲，對應到 <code>TRIG:DEL</code>。支援範圍：<code>0</code> 到 <code>3600</code> 秒。</td></tr>
                     <tr><td><code>--measurement current-dc|voltage-dc|voltage-dc-ratio|current-ac|voltage-ac|frequency|period|resistance-2w|resistance-4w</code></td><td>否</td><td><code>current-dc</code></td><td>量測類型。</td></tr>
-                    <tr><td><code>--nplc VALUE</code></td><td>否</td><td><code>1.0</code></td><td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC、頻率和週期僅接受中性預設值 <code>1.0</code>；這些模式不會寫入 NPLC SCPI。</td></tr>
-                    <tr><td><code>--auto-zero on|off|once</code></td><td>否</td><td><code>on</code></td><td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻、AC、頻率和週期量測則將 Auto Zero 交給儀器處理。</td></tr>
+                    <tr><td><code>--nplc VALUE</code></td><td>否</td><td><code>1.0</code></td><td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>1.0</code>。</td></tr>
+                    <tr><td><code>--auto-zero on|off|once</code></td><td>否</td><td><code>on</code></td><td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻、AC 量測、頻率與週期則將 Auto Zero 交給儀器處理。</td></tr>
                     <tr><td><code>--auto-range on|off</code></td><td>否</td><td><code>on</code></td><td>啟用或停用自動範圍（Auto Range）。</td></tr>
-                    <tr><td><code>--range VALUE</code></td><td>當 <code>--auto-range off</code> 時必要</td><td>無</td><td>所選量測的手動範圍。電流為安培；電壓、頻率和週期輸入範圍為伏特；電阻為歐姆。</td></tr>
-                    <tr><td><code>--current-range VALUE</code></td><td>僅限 DC 電流</td><td>無</td><td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在其他量測下無效。</td></tr>
+                    <tr><td><code>--range VALUE</code></td><td>當 <code>--auto-range off</code> 時必要</td><td>無</td><td>所選量測的手動範圍。電流為安培；電壓、頻率與週期的輸入範圍為伏特；電阻為歐姆。</td></tr>
+                    <tr><td><code>--current-range VALUE</code></td><td>僅限 DC 電流</td><td>無</td><td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在 AC 電流、電壓和電阻量測下無效。</td></tr>
                     <tr><td><code>--ac-bandwidth-hz 3|20|200</code></td><td>僅限 AC/頻率/週期</td><td>依量測而定</td><td>AC 頻寬/濾波器設定。AC 電流/電壓省略時保持目前設定；頻率和週期省略時預設為 <code>20</code> Hz。</td></tr>
-                    <tr><td><code>--gate-time-s 0.01|0.1|1</code></td><td>僅限頻率/週期</td><td><code>0.1</code></td><td>頻率/週期 aperture 或閘門時間，單位為秒。</td></tr>
-                    <tr><td><code>--freq-period-timeout auto|1s</code></td><td>僅限頻率</td><td><code>auto</code></td><td>使用自動頻率 timeout，或停用自動 timeout 以使用固定 1 秒行為。週期不支援此選項，也不會送出 timeout SCPI。</td></tr>
+                    <tr><td><code>--gate-time-s 0.01|0.1|1</code></td><td>僅限頻率/週期</td><td><code>0.1</code></td><td>頻率/週期孔徑或閘門時間（gate time），單位為秒。</td></tr>
+                    <tr><td><code>--freq-period-timeout auto|1s</code></td><td>僅限頻率</td><td><code>auto</code></td><td>使用自動頻率逾時（timeout），或停用自動逾時以使用固定 1 秒行為。週期不支援此選項，也不會送出逾時 SCPI。</td></tr>
                     <tr><td><code>--current-terminal 3|10</code></td><td>僅限電流</td><td><code>3</code></td><td>電流輸入端子。10 A 範圍需要 <code>--current-terminal 10</code>；<code>--current-terminal 10</code> 僅在 10 A 範圍下有效。</td></tr>
                     <tr><td><code>--dcv-input-impedance default|10m|auto</code></td><td>僅限 DC 電壓或 DCV 比率</td><td><code>default</code></td><td>DC 電壓輸入阻抗。<code>default</code> 不寫入阻抗指令；<code>10m</code> 強制為 10 MOhm；<code>auto</code> 啟用儀器自動（Auto）模式（在較低的 DC 電壓範圍下可能會顯示 HighZ）。</td></tr>
                     <tr><td><code>--vm-comp-slope pos|neg</code></td><td>否</td><td>無</td><td>設定後面板 VM Comp 輸出脈衝斜率。省略以保持 VM Comp 不變。</td></tr>
+                    <tr><td><code>--model MODEL</code></td><td>否</td><td>無</td><td>強制要求預期的型號行為（例如 <code>34460A</code> 或 <code>34461A</code>）。在實機操作中作為防護，而在無硬體（dry-run/模擬）情況下決定設定檔限制。</td></tr>
                 </tbody>
             </table>
         </div>
         <p><code>--measurement</code> 預設為 <code>current-dc</code>，因此現有的電流量測記錄指令不需要特別指定。新指令應偏好使用 <code>--range</code>；<code>--current-range</code> 繼續適用於現有的 DC 電流腳本。對於 <code>current-ac</code>、<code>voltage-dc</code>、<code>voltage-dc-ratio</code>、<code>voltage-ac</code>、<code>frequency</code>、<code>period</code>、<code>resistance-2w</code> 和 <code>resistance-4w</code> 請使用 <code>--range</code>；<code>--current-range</code> 在這些量測下會被拒絕。
-        <code>--dcv-input-impedance</code> 僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 時有效。使用 <code>default</code> 以保持儀器目前的 Input Z設定不變，<code>10m</code> 強制為 10 MOhm，或 <code>auto</code> 啟用 34461A 的 Auto Input Z 行為。當 Auto 作用於較低 DC 電壓範圍時，儀器可能會顯示 HighZ。</p>
+        <code>--dcv-input-impedance</code> 僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 時有效。使用 <code>default</code> 以保持儀器目前的 Input Z 設定不變，<code>10m</code> 強制為 10 MOhm，或 <code>auto</code> 啟用 34461A 的 Auto Input Z 行為。當 Auto 作用於較低 DC 電壓範圍時，儀器可能會顯示 HighZ。</p>
 
         <h2 id="agent-friendly-workflow">友善 Agent 的 CLI 工作流程</h2>
         <p>使用 <code>--dry-run</code> 來驗證命令並檢查規劃的 SCPI/讀取路徑，而不接觸實體儀器：</p>
@@ -718,7 +734,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
                     <tr><td><code>--ac-bandwidth-hz</code></td><td><code>3</code>, <code>20</code> 或 <code>200</code>（僅限 AC 電流/電壓、頻率、週期）</td></tr>
                     <tr><td><code>--gate-time-s</code></td><td><code>0.01</code>, <code>0.1</code> 或 <code>1</code>（僅限頻率/週期）</td></tr>
                     <tr><td><code>--freq-period-timeout</code></td><td><code>auto</code> 或 <code>1s</code>（僅限頻率）</td></tr>
-                    <tr><td><code>--current-terminal</code></td><td><code>3</code> 或 <code>10</code>（僅限電流量測）</td></tr>
+                    <tr><td><code>--current-terminal</code></td><td><code>3</code> 或 <code>10</code>（僅限電流量測，且 34460A 拒絕此選項）</td></tr>
                     <tr><td><code>--status-format</code></td><td><code>text</code> 或 <code>jsonl</code></td></tr>
                     <tr><td><code>--timeout-ms</code></td><td><code>100</code> 到 <code>600000</code></td></tr>
                     <tr><td><code>--trigger-timeout-ms</code></td><td><code>500</code> 到 <code>600000</code></td></tr>
@@ -777,7 +793,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
             <li>自訂模式需要同時提供 <code>--trigger-count</code> 和 <code>--sample-count</code>；簡單模式會拒絕這兩個選項。</li>
             <li>自訂模式拒絕 <code>--max-samples</code>；簡單模式使用 <code>--max-samples</code> 進行有限的執行。</li>
             <li><code>--buffer-drain-size</code> 和 <code>--allow-buffer-overflow-risk</code> 僅在自訂模式下有效。</li>
-            <li>除非設定了 <code>--allow-buffer-overflow-risk</code>，否則自訂模式拒絕 <code>trigger_count * sample_count > 10000</code>。</li>
+            <li>除非設定了 <code>--allow-buffer-overflow-risk</code>，否則自訂模式拒絕 <code>trigger_count * sample_count > 10000</code>（34460A 則為 1000）。</li>
             <li><code>--timer-interval-s</code> 需要軟體模式。它在預設觸發模式下有效（因為省略 <code>--trigger-mode</code> 會解析為 <code>software</code>）。可與 <code>--max-samples</code> 結合使用。</li>
         </ul>
 
@@ -968,7 +984,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --nplc 1.0 `
   --max-samples 1 `
   --status-format jsonl</code></pre></div>
-
+        
         <p>對於電壓列，預期 CSV 中的 <code>measurement_type=voltage_dc</code> 且 <code>unit=V</code>。電壓也可以透過 <code>--measurement voltage-dc</code> 來配合自訂/緩衝模式使用；這些路徑使用相同的量測設定以及現有的自訂模式觸發/讀取流程。在信賴電壓緩衝擷取以進行生產前，請先使用操作者提供的 VISA 資源執行較長期的緩衝驗證。</p>
 
         <p>DCV Input Z 快速功能健檢，自動模式：</p>
@@ -997,7 +1013,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <p>對於這些檢查，請確認前面板 Input Z 狀態是否符合預期變更：<code>auto</code> 應選擇自動並在較低的 DC 電壓範圍顯示 HighZ，而 <code>10m</code> 應選擇固定的 10 MOhm。這兩個 DCV Input Z 快速功能健檢在 <code>v1.0.0-cli</code> 基準前於真實 34461A 上回報正常。</p>
 
         <h3>DCV 比率 (Ratio) 快速功能驗證</h3>
-        <p>DCV 比率使用 34461A 的 <code>VOLT:DC:RAT</code> 功能。在進行實際操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。</p>
+        <p>DCV 比率 (Ratio) 使用現有的 <code>VOLT:DC:RAT</code> 實作。它已對驗證過的 34461A 範圍產品開放。34460A 設定檔公開了用於 dry-run/模擬器使用的已實作路徑，但其實機 USB/system-VISA 量測狀態為 <code>feature_pending</code>：一般的 CLI 與 WebUI 啟動會拒絕它，而經審核的隱藏驗證模式使用則可收集有界限的候選證據。在進行實機操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。</p>
 
         <p>Dry-run DCV Ratio 檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
@@ -1018,7 +1034,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
   --simulate `
   --status-format jsonl</code></pre></div>
 
-        <p>實際 DCV Ratio 快速功能健檢：</p>
+        <p>產品開放的 34461A 實機 DCV Ratio 快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
   --csv ".\data\voltage_dc_ratio_smoke.csv" `
@@ -1364,7 +1380,7 @@ software trigger server stopped</code></pre></div>
             // 自動產生 TOC 側邊導航欄
             const toc = document.getElementById("toc");
             const headers = document.querySelectorAll("h2");
-
+            
             headers.forEach(h2 => {
                 if (!h2.id) {
                     h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
@@ -1381,10 +1397,10 @@ software trigger server stopped</code></pre></div>
                 const btn = document.createElement("button");
                 btn.innerText = "複製";
                 btn.className = "copy-btn";
-
+                
                 // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
                 pre.parentElement.appendChild(btn);
-
+                
                 btn.onclick = () => {
                     const code = pre.querySelector("code").innerText;
                     navigator.clipboard.writeText(code).then(() => {

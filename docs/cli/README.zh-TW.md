@@ -44,11 +44,16 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 
 重要限制：
 
-- 本專案目前支援 Keysight 34460A 與 34461A 的電流、電壓、DCV 比率、頻率、週期以及 2 線或 4 線電阻記錄。
-- AC、頻率與週期模式透過 `--ac-bandwidth-hz` 公開 34461A 的 `3`、`20` 和 `200` Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作者提供的 VISA 資源執行低風險的實際資源基本功能驗證（即快速健檢），並將 CLI 資料列與 34461A 前面板讀數進行對比。
-- `--nplc` 和 `--auto-zero` 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 `--nplc 1.0`；任何其他 NPLC 值都將被拒絕，因為這些模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。
+- 本專案目前支援 Keysight 34460A 與 34461A Truevolt DMM 記錄。若省略 `--model`，實機啟動將從已連接之儀器的 IDN 自動偵測型號。
+- 當 Start 必須要求 34460A IDN 相符時，請選擇 `--model 34460A`。在實機模式下，這僅作為預期型號防護 (expected-model guard)，並不會覆寫由 IDN 決定的設定檔。在 dry-run 或模擬模式下，它會選擇 34460A 的設定檔限制：無 10 A 電流範圍或電流端子選擇、1000 筆讀數的記憶體，且無基礎設定檔外接觸發模式。
+- 當 Start 必須要求 34461A IDN 相符時，請選擇 `--model 34461A`。明確的實機不符會在 setup SCPI 之前失敗。型號名稱由 Core 設定檔邏輯進行標準化與驗證；未知的型號驗證會失敗，並列出支援的型號。
+- 實機產品支援具備功能感知 (feature-aware) 且範圍精確 (exact-scope)：對於偵測到的型號與確切的傳輸/VISA 後端，連線、量測與實際的觸發模式必須均為 `live_validated_full_suite`。缺少的功能 metadata 會以預設關閉 (fail-closed) 處理，而非繼承其他範圍的支援。
+- 34460A DCV Ratio 已實作且在設定檔中為已知，但在 USB/system-VISA 上為 `feature_pending`。一般的 CLI 啟動會拒絕它。隱藏的貢獻者驗證模式可以執行有界限的證據請求，但不會提升產品支援狀態。
+- 34460A 的最大讀數速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀數速率。
+- AC、頻率與週期模式透過 `--ac-bandwidth-hz` 公開 34461A 的 `3`、`20` 和 `200` Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀數進行對比。
+- `--nplc` 和 `--auto-zero` 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 `--nplc 1.0`；任何其他 NPLC 值都將被拒絕，因為 these 模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。
 - 不支援在同一次執行中混合使用軟體和硬體擷取。
-- 單純呼叫 `list-resources` 會直接調用 VISA 探測，可能會顯示 VISA 執行階段快取的過期資源。使用 `list-resources --verify` 開啟每個資源並查詢 `*IDN?`；驗證成功的資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 `list-resources --live-only`。
+- 單純呼叫 `list-resources` 會列出由探測傳回的 VISA 資源，可能包含過期的快取項目。使用 `list-resources --verify` 開啟每個資源並查詢 `*IDN?`；驗證成功的非 ASRL 資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 `list-resources --live-only`。ASRL/RS-232 驗證使用短暫的有界限開啟與查詢逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。
 - `immediate`（即時）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 `--max-samples`。
 
 ## 系統需求
@@ -155,6 +160,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
 
 3. 從 JSON 輸出中複製一個資源字串。在下方的命令中使用該精確值。實際包裝器絕不會自行掃描或猜測資源。
 
+實際包裝器是驗證 harness，而非產品使用介面。它可以針對明確由操作人員提供的資源，執行明確註冊的 `transport_pending` 連線範圍以及 `feature_pending` 量測/觸發模式項目，以便收集產物 (artifacts)。通過的 `report.json` 或 `summary.md` 本身並不會提升公開支援狀態。一般的 CLI 啟動、WebUI 以及直接的 Core 實機呼叫仍會受到產品限制，直到審核過的產物被接受，且支援的 metadata 與說明文件更新為止。
+
 4. 產生實際規劃，而不開啟 VISA 或變更儀器：
 
 ```powershell
@@ -196,6 +203,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check
 
 如果 stdin 被重新導向且未設定 `-PlanOnly`，`live-cli-check.ps1` 將拒絕實際擷取並寫入 `confirmation_required` 報告。這是預期行為：實際儀器執行需要互動式確認。
 
+若要驗證選用的 PyVISA 後端，請向包裝器傳遞 `-VisaLibrary "@py"`。`-Backend "@py"` 可作為別名接受，而 `-visa-library "@py"` 則作為與 CLI 選項名稱相符的便利別名接受。包裝器會將此轉寄給 CLI `--visa-library` 並將後端記錄在產物中。省略時，包裝器使用系統 VISA，並將 `visa_library`/`backend` 記錄為 `system_visa`。若包裝器輸出顯示 `VISA library/backend: system_visa`，則該執行不是 `@py` 驗證產物。待定的 34460A LAN/TCPIP 驗證僅為證據收集，並不會使一般的 34460A LAN/TCPIP 產品啟動開啟。
+
+待定支援意指尚未開放供產品使用，但非無法驗證。包裝器使用隱藏的 `--validation-allow-pending-live-support` Core 原則選擇器。它僅允許明確註冊的 `transport_pending` 和 `feature_pending` 項目；它不是一般的強制選項。缺少範圍/功能 metadata、未知型號、不支援的設定檔能力、無效請求以及硬性安全限制仍會被拒絕。34460A 基礎設定檔仍保持外接/外接自訂關閉，拒絕 10 A/電流端子請求，並保留 1000 筆讀數的緩衝區限制。其 USB/system-VISA DCV Ratio 項目是明確的 `feature_pending` 路徑，有界限的驗證可能會使用到它。LAN/TCPIP 或 pyvisa-py 驗證不會覆寫硬性限制。
+對於 34460A，LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py `@py` 是未來針對具備 LAN/LXI 能力之單元或貢獻者提供之經審核產物的驗證路徑。它們不是目前維護者針對現有 USB-only 34460A 單元的驗證債務，且非發布阻擋因素。
+
 ## CLI 驗證指令腳本
 
 CLI 套件有三個包裝器腳本：
@@ -203,8 +215,10 @@ CLI 套件有三個包裝器腳本：
 | 腳本 | 硬體使用 | 目的 |
 | --- | --- | --- |
 | `scripts\preflight-cli.ps1` | 無硬體 | 執行 dry-run、模擬器、用戶端 dry-run、模擬的 `list-resources` 以及包裝器合約檢查。在實際工作前使用。 |
-| `scripts\live-cli-check.ps1` | 實體硬體（除非設定了 `-PlanOnly`） | 執行實際包裝器規劃，並在互動確認後，針對明確的 `-Resource` 執行有限的實際驗證案例（快速健檢）。頻率/週期案例會先執行個別指令的 SCPI 錯誤診斷。套件包含 `minimal`, `basic`, `frequency-period`, `external`, 和 `full`。 |
+| `scripts\live-cli-check.ps1` | 實體硬體（除非設定了 `-PlanOnly`） | 執行實際包裝器規劃，並在互動確認後，針對明確的 `-Resource` 執行有界限的實際驗證案例。頻率/週期案例會先執行個別指令的 SCPI 錯誤診斷。套件包含 `minimal`、`basic`、`frequency-period`、`external` 與 `full`；34460A 拒絕 `external`，且其 `full` 套件排除外接案例。 |
 | `scripts\release-cli-check.ps1` | 預設無硬體 | 執行發布門檻檢查，包括完整 pytest、preflight 和 `live-cli-check.ps1 -PlanOnly`。其預設驗證模式為 `release_no_hardware`。 |
+
+從 `transport_pending` 或 `feature_pending` 提升為 `live_validated_full_suite` 需要經審核的產物以及明確的精確範圍支援 metadata/說明文件更新。除非已經提供並核准了經審核的產物，否則請勿在僅啟用驗證模式執行的同一次變更中，將待定的範圍或功能標記為公開實機支援。
 
 ## 基本工作流程
 
@@ -837,7 +851,7 @@ DCV Input Z 快速功能健檢，固定 10 MOhm：
 
 ### DCV 比率 (Ratio) 快速功能驗證
 
-DCV 比率使用 34461A 的 `VOLT:DC:RAT` 功能。在進行實際操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。
+DCV 比率 (Ratio) 使用現有的 `VOLT:DC:RAT` 實作。它已對驗證過的 34461A 範圍產品開放。34460A 設定檔公開了用於 dry-run/模擬器使用的已實作路徑，但其實機 USB/system-VISA 量測狀態為 `feature_pending`：一般的 CLI 與 WebUI 啟動會拒絕它，而經審核的隱藏驗證模式使用則可收集有界限的候選證據。在進行實機操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。
 
 Dry-run DCV Ratio 檢查：
 
@@ -864,7 +878,7 @@ Dry-run DCV Ratio 檢查：
   --status-format jsonl
 ```
 
-實際 DCV Ratio 快速功能健檢：
+產品開放的 34461A 實機 DCV Ratio 快速功能健檢：
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `

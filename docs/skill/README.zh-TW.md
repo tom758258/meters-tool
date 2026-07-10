@@ -1,4 +1,4 @@
-# Meters Tool CLI Orchestration Skill
+# Meters Tool CLI 調度 Skill (Orchestration Skill)
 
 此目錄發佈了適用於 Meters Tool 專案的 Codex Skill 範本。此 Skill 可協助 Codex 遵循已文件化的 Meters CLI / worker 子程序生命週期、JSON/JSONL 合約、試執行 (dry-run) 與模擬器驗證順序、`run_id` 關聯規則，以及實機 VISA 資源安全限制。
 
@@ -155,7 +155,7 @@ cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 
 ```powershell
 node .agents\skills\meters-tool-cli-orchestration\scripts\run_meter_sim_workflow.mjs `
-  --exe .\meters-tool-1.5.0.exe `
+  --exe .\meters-tool-<version>.exe `
   --out .tmp_tests\meter_sim_software_trigger `
   --resource SIM::34461A `
   --measurement current-dc `
@@ -167,7 +167,7 @@ helper 會在指定輸出目錄中寫入 `dry_run.jsonl`、`sim_worker_stdout.js
 
 ## 使用範例 (Usage examples)
 
-請參考 [EXAMPLES.zh-TW.md](EXAMPLES.zh-TW.md)，其中提供可直接複製的 prompt，示範如何要求 Codex 驗證模擬器工作流程、準備安全的 live 工作流程，以及根據 Meters CLI/worker 合約審查 orchestrator 變更。
+請參考 [EXAMPLES.md](EXAMPLES.md)（或適用時為 [EXAMPLES.zh-TW.md](EXAMPLES.zh-TW.md)），其中提供可直接複製的 prompt，示範如何要求 Codex 驗證模擬器工作流程、準備安全的 live 工作流程，以及根據 Meters CLI/worker 合約審查 orchestrator 變更。
 
 當任務涉及合約敏感內容時，請明確呼叫此 Skill：
 
