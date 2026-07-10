@@ -23,6 +23,8 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
     ) from exc
 
 from meters_tool_core import (
+    FEATURE_KIND_MEASUREMENT,
+    FEATURE_KIND_TRIGGER_MODE,
     StartControlPlaneHandle,
     StartRequest,
     StartRunEvent,
@@ -51,6 +53,7 @@ from meters_tool_core.command import (
 )
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
 from meters_tool_core.measurement import (
+    format_measurement_type,
     get_measurement_definition,
     registered_measurement_types,
 )
@@ -1053,9 +1056,9 @@ def _support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str
                 "no current-terminal selection",
                 "1000-reading memory limit",
                 "no base-profile external trigger support",
-                "no 34460A DCV Ratio live support",
             ],
             "pending": [
+                "34460A DCV Ratio live validation",
                 "LAN/TCPIP system-VISA validation",
                 "LAN/TCPIP pyvisa-py @py validation",
             ],
@@ -1101,6 +1104,7 @@ def _support_scope_payload(scope: Any) -> dict[str, Any]:
         "validation_status": scope.validation_status,
         "transport_scope": scope.transport_scope,
         "backend_scope": scope.backend_scope,
+        "features": _support_features_payload(scope),
     }
     if getattr(scope, "evidence", None):
         payload["evidence"] = scope.evidence
@@ -1109,6 +1113,28 @@ def _support_scope_payload(scope: Any) -> dict[str, Any]:
     if getattr(scope, "note", None):
         payload["note"] = scope.note
     return payload
+
+
+def _support_features_payload(scope: Any) -> dict[str, dict[str, dict[str, Any]]]:
+    features: dict[str, dict[str, dict[str, Any]]] = {
+        FEATURE_KIND_MEASUREMENT: {},
+        FEATURE_KIND_TRIGGER_MODE: {},
+    }
+    for feature in getattr(scope, "feature_scopes", ()):
+        feature_kind = feature.feature_kind
+        if feature_kind == FEATURE_KIND_MEASUREMENT:
+            feature_value = format_measurement_type(feature.feature_value)
+        else:
+            feature_value = feature.feature_value
+        feature_payload = {"validation_status": feature.validation_status}
+        if feature.evidence:
+            feature_payload["evidence"] = feature.evidence
+        if feature.artifact:
+            feature_payload["artifact"] = feature.artifact
+        if feature.note:
+            feature_payload["note"] = feature.note
+        features.setdefault(feature_kind, {})[feature_value] = feature_payload
+    return features
 
 
 def _webui_connection_error_message(message: str, selected_model: str) -> str:

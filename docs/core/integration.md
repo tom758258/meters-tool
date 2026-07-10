@@ -22,6 +22,8 @@ Prefer package-root imports from `meters_tool_core`:
 from meters_tool_core import (
     CoreCapabilities,
     CoreWarning,
+    FEATURE_KIND_MEASUREMENT,
+    FEATURE_KIND_TRIGGER_MODE,
     InstrumentProfile,
     MeasurementCapability,
     NoOpControlPlane,
@@ -29,24 +31,30 @@ from meters_tool_core import (
     StartControlPlaneHandle,
     StartPlan,
     StartRequest,
+    StartFeatureSupportScope,
     StartRunEvent,
     StartRunEventSink,
     StartRunResult,
     StartWorkflowSupport,
     SUPPORT_POLICY_MODE_PRODUCT,
     SUPPORT_POLICY_MODE_VALIDATION,
+    VALIDATION_STATUS_FEATURE_PENDING,
     StopController,
     build_start_plan,
     generate_buffer_overflow_warning_details,
     generate_buffer_overflow_warnings,
     get_core_capabilities,
     get_default_instrument_profile,
+    find_feature_support,
+    normalize_support_feature_value,
     resolve_instrument_profile,
     resolve_trigger_mode,
     run_start_session,
+    start_request_feature_requirements,
     start_workflow_support,
     validate_start_request,
     validate_start_workflow_support,
+    validate_start_workflow_support_metadata,
 )
 ```
 
@@ -193,16 +201,33 @@ externally supplied profile as a feature unlock. In dry-run and simulate modes
 it leaves profile-supported planning/simulation open while hard profile limits
 remain enforced by `validate_start_request(...)`.
 
+Live policy evaluation has three required layers: the exact transport/backend
+connection scope, the normalized measurement feature, and the effective
+trigger-mode feature. Feature entries belong to one exact connection scope;
+USB/system-VISA evidence does not open TCPIP/system-VISA or TCPIP/pyvisa-py.
+Product mode requires `live_validated_full_suite` at all three layers.
+Validation mode additionally permits an explicitly registered
+`transport_pending` connection and explicitly registered `feature_pending`
+features. A missing connection or feature entry, an unknown status, or
+`not_supported_by_model` fails closed in both modes.
+
 Adapters that need additive capability metadata can use
-`start_workflow_support(profile)` and its `StartWorkflowSupport` values. The
-status field is normalized, for example `live_validated_full_suite`, with
-transport and backend scope carried separately. Current validated 34461A live
-scopes include USB/system-VISA, LAN/TCPIP with system VISA, and LAN/TCPIP with
-optional CLI-only pyvisa-py `@py`. Current 34460A LAN/TCPIP scopes remain
-pending/not open. WebUI `/api/capabilities` exposes these facts along with
-display-oriented model support summaries so the browser can show validation
-status, limits, and transport/backend scope status without changing the Core
-runtime gate.
+`start_workflow_support(profile)` and its `StartWorkflowSupport` values. Each
+exact `StartWorkflowSupportScope` carries connection status plus explicit
+`StartFeatureSupportScope` entries for measurement and trigger mode. Feature
+values use normalized Core names. `start_request_feature_requirements()` and
+`find_feature_support()` provide the matching lookup, while
+`validate_start_workflow_support_metadata()` checks duplicate, missing,
+unexpected, and unsupported-status registrations against the profile
+inventory. Runtime lookup still fails closed independently of that consistency
+check.
+
+Current validated 34461A live scopes include USB/system-VISA, LAN/TCPIP with
+system VISA, and LAN/TCPIP with optional CLI-only pyvisa-py `@py`. Current
+34460A LAN/TCPIP scopes remain `transport_pending`; their profile-supported
+features are explicitly `feature_pending`. WebUI `/api/capabilities` exposes
+these facts along with display-oriented model support summaries so the browser
+can show connection and feature status without changing the Core runtime gate.
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user
@@ -215,13 +240,16 @@ Normal product integrations should use the default support policy mode,
 starts remain gated to scopes marked `live_validated_full_suite`.
 
 `SUPPORT_POLICY_MODE_VALIDATION` exists only for validation tooling such as
-`scripts/live-cli-check.ps1`. It allows known pending live transport/backend
-scopes to execute so an operator can collect artifacts with an exact
-operator-provided VISA resource. It does not promote public support, and it
-does not bypass unsupported-by-model workflows or hard profile limits. The
-34460A base profile still rejects external/external-custom workflows, DCV
-Ratio, the 10 A/current-terminal path, and buffer drain sizes above the
-profile reading-memory limit.
+`scripts/live-cli-check.ps1`. It allows known `transport_pending` connection
+scopes and `feature_pending` measurement/trigger-mode entries to execute so an
+operator can collect artifacts with an exact operator-provided VISA resource.
+It does not promote public support, treat missing metadata as pending, or
+bypass unsupported-by-model workflows and hard profile limits. The 34460A base
+profile still rejects external/external-custom workflows, the 10 A/current-
+terminal path, and buffer drain sizes above the profile reading-memory limit.
+34460A DCV Ratio is implemented and profile-known but is `feature_pending` for
+USB/system-VISA: product mode rejects it while validation mode can run a
+bounded evidence-collection request.
 
 The runner has the same final gate:
 

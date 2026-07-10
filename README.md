@@ -35,12 +35,13 @@ simulator resource encodes one deterministically, such as `SIM::34460A` or
 `SIM::34461A`. Model names are normalized and validated by Core profile logic;
 unknown models fail validation with the supported models listed.
 
-Live feature enablement is validation-scope based. A model, workflow, mode,
-transport, and backend are live-open only when operator-approved hardware
-validation covers that exact scope, subject to hard profile limits. The Core
-support policy and `run_start_session()` final gate are the safety boundary for
-CLI, WebUI, and direct Core/API submissions; WebUI disabled controls are
-operator-facing UX only.
+Live feature enablement is validation-scope based. A model, workflow, exact
+transport/backend connection, measurement, and trigger mode are live-open only
+when operator-approved hardware validation covers every required layer,
+subject to hard profile limits. Missing connection or feature metadata fails
+closed. The Core support policy and `run_start_session()` final gate are the
+safety boundary for CLI, WebUI, and direct Core/API submissions; WebUI disabled
+controls are operator-facing UX only.
 
 CLI commands that open VISA resources use the system VISA runtime by default
 through `pyvisa.ResourceManager()`. Advanced CLI diagnostics can select a

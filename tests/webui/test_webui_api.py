@@ -170,6 +170,15 @@ class WebUiApiTests(unittest.TestCase):
             "live_validated_full_suite",
             support_scopes[("tcpip", "pyvisa_py")]["validation_status"],
         )
+        usb_features = support_scopes[("usb", "system_visa")]["features"]
+        self.assertEqual(
+            "live_validated_full_suite",
+            usb_features["measurement"]["voltage-dc-ratio"]["validation_status"],
+        )
+        self.assertEqual(
+            "live_validated_full_suite",
+            usb_features["trigger_mode"]["external-custom"]["validation_status"],
+        )
         summary = payload["support_summary"]
         self.assertEqual("34461A", summary["model"])
         self.assertEqual("Auto-detect", summary["display_model"])
@@ -243,7 +252,8 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("no current-terminal selection", summary["limits"])
         self.assertIn("1000-reading memory limit", summary["limits"])
         self.assertIn("no base-profile external trigger support", summary["limits"])
-        self.assertIn("no 34460A DCV Ratio live support", summary["limits"])
+        self.assertNotIn("no 34460A DCV Ratio live support", summary["limits"])
+        self.assertIn("34460A DCV Ratio live validation", summary["pending"])
         self.assertIn("LAN/TCPIP system-VISA validation", summary["pending"])
         self.assertIn("LAN/TCPIP pyvisa-py @py validation", summary["pending"])
         summary_scopes = {
@@ -257,6 +267,28 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(
             "transport_pending",
             summary_scopes[("tcpip", "pyvisa_py")]["validation_status"],
+        )
+        usb_features = summary_scopes[("usb", "system_visa")]["features"]
+        self.assertEqual(
+            "feature_pending",
+            usb_features["measurement"]["voltage-dc-ratio"]["validation_status"],
+        )
+        self.assertEqual(
+            "live_validated_full_suite",
+            usb_features["measurement"]["voltage-dc"]["validation_status"],
+        )
+        self.assertEqual(
+            "live_validated_full_suite",
+            usb_features["trigger_mode"]["software-custom"]["validation_status"],
+        )
+        lan_features = summary_scopes[("tcpip", "system_visa")]["features"]
+        self.assertEqual(
+            "feature_pending",
+            lan_features["measurement"]["voltage-dc"]["validation_status"],
+        )
+        self.assertEqual(
+            "feature_pending",
+            lan_features["trigger_mode"]["immediate"]["validation_status"],
         )
         measurements = {item["name"]: item for item in payload["measurements"]}
         for name in ("current-dc", "current-ac"):
@@ -1391,7 +1423,7 @@ class WebUiApiTests(unittest.TestCase):
                     "trigger_mode": "immediate",
                     "max_samples": 1,
                 },
-                "34460A live support for --measurement voltage-dc-ratio is not validated",
+                "measurement=voltage-dc-ratio is pending validation",
             ),
             (
                 {
@@ -1403,7 +1435,7 @@ class WebUiApiTests(unittest.TestCase):
                     "trigger_mode": "immediate",
                     "max_samples": 1,
                 },
-                "transport=tcpip, backend=system_visa is pending",
+                "start-trigger-record is pending for transport=tcpip, backend=system_visa",
             ),
             (
                 {
@@ -1416,7 +1448,7 @@ class WebUiApiTests(unittest.TestCase):
                     "max_samples": 1,
                     "validation_allow_pending_live_support": True,
                 },
-                "transport=tcpip, backend=system_visa is pending",
+                "start-trigger-record is pending for transport=tcpip, backend=system_visa",
             ),
         ]
 
@@ -1500,12 +1532,15 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual(422, response.status_code)
         self.assertIn(
-            "34460A live support for --measurement voltage-dc-ratio is not validated",
+            "measurement=voltage-dc-ratio is pending validation",
             response.json()["detail"],
         )
 
     def test_manager_can_build_default_request_model(self):
         request = RunStartRequest(resource="USB::FAKE")
+        request_fields = getattr(RunStartRequest, "model_fields", None)
+        if request_fields is None:
+            request_fields = RunStartRequest.__fields__
 
         self.assertEqual("current-dc", request.measurement)
         self.assertEqual("on", request.auto_zero)
@@ -1513,6 +1548,8 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIsNone(request.gate_time_s)
         self.assertIsNone(request.freq_period_timeout)
         self.assertIsNone(request.current_terminal)
+        self.assertNotIn("validation_allow_pending_live_support", request_fields)
+        self.assertNotIn("support_policy_mode", request_fields)
 
     def test_manager_normalizes_legacy_auto_zero_booleans(self):
         manager = WebRunManager()

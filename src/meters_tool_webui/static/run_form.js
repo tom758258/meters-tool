@@ -26,6 +26,7 @@ import {
   rangeContainer,
   rangeSuffix,
   rangeUnit,
+  resourceInput,
   sampleCountInput,
   subtitle,
   swMinIntervalContainer,
@@ -45,7 +46,118 @@ import {
 
 const DEFAULT_TRIGGER_TIMEOUT_MS = 10000;
 let measurementsByName = new Map();
+let supportedTriggerModes = [];
+let liveSupport = null;
 let inputLimits = {};
+
+function inferTransportScope(resource) {
+  const normalized = String(resource || "").trim().toUpperCase();
+  if (normalized.startsWith("USB")) {
+    return "usb";
+  }
+  if (normalized.startsWith("TCPIP")) {
+    return "tcpip";
+  }
+  return null;
+}
+
+function currentProductSupportScope() {
+  const resource = String(resourceInput?.value || "").trim();
+  const transport = inferTransportScope(resource) || (
+    resource ? null : liveSupport?.transport_scope
+  );
+  if (!transport) {
+    return null;
+  }
+  return (liveSupport?.scopes || []).find(
+    (scope) => scope.transport_scope === transport && scope.backend_scope === "system_visa"
+  ) || null;
+}
+
+function featureAvailability(featureKind, featureValue) {
+  const scope = currentProductSupportScope();
+  if (!scope) {
+    return {
+      available: false,
+      reason: "Not available for current transport/backend scope",
+      validationStatus: "missing",
+    };
+  }
+  if (scope.validation_status !== "live_validated_full_suite") {
+    const notSupported = scope.validation_status === "not_supported_by_model";
+    return {
+      available: false,
+      reason: notSupported ? "Not supported by model" : "Pending live validation",
+      validationStatus: scope.validation_status || "missing",
+    };
+  }
+  const feature = scope.features?.[featureKind]?.[featureValue];
+  const validationStatus = feature?.validation_status || "missing";
+  if (validationStatus === "live_validated_full_suite") {
+    return { available: true, reason: "", validationStatus };
+  }
+  if (validationStatus === "feature_pending") {
+    return { available: false, reason: "Pending live validation", validationStatus };
+  }
+  if (validationStatus === "not_supported_by_model") {
+    return { available: false, reason: "Not supported by model", validationStatus };
+  }
+  return {
+    available: false,
+    reason: "Not available for current transport/backend scope",
+    validationStatus,
+  };
+}
+
+function featureOptionElement(value, text, featureKind) {
+  const availability = featureAvailability(featureKind, value);
+  const option = optionElement(
+    value,
+    availability.available ? text : `${text} — ${availability.reason}`
+  );
+  option.disabled = !availability.available;
+  option.title = availability.reason;
+  option.dataset.validationStatus = availability.validationStatus;
+  return option;
+}
+
+function selectAvailableOption(select, previousValue) {
+  const previous = [...select.options].find(
+    (option) => option.value === previousValue && !option.disabled
+  );
+  const selected = previous || [...select.options].find((option) => !option.disabled);
+  if (selected) {
+    select.value = selected.value;
+  }
+}
+
+function populateFeatureOptions(previousMeasurement, previousTriggerMode) {
+  measurementSelect.replaceChildren(
+    ...[...measurementsByName.values()].map((item) =>
+      featureOptionElement(
+        item.name,
+        `${capitalizeFirst(item.name)} (${item.unit})`,
+        "measurement"
+      )
+    )
+  );
+  selectAvailableOption(measurementSelect, previousMeasurement);
+
+  triggerModeSelect.replaceChildren(
+    ...supportedTriggerModes.map((mode) =>
+      featureOptionElement(mode, capitalizeFirst(mode), "trigger_mode")
+    )
+  );
+  selectAvailableOption(triggerModeSelect, previousTriggerMode);
+}
+
+export function updateFeatureAvailability() {
+  const previousMeasurement = measurementSelect.value;
+  const previousTriggerMode = triggerModeSelect.value;
+  populateFeatureOptions(previousMeasurement, previousTriggerMode);
+  updateMeasurementUi();
+  updateTriggerModeUi();
+}
 
 export function numberOrNull(value) {
   if (value === null || value === undefined || value === "") {
@@ -579,6 +691,7 @@ export async function loadCapabilities(model = null) {
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
   renderSupportSummary(capabilities.support_summary);
+  liveSupport = capabilities.support?.["start-trigger-record"]?.live || null;
   if (instrumentModelSelect) {
     const forcedModel = textOrNull(instrumentModelSelect.value);
     const profileOptions = [...(capabilities.available_profiles || [])].sort((a, b) =>
@@ -595,22 +708,8 @@ export async function loadCapabilities(model = null) {
   measurementsByName = new Map(
     capabilities.measurements.map((item) => [item.name, item])
   );
-  measurementSelect.replaceChildren(
-    ...capabilities.measurements.map((item) =>
-      optionElement(item.name, `${capitalizeFirst(item.name)} (${item.unit})`)
-    )
-  );
-  if (measurementsByName.has(previousMeasurement)) {
-    measurementSelect.value = previousMeasurement;
-  }
+  supportedTriggerModes = [...capabilities.trigger_modes];
+  populateFeatureOptions(previousMeasurement, previousTriggerMode);
   updateMeasurementUi();
-  triggerModeSelect.replaceChildren(
-    ...capabilities.trigger_modes.map((mode) =>
-      optionElement(mode, capitalizeFirst(mode))
-    )
-  );
-  if (capabilities.trigger_modes.includes(previousTriggerMode)) {
-    triggerModeSelect.value = previousTriggerMode;
-  }
   updateTriggerModeUi();
 }

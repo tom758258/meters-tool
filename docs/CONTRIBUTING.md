@@ -88,19 +88,26 @@ contributors must use it for repeatable validation and formal pull-request
 artifacts. For a new model, capability, workflow, or validation case, the usual
 order is:
 
-1. Implement model/profile detection and hard capability limits.
-2. Add request validation.
-3. Add simulator or fake-instrument no-hardware coverage.
-4. Define the relevant support-policy scope and keep it pending rather than
-   product-open.
-5. If the maintained wrapper does not yet support the new target or case, use
-   bounded hidden CLI bootstrap validation.
-6. Extend `scripts/live-cli-check.ps1` with a repeatable target, suite, or case
-   when appropriate.
-7. Run wrapper `-PlanOnly`, then formal live validation through the wrapper
-   using an explicit resource.
-8. Review and attach the complete artifacts to the pull request.
-9. Obtain maintainer review before any support promotion.
+1. Implement the model/profile capability, SCPI path, hard limits, and request
+   validation.
+2. Register the measurement or trigger-mode feature as `feature_pending` in
+   every exact transport/backend connection scope intended for validation.
+3. Add simulator or fake-instrument no-hardware coverage, including policy
+   inventory consistency and fail-closed missing-metadata cases.
+4. Use the hidden validation mode or maintained wrapper with an explicit
+   resource and bounded counts/timeouts. Extend the wrapper only when a small,
+   repeatable case fits its current architecture.
+5. Preserve and attach the complete commands, stdout/stderr, JSON/JSONL, CSV,
+   report, errors, partial results, and cleanup artifacts.
+6. Obtain maintainer review of the implementation and exact-scope evidence.
+7. Promote the exact feature metadata and public documentation later, as an
+   explicit reviewed decision. Passing evidence does not promote it
+   automatically.
+
+Missing feature metadata is not `feature_pending`. A contributor must add an
+explicit pending entry for each profile-supported measurement and trigger mode
+in every intended exact connection scope. Runtime lookup fails closed when an
+entry is missing even if consistency tests were not run.
 
 The wrapper is a validation harness, not a general product interface. It may
 use the hidden CLI option
@@ -109,8 +116,10 @@ is an internal contributor/validation-harness option, deliberately absent from
 normal CLI help; it is not a general `--force` switch. It does not bypass model
 or profile recognition, hard profile limits, IDN checks, request validation,
 unsupported workflows, buffer limits, current-terminal safety restrictions,
-trigger safety rules, or cleanup and release behavior. Do not use it in README
-examples or normal CLI guidance.
+trigger safety rules, missing support metadata, or cleanup and release
+behavior. It permits only explicitly registered `transport_pending`
+connections and `feature_pending` measurement/trigger-mode entries. Do not use
+it in root README examples or normal CLI guidance.
 
 When adding a new model, workflow, capability, or validation case that the
 wrapper does not support yet, an advanced contributor may invoke the hidden
@@ -119,7 +128,10 @@ CLI mode directly for bounded bootstrap validation only after:
 * Core recognizes the model/profile;
 * capability definitions and hard limits are implemented;
 * request validation is in place;
-* the relevant support-policy scope exists and remains pending; and
+* the exact transport/backend scope exists with `transport_pending` when the
+  connection itself is pending;
+* each required measurement and trigger-mode entry exists with
+  `feature_pending`; and
 * simulator or fake-instrument coverage has been added.
 
 The direct bootstrap command is shaped like this:
@@ -176,9 +188,10 @@ private identifiers.
 
 Passing artifacts are candidate evidence only. They do not automatically
 promote product support, and the hidden validation mode does not update public
-support metadata. Promotion requires maintainer review followed by the
-appropriate support-metadata and public-documentation decision. Normal CLI,
-WebUI, and direct Core starts remain product-gated until that work is accepted.
+support metadata. Promotion requires maintainer review followed by an explicit
+`transport_pending` or `feature_pending` metadata and public-documentation
+decision for the exact transport/backend scope. Normal CLI, WebUI, and direct
+Core starts remain product-gated until that work is accepted.
 
 ## Safety and Privacy
 

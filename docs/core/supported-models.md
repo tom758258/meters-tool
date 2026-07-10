@@ -37,11 +37,13 @@ the `run_start_session()` final gate use the detected `*IDN?` profile.
 ## Validation-Scoped Live Support
 
 Live support is validation-scope based. A workflow is live-open only when an
-operator-approved hardware validation pass covers that model, workflow, mode,
-transport, and backend scope. Full-suite validation opens only the workflows in
-that suite and only where the detected live profile supports the capability.
-It does not override hard model/profile limits and does not promote untested
-interfaces or VISA backends.
+operator-approved hardware validation pass covers the model, workflow, exact
+transport/backend connection scope, measurement feature, and trigger-mode
+feature. Feature status is stored inside each exact connection scope, so
+evidence does not transfer between USB/system-VISA, TCPIP/system-VISA, and
+TCPIP/pyvisa-py. Full-suite validation opens only the explicitly registered
+features in that exact scope and only where the detected profile supports the
+capability. It does not override hard model/profile limits.
 
 Validation tooling is separate from product support. The
 `scripts/live-cli-check.ps1` harness may execute known pending live
@@ -52,8 +54,13 @@ product-gated until reviewed artifacts are accepted and the support metadata
 and documentation are updated.
 
 Pending support means not open for product use yet, not impossible to validate.
-Validation-mode execution is limited to known pending transport/backend scopes.
-It cannot bypass unsupported-by-model workflows or hard profile limits.
+Connection scopes use `transport_pending`; measurement and trigger-mode entries
+use `feature_pending`. Product mode requires every required layer to be
+`live_validated_full_suite`. Validation mode may additionally execute those two
+explicit pending statuses. Missing metadata is not pending: missing connection
+or feature registration fails closed in both modes, as do unknown status values,
+`not_supported_by_model`, unsupported profile capabilities, invalid requests,
+and hard safety limits.
 
 In live mode, CLI `--model` and WebUI `Expected model` are expected-model
 guards only. The runtime driver/profile is selected from the connected
@@ -70,7 +77,7 @@ do not query live hardware.
 | Frequency | Open | Open for USB/system-VISA suite-covered scope |
 | Period | Open, no Period timeout SCPI | Open, no Period timeout SCPI |
 | External simple/custom | Open | Not open in base 34460A profile |
-| DCV Ratio | Open for validated 34461A scope | Not promoted without separate 34460A artifact |
+| DCV Ratio | Open for validated 34461A scope | `feature_pending` on USB/system-VISA; product closed, validation mode available |
 | 10 A / current-terminal | Open with operator-confirmed wiring | Not supported |
 | Buffer drain above profile memory | Up to 10000 readings | Not supported above 1000 |
 | LAN/TCPIP with system VISA | Open for validated 34461A scope | Not open for the currently available unit |
@@ -100,9 +107,14 @@ do not query live hardware.
   Period.
 - Hard limits remain blocked: no 10 A current path, no current-terminal
   selection, 1000-reading memory limit, no buffer drain size above 1000, no
-  base-profile external simple trigger, no base-profile external custom
-  trigger, and no 34460A DCV Ratio live support unless a separate 34460A DCV
-  Ratio validation artifact promotes it later.
+  base-profile external simple trigger, and no base-profile external custom
+  trigger.
+- DCV Ratio is already implemented and profile-known, including no-hardware
+  plan/simulator coverage, but its USB/system-VISA measurement feature is
+  `feature_pending`. Product CLI, WebUI, and direct Core product starts reject
+  it. The hidden validation support-policy mode can run a bounded request to
+  collect candidate evidence; promotion requires later review and an explicit
+  metadata/documentation decision.
 - LAN/TCPIP with system VISA and LAN/TCPIP with pyvisa-py `@py` are not open
   for the currently available 34460A unit. Open those scopes only after a
   LAN/LXI-enabled 34460A TCPIP resource and operator-approved validation
@@ -115,10 +127,11 @@ do not query live hardware.
   are not current maintainer validation debt for the available USB-only 34460A
   unit, and they are not release blockers.
 - Hard limits remain closed during validation: base-profile 34460A external
-  and external-custom workflows remain closed, 34460A DCV Ratio remains
-  closed, the 10 A/current-terminal path remains unsupported, and buffer drain
-  size remains capped by the 1000-reading profile limit. LAN/TCPIP or
-  pyvisa-py validation does not override those limits.
+  and external-custom workflows remain closed, the 10 A/current-terminal path
+  remains unsupported, and buffer drain size remains capped by the 1000-
+  reading profile limit. DCV Ratio is the explicitly registered
+  `feature_pending` exception that validation mode may exercise; LAN/TCPIP or
+  pyvisa-py validation does not override any hard limit.
 
 Transport/backend scope status:
 
@@ -131,12 +144,16 @@ Transport/backend scope status:
 - 34460A LAN/TCPIP and 34460A LAN/`@py` remain pending/not open for the
   currently available unit. USB/system-VISA is the current validated 34460A
   product scope, and USB validation does not promote LAN/TCPIP.
+- Every exact live connection scope explicitly enumerates all profile-supported
+  measurements and trigger modes. Adding a profile feature without matching
+  policy metadata therefore fails closed instead of becoming product-open by
+  omission.
 
-Promotion from pending to `live_validated_full_suite` requires reviewed
-artifacts and an explicit support metadata/docs update. Do not mark a scope
-`live_validated_full_suite` in the same change that merely enables
-validation-mode execution unless an actual reviewed artifact is already
-provided and approved.
+Promotion from `transport_pending` or `feature_pending` to
+`live_validated_full_suite` requires reviewed artifacts and an explicit support
+metadata/docs update for the exact transport/backend scope. Do not promote a
+scope or feature in the same change that merely enables validation-mode
+execution unless an actual reviewed artifact is already provided and approved.
 
 ## VISA Backend Selection
 
@@ -302,7 +319,10 @@ profile's `reading_memory_limit`.
 7. Confirm `current-dc` manual range 10 A dry-run is rejected before VISA I/O.
 8. Confirm expected readings 1001 without allow flag is rejected in dry-run.
 9. Confirm expected readings 1001 with allow flag is accepted in dry-run.
-10. Leave external trigger disabled until the specific 34460A has the required
+10. Use the hidden validation support-policy mode only for a bounded 34460A DCV
+   Ratio evidence run with correctly wired signal/reference inputs; do not
+   interpret a no-hardware pass as promotion.
+11. Leave external trigger disabled until the specific 34460A has the required
    LAN/external trigger option confirmed.
 
 ## Future Models

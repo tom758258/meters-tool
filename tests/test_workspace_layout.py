@@ -253,3 +253,24 @@ def test_root_readme_links_to_the_contributor_guide():
     assert guide.exists()
     assert "[Contributing Guide](docs/CONTRIBUTING.md)" in readme
     assert "--validation-allow-pending-live-support" not in readme
+
+
+def test_english_support_docs_cover_feature_pending_policy():
+    paths = (
+        REPO_ROOT / "docs" / "core" / "integration.md",
+        REPO_ROOT / "docs" / "core" / "supported-models.md",
+        REPO_ROOT / "docs" / "cli" / "cli-integration.md",
+        REPO_ROOT / "docs" / "cli" / "README.md",
+        REPO_ROOT / "docs" / "webui" / "README.md",
+        REPO_ROOT / "docs" / "CONTRIBUTING.md",
+    )
+
+    for path in paths:
+        text = path.read_text(encoding="utf-8")
+        assert "feature_pending" in text, path
+
+    contributing = (REPO_ROOT / "docs" / "CONTRIBUTING.md").read_text(
+        encoding="utf-8"
+    )
+    assert "--validation-allow-pending-live-support" in contributing
+    assert "Missing feature metadata is not `feature_pending`" in contributing

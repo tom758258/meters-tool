@@ -204,11 +204,13 @@ this default system VISA path. Use the CLI-only `--visa-library` advanced
 option when optional pyvisa-py backend diagnostics are required; the validated
 optional `@py` acquisition scope is 34461A LAN/TCPIP.
 
-The WebUI does not expose validation mode. Pending transport/backend scopes
-remain blocked for browser starts until reviewed artifacts promote public
-support through Core support metadata and documentation. Disabled WebUI
-controls are UX only; Core validation, the support policy gate, and the
-`run_start_session()` final gate remain the safety boundary.
+The WebUI does not expose validation mode. Pending transport/backend scopes and
+pending measurement or trigger-mode features remain blocked for browser starts
+until reviewed artifacts promote public support through exact-scope Core
+support metadata and documentation. The browser disables product-unavailable
+feature options, but that state is UX only; Core validation, the support policy
+gate, and the `run_start_session()` final gate remain the safety boundary for
+forged or stale requests.
 34460A LAN/TCPIP pending scopes are future validation paths only and remain
 product-closed in the WebUI.
 
@@ -231,13 +233,25 @@ fallback capability view until Start or Scan detects IDN. This display context
 does not select the live driver; live runs still use the detected IDN-selected
 profile as the runtime driver.
 
-`/api/capabilities` also includes additive support metadata. The browser uses
-it to show model live support status, current validation scope, hard limits,
-and transport/backend scope status. For 34461A this includes validated
-USB/system-VISA, LAN/system-VISA, and optional CLI-only LAN/pyvisa-py `@py`
-scopes. For 34460A, LAN/TCPIP and LAN/`@py` remain not open for the currently
-available unit. Existing measurement, trigger, range, and limit fields remain
-the source of truth for the controls.
+`/api/capabilities` also includes additive support metadata. Every exact live
+connection scope keeps its existing `validation_status`, `transport_scope`,
+and `backend_scope` fields and adds `features.measurement` and
+`features.trigger_mode` maps. Feature entries expose their own
+`validation_status`; measurement keys use the existing adapter-facing names
+such as `voltage-dc-ratio`. Existing response fields are not removed or
+renamed.
+
+The browser uses this metadata to show model live support and to disable
+features that are not product-open for the current resource transport and the
+WebUI's fixed system-VISA backend. It distinguishes pending live validation,
+not supported by model, and unavailable exact scope. Before a resource is
+known, Auto-detect keeps the existing fallback capability view and uses only
+the fallback profile's declared product scope; it never promotes a pending
+feature. For 34461A the metadata includes validated USB/system-VISA,
+LAN/system-VISA, and optional CLI-only LAN/pyvisa-py `@py` scopes. For 34460A,
+DCV Ratio is `feature_pending` on USB/system-VISA, while LAN/TCPIP scopes remain
+`transport_pending`. Existing measurement, trigger, range, and limit fields
+remain the source of truth for control definitions.
 
 The Expected model check is optional. Core validates the connected instrument
 identity at Start. If an explicit expected model does not match the fresh IDN
@@ -284,6 +298,10 @@ Measurement-specific UI behavior:
 - With the 34460A profile selected, current ranges exclude 10 A and current
   terminal selection is hidden because the base 34460A profile has no 10 A
   terminal/path. Custom-mode reading memory is limited to 1000 readings.
+- With the 34460A USB/system-VISA scope, `voltage-dc-ratio` remains visible as
+  a known capability but is disabled because its live status is
+  `feature_pending`. Direct WebUI starts remain product-gated and reject a
+  forged Ratio request.
 - DCV Input Z appears only for `voltage-dc`.
 - VM Comp remains a measurement option where supported by Core.
 - Auto Zero Once is available for supported DC/resistance measurements through
@@ -307,6 +325,11 @@ and `external-custom` because LAN/LXI/external trigger capability is optional
 and not assumed. Unsupported 34460A options are omitted through
 `/api/capabilities?model=34460A`; the frontend does not maintain a separate
 hard-coded 34460A option list.
+
+For trigger modes that remain in the profile list, the browser also applies the
+exact-scope feature status. `feature_pending` and `not_supported_by_model`
+options are disabled, while `live_validated_full_suite` options remain
+selectable. There is no validation-mode toggle or backend selector.
 
 Simple immediate and software-triggered reads use Core's `READ?` path.
 Hardware-triggered simple reads use Core's `FETC?` path after the trigger
@@ -497,7 +520,8 @@ The browser-facing API surface is:
 - `GET /api/capabilities`: returns Core-backed measurement and trigger
   capabilities. Optional `model=34460A` or `model=34461A` selects the profile;
   omitted model returns unresolved auto metadata and a compatibility
-  34461A-shaped capability surface.
+  34461A-shaped capability surface. Exact live support scopes add measurement
+  and trigger-mode feature status maps without removing existing fields.
 - `GET /api/resources?verify=true&live_only=true`: scans VISA resources and,
   for verified supported IDNs, includes nullable `instrument_model` and
   `matched_profile` metadata.

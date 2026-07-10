@@ -194,13 +194,14 @@ class CoreRunnerTests(unittest.TestCase):
         expected_model: str,
         expected_resource: str = "USB0::FAKE::INSTR",
         expected_visa_library: str | None = None,
+        expected_measurement_type: str = "voltage_dc",
     ) -> StartRunnerDependencies:
         def instrument_factory(config, *, simulate, measurement_type):  # noqa: ANN001
             self.assertEqual(expected_resource, config.resource_string)
             self.assertEqual(expected_model, config.expected_model)
             self.assertEqual(expected_visa_library, config.visa_library)
             self.assertFalse(simulate)
-            self.assertEqual("voltage_dc", measurement_type)
+            self.assertEqual(expected_measurement_type, measurement_type)
             operations.append(f"factory:{config.expected_model}")
             return RecordingInstrument(operations)
 
@@ -598,7 +599,7 @@ class CoreRunnerTests(unittest.TestCase):
                     measurement="voltage-dc-ratio",
                     max_samples=1,
                 ),
-                "--measurement voltage-dc-ratio is not validated",
+                "measurement=voltage-dc-ratio is pending validation",
             ),
             (
                 StartRequest(
@@ -639,7 +640,7 @@ class CoreRunnerTests(unittest.TestCase):
                     measurement="voltage-dc",
                     max_samples=1,
                 ),
-                "transport=tcpip, backend=system_visa is pending",
+                "start-trigger-record is pending for transport=tcpip, backend=system_visa",
             ),
             (
                 StartRequest(
@@ -649,7 +650,7 @@ class CoreRunnerTests(unittest.TestCase):
                     measurement="voltage-dc",
                     max_samples=1,
                 ),
-                "transport=usb, backend=pyvisa_py is pending",
+                "not registered for transport=usb, backend=pyvisa_py",
             ),
             (
                 StartRequest(
@@ -659,7 +660,7 @@ class CoreRunnerTests(unittest.TestCase):
                     measurement="voltage-dc",
                     max_samples=1,
                 ),
-                "transport=tcpip, backend=pyvisa_py is pending",
+                "start-trigger-record is pending for transport=tcpip, backend=pyvisa_py",
             ),
         ]
 
@@ -724,6 +725,78 @@ class CoreRunnerTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertIn("factory:34460A", operations)
+
+    def test_live_runner_validation_mode_allows_34460a_ratio_feature_pending(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            trigger_mode="immediate",
+            measurement="voltage-dc-ratio",
+            max_samples=1,
+        )
+
+        with patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+            return_value="Keysight Technologies,34460A,MY123,1.0",
+        ):
+            result = run_start_session(
+                request,
+                "external",
+                KEYSIGHT_34461A_PROFILE,
+                sink,
+                RecordingControls(operations),
+                control_plane=NoOpControlPlane(),
+                run_id="run-live-ratio",
+                dependencies=self._live_dependencies(
+                    operations,
+                    expected_model="34460A",
+                    expected_measurement_type="voltage_dc_ratio",
+                ),
+                support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+            )
+
+        self.assertTrue(result.ok)
+        self.assertIn("factory:34460A", operations)
+        self.assertIn("engine_run:immediate:neg", operations)
+        self.assertNotIn("engine_run:external:neg", operations)
+
+    def test_live_runner_missing_feature_metadata_rejects_before_backend_factory(self):
+        operations: list[str] = []
+        request = StartRequest(
+            resource="USB0::FAKE::INSTR",
+            trigger_mode="immediate",
+            measurement="voltage-dc",
+            max_samples=1,
+        )
+
+        def fail_factory(*_args, **_kwargs):  # noqa: ANN002, ANN003
+            operations.append("factory")
+            raise AssertionError("backend factory must not be called")
+
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            patch("meters_tool_core.support_policy.find_feature_support", return_value=None),
+            self.assertRaisesRegex(
+                ValueError,
+                "live feature support is not registered for measurement=voltage-dc",
+            ),
+        ):
+            run_start_session(
+                request,
+                "immediate",
+                KEYSIGHT_34461A_PROFILE,
+                RecordingEventSink(),
+                RecordingControls(operations),
+                dependencies=StartRunnerDependencies(
+                    instrument_backend_factory=fail_factory
+                ),
+            )
+
+        self.assertEqual([], operations)
 
     def test_dry_run_and_simulate_runner_resolution_do_not_query_live_idn(self):
         dry_run_request = StartRequest(

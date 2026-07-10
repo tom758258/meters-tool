@@ -80,6 +80,15 @@ Important limitations:
   live mismatches fail before setup SCPI. Model names are normalized and
   validated by Core profile logic; unknown models fail validation with the
   supported models listed.
+- Live product support is feature-aware and exact-scope: the connection,
+  measurement, and effective trigger mode must each be
+  `live_validated_full_suite` for the detected model and exact transport/VISA
+  backend. Missing feature metadata fails closed rather than inheriting
+  support from another scope.
+- 34460A DCV Ratio is implemented and profile-known but is
+  `feature_pending` on USB/system-VISA. Normal CLI starts reject it. The hidden
+  contributor validation mode may run a bounded evidence request, but does not
+  promote product support.
 - The 34460A has a lower maximum reading rate than the 34461A, but the CLI does
   not actively control high-speed reading rate in this release.
 - AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz
@@ -253,8 +262,9 @@ The value can be any live VISA resource returned by discovery, including USB
 or TCPIP/LAN resources.
 
 The live wrapper is a validation harness, not a product usage interface. It may
-execute known pending live transport/backend scopes with the exact
-operator-provided resource so artifacts can be collected. A passing
+execute explicitly registered `transport_pending` connection scopes and
+`feature_pending` measurement/trigger-mode entries with the exact operator-
+provided resource so artifacts can be collected. A passing
 `report.json` or `summary.md` does not by itself promote public support.
 Normal CLI starts, the WebUI, and direct Core live calls remain product-gated
 until reviewed artifacts are accepted and support metadata plus documentation
@@ -318,12 +328,16 @@ validation remains evidence collection only; it does not make normal 34460A
 LAN/TCPIP product starts open.
 
 Pending support means not open for product use yet, not impossible to validate.
-Validation-mode execution remains limited to known pending transport/backend
-scopes and cannot bypass unsupported-by-model workflows or hard profile
-limits. The 34460A base profile still keeps external/external-custom closed,
-keeps DCV Ratio closed, rejects 10 A/current-terminal requests, and preserves
-the 1000-reading buffer limits. LAN/TCPIP or pyvisa-py validation does not
-override those limits.
+The wrapper uses the hidden
+`--validation-allow-pending-live-support` Core policy selector. It permits only
+explicitly registered `transport_pending` and `feature_pending` entries; it is
+not a general force option. Missing scope/feature metadata, unknown models,
+unsupported profile capabilities, invalid requests, and hard safety limits
+remain rejected. The 34460A base profile still keeps external/external-custom
+closed, rejects 10 A/current-terminal requests, and preserves the 1000-reading
+buffer limits. Its USB/system-VISA DCV Ratio entry is the explicit
+`feature_pending` path that bounded validation may exercise. LAN/TCPIP or
+pyvisa-py validation does not override hard limits.
 For 34460A, LAN/TCPIP system-VISA and LAN/TCPIP pyvisa-py `@py` are future
 validation paths for a LAN/LXI-capable unit or contributor-provided reviewed
 artifact. They are not current maintainer validation debt for the available
@@ -371,11 +385,11 @@ The CLI package has three wrapper scripts:
 | `scripts\live-cli-check.ps1` | Live hardware unless `-PlanOnly` is set | Runs target-aware live-wrapper plans and, with interactive confirmation, bounded live validation cases against the explicit `-Resource`. Frequency/Period cases first run per-command SCPI error diagnostics. Suites are `minimal`, `basic`, `frequency-period`, `external`, and `full`; 34460A rejects `external` and its `full` suite excludes external cases. |
 | `scripts\release-cli-check.ps1` | No hardware by default | Runs release gate checks, including full pytest, preflight, and `live-cli-check.ps1 -PlanOnly`. Its default validation mode is `release_no_hardware`. |
 
-Promotion from pending to `live_validated_full_suite` requires reviewed
-artifacts and an explicit support metadata/docs update. Do not mark a pending
-scope as public live support in the same change that merely enables
-validation-mode execution unless a reviewed artifact is already provided and
-approved.
+Promotion from `transport_pending` or `feature_pending` to
+`live_validated_full_suite` requires reviewed artifacts and an explicit exact-
+scope support metadata/docs update. Do not mark a pending scope or feature as
+public live support in the same change that merely enables validation-mode
+execution unless a reviewed artifact is already provided and approved.
 
 ## Basic Workflow
 
@@ -1209,10 +1223,14 @@ reported OK on a real 34461A before the `v1.0.0-cli` baseline.
 
 ### DCV Ratio Smoke Tests
 
-DCV Ratio uses the 34461A `VOLT:DC:RAT` function. Connect the signal and
-reference leads according to the instrument manual before running live; a
-miswired ratio measurement can look numerically plausible while measuring the
-wrong relationship.
+DCV Ratio uses the existing `VOLT:DC:RAT` implementation. It is product-open
+for the validated 34461A scopes. The 34460A profile exposes the implemented
+path for dry-run/simulator use, but its live USB/system-VISA measurement status
+is `feature_pending`: normal CLI and WebUI starts reject it, while reviewed
+hidden validation-mode use can collect bounded candidate evidence. Connect the
+signal and reference leads according to the instrument manual before running
+live; a miswired ratio measurement can look numerically plausible while
+measuring the wrong relationship.
 
 Dry-run DCV Ratio check:
 
@@ -1239,7 +1257,7 @@ Simulated DCV Ratio workflow check:
   --status-format jsonl
 ```
 
-Live DCV Ratio smoke check:
+Product-open 34461A live DCV Ratio smoke check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `

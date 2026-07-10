@@ -183,7 +183,9 @@ class WebUiStaticTests(unittest.TestCase):
             app_js,
         )
         self.assertIn('return model ? `live ${model}` : "live selected";', app_js)
-        self.assertIn('resourceInput.addEventListener("input", updateDeviceResourceSummary)', app_js)
+        self.assertIn('resourceInput.addEventListener("input", () =>', app_js)
+        self.assertIn("updateDeviceResourceSummary();", app_js)
+        self.assertIn("updateFeatureAvailability();", app_js)
 
     def test_static_ui_expected_model_payload_semantics_remain_instrument_model(self):
         index, app_js = load_static_ui()
@@ -248,10 +250,30 @@ class WebUiStaticTests(unittest.TestCase):
     def test_static_ui_unsupported_34460a_options_remain_capabilities_driven(self):
         _index, app_js = load_static_ui()
 
-        self.assertIn("capabilities.trigger_modes.map", app_js)
+        self.assertIn("supportedTriggerModes = [...capabilities.trigger_modes]", app_js)
         self.assertIn("supportsCurrentTerminal(measurement)", app_js)
         self.assertNotIn("instrumentModelSelect.value === \"34460A\"", app_js)
         self.assertNotIn("selectedModel === \"34460A\"", app_js)
+
+    def test_static_ui_disables_product_unavailable_feature_options_from_metadata(self):
+        _index, app_js = load_static_ui()
+
+        for expected in [
+            'capabilities.support?.["start-trigger-record"]?.live',
+            'scope.features?.[featureKind]?.[featureValue]',
+            'validationStatus === "feature_pending"',
+            'validationStatus === "not_supported_by_model"',
+            "option.disabled = !availability.available",
+            "Pending live validation",
+            "Not supported by model",
+            "Not available for current transport/backend scope",
+            'scope.backend_scope === "system_visa"',
+        ]:
+            with self.subTest(expected=expected):
+                self.assertIn(expected, app_js)
+
+        self.assertNotIn("validation_allow_pending_live_support", app_js)
+        self.assertNotIn("--validation-allow-pending-live-support", app_js)
 
     def test_static_ui_uses_requested_layout_sections(self):
         index, app_js = load_static_ui()

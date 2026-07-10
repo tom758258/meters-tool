@@ -39,6 +39,7 @@ import {
   formPayload,
   loadCapabilities,
   triggerMetadataPayload,
+  updateFeatureAvailability,
   updateMeasurementUi,
   updatePanelSummaries,
   updateRangeVisibility,
@@ -132,6 +133,7 @@ async function applyScannedResource(resource) {
   const forcedModel = instrumentModelSelect.value || "";
   resourceInput.value = resource;
   resourceSelect.value = resource;
+  updateFeatureAvailability();
   updateDeviceResourceSummary();
   if (!inferredModel) {
     appendStatusLog("Live resource model could not be inferred; Start will auto-detect it.");
@@ -198,7 +200,10 @@ resourceSelect.addEventListener("change", async () => {
   }
 });
 
-resourceInput.addEventListener("input", updateDeviceResourceSummary);
+resourceInput.addEventListener("input", () => {
+  updateDeviceResourceSummary();
+  updateFeatureAvailability();
+});
 
 selectCsvFolderButton.addEventListener("click", async () => {
   try {

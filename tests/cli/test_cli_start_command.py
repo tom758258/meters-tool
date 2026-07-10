@@ -243,6 +243,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "USB::FAKE",
                     "--model",
                     "BADMODEL",
+                    "--validation-allow-pending-live-support",
                     "--dry-run",
                 ]
             )
@@ -473,7 +474,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "--max-samples",
                     "1",
                 ],
-                "34460A live support for --measurement voltage-dc-ratio is not validated",
+                "measurement=voltage-dc-ratio is pending validation",
             ),
             (
                 [
@@ -486,7 +487,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "--max-samples",
                     "1",
                 ],
-                "transport=usb, backend=pyvisa_py is pending",
+                "not registered for transport=usb, backend=pyvisa_py",
             ),
             (
                 [
@@ -499,7 +500,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "--max-samples",
                     "1",
                 ],
-                "transport=tcpip, backend=system_visa is pending",
+                "start-trigger-record is pending for transport=tcpip, backend=system_visa",
             ),
             (
                 [
@@ -514,7 +515,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "--max-samples",
                     "1",
                 ],
-                "transport=tcpip, backend=pyvisa_py is pending",
+                "start-trigger-record is pending for transport=tcpip, backend=pyvisa_py",
             ),
         ]
 
@@ -593,6 +594,143 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             runner.call_args.kwargs["support_policy_mode"],
         )
 
+    def test_hidden_validation_flag_allows_34460a_ratio_feature_pending(self):
+        parser = build_parser()
+        fake_result = StartRunResult(
+            run_id="run-ratio",
+            ok=True,
+            reason="completed",
+            captured=1,
+            errors=0,
+            fatal_error=None,
+            csv_path="data\\ratio_validation.csv",
+        )
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--validation-allow-pending-live-support",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--model",
+                "34460A",
+                "--csv",
+                "data\\ratio_validation.csv",
+                "--measurement",
+                "voltage-dc-ratio",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner,
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(0, rc)
+        request_model = runner.call_args.args[0]
+        self.assertEqual("voltage-dc-ratio", request_model.measurement)
+        self.assertEqual(
+            SUPPORT_POLICY_MODE_VALIDATION,
+            runner.call_args.kwargs["support_policy_mode"],
+        )
+
+    def test_hidden_validation_flag_does_not_bypass_34460a_profile_limits(self):
+        parser = build_parser()
+        cases = [
+            (
+                ["--trigger-mode", "external", "--max-samples", "1"],
+                "--trigger-mode external is not supported by 34460A",
+            ),
+            (
+                [
+                    "--measurement",
+                    "current-dc",
+                    "--auto-range",
+                    "off",
+                    "--range",
+                    "10",
+                    "--trigger-mode",
+                    "immediate",
+                    "--max-samples",
+                    "1",
+                ],
+                "--range 10 is not valid",
+            ),
+        ]
+
+        for extra_args, expected in cases:
+            with self.subTest(expected=expected):
+                args = parser.parse_args(
+                    [
+                        "start-trigger-record",
+                        "--validation-allow-pending-live-support",
+                        "--resource",
+                        "USB0::FAKE::INSTR",
+                        "--model",
+                        "34460A",
+                        *extra_args,
+                    ]
+                )
+                stderr = io.StringIO()
+                with (
+                    patch(
+                        "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                        return_value="Keysight Technologies,34460A,MY123,1.0",
+                    ),
+                    patch("meters_tool_cli.cli.run_start_session") as runner,
+                    redirect_stderr(stderr),
+                ):
+                    rc = cmd_start(args)
+
+                self.assertEqual(2, rc)
+                self.assertIn(expected, stderr.getvalue())
+                runner.assert_not_called()
+
+    def test_hidden_validation_flag_does_not_bypass_missing_feature_metadata(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--validation-allow-pending-live-support",
+                "--resource",
+                "USB0::FAKE::INSTR",
+                "--model",
+                "34460A",
+                "--measurement",
+                "voltage-dc",
+                "--trigger-mode",
+                "immediate",
+                "--max-samples",
+                "1",
+            ]
+        )
+        stderr = io.StringIO()
+
+        with (
+            patch(
+                "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                return_value="Keysight Technologies,34460A,MY123,1.0",
+            ),
+            patch("meters_tool_core.support_policy.find_feature_support", return_value=None),
+            patch("meters_tool_cli.cli.run_start_session") as runner,
+            redirect_stderr(stderr),
+        ):
+            rc = cmd_start(args)
+
+        self.assertEqual(2, rc)
+        self.assertIn(
+            "live feature support is not registered for measurement=voltage-dc",
+            stderr.getvalue(),
+        )
+        runner.assert_not_called()
+
     def test_hidden_validation_flag_is_not_in_start_help(self):
         parser = build_parser()
         stdout = io.StringIO()
@@ -639,7 +777,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         self.assertEqual(2, rc)
         self.assertIn(
-            "34460A live support for --measurement voltage-dc-ratio is not validated",
+            "measurement=voltage-dc-ratio is pending validation",
             stderr.getvalue(),
         )
 
