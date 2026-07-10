@@ -1,35 +1,24 @@
 from __future__ import annotations
 
 import io
-import csv
 import json
-import socket
-import tempfile
-import threading
-import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from datetime import datetime
-from pathlib import Path
 from unittest.mock import patch
-from urllib import request
 from urllib.error import HTTPError, URLError
 
 from meters_tool_cli.cli import (
     build_parser,
-    cmd_list_resources,
     cmd_send_command,
-    cmd_start,
     cmd_status,
     cmd_stop,
     cmd_wait_ready,
     main,
 )
-from meters_tool_core.models import StartRequest
-from meters_tool_core.session import StartRunResult
 
 from cli_command_helpers import CliCommandHarnessMixin
-from cli_command_helpers import *  # noqa: F403
+
 
 class CliClientCommandTests(CliCommandHarnessMixin, unittest.TestCase):
     def test_soft_trigger_port_is_validated_before_request(self):

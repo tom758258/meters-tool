@@ -113,6 +113,42 @@ def _add_visa_library_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
+def _add_client_connection_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    timeout_ms: int,
+    timeout_help: str,
+) -> None:
+    parser.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
+    parser.add_argument(
+        "--timeout-ms",
+        type=int,
+        default=timeout_ms,
+        help=timeout_help,
+    )
+
+
+def _add_client_output_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    include_dry_run: bool,
+) -> None:
+    parser.add_argument(
+        "--format",
+        dest="output_format",
+        choices=["text", "json"],
+        default="text",
+        help="output format for the response; default: text",
+    )
+    parser.add_argument("--json", action="store_true", help="alias for --format json")
+    if include_dry_run:
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="preview the request without sending it",
+        )
+
+
 def build_parser(version_provider) -> argparse.ArgumentParser:
     default_profile = get_default_instrument_profile()
     supported_models = " or ".join(supported_instrument_models())
@@ -386,12 +422,10 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     )
 
     send_command = sub.add_parser("send-command", formatter_class=MetersHelpFormatter)
-    send_command.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
-    send_command.add_argument(
-        "--timeout-ms",
-        type=int,
-        default=3000,
-        help="HTTP client timeout in ms; supported range 100-600000",
+    _add_client_connection_arguments(
+        send_command,
+        timeout_ms=3000,
+        timeout_help="HTTP client timeout in ms; supported range 100-600000",
     )
     send_command.add_argument(
         "--command",
@@ -405,66 +439,30 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
         help='JSON command arguments, e.g. {"metadata":{"batch":"A"}}',
     )
     send_command.add_argument("--job-id", default=None, help="optional client-generated job id")
-    send_command.add_argument(
-        "--format",
-        dest="output_format",
-        choices=["text", "json"],
-        default="text",
-        help="output format for the response; default: text",
-    )
-    send_command.add_argument("--json", action="store_true", help="alias for --format json")
-    send_command.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
+    _add_client_output_arguments(send_command, include_dry_run=True)
+
     stop = sub.add_parser("stop", formatter_class=MetersHelpFormatter)
-    stop.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
-    stop.add_argument(
-        "--timeout-ms",
-        type=int,
-        default=3000,
-        help="HTTP client timeout in ms; supported range 100-600000",
+    _add_client_connection_arguments(
+        stop,
+        timeout_ms=3000,
+        timeout_help="HTTP client timeout in ms; supported range 100-600000",
     )
-    stop.add_argument(
-        "--format",
-        dest="output_format",
-        choices=["text", "json"],
-        default="text",
-        help="output format for the response; default: text",
-    )
-    stop.add_argument("--json", action="store_true", help="alias for --format json")
-    stop.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
+    _add_client_output_arguments(stop, include_dry_run=True)
 
     status = sub.add_parser("status", formatter_class=MetersHelpFormatter)
-    status.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
-    status.add_argument(
-        "--timeout-ms",
-        type=int,
-        default=3000,
-        help="HTTP client timeout in ms; supported range 100-600000",
+    _add_client_connection_arguments(
+        status,
+        timeout_ms=3000,
+        timeout_help="HTTP client timeout in ms; supported range 100-600000",
     )
-    status.add_argument(
-        "--format",
-        dest="output_format",
-        choices=["text", "json"],
-        default="text",
-        help="output format for the response; default: text",
-    )
-    status.add_argument("--json", action="store_true", help="alias for --format json")
-    status.add_argument("--dry-run", action="store_true", help="preview the request without sending it")
+    _add_client_output_arguments(status, include_dry_run=True)
 
     wait = sub.add_parser("wait-ready", formatter_class=MetersHelpFormatter)
-    wait.add_argument("--port", type=int, default=8765, help="server port; range 1-65535")
-    wait.add_argument(
-        "--timeout-ms",
-        type=int,
-        default=10000,
-        help="overall wait deadline in ms; supported range 100-600000",
+    _add_client_connection_arguments(
+        wait,
+        timeout_ms=10000,
+        timeout_help="overall wait deadline in ms; supported range 100-600000",
     )
-    wait.add_argument(
-        "--format",
-        dest="output_format",
-        choices=["text", "json"],
-        default="text",
-        help="output format for the response; default: text",
-    )
-    wait.add_argument("--json", action="store_true", help="alias for --format json")
+    _add_client_output_arguments(wait, include_dry_run=False)
 
     return parser

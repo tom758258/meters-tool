@@ -3,34 +3,41 @@ from __future__ import annotations
 import io
 import csv
 import json
-import socket
 import tempfile
 import threading
 import time
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 from urllib import request
-from urllib.error import HTTPError, URLError
+from urllib.error import URLError
 
 from meters_tool_cli.cli import (
     build_parser,
-    cmd_list_resources,
-    cmd_send_command,
     cmd_start,
-    cmd_status,
-    cmd_stop,
-    cmd_wait_ready,
     main,
 )
 from meters_tool_core.models import KEYSIGHT_34461A_PROFILE, StartRequest
 from meters_tool_core.session import StartRunResult
 from meters_tool_core.support_policy import SUPPORT_POLICY_MODE_VALIDATION
 
-from cli_command_helpers import CliCommandHarnessMixin
-from cli_command_helpers import *  # noqa: F403
+from cli_command_helpers import (
+    CliCommandHarnessMixin,
+    ConnectFailingStartInstrument,
+    FailingReadSimulatedVisaInstrument,
+    FakeCapturingCsvWriter,
+    FakeStartConsoleHandler,
+    FakeStartInstrument,
+    FakeStartKeyboardPoller,
+    FakeStartMeasurement,
+    FakeStartServer,
+    InstalledConsoleHandler,
+    PermissionDeniedCsvWriter,
+    QueuePressureStopStartServer,
+    ShortBufferedReadSimulatedVisaInstrument,
+)
+
 
 class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
     def _worker_status(self, *, fatal_error=None):

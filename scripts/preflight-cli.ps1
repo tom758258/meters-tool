@@ -197,84 +197,6 @@ function Invoke-SoftTriggerWithRetry {
     return $lastResult
 }
 
-function Invoke-ReadinessClientChecks {
-    param(
-        [Parameter(Mandatory = $true)][string]$Name,
-        [Parameter(Mandatory = $true)][int]$Port,
-        [Parameter(Mandatory = $true)][string]$OutDir
-    )
-
-    $waitOut = Join-Path $OutDir "$Name`_wait_ready.json"
-    $waitErr = Join-Path $OutDir "$Name`_wait_ready.stderr.txt"
-    $waitResult = Invoke-CapturedCommand `
-        -Name "$Name`_wait_ready" `
-        -FilePath $Python `
-        -Arguments @("-m", "meters_tool_cli", "wait-ready", "--format", "json", "--port", [string]$Port) `
-        -StdOutPath $waitOut `
-        -StdErrPath $waitErr
-    if (-not $waitResult.success) {
-        return [ordered]@{ success = $false; commands = @([pscustomobject]$waitResult) }
-    }
-
-    $statusOut = Join-Path $OutDir "$Name`_soft_status.json"
-    $statusErr = Join-Path $OutDir "$Name`_soft_status.stderr.txt"
-    $statusResult = Invoke-CapturedCommand `
-        -Name "$Name`_soft_status" `
-        -FilePath $Python `
-        -Arguments @("-m", "meters_tool_cli", "status", "--format", "json", "--port", [string]$Port) `
-        -StdOutPath $statusOut `
-        -StdErrPath $statusErr
-
-    return [ordered]@{
-        success = $statusResult.success
-        commands = @([pscustomobject]$waitResult, [pscustomobject]$statusResult)
-    }
-}
-
-function Read-JsonLines {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    $events = @()
-    foreach ($line in Get-Content -LiteralPath $Path) {
-        if ($line.Trim().Length -eq 0) {
-            continue
-        }
-        $events += ($line | ConvertFrom-Json -ErrorAction Stop)
-    }
-    return @($events)
-}
-
-function Select-LastJsonEvent {
-    param(
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Events,
-        [Parameter(Mandatory = $true)][string]$EventName
-    )
-    return @($Events | Where-Object { $_.event -eq $EventName } | Select-Object -Last 1)
-}
-
-function Assert-Condition {
-    param(
-        [Parameter(Mandatory = $true)][bool]$Condition,
-        [Parameter(Mandatory = $true)][string]$Message
-    )
-    if (-not $Condition) {
-        throw $Message
-    }
-}
-
-function Test-CsvRowCount {
-    param([Parameter(Mandatory = $true)][string]$Path)
-    if (-not (Test-Path -LiteralPath $Path)) {
-        return 0
-    }
-    $rows = @(Import-Csv -LiteralPath $Path)
-    return $rows.Count
-}
-
-function New-SafeCaseName {
-    param([Parameter(Mandatory = $true)][string]$Name)
-    return ($Name -replace '[^A-Za-z0-9_.-]', '_')
-}
-
 function New-StartBaseArgs {
     param(
         [Parameter(Mandatory = $true)][string]$Resource,
@@ -294,14 +216,6 @@ function New-StartBaseArgs {
         "--nplc", "1.0",
         "--status-format", "jsonl"
     )
-}
-
-function Get-TargetCliModel {
-    param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
-    switch ($ResolvedTarget) {
-        "keysight-34461a" { return "34461A" }
-        "keysight-34460a" { return "34460A" }
-    }
 }
 
 function Get-TargetSimulatorResource {

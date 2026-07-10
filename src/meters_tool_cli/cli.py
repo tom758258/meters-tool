@@ -7,28 +7,31 @@ import signal
 import sys
 from datetime import datetime, timezone
 
+from meters_tool_core import (
+    SUPPORT_POLICY_MODE_PRODUCT,
+    SUPPORT_POLICY_MODE_VALIDATION,
+    StartPlan,
+    StartRequest,
+    StartRunEvent,
+    StopController,
+    build_start_plan,
+    generate_buffer_overflow_warnings,
+    resolve_trigger_mode,
+    run_start_session,
+    validate_start_request,
+    validate_start_workflow_support,
+)
 from meters_tool_core._version import (
     DISTRIBUTION_NAME,
     FALLBACK_PACKAGE_VERSION,
     get_distribution_version,
 )
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
-from meters_tool_core.models import StartRequest
-from meters_tool_core.runner import StopController, run_start_session
-from meters_tool_core.run_plan import StartPlan, build_start_plan
-from meters_tool_core.session import StartRunEvent, new_run_id
+from meters_tool_core.session import new_run_id
 from meters_tool_core.start_resolution import resolve_start_profile
-from meters_tool_core.support_policy import (
-    SUPPORT_POLICY_MODE_PRODUCT,
-    SUPPORT_POLICY_MODE_VALIDATION,
-    validate_start_workflow_support,
-)
-from meters_tool_core.validation import (
-    generate_buffer_overflow_warnings,
-    resolve_trigger_mode,
-    validate_start_request,
-)
+
 try:
+    from ._constants import CLI_EVENT_SCHEMA_VERSION
     from ._client_commands import (
         CommandResponsePayloadError,
         StatusPayloadError,
@@ -48,26 +51,29 @@ try:
         parse_on_off,
     )
 except ImportError:  # pragma: no cover - PyInstaller script entry point
+    from meters_tool_cli._constants import CLI_EVENT_SCHEMA_VERSION
     from meters_tool_cli._client_commands import (
-        CommandResponsePayloadError,
-        StatusPayloadError,
         _validate_client_port_and_timeout,
         cmd_send_command,
         cmd_status,
         cmd_stop,
         cmd_wait_ready,
-        validate_client_timeout_ms,
     )
     from meters_tool_cli._parser import (
-        MetersArgumentParser,
-        MetersHelpFormatter,
         build_parser as _build_parser,
-        parse_auto_zero,
-        parse_dcv_input_impedance,
-        parse_on_off,
     )
 
-CLI_EVENT_SCHEMA_VERSION = 1
+__all__ = [
+    "CommandResponsePayloadError",
+    "MetersArgumentParser",
+    "MetersHelpFormatter",
+    "StatusPayloadError",
+    "parse_auto_zero",
+    "parse_dcv_input_impedance",
+    "parse_on_off",
+    "validate_client_timeout_ms",
+]
+
 FALLBACK_CLI_VERSION = FALLBACK_PACKAGE_VERSION
 
 

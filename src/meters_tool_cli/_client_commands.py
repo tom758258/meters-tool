@@ -12,8 +12,7 @@ from urllib.error import URLError
 from meters_tool_core.command import CommandValidationError, parse_command_envelope
 from meters_tool_core.validation import validate_client_port
 
-
-CLI_EVENT_SCHEMA_VERSION = 1
+from ._constants import CLI_EVENT_SCHEMA_VERSION
 
 
 class StatusPayloadError(ValueError):

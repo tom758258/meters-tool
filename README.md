@@ -190,6 +190,12 @@ Run focused tests while iterating:
 .\.venv\Scripts\python.exe -m pytest tests\webui -q -p no:cacheprovider
 ```
 
+Run the static checks:
+
+```powershell
+.\.venv\Scripts\python.exe -m ruff check src tests
+```
+
 Run the full no-hardware suite:
 
 ```powershell
