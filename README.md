@@ -242,10 +242,17 @@ guidance.
 * [WebUI User Guide](docs/webui/USER_GUIDE.md)
 * [Monorepo Architecture](docs/architecture/monorepo-layout.md)
 * [Testing Guidelines](docs/testing-guidelines.md)
+* [Contributing Guide](docs/CONTRIBUTING.md)
 * [Codex Skill Template](docs/skill/README.md)
 * [Public Contracts](docs/contracts)
 * [Meters CLI JSONL Contract](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker Contract](docs/contracts/meters-worker-contract.md)
+
+## Contributing
+
+Contributions are welcome. Before opening a pull request, read the
+[Contributing Guide](docs/CONTRIBUTING.md). Changes to instrument support or
+live behavior require real-instrument validation evidence when applicable.
 
 ## License and Disclaimer
 

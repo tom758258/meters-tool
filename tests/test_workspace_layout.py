@@ -215,6 +215,7 @@ def test_readme_markdown_links_point_to_existing_local_targets():
         REPO_ROOT / "docs" / "core" / "README.md",
         REPO_ROOT / "docs" / "cli" / "README.md",
         REPO_ROOT / "docs" / "webui" / "README.md",
+        REPO_ROOT / "docs" / "CONTRIBUTING.md",
     )
     link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
     missing = []
@@ -243,3 +244,12 @@ def test_readme_markdown_links_point_to_existing_local_targets():
                 missing.append(f"{readme.relative_to(REPO_ROOT).as_posix()}: missing {target}")
 
     assert not missing, "\n".join(missing)
+
+
+def test_root_readme_links_to_the_contributor_guide():
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    guide = REPO_ROOT / "docs" / "CONTRIBUTING.md"
+
+    assert guide.exists()
+    assert "[Contributing Guide](docs/CONTRIBUTING.md)" in readme
+    assert "--validation-allow-pending-live-support" not in readme
