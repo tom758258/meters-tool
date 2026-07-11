@@ -84,10 +84,17 @@ public artifact.
 ### New Models and Capabilities
 
 Every new `InstrumentProfile` must explicitly declare a unique stable
-`model_id` in lowercase hyphenated form, such as `keysight-34461a`. Keep the
-canonical instrument `model` token separate, and do not generate the model ID
-at runtime from vendor or display text. The profile registry rejects empty,
-malformed, duplicate, or ambiguous model identities.
+`model_id` in lowercase hyphenated form, following the current format such as
+`keysight-34461a` or `keysight-34460a`. Keep the canonical instrument `model`
+token separate, and do not generate the model ID at runtime from vendor or
+display text. Keep the ID unique across the registry and prevent cross-profile
+collisions among canonical models, model IDs, and aliases.
+
+Add registry consistency, lookup, and normalization tests for every profile
+identity change. Preserve canonical requested-model output: requested-model
+normalization returns `model`, while stable-ID normalization returns
+`model_id`. Keep the maintained validation/release wrapper target inventory
+aligned exactly with Core model IDs and cover that equality in tests.
 
 Adding a model ID registers stable Core identity only. It does not make the
 model Product-open, introduce `candidate`, `catalog_only`, `de_scoped`, or

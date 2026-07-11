@@ -143,8 +143,14 @@ measurement, trigger, limit, selection, or support-policy behavior.
 `InstrumentProfile.model` remains the canonical instrument model token used by
 existing request, expected-model, IDN, CLI, WebUI, and runtime contracts.
 `InstrumentProfile.model_id` is the explicit stable machine-readable profile
-identifier. For example, the 34461A profile uses model `34461A` and model ID
-`keysight-34461a`; display text such as `Keysight 34461A` is presentation only.
+identifier. The maintained mappings are:
+
+- `34461A` -> `keysight-34461a`
+- `34460A` -> `keysight-34460a`
+
+Display text such as `Keysight 34461A` is presentation only. Stable IDs are
+declared explicitly by profiles and are not generated from vendor or display
+text at runtime.
 
 Profile lookup accepts a canonical model, stable model ID, or existing alias
 case-insensitively. Use `normalize_model_id(...)` when an integration needs the
@@ -158,7 +164,13 @@ assert normalize_model_id("KEYSIGHT-34460A") == "keysight-34460a"
 Requested-model normalization deliberately continues to return `34461A` or
 `34460A`, not a model ID, so existing expected-model and adapter contracts do
 not change. A selected live identity remains an expected-model guard only; the
-detected `*IDN?` profile remains authoritative at runtime.
+detected `*IDN?` profile remains authoritative at runtime. A stable model ID is
+identity metadata, not live-support authorization or promotion.
+
+Downstream adapters should use public Core profile lookup and normalization
+APIs instead of maintaining a competing model-ID mapping. Maintained validation
+and release wrapper targets are aligned with the Core `model_id` inventory;
+wrapper formats and artifact details remain CLI-owned contracts.
 
 ## Validation Flow
 

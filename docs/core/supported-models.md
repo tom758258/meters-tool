@@ -20,13 +20,14 @@ Core currently provides these instrument profiles:
 Core distinguishes stable profile identity from instrument and presentation
 text:
 
-| Concept | Example | Meaning |
+| Concept | Example | Responsibility |
 | --- | --- | --- |
-| model | `34461A` | Canonical instrument model token and existing user-facing model contract |
+| model | `34461A` | Canonical physical instrument token and existing model contract |
 | model ID | `keysight-34461a` | Stable machine-readable profile identifier |
-| selected model | `34461A` or another accepted profile identity | Offline profile selection or live expected-model guard |
+| selected/requested model | `34461A` or another accepted profile identity | Offline profile selector or live expected-model guard |
 | detected model | `34461A` | Model resolved from live `*IDN?` |
-| display model | `Keysight 34461A` when applicable | Presentation text only |
+| display model | `Keysight 34461A` | Presentation text only |
+| wrapper target | `keysight-34461a` | Maintained validation/release target equal to the Core model ID |
 
 Every maintained `InstrumentProfile` explicitly owns both `model` and
 `model_id`. Profile lookup accepts the canonical model, stable model ID, and
@@ -51,8 +52,11 @@ a validation message that lists the supported models from the profile registry.
 Core capabilities expose `model_id` alongside the existing `model`, including
 in each available-profile entry. The stable ID is additive identity metadata;
 it does not indicate Product-open support, promotion status, or a physical-model
-lifecycle state. Exact workflow support metadata and evidence remain the
-separate source of truth for live availability.
+lifecycle state, and it does not open pending transport/backend or feature
+scopes. The 34460A and 34461A profile limits above remain independent of model
+identity metadata. Exact-scope workflow support metadata, reviewed evidence,
+and explicit promotion remain the separate source of truth for live
+availability.
 
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource. A
