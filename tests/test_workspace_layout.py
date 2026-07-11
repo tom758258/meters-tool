@@ -8,6 +8,10 @@ from urllib.parse import unquote
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+RELEASE_HEADING_PATTERN = re.compile(r"v([0-9]+\.[0-9]+\.[0-9]+)")
+UNRELEASED_TARGET_PATTERN = re.compile(
+    r"Unreleased — target v([0-9]+\.[0-9]+\.[0-9]+)"
+)
 TEXT_FILE_SUFFIXES = {
     ".css",
     ".html",
@@ -28,6 +32,12 @@ def read_project_version() -> str:
     match = re.search(r'^version = "([^"]+)"$', text, re.MULTILINE)
     assert match is not None
     return match.group(1)
+
+
+def parse_semver_tuple(value: str) -> tuple[int, int, int]:
+    match = re.fullmatch(r"([0-9]+)\.([0-9]+)\.([0-9]+)", value)
+    assert match is not None
+    return tuple(int(part) for part in match.groups())
 
 
 def test_root_has_no_legacy_source_package():
@@ -192,8 +202,8 @@ def test_public_package_versions_match_package_metadata():
     assert "distribution version" in architecture
 
 
-def test_current_version_is_latest_release_in_all_changelogs():
-    version = read_project_version()
+def test_changelog_release_direction_matches_package_metadata():
+    current_version = read_project_version()
     changelogs = (
         REPO_ROOT / "CHANGELOG.md",
         REPO_ROOT / "docs" / "core" / "CHANGELOG.md",
@@ -201,11 +211,33 @@ def test_current_version_is_latest_release_in_all_changelogs():
         REPO_ROOT / "docs" / "webui" / "CHANGELOG.md",
     )
 
+    first_headings = []
     for changelog in changelogs:
         text = changelog.read_text(encoding="utf-8")
-        headings = re.findall(r"^## (v\d+\.\d+\.\d+)$", text, re.MULTILINE)
+        headings = re.findall(r"^## (.+)$", text, re.MULTILINE)
         assert headings, changelog
-        assert headings[0] == f"v{version}", changelog
+        first_headings.append(headings[0])
+
+    assert len(set(first_headings)) == 1
+    first_heading = first_headings[0]
+
+    released_match = RELEASE_HEADING_PATTERN.fullmatch(first_heading)
+    if released_match:
+        assert released_match.group(1) == current_version
+        return
+
+    target_match = UNRELEASED_TARGET_PATTERN.fullmatch(first_heading)
+    assert target_match is not None
+    target_version = target_match.group(1)
+    assert parse_semver_tuple(target_version) > parse_semver_tuple(current_version)
+
+    migration_path = REPO_ROOT / "docs" / "migration-v2.md"
+    assert migration_path.exists()
+    migration_text = migration_path.read_text(encoding="utf-8")
+    assert f"`v{target_version}`" in migration_text
+    assert f"`{current_version}`" in migration_text
+    assert "pre-v2" in migration_text
+    assert "development baseline" in migration_text
 
 
 def test_readme_markdown_links_point_to_existing_local_targets():

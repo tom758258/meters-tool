@@ -6,6 +6,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DOC_ROOT = REPO_ROOT / "docs" / "cli"
+UNRELEASED_TARGET_PATTERN = re.compile(
+    r"Unreleased — target v[0-9]+\.[0-9]+\.[0-9]+"
+)
+RELEASE_HEADING_PATTERN = re.compile(r"v[0-9]+\.[0-9]+\.[0-9]+")
 
 
 def read_doc(*parts: str) -> str:
@@ -108,7 +112,9 @@ def test_cli_changelog_contains_only_cli_release_headings():
     for heading in headings:
         if heading == "Unreleased":
             continue
-        assert re.fullmatch(r"v\d+\.\d+\.\d+", heading)
+        if UNRELEASED_TARGET_PATTERN.fullmatch(heading):
+            continue
+        assert RELEASE_HEADING_PATTERN.fullmatch(heading)
         assert not heading.startswith("core-v")
         assert not heading.startswith("cli-v")
         assert not heading.startswith("webui-v")
