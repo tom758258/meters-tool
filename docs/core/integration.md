@@ -222,6 +222,48 @@ unexpected, and unsupported-status registrations against the profile
 inventory. Runtime lookup still fails closed independently of that consistency
 check.
 
+### Support Policy Granularity
+
+Meters intentionally applies live support policy at the workflow level rather
+than maintaining a policy entry for every internal SCPI or runtime operation.
+
+The current independently promotable live workflow is
+`start-trigger-record`. Its exact support key is:
+
+```text
+workflow + detected model + transport + backend + workflow-specific features
+```
+
+For `start-trigger-record`, the stable workflow-specific feature dimensions are
+measurement and trigger mode. These dimensions can change the complete
+acquisition profile, including measurement setup, trigger setup, timing, buffer
+requirements, acquisition flow, and cleanup behavior.
+
+Internal phases such as identity preflight, measurement setup, trigger setup,
+initiate, wait, fetch or read, buffer drain, stop, cleanup, release, and
+low-level SCPI operations are implementation details of the complete
+acquisition workflow. They are not independently promotable Product
+capabilities.
+
+This granularity is deliberate. Splitting internal phases into separate support
+entries would expose implementation details, create misleading partial-support
+states, and still require a final workflow-level decision before acquisition
+could run.
+
+This policy follows the same fail-closed and evidence-backed promotion
+principles as command-centric instrument projects while using a scope that
+matches the Meters runtime model. Product mode requires the exact connection
+scope and all requested workflow features to be validated. Validation mode
+allows only explicitly registered pending scopes and features. Passing
+validation evidence never promotes Product support automatically.
+
+If another independently callable live workflow is added in the future, define
+a separate workflow policy with its own exact connection scopes and stable
+categorical feature dimensions. Do not turn internal setup, query, fetch, stop,
+cleanup, or release operations into separate Product capabilities unless they
+become independently callable public workflows with their own stable contract
+and evidence boundary.
+
 Current validated 34461A live scopes include USB/system-VISA, LAN/TCPIP with
 system VISA, and LAN/TCPIP with optional CLI-only pyvisa-py `@py`. Current
 34460A LAN/TCPIP scopes remain `transport_pending`; their profile-supported

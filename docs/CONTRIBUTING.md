@@ -104,6 +104,45 @@ order is:
    explicit reviewed decision. Passing evidence does not promote it
    automatically.
 
+#### Support-Policy Granularity
+
+Meters support policy is intentionally workflow-centric. Do not copy a
+command-centric support matrix from another instrument project merely for
+structural consistency.
+
+The current independently promotable live workflow is
+`start-trigger-record`. Its policy is evaluated by exact detected model,
+transport, backend, measurement, and trigger mode. Internal acquisition phases
+such as setup, initiate, wait, fetch, buffer drain, stop, cleanup, release, and
+their low-level SCPI operations remain implementation details of that complete
+workflow.
+
+When contributing a new measurement or trigger capability to an existing
+workflow:
+
+* register the stable categorical feature as `feature_pending` in every exact
+  connection scope intended for validation;
+* preserve request validation, profile limits, simulator or fake-instrument
+  coverage, cleanup, and release behavior;
+* validate the complete workflow rather than claiming support from an isolated
+  setup or query command; and
+* promote only the exact reviewed feature and connection metadata.
+
+When contributing another independently callable live workflow:
+
+1. Define a separate workflow-level support policy.
+2. Identify only the stable categorical features that require independent
+   hardware evidence.
+3. Register exact model, transport, backend, and pending feature scopes.
+4. Add fail-closed metadata consistency and runtime lookup tests.
+5. Add bounded maintained-wrapper cases and reviewable artifacts.
+6. Promote the workflow or individual features only through a later explicit
+   metadata and documentation decision.
+
+Do not register low-level setup, query, fetch, stop, cleanup, or release
+operations as separate Product capabilities unless they become independently
+callable public workflows with their own stable contract and evidence boundary.
+
 Missing feature metadata is not `feature_pending`. A contributor must add an
 explicit pending entry for each profile-supported measurement and trigger mode
 in every intended exact connection scope. Runtime lookup fails closed when an
