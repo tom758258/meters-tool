@@ -257,7 +257,9 @@ Wrapper artifacts:
 
 ## Report Contract
 
-Preflight and live wrapper reports use `schema_version: 1`.
+Preflight, live, and release wrapper reports use `schema_version: 1`. Their
+`target` is the canonical lower-case wrapper target and equals the Core profile
+`model_id`. Current targets are `keysight-34461a` and `keysight-34460a`.
 
 Preflight `report.json` fields:
 
@@ -283,6 +285,8 @@ Live `report.json` fields:
 
 - `schema_version`
 - `target`
+- `model_id`: the same canonical stable ID as `target`.
+- `expected_model`: the physical model token passed to CLI model arguments.
 - `connection`
 - `visa_library`
 - `backend`
@@ -306,6 +310,12 @@ Live `report.json` fields:
 - `scpi_diagnostics`: Frequency/Period probe records. This is empty for
   `-PlanOnly` and suites without Frequency/Period cases.
 - `commands`: captured command result objects.
+
+Release `report.json` preserves its existing fields and additively includes
+`model_id` and `expected_model` with the same meanings as the live report. The
+release wrapper normalizes its target before choosing `SIM::34461A` or
+`SIM::34460A`, naming the output directory, and forwarding preflight and live
+PlanOnly commands. Additive identity fields do not change `schema_version: 1`.
 
 For `scripts/live-cli-check.ps1`, `support_policy_mode` is `validation` and
 `pending_live_support_allowed` is `true`. These fields identify the wrapper as

@@ -11,10 +11,12 @@ def release_check_text() -> str:
     return RELEASE_CHECK.read_text(encoding="utf-8-sig")
 
 
-def test_release_check_accepts_both_meter_targets():
+def test_release_check_uses_shared_target_resolution_with_34461a_default():
     script = release_check_text()
 
-    assert '[ValidateSet("keysight-34461a", "keysight-34460a")]' in script
+    assert '[string]$Target = "keysight-34461a"' in script
+    assert '[ValidateSet("keysight-34461a", "keysight-34460a")]' not in script
+    assert "$resolvedTarget = Resolve-ValidationTarget -Target $Target" in script
 
 
 def test_release_check_uses_target_aware_default_simulator_resource():
@@ -23,9 +25,21 @@ def test_release_check_uses_target_aware_default_simulator_resource():
     assert "[string]$Resource," in script
     assert '[string]$Resource = "SIM::34461A"' not in script
     assert "if ([string]::IsNullOrWhiteSpace($Resource))" in script
-    assert "$targetModel = Get-TargetCliModel -ResolvedTarget $Target" in script
+    assert "$targetModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget" in script
     assert '$Resource = "SIM::$targetModel"' in script
     assert '"-Resource", $Resource, "-PlanOnly"' in script
+    assert '"-Target", $resolvedTarget' in script
+
+
+def test_release_check_adds_stable_identity_artifact_metadata():
+    script = release_check_text()
+
+    assert "target = $resolvedTarget" in script
+    assert "model_id = $resolvedTarget" in script
+    assert "expected_model = $targetModel" in script
+    assert '"- Model ID: $resolvedTarget"' in script
+    assert '"- Expected model: $targetModel"' in script
+    assert "Join-Path $releaseRoot $resolvedTarget" in script
 
 
 def test_release_check_keeps_package_version_as_default_release():

@@ -1,5 +1,4 @@
 param(
-    [ValidateSet("all", "keysight-34461a", "keysight-34460a")]
     [string]$Target = "all",
     [switch]$ListTargets,
     [string]$OutputRoot = ".tmp_tests\cli_preflight"
@@ -13,8 +12,7 @@ $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 . (Join-Path $PSScriptRoot "_validation_helpers.ps1")
 
 if ($ListTargets) {
-    Write-Output "keysight-34461a"
-    Write-Output "keysight-34460a"
+    Get-SupportedTargetModelIds
     return
 }
 
@@ -220,10 +218,8 @@ function New-StartBaseArgs {
 
 function Get-TargetSimulatorResource {
     param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
-    switch ($ResolvedTarget) {
-        "keysight-34461a" { return "SIM::34461A" }
-        "keysight-34460a" { return "SIM::34460A" }
-    }
+    $model = Get-TargetCliModel -ResolvedTarget $ResolvedTarget
+    return "SIM::$model"
 }
 
 function Test-TargetSupportsExternalTriggers {
@@ -685,9 +681,9 @@ function Invoke-TargetPreflight {
 }
 
 $targets = if ($Target -eq "all") {
-    @("keysight-34461a", "keysight-34460a")
+    @(Get-SupportedTargetModelIds)
 } else {
-    @($Target)
+    @(Resolve-ValidationTarget -Target $Target)
 }
 
 $results = foreach ($item in $targets) {

@@ -1,5 +1,4 @@
 param(
-    [ValidateSet("keysight-34461a", "keysight-34460a")]
     [string]$Target = "keysight-34461a",
 
     [string]$Release,
@@ -17,11 +16,9 @@ $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 . (Join-Path $PSScriptRoot "_validation_helpers.ps1")
 
+$resolvedTarget = Resolve-ValidationTarget -Target $Target
+$targetModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget
 if ([string]::IsNullOrWhiteSpace($Resource)) {
-    $targetModel = Get-TargetCliModel -ResolvedTarget $Target
-    Assert-Condition `
-        -Condition (-not [string]::IsNullOrWhiteSpace($targetModel)) `
-        -Message "Unsupported release target: $Target"
     $Resource = "SIM::$targetModel"
 }
 
@@ -59,7 +56,7 @@ function Resolve-OutputRoot {
 
 $releaseRoot = Resolve-OutputRoot -Path $OutputRoot
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
-$runDir = Join-Path (Join-Path $releaseRoot $Target) $timestamp
+$runDir = Join-Path (Join-Path $releaseRoot $resolvedTarget) $timestamp
 Assert-UnderTmpRoot -Path $runDir
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
 
@@ -93,12 +90,12 @@ $commandSpecs = @(
     [pscustomobject]@{
         name = "preflight_cli"
         file = "powershell.exe"
-        args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\scripts\preflight-cli.ps1", "-Target", $Target)
+        args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\scripts\preflight-cli.ps1", "-Target", $resolvedTarget)
     },
     [pscustomobject]@{
         name = "live_cli_plan_only"
         file = "powershell.exe"
-        args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\scripts\live-cli-check.ps1", "-Target", $Target, "-Connection", "usb", "-Resource", $Resource, "-PlanOnly")
+        args = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ".\scripts\live-cli-check.ps1", "-Target", $resolvedTarget, "-Connection", "usb", "-Resource", $Resource, "-PlanOnly")
     }
 )
 
@@ -117,7 +114,9 @@ $report = [ordered]@{
     schema_version = 1
     target_release = $Release
     package_version = $packageVersion
-    target = $Target
+    target = $resolvedTarget
+    model_id = $resolvedTarget
+    expected_model = $targetModel
     resource = $Resource
     generated_at = (Get-Date).ToUniversalTime().ToString("o")
     git_head = Get-GitHead
@@ -138,7 +137,9 @@ $summaryLines = @(
     "",
     "- Target release: $Release",
     "- Package version: $($report.package_version)",
-    "- Target: $Target",
+    "- Target: $resolvedTarget",
+    "- Model ID: $resolvedTarget",
+    "- Expected model: $targetModel",
     "- Resource: $Resource",
     "- Status: $status",
     "- Validation mode: release_no_hardware",

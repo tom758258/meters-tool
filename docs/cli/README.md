@@ -272,6 +272,14 @@ Normal CLI starts, the WebUI, and direct Core live calls remain product-gated
 until reviewed artifacts are accepted and support metadata plus documentation
 are updated.
 
+Wrapper `-Target` values are stable Core model IDs. The maintained values are
+`keysight-34461a` and `keysight-34460a`; they map to the physical CLI model
+tokens `34461A` and `34460A`, respectively. The wrapper target remains an
+expected-model guard for live validation, while detected `*IDN?` selects the
+runtime profile. A model ID does not imply Product-open support, lifecycle,
+transport/backend, measurement, trigger-mode, or validation status. Meters
+support policy remains workflow-centric.
+
 4. Generate the live plan without opening VISA or changing the instrument:
 
 ```powershell

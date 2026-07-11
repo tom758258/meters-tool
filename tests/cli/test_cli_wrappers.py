@@ -9,6 +9,7 @@ from uuid import uuid4
 
 import pytest
 from meters_tool_cli.cli import FALLBACK_CLI_VERSION
+from meters_tool_core.models import INSTRUMENT_PROFILES, find_instrument_profile_by_model
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -37,6 +38,17 @@ def run_wrapper(script: str, *args: str, stdin: str | None = None) -> subprocess
         ],
         cwd=REPO_ROOT,
         input=stdin,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+
+def run_powershell_command(command: str) -> subprocess.CompletedProcess[str]:
+    require_wrapper_tools()
+    return subprocess.run(
+        [POWERSHELL or "powershell.exe", "-NoProfile", "-Command", command],
+        cwd=REPO_ROOT,
         text=True,
         capture_output=True,
         check=False,
@@ -99,6 +111,73 @@ def command_arguments(report: dict, command_name: str) -> list[str]:
     return matches[0]["arguments"]
 
 
+def test_shared_validation_target_inventory_matches_core_profiles():
+    helper = REPO_ROOT / "scripts" / "_validation_helpers.ps1"
+    command = (
+        f". '{helper}'; "
+        "$items = @(Get-SupportedTargetModelIds | ForEach-Object { "
+        "[pscustomobject]@{ model_id = $_; model = Get-TargetCliModel -ResolvedTarget $_ } "
+        "}); ConvertTo-Json -InputObject $items -Compress"
+    )
+    result = run_powershell_command(command)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    wrapper_profiles = json.loads(result.stdout)
+    core_by_id = {profile.model_id: profile for profile in INSTRUMENT_PROFILES}
+    wrapper_by_id = {item["model_id"]: item["model"] for item in wrapper_profiles}
+
+    assert len(wrapper_profiles) == len(wrapper_by_id)
+    assert set(wrapper_by_id) == set(core_by_id)
+    assert all(model_id == model_id.lower() for model_id in wrapper_by_id)
+    for model_id, model in wrapper_by_id.items():
+        profile = find_instrument_profile_by_model(model_id)
+        assert profile is core_by_id[model_id]
+        assert model == profile.model
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("KEYSIGHT-34461A", "keysight-34461a"),
+        ("Keysight-34460A", "keysight-34460a"),
+    ],
+)
+def test_shared_validation_target_normalizes_case(value: str, expected: str):
+    helper = REPO_ROOT / "scripts" / "_validation_helpers.ps1"
+    result = run_powershell_command(
+        f". '{helper}'; Resolve-ValidationTarget -Target '{value}'"
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert result.stdout.strip() == expected
+
+
+@pytest.mark.parametrize(("argument", "message"), [("$null", "Missing target"), ("'unknown'", "Unsupported target")])
+def test_shared_validation_target_rejects_missing_and_unknown(argument: str, message: str):
+    helper = REPO_ROOT / "scripts" / "_validation_helpers.ps1"
+    result = run_powershell_command(
+        f". '{helper}'; Resolve-ValidationTarget -Target {argument}"
+    )
+
+    assert result.returncode != 0
+    assert message in result.stdout + result.stderr
+
+
+def test_shared_validation_target_registry_rejects_duplicates():
+    helper = REPO_ROOT / "scripts" / "_validation_helpers.ps1"
+    command = (
+        f". '{helper}'; "
+        "$script:ValidationTargetProfiles = @("
+        "[pscustomobject]@{ model_id = 'duplicate'; model = 'A' }, "
+        "[pscustomobject]@{ model_id = 'duplicate'; model = 'B' }); "
+        "Get-SupportedTargetModelIds"
+    )
+    result = run_powershell_command(command)
+
+    assert result.returncode != 0
+    assert "Duplicate validation target model_id 'duplicate'" in result.stdout + result.stderr
+
+
 def test_release_check_rejects_mismatched_package_version():
     result = run_wrapper(
         "scripts/release-cli-check.ps1",
@@ -110,6 +189,17 @@ def test_release_check_rejects_mismatched_package_version():
     assert "Release 1.4.0 does not match package version 1.6.0" in (
         result.stdout + result.stderr
     )
+
+
+def test_release_check_rejects_unknown_target_before_running_commands():
+    result = run_wrapper(
+        "scripts/release-cli-check.ps1",
+        "-Target",
+        "unknown",
+    )
+
+    assert result.returncode != 0
+    assert "Unsupported target 'unknown'" in result.stdout + result.stderr
 
 
 def test_preflight_report_contract():
@@ -306,6 +396,9 @@ def test_live_plan_only_minimal_report_contract():
     report = load_json(report_from_summary_output(result.stdout))
     assert report["schema_version"] == 1
     assert report["status"] == "planned"
+    assert report["target"] == "keysight-34461a"
+    assert report["model_id"] == "keysight-34461a"
+    assert report["expected_model"] == "34461A"
     assert report["package_version"] == FALLBACK_CLI_VERSION
     assert report["validation_mode"] == "live_plan_only"
     assert report["support_policy_mode"] == "validation"
@@ -321,6 +414,7 @@ def test_live_plan_only_minimal_report_contract():
     assert report["cases"] == []
     assert report["scpi_diagnostics"] == []
     assert_under_tmp_tests(report["output_dir"])
+    assert "keysight-34461a" in Path(report["output_dir"]).parts
 
     assert {dry_run["name"] for dry_run in report["dry_runs"]} == {
         "minimal_current_dc_immediate"
@@ -340,6 +434,9 @@ def test_live_plan_only_minimal_report_contract():
     args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
     assert "--validation-allow-pending-live-support" in args
     assert args[args.index("--model") + 1] == "34461A"
+    summary = Path(report["artifact_paths"]["summary"]).read_text(encoding="utf-8")
+    assert "- Model ID: keysight-34461a" in summary
+    assert "- Expected model: 34461A" in summary
 
 
 def test_live_plan_only_full_report_contract():
@@ -428,6 +525,8 @@ def test_live_plan_only_34460a_minimal_uses_34460a_model():
 
     report = load_json(report_from_summary_output(result.stdout))
     assert report["target"] == "keysight-34460a"
+    assert report["model_id"] == "keysight-34460a"
+    assert report["expected_model"] == "34460A"
     assert report["status"] == "planned"
     assert {dry_run["name"] for dry_run in report["dry_runs"]} == {
         "minimal_current_dc_immediate"
@@ -435,6 +534,57 @@ def test_live_plan_only_34460a_minimal_uses_34460a_model():
     args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
     assert "--validation-allow-pending-live-support" in args
     assert args[args.index("--model") + 1] == "34460A"
+    assert "keysight-34460a" in Path(report["output_dir"]).parts
+
+
+def test_live_plan_only_mixed_case_target_normalizes_to_model_id():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "KEYSIGHT-34461A",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-PlanOnly",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+
+    report = load_json(report_from_summary_output(result.stdout))
+    assert report["target"] == "keysight-34461a"
+    assert report["model_id"] == "keysight-34461a"
+    assert report["expected_model"] == "34461A"
+    assert "keysight-34461a" in Path(report["output_dir"]).parts
+
+
+def test_live_rejects_unknown_target_with_usage_failure():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Target",
+        "unknown",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-PlanOnly",
+    )
+
+    assert result.returncode == 2
+    assert "Unsupported target 'unknown'" in result.stdout + result.stderr
+
+
+def test_live_rejects_missing_target_with_usage_failure():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1",
+        "-Connection",
+        "usb",
+        "-Resource",
+        "SIM::34461A",
+        "-PlanOnly",
+    )
+
+    assert result.returncode == 2
+    assert "Missing target" in result.stdout + result.stderr
 
 
 def test_live_plan_only_forwards_visa_library_to_start_args():

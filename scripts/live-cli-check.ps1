@@ -188,18 +188,6 @@ function Invoke-SoftTriggerWithRetry {
     return $lastResult
 }
 
-function Resolve-Target {
-    param([string]$Value)
-    if ([string]::IsNullOrWhiteSpace($Value)) {
-        Fail-Usage "Missing -Target. Supported targets: keysight-34461a, keysight-34460a."
-    }
-    $normalized = $Value.Trim().ToLowerInvariant()
-    if ($normalized -notin @("keysight-34461a", "keysight-34460a")) {
-        Fail-Usage "Unsupported target '$Value'. Supported targets: keysight-34461a, keysight-34460a."
-    }
-    return $normalized
-}
-
 function Resolve-Connection {
     param([string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) {
@@ -664,6 +652,8 @@ function Write-LiveArtifacts {
     $report = [ordered]@{
         schema_version = 1
         target = $resolvedTarget
+        model_id = $resolvedTarget
+        expected_model = $resolvedCliModel
         connection = $resolvedConnection
         visa_library = if ([string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) { "system_visa" } else { $resolvedVisaLibrary }
         backend = if ([string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) { "system_visa" } else { $resolvedVisaLibrary }
@@ -695,6 +685,8 @@ function Write-LiveArtifacts {
         "# Live CLI Check Summary",
         "",
         "- Target: $resolvedTarget",
+        "- Model ID: $resolvedTarget",
+        "- Expected model: $resolvedCliModel",
         "- Connection: $resolvedConnection",
         "- VISA library/backend: $($report.visa_library)",
         "- Support policy mode: $($report.support_policy_mode)",
@@ -777,7 +769,11 @@ if ([string]::IsNullOrWhiteSpace($Resource)) {
     Fail-Usage "Missing -Resource. Live checks never scan or guess a VISA resource."
 }
 
-$resolvedTarget = Resolve-Target -Value $Target
+try {
+    $resolvedTarget = Resolve-ValidationTarget -Target $Target
+} catch {
+    Fail-Usage $_.Exception.Message
+}
 $resolvedCliModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget
 $resolvedConnection = Resolve-Connection -Value $Connection
 $resolvedVisaLibrary = if ([string]::IsNullOrWhiteSpace($VisaLibrary)) { $null } else { $VisaLibrary.Trim() }

@@ -1,5 +1,52 @@
 Set-StrictMode -Version Latest
 
+$script:ValidationTargetProfiles = @(
+    [pscustomobject]@{ model_id = "keysight-34461a"; model = "34461A" },
+    [pscustomobject]@{ model_id = "keysight-34460a"; model = "34460A" }
+)
+
+function Get-ValidationTargetProfiles {
+    $profiles = @($script:ValidationTargetProfiles)
+    $owners = @{}
+    foreach ($profile in $profiles) {
+        $modelId = [string]$profile.model_id
+        $model = [string]$profile.model
+        if ([string]::IsNullOrWhiteSpace($modelId)) {
+            throw "Validation target model_id must not be empty."
+        }
+        if ($modelId -cne $modelId.ToLowerInvariant()) {
+            throw "Validation target model_id must be lowercase: '$modelId'."
+        }
+        if ([string]::IsNullOrWhiteSpace($model)) {
+            throw "Validation target '$modelId' must declare a physical model."
+        }
+        if ($owners.ContainsKey($modelId)) {
+            throw "Duplicate validation target model_id '$modelId'."
+        }
+        $owners[$modelId] = $profile
+    }
+    return $profiles
+}
+
+function Get-SupportedTargetModelIds {
+    return @(Get-ValidationTargetProfiles | ForEach-Object { $_.model_id })
+}
+
+function Resolve-ValidationTarget {
+    param([AllowNull()][AllowEmptyString()][string]$Target)
+
+    $supported = @(Get-SupportedTargetModelIds)
+    $supportedText = $supported -join ", "
+    if ([string]::IsNullOrWhiteSpace($Target)) {
+        throw "Missing target. Supported targets: $supportedText."
+    }
+    $normalized = $Target.Trim().ToLowerInvariant()
+    if ($normalized -notin $supported) {
+        throw "Unsupported target '$Target'. Supported targets: $supportedText."
+    }
+    return $normalized
+}
+
 function Get-PackageVersion {
     param(
         [string]$ProjectRoot,
@@ -281,8 +328,7 @@ function New-SafeCaseName {
 
 function Get-TargetCliModel {
     param([Parameter(Mandatory = $true)][string]$ResolvedTarget)
-    switch ($ResolvedTarget) {
-        "keysight-34461a" { return "34461A" }
-        "keysight-34460a" { return "34460A" }
-    }
+    $canonicalTarget = Resolve-ValidationTarget -Target $ResolvedTarget
+    $profile = @(Get-ValidationTargetProfiles | Where-Object { $_.model_id -eq $canonicalTarget })[0]
+    return $profile.model
 }
