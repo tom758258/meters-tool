@@ -48,6 +48,12 @@ model input such as `34460a` or `34461a` and stable IDs such as
 still receive the canonical model token. Unknown identities are rejected with
 a validation message that lists the supported models from the profile registry.
 
+Core capabilities expose `model_id` alongside the existing `model`, including
+in each available-profile entry. The stable ID is additive identity metadata;
+it does not indicate Product-open support, promotion status, or a physical-model
+lifecycle state. Exact workflow support metadata and evidence remain the
+separate source of truth for live availability.
+
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource. A
 selected model in live mode is never a feature unlock; Core support policy and

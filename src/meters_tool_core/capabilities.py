@@ -37,6 +37,7 @@ class MeasurementCapability:
 class CoreCapabilities:
     vendor: str
     model: str
+    model_id: str
     aliases: tuple[str, ...]
     reading_memory_limit: int
     trigger_modes: tuple[str, ...]
@@ -89,12 +90,17 @@ def get_core_capabilities(profile: InstrumentProfile | None = None) -> CoreCapab
     return CoreCapabilities(
         vendor=effective_profile.vendor,
         model=effective_profile.model,
+        model_id=effective_profile.model_id,
         aliases=effective_profile.aliases,
         reading_memory_limit=effective_profile.reading_memory_limit,
         trigger_modes=supported_trigger_modes(effective_profile),
         measurements=tuple(measurement_capabilities),
         available_profiles=tuple(
-            {"model": profile.model, "vendor": profile.vendor}
+            {
+                "model": profile.model,
+                "model_id": profile.model_id,
+                "vendor": profile.vendor,
+            }
             for profile in INSTRUMENT_PROFILES
         ),
     )

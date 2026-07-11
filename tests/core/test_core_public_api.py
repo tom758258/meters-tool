@@ -159,6 +159,22 @@ class CorePublicApiTests(unittest.TestCase):
         self.assertIsInstance(capabilities, CoreCapabilities)
         self.assertEqual("Keysight", capabilities.vendor)
         self.assertEqual("34461A", capabilities.model)
+        self.assertEqual("keysight-34461a", capabilities.model_id)
+        self.assertEqual(
+            (
+                {
+                    "model": "34461A",
+                    "model_id": "keysight-34461a",
+                    "vendor": "Keysight",
+                },
+                {
+                    "model": "34460A",
+                    "model_id": "keysight-34460a",
+                    "vendor": "Keysight",
+                },
+            ),
+            capabilities.available_profiles,
+        )
         self.assertEqual(10000, capabilities.reading_memory_limit)
         self.assertEqual(
             (
@@ -208,13 +224,18 @@ class CorePublicApiTests(unittest.TestCase):
         capabilities = get_core_capabilities(KEYSIGHT_34460A_PROFILE)
 
         self.assertEqual("34460A", capabilities.model)
+        self.assertEqual("keysight-34460a", capabilities.model_id)
         self.assertEqual(1000, capabilities.reading_memory_limit)
         self.assertEqual(
             ("software", "immediate", "immediate-custom", "software-custom"),
             capabilities.trigger_modes,
         )
         self.assertIn(
-            {"model": "34460A", "vendor": "Keysight"},
+            {
+                "model": "34460A",
+                "model_id": "keysight-34460a",
+                "vendor": "Keysight",
+            },
             capabilities.available_profiles,
         )
         measurements = {

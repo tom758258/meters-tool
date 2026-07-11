@@ -184,10 +184,13 @@ returns only resources that respond as live devices.
 
 Verified scan results include nullable model metadata when the returned IDN
 matches a supported Core profile. A 34460A IDN returns
-`instrument_model: "34460A"` and a 34461A IDN returns
-`instrument_model: "34461A"`. Unknown live IDNs remain in the resource list
-with null model metadata so operators can still inspect or type resources
-without the listing failing.
+`instrument_model: "34460A"` and `instrument_model_id:
+"keysight-34460a"`; a 34461A IDN returns the corresponding `34461A` and
+`keysight-34461a` values. The nested `matched_profile` includes `vendor`,
+`model`, and `model_id`. Unknown or empty live IDNs remain in the resource list
+with `instrument_model`, `instrument_model_id`, and `matched_profile` set to
+null, so the backend never guesses a detected identity from the fallback
+capability profile.
 
 Selecting a live resource copies it into the `VISA resource` input. When the
 scan inferred a supported model and `Expected model` remains Auto-detect, the
@@ -222,6 +225,7 @@ Measurement options are loaded from Core through:
 GET /api/capabilities
 GET /api/capabilities?model=34460A
 GET /api/capabilities?model=34461A
+GET /api/capabilities?model=keysight-34461a
 ```
 
 When `model` is omitted, `/api/capabilities` returns the compatibility
@@ -232,6 +236,34 @@ In Auto-detect mode, capability controls and support summaries use that
 fallback capability view until Start or Scan detects IDN. This display context
 does not select the live driver; live runs still use the detected IDN-selected
 profile as the runtime driver.
+
+Model identity metadata is additive; existing model fields keep their current
+values and meanings:
+
+| Field | Example | Meaning |
+| --- | --- | --- |
+| `model` | `34461A` | Canonical instrument model token and existing public model contract. |
+| `model_id` | `keysight-34461a` | Stable machine-readable profile identifier. |
+| `display_model` | `Auto-detect` or `34461A` | Display-oriented UI text. |
+| `capability_profile` | `34461A` | Profile whose capabilities are currently being displayed. |
+| `capability_profile_id` | `keysight-34461a` | Stable ID for the displayed capability profile. |
+| `instrument_model` | `34461A` | Existing selected or detected model field according to the owning payload. |
+| `instrument_model_id` | `keysight-34461a` | Stable ID only after a resource IDN matches a profile. |
+
+`instrument_profile` and every `available_profiles` entry include both
+`model` and `model_id`. `support_summary.model_id` corresponds to its existing
+`model`, while `capability_profile_id` corresponds to `capability_profile`.
+For unresolved Auto-detect, both IDs describe the displayed 34461A fallback
+capability profile: `display_model` remains `Auto-detect`,
+`defaults.instrument_model` remains null, and `model_resolution` remains
+unresolved while adding `fallback_profile_id: "keysight-34461a"`. This fallback
+ID does not mean that a live instrument has been detected. Explicit profile
+queries keep both fallback fields null.
+
+Canonical model names remain valid for normal use, and stable model IDs are
+also accepted profile lookup inputs. A selected model remains an expected-model
+guard; the profile detected from live `*IDN?` remains the runtime driver. Model
+IDs do not represent support status or lifecycle state.
 
 `/api/capabilities` also includes additive support metadata. Every exact live
 connection scope keeps its existing `validation_status`, `transport_scope`,
@@ -518,13 +550,13 @@ The browser-facing API surface is:
 
 - `GET /`: serves `index.html`.
 - `GET /api/capabilities`: returns Core-backed measurement and trigger
-  capabilities. Optional `model=34460A` or `model=34461A` selects the profile;
-  omitted model returns unresolved auto metadata and a compatibility
-  34461A-shaped capability surface. Exact live support scopes add measurement
-  and trigger-mode feature status maps without removing existing fields.
+  capabilities. Optional canonical models or registered stable model IDs select
+  the profile; omitted model returns unresolved auto metadata and a
+  compatibility 34461A-shaped capability surface. Profile identity and exact
+  live support scopes add metadata without removing existing fields.
 - `GET /api/resources?verify=true&live_only=true`: scans VISA resources and,
-  for verified supported IDNs, includes nullable `instrument_model` and
-  `matched_profile` metadata.
+  for verified supported IDNs, includes nullable `instrument_model`,
+  `instrument_model_id`, and `matched_profile` metadata.
 - `POST /api/runs`: validates and starts a run.
 - `GET /api/runs/current`: returns current or latest run status.
 - `GET /api/runs/current/events`: returns Server-Sent Events (SSE) stream of run status changes.

@@ -84,6 +84,7 @@ def build_capabilities_payload(
         "instrument_profile": {
             "vendor": profile.vendor,
             "model": profile.model,
+            "model_id": profile.model_id,
             "reading_memory_limit": profile.reading_memory_limit,
             "supports_buffered_reading_memory": profile.supports_buffered_reading_memory,
             "supports_bus_trigger": profile.supports_bus_trigger,
@@ -104,7 +105,11 @@ def build_capabilities_payload(
         },
         "support_summary": support_summary(profile, auto_unresolved=auto_unresolved),
         "available_profiles": [
-            {"model": available.model, "vendor": available.vendor}
+            {
+                "model": available.model,
+                "model_id": available.model_id,
+                "vendor": available.vendor,
+            }
             for available in INSTRUMENT_PROFILES
         ],
         "measurements": measurements,
@@ -149,21 +154,35 @@ def build_capabilities_payload(
         "model_resolution": {
             "mode": "auto" if auto_unresolved else "explicit",
             "resolved": not auto_unresolved,
-            "fallback_profile": "34461A" if auto_unresolved else None,
+            "fallback_profile": profile.model if auto_unresolved else None,
+            "fallback_profile_id": profile.model_id if auto_unresolved else None,
         },
     }
 
 
 def resource_model_metadata(idn_detail: str | None) -> dict[str, Any]:
     if not idn_detail:
-        return {"instrument_model": None, "matched_profile": None}
+        return {
+            "instrument_model": None,
+            "instrument_model_id": None,
+            "matched_profile": None,
+        }
     try:
         profile = find_instrument_profile_by_idn(idn_detail)
     except ValueError:
-        return {"instrument_model": None, "matched_profile": None}
+        return {
+            "instrument_model": None,
+            "instrument_model_id": None,
+            "matched_profile": None,
+        }
     return {
         "instrument_model": profile.model,
-        "matched_profile": {"vendor": profile.vendor, "model": profile.model},
+        "instrument_model_id": profile.model_id,
+        "matched_profile": {
+            "vendor": profile.vendor,
+            "model": profile.model,
+            "model_id": profile.model_id,
+        },
     }
 
 
@@ -172,6 +191,8 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
     common = {
         "display_model": "Auto-detect" if auto_unresolved else profile.model,
         "capability_profile": profile.model,
+        "capability_profile_id": profile.model_id,
+        "model_id": profile.model_id,
         "is_fallback_capability_view": auto_unresolved,
         "runtime_driver_note": "Live runtime model is selected from detected *IDN?.",
         "scopes": [support_scope_payload(scope) for scope in live_support.scopes],

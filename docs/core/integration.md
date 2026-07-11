@@ -132,6 +132,12 @@ measurement types such as `current_dc`. Per-measurement capabilities include
 Frequency/Period gate-time choices and Frequency-only timeout choices plus
 their effective defaults.
 
+`CoreCapabilities.model_id` exposes the active profile's stable ID alongside
+the unchanged canonical `model`. Each `available_profiles` entry likewise
+contains `vendor`, `model`, and `model_id`. These fields come directly from the
+authoritative profile registry and are additive metadata; they do not change
+measurement, trigger, limit, selection, or support-policy behavior.
+
 ## Profile Identity
 
 `InstrumentProfile.model` remains the canonical instrument model token used by

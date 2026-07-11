@@ -75,9 +75,21 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual("34461A", payload["instrument_profile"]["model"])
         self.assertEqual(
+            "keysight-34461a",
+            payload["instrument_profile"]["model_id"],
+        )
+        self.assertEqual(
             [
-                {"model": "34461A", "vendor": "Keysight"},
-                {"model": "34460A", "vendor": "Keysight"},
+                {
+                    "model": "34461A",
+                    "model_id": "keysight-34461a",
+                    "vendor": "Keysight",
+                },
+                {
+                    "model": "34460A",
+                    "model_id": "keysight-34460a",
+                    "vendor": "Keysight",
+                },
             ],
             payload["available_profiles"],
         )
@@ -181,8 +193,13 @@ class WebUiApiTests(unittest.TestCase):
         )
         summary = payload["support_summary"]
         self.assertEqual("34461A", summary["model"])
+        self.assertEqual("keysight-34461a", summary["model_id"])
         self.assertEqual("Auto-detect", summary["display_model"])
         self.assertEqual("34461A", summary["capability_profile"])
+        self.assertEqual(
+            "keysight-34461a",
+            summary["capability_profile_id"],
+        )
         self.assertTrue(summary["is_fallback_capability_view"])
         self.assertIn("detected *IDN?", summary["runtime_driver_note"])
         self.assertIn("runtime model", summary["runtime_driver_note"])
@@ -215,7 +232,12 @@ class WebUiApiTests(unittest.TestCase):
         defaults = payload["defaults"]
         self.assertIsNone(defaults["instrument_model"])
         self.assertEqual(
-            {"mode": "auto", "resolved": False, "fallback_profile": "34461A"},
+            {
+                "mode": "auto",
+                "resolved": False,
+                "fallback_profile": "34461A",
+                "fallback_profile_id": "keysight-34461a",
+            },
             payload["model_resolution"],
         )
         self.assertEqual("on", defaults["auto_zero"])
@@ -232,6 +254,10 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         payload = response.json()
         self.assertEqual("34460A", payload["instrument_profile"]["model"])
+        self.assertEqual(
+            "keysight-34460a",
+            payload["instrument_profile"]["model_id"],
+        )
         self.assertEqual(1000, payload["instrument_profile"]["reading_memory_limit"])
         self.assertEqual(1000, payload["limits"]["buffer_drain_size"]["max"])
         self.assertNotIn("external", payload["trigger_modes"])
@@ -239,9 +265,24 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("software-custom", payload["trigger_modes"])
         summary = payload["support_summary"]
         self.assertEqual("34460A", summary["model"])
+        self.assertEqual("keysight-34460a", summary["model_id"])
         self.assertEqual("34460A", summary["display_model"])
         self.assertEqual("34460A", summary["capability_profile"])
+        self.assertEqual(
+            "keysight-34460a",
+            summary["capability_profile_id"],
+        )
         self.assertFalse(summary["is_fallback_capability_view"])
+        self.assertEqual("34460A", payload["defaults"]["instrument_model"])
+        self.assertEqual(
+            {
+                "mode": "explicit",
+                "resolved": True,
+                "fallback_profile": None,
+                "fallback_profile_id": None,
+            },
+            payload["model_resolution"],
+        )
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
@@ -306,14 +347,33 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         payload = response.json()
         self.assertEqual("34461A", payload["instrument_profile"]["model"])
+        self.assertEqual(
+            "keysight-34461a",
+            payload["instrument_profile"]["model_id"],
+        )
         self.assertEqual(10000, payload["instrument_profile"]["reading_memory_limit"])
         self.assertIn("external", payload["trigger_modes"])
         self.assertIn("external-custom", payload["trigger_modes"])
         summary = payload["support_summary"]
         self.assertEqual("34461A", summary["model"])
+        self.assertEqual("keysight-34461a", summary["model_id"])
         self.assertEqual("34461A", summary["display_model"])
         self.assertEqual("34461A", summary["capability_profile"])
+        self.assertEqual(
+            "keysight-34461a",
+            summary["capability_profile_id"],
+        )
         self.assertFalse(summary["is_fallback_capability_view"])
+        self.assertEqual("34461A", payload["defaults"]["instrument_model"])
+        self.assertEqual(
+            {
+                "mode": "explicit",
+                "resolved": True,
+                "fallback_profile": None,
+                "fallback_profile_id": None,
+            },
+            payload["model_resolution"],
+        )
         self.assertIn("external trigger workflows", summary["open_workflows"])
         self.assertEqual([], summary["pending"])
         summary_scopes = {
@@ -331,6 +391,20 @@ class WebUiApiTests(unittest.TestCase):
         measurements = {item["name"]: item for item in payload["measurements"]}
         self.assertIn(10.0, [item["value"] for item in measurements["current-dc"]["range_options"]])
         self.assertEqual([3, 10], measurements["current-dc"]["current_terminal_options"])
+
+    def test_capabilities_model_id_query_returns_canonical_profile_metadata(self):
+        client, _csv_path = self.make_client()
+
+        response = client.get("/api/capabilities?model=keysight-34461a")
+
+        self.assertEqual(200, response.status_code)
+        payload = response.json()
+        self.assertEqual("34461A", payload["instrument_profile"]["model"])
+        self.assertEqual(
+            "keysight-34461a",
+            payload["instrument_profile"]["model_id"],
+        )
+        self.assertEqual("34461A", payload["defaults"]["instrument_model"])
 
     def test_capabilities_use_fallback_version_when_package_metadata_is_unavailable(self):
         with (
@@ -370,8 +444,13 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         resource = response.json()["resources"][0]
         self.assertEqual("34460A", resource["instrument_model"])
+        self.assertEqual("keysight-34460a", resource["instrument_model_id"])
         self.assertEqual(
-            {"vendor": "Keysight", "model": "34460A"},
+            {
+                "vendor": "Keysight",
+                "model": "34460A",
+                "model_id": "keysight-34460a",
+            },
             resource["matched_profile"],
         )
 
@@ -393,30 +472,40 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual(200, response.status_code)
         resource = response.json()["resources"][0]
         self.assertEqual("34461A", resource["instrument_model"])
+        self.assertEqual("keysight-34461a", resource["instrument_model_id"])
         self.assertEqual(
-            {"vendor": "Keysight", "model": "34461A"},
+            {
+                "vendor": "Keysight",
+                "model": "34461A",
+                "model_id": "keysight-34461a",
+            },
             resource["matched_profile"],
         )
 
-    def test_verified_resource_scan_keeps_unknown_idn_without_model_metadata(self):
+    def test_verified_resource_scan_keeps_unknown_or_empty_idn_without_model_metadata(self):
         client, _csv_path = self.make_client()
 
-        with (
-            patch(
-                "meters_tool_webui.web_ui.VisaInstrument.list_resources",
-                return_value=["USB::UNKNOWN"],
-            ),
-            patch(
-                "meters_tool_webui.web_ui.VisaInstrument.verify_resource",
-                return_value=(True, "Other Vendor,1234,ABC,1.0"),
-            ),
-        ):
-            response = client.get("/api/resources?verify=true&live_only=true")
+        for detail in ("Other Vendor,1234,ABC,1.0", ""):
+            with self.subTest(detail=detail):
+                with (
+                    patch(
+                        "meters_tool_webui.web_ui.VisaInstrument.list_resources",
+                        return_value=["USB::UNKNOWN"],
+                    ),
+                    patch(
+                        "meters_tool_webui.web_ui.VisaInstrument.verify_resource",
+                        return_value=(True, detail),
+                    ),
+                ):
+                    response = client.get(
+                        "/api/resources?verify=true&live_only=true"
+                    )
 
-        self.assertEqual(200, response.status_code)
-        resource = response.json()["resources"][0]
-        self.assertIsNone(resource["instrument_model"])
-        self.assertIsNone(resource["matched_profile"])
+                self.assertEqual(200, response.status_code)
+                resource = response.json()["resources"][0]
+                self.assertIsNone(resource["instrument_model"])
+                self.assertIsNone(resource["instrument_model_id"])
+                self.assertIsNone(resource["matched_profile"])
 
     def test_plain_resource_scan_does_not_verify_or_add_model_metadata(self):
         client, _csv_path = self.make_client()
