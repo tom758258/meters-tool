@@ -293,7 +293,7 @@
             <li>34460A DCV Ratio 已實作且在設定檔中為已知，但在 USB/system-VISA 上為 <code>feature_pending</code>。一般的 CLI 啟動會拒絕它。隱藏的貢獻者驗證模式可以執行有界限的證據請求，但不會提升產品支援狀態。</li>
             <li>34460A 的最大讀數速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀數速率。</li>
             <li>AC、頻率與週期模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀數進行對比。</li>
-            <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為 these 模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。</li>
+            <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為這些模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。</li>
             <li>不支援在同一次執行中混合使用軟體和硬體擷取。</li>
             <li>單純呼叫 <code>list-resources</code> 會列出由探測傳回的 VISA 資源，可能包含過期的快取項目。使用 <code>list-resources --verify</code> 開啟每個資源並查詢 <code>*IDN?</code>；驗證成功的非 ASRL 資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 <code>list-resources --live-only</code>。ASRL/RS-232 驗證使用短暫的有界限開啟與查詢逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。</li>
             <li><code>immediate</code>（即時）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 <code>--max-samples</code>。</li>

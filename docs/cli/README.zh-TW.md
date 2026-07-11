@@ -51,7 +51,7 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 - 34460A DCV Ratio 已實作且在設定檔中為已知，但在 USB/system-VISA 上為 `feature_pending`。一般的 CLI 啟動會拒絕它。隱藏的貢獻者驗證模式可以執行有界限的證據請求，但不會提升產品支援狀態。
 - 34460A 的最大讀數速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀數速率。
 - AC、頻率與週期模式透過 `--ac-bandwidth-hz` 公開 34461A 的 `3`、`20` 和 `200` Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀數進行對比。
-- `--nplc` 和 `--auto-zero` 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 `--nplc 1.0`；任何其他 NPLC 值都將被拒絕，因為 these 模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。
+- `--nplc` 和 `--auto-zero` 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 `--nplc 1.0`；任何其他 NPLC 值都將被拒絕，因為這些模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。
 - 不支援在同一次執行中混合使用軟體和硬體擷取。
 - 單純呼叫 `list-resources` 會列出由探測傳回的 VISA 資源，可能包含過期的快取項目。使用 `list-resources --verify` 開啟每個資源並查詢 `*IDN?`；驗證成功的非 ASRL 資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 `list-resources --live-only`。ASRL/RS-232 驗證使用短暫的有界限開啟與查詢逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。
 - `immediate`（即時）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 `--max-samples`。
