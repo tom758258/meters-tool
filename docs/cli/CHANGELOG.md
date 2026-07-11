@@ -1,11 +1,17 @@
 # Changelog
 
-## v1.6.0
+## Unreleased — target v2.0.0
+
+These CLI changes were not released as `v1.6.0`. The breaking CLI import and
+command renames are planned for `v2.0.0`. Shared package metadata temporarily
+remains at the validated `1.6.0` pre-v2 baseline; the final `2.0.0` bump has not
+occurred.
 
 - Renamed the CLI command from `keysight-logger` to `meters-tool` and the CLI
   import package from `keysight_logger_cli` to `meters_tool_cli`.
-- Bumped CLI-visible package/version metadata to `1.6.0` through the shared
-  distribution version plumbing.
+- Prepared CLI-visible metadata at the accepted `1.6.0` pre-v2 development
+  baseline through the shared distribution version plumbing. The final public
+  `2.0.0` version bump is intentionally deferred.
 - Added `--instrument-model` as an alias for `--model` and `--backend` as an
   alias for `--visa-library`; live model selection is an expected `*IDN?`
   match rather than a capability override.

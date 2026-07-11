@@ -1,11 +1,16 @@
 # Changelog
 
-## v1.6.0
+## Unreleased — target v2.0.0
+
+These Core changes were not released as `v1.6.0`. The breaking Core import
+rename is planned for `v2.0.0`. Shared package metadata temporarily remains at
+the validated `1.6.0` pre-v2 baseline; the final `2.0.0` bump has not occurred.
 
 - Renamed the Core import package from `keysight_logger_core` to
   `meters_tool_core` as part of the breaking Meters Tool rename.
-- Bumped the shared `meters-tool` package version and Core fallback version
-  to `1.6.0`.
+- Prepared shared package metadata and the Core fallback version at the
+  accepted `1.6.0` pre-v2 development baseline. The final public `2.0.0`
+  version bump is intentionally deferred.
 - Added distinct 34460A and 34461A profiles, normalized model selection, and
   live `*IDN?` profile detection. Explicit live model selection is an
   expected-model guard, and mismatches fail before setup SCPI.

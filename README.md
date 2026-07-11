@@ -34,6 +34,9 @@ trigger-mode status.
 
 ## Project Structure
 
+Planning an upgrade from the pre-v2 `keysight-logger` names? See
+[Migrating to Meters Tool v2](docs/migration-v2.md).
+
 The repository now has one distribution and one version number. In examples,
 `<version>` means `[project].version` from the root `pyproject.toml`:
 
