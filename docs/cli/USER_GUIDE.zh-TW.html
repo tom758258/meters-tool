@@ -207,7 +207,7 @@
 
     <main>
         <h1>Meters Tool CLI 使用者指南</h1>
-        <p>本指南適用於取得已建置之 CLI 執行檔或已安裝的 <code>meters-tool</code> 指令，並使用它來記錄支援的 Keysight Truevolt DMM 量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 <a href="README.zh-TW.html">CLI README</a>。</p>
+        <p>本指南適用於取得已建置之 CLI 執行檔或已安裝的 <code>meters-tool</code> 指令，並使用它來記錄支援的數位萬用電表量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 <a href="README.zh-TW.html">CLI README</a>。</p>
 
         <h2 id="start-the-cli">啟動 CLI</h2>
         <p>在包含 CLI 執行檔的資料夾下開啟 PowerShell，並檢查它：</p>
@@ -226,12 +226,12 @@
                 <div class="code-wrapper"><pre><code>.\meters-tool.exe list-resources --live-only</code></pre></div>
             </li>
             <li>複製儀器的資源字串並在目前的 PowerShell 工作階段中設定一次：
-                <div class="code-wrapper"><pre><code>$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"</code></pre></div>
+                <div class="code-wrapper"><pre><code>$env:METER_RESOURCE = "USB0::...::INSTR"</code></pre></div>
                 此值可以是任何由探測傳回的作用中 VISA 資源，包括 USB 或 TCPIP/LAN 資源。
             </li>
             <li>執行一次有界限的即時模式 (immediate-mode) 樣本：
                 <div class="code-wrapper"><pre><code>.\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -241,7 +241,7 @@
             <li>在信任較長期的擷取之前，請將 CSV 數值與前面板讀數進行對比。</li>
         </ol>
         
-        <p>進行實機擷取時請使用明確的 <code>--resource</code> 值。傳遞 <code>"$env:KEYSIGHT_METER_RESOURCE"</code> 仍會為 CLI 提供明確的資源；請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。</p>
+        <p>進行實機擷取時請使用明確的 <code>--resource</code> 值。傳遞 <code>"$env:METER_RESOURCE"</code> 仍會為 CLI 提供明確的資源；請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。</p>
         
         <p>實機啟動在省略 <code>--model</code> 時會透過已連接儀器的 IDN 自動偵測 34460A 或 34461A。只有在 Start 必須要求該 IDN 相符時，才加入 <code>--model 34460A</code> 或 <code>--model 34461A</code>；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 和模擬指令使用選定的型號設定檔，且需要 <code>--model</code>，除非資源是可確定型號的 simulator resource，例如 <code>SIM::34460A</code> 或 <code>SIM::34461A</code>。型號名稱由 Core 設定檔邏輯進行標準化與驗證，因此未知的型號會以清楚的驗證錯誤失敗。</p>
 
@@ -274,7 +274,7 @@
         <p>只有在實體觸發訊號已連接，且操作人員了解觸發邊緣 (trigger edge) 與延遲 (delay) 設定的情況下，才使用外部或硬體觸發模式。硬體觸發逾時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並非自動代表量測失敗。</p>
 
         <h2 id="common-settings">常見設定</h2>
-        <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:KEYSIGHT_METER_RESOURCE</code> 並傳遞 <code>--resource "$env:KEYSIGHT_METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
+        <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
 
         <p><code>--visa-library</code> 是進階 CLI 專用的 PyVISA backend 選擇器。一般情況下請省略它。只有在刻意使用可選的 pyvisa-py backend 測試時，才使用 <code>--visa-library "@py"</code>；目前驗證的 <code>@py</code> 路徑是 34461A LAN/TCPIP。</p>
 

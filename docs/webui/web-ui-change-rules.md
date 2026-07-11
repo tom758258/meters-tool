@@ -18,9 +18,9 @@ Improve the browser UI only:
   untouched unless the user explicitly asks for a backend change and confirms
   the risk.
 
-Assume the Keysight 34461A is real hardware. A UI mistake can start the wrong
-measurement, arm the wrong trigger mode, or leave the instrument in a bad
-state, so treat all non-visual changes as high risk.
+Assume a supported digital multimeter is connected as real hardware. A UI
+mistake can start the wrong measurement, arm the wrong trigger mode, or leave
+the instrument in a bad state, so treat all non-visual changes as high risk.
 
 ## Files You May Change For UI Polish
 

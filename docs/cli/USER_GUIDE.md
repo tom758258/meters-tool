@@ -2,7 +2,7 @@
 
 This guide is for operators who receive the built CLI executable or an
 already-installed `meters-tool` command and use it to record measurements
-from a supported Keysight Truevolt DMM. It focuses on the normal measurement workflow and
+from a supported digital multimeter. It focuses on the normal measurement workflow and
 common settings. For developer setup, validation scripts, JSON/JSONL output,
 and automation contracts, see the [CLI README](README.md).
 
@@ -41,7 +41,7 @@ instrument setup.
    PowerShell session:
 
 ```powershell
-$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
+$env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
    The value can be any live VISA resource returned by discovery, including
@@ -51,7 +51,7 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
 
 ```powershell
 .\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -64,7 +64,7 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
    captures.
 
 Use an explicit `--resource` value for live acquisition. Passing
-`"$env:KEYSIGHT_METER_RESOURCE"` still gives the CLI an explicit resource; do
+`"$env:METER_RESOURCE"` still gives the CLI an explicit resource; do
 not rely on a script or unattended workflow to guess which instrument should be
 used.
 
@@ -131,8 +131,8 @@ failed measurement.
 
 `--resource` is the VISA address of the instrument. Use a value returned by
 `list-resources --live-only` or a known operator-provided resource. In
-PowerShell examples, set `$env:KEYSIGHT_METER_RESOURCE` once and pass
-`--resource "$env:KEYSIGHT_METER_RESOURCE"` so copied commands continue to use
+PowerShell examples, set `$env:METER_RESOURCE` once and pass
+`--resource "$env:METER_RESOURCE"` so copied commands continue to use
 the selected instrument.
 
 `--visa-library` is an advanced CLI-only PyVISA backend selector. Omit it for

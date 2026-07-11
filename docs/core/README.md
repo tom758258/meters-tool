@@ -1,11 +1,11 @@
 # Meters Tool Core
 
 Core contains the public API and acquisition runtime contract used by the CLI
-and WebUI components for supported Keysight Truevolt DMM integrations.
+and WebUI components for supported digital multimeter integrations.
 
 Core owns the shared request model, validation, dry-run planning, runtime
 session orchestration, event/result types, control-plane interfaces, profile
-metadata, and safety rules for the Keysight 34460A/34461A acquisition runtime. It is
+metadata, and safety rules for the Meters Tool acquisition runtime. It is
 shipped inside the single `meters-tool` distribution while preserving the
 `meters_tool_core` import boundary.
 

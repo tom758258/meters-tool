@@ -6,7 +6,7 @@
 
 ## 適用範圍 (Scope)
 
-這項 Skill 是 Meters Tool 的專案輔助工具。它不是 Keysight 驅動程式，不會取代 CLI，也不會自動控制硬體。
+這項 Skill 是 Meters Tool 的專案輔助工具。它不是儀器驅動程式，不會取代 CLI，也不會自動控制硬體。
 
 當您要求 Codex 修改、審查、測試、除錯或調度涉及以下項目的工作時，請使用此 Skill：
 

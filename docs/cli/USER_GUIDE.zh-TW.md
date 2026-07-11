@@ -1,6 +1,6 @@
 # Meters Tool CLI 使用者指南
 
-本指南適用於取得已建置之 CLI 執行檔或已安裝的 `meters-tool` 指令，並使用它來記錄支援的 Keysight Truevolt DMM 量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
+本指南適用於取得已建置之 CLI 執行檔或已安裝的 `meters-tool` 指令，並使用它來記錄支援的數位萬用電表量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
 
 ## 啟動 CLI
 
@@ -32,7 +32,7 @@ meters-tool-<version>.exe
 3. 複製儀器的資源字串並在目前的 PowerShell 工作階段中設定一次：
 
 ```powershell
-$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
+$env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
    此值可以是任何由探測傳回的作用中 VISA 資源，包括 USB 或 TCPIP/LAN 資源。
@@ -41,7 +41,7 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
 
 ```powershell
 .\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --measurement voltage-dc `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -51,7 +51,7 @@ $env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
 5. 確認指令正常退出、CSV 檔案已存在，且 CSV 包含一筆資料列。
 6. 在信任較長期的擷取之前，請將 CSV 數值與前面板讀數進行對比。
 
-進行實機擷取時請使用明確的 `--resource` 值。傳遞 `"$env:KEYSIGHT_METER_RESOURCE"` 仍會為 CLI 提供明確的資源；請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。
+進行實機擷取時請使用明確的 `--resource` 值。傳遞 `"$env:METER_RESOURCE"` 仍會為 CLI 提供明確的資源；請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。
 
 實機啟動在省略 `--model` 時會透過已連接儀器的 IDN 自動偵測 34460A 或 34461A。只有在 Start 必須要求該 IDN 相符時，才加入 `--model 34460A` 或 `--model 34461A`；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 和模擬指令使用選定的型號設定檔，且需要 `--model`，除非資源是可確定型號的 simulator resource，例如 `SIM::34460A` 或 `SIM::34461A`。型號名稱由 Core 設定檔邏輯進行標準化與驗證，因此未知的型號會以清楚的驗證錯誤失敗。
 
@@ -90,7 +90,7 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 
 ## 常見設定
 
-`--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 `$env:KEYSIGHT_METER_RESOURCE` 並傳遞 `--resource "$env:KEYSIGHT_METER_RESOURCE"`，以便複製的命令能繼續使用選定的儀器。
+`--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 `$env:METER_RESOURCE` 並傳遞 `--resource "$env:METER_RESOURCE"`，以便複製的命令能繼續使用選定的儀器。
 
 `--visa-library` 是進階 CLI 專用的 PyVISA backend 選擇器。一般情況下請省略它。只有在刻意使用可選的 pyvisa-py backend 測試時，才使用 `--visa-library "@py"`；目前驗證的 `@py` 路徑是 34461A LAN/TCPIP。
 

@@ -13,8 +13,8 @@ directory such as `.agents/skills/meters-tool-cli-orchestration/` or
 
 ## Scope
 
-This skill is a project companion for Meters Tool. It is not a
-Keysight driver, does not replace the CLI, and does not automatically control
+This skill is a project companion for Meters Tool. It is not an instrument
+driver, does not replace the CLI, and does not automatically control
 hardware.
 
 Use it when asking Codex to modify, review, test, debug, or orchestrate work

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "meters-tool"
 version = "1.6.0"
-description = "Meters Tool acquisition toolkit with Core, CLI, and WebUI components for supported Keysight Truevolt DMMs"
+description = "Meters Tool acquisition toolkit with Core, CLI, and WebUI components for supported digital multimeters"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

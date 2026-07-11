@@ -1,7 +1,7 @@
 # Meters Tool WebUI User Guide
 
 This guide is for operators who receive the built WebUI launcher and use it to
-record measurements from a supported Keysight Truevolt DMM. It avoids developer details and
+record measurements from a supported digital multimeter. It avoids developer details and
 focuses on the normal measurement workflow.
 
 ## What The WebUI Does

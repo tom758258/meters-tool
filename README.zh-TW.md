@@ -2,13 +2,13 @@
 
 # Meters Tool
 
-Meters Tool 是供 Keysight 34460A 與 34461A Truevolt 數位萬用電表使用的 Python 資料擷取與紀錄工具。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
+Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀錄工具。目前版本支援 Keysight 34460A 與 34461A；確切的驗證範圍請參閱[支援型號文件](docs/core/supported-models.md)。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
 
 本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。每筆擷取的樣本都會寫入 CSV 的一行，包含時間戳記、量測類型、單位、觸發來源與相關 metadata。
 
 ## 功能特性
 
-* 透過 VISA 控制支援的 Keysight Truevolt DMM
+* 透過 VISA 控制支援的數位萬用電表
 * 設定量測範圍 (range)、NPLC、Auto Zero、AC 頻寬 (bandwidth)、電流端子 (current terminal) 與 DC 電壓輸入阻抗 (input impedance)
 * 支援 software、timer、external hardware、immediate 與 buffered 觸發工作流程
 * 使用 dry-run 模式預覽儀器命令

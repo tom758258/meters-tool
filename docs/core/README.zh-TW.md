@@ -1,8 +1,8 @@
 # Meters Tool Core
 
-Core 包含供 CLI 與 WebUI 元件在支援的 Keysight Truevolt 數位萬用電表整合中所使用的公開 API 與擷取執行階段合約。
+Core 包含供 CLI 與 WebUI 元件在支援的數位萬用電表整合中所使用的公開 API 與擷取執行階段合約。
 
-Core 負責共享的請求模型、驗證、dry-run 規劃、執行階段工作階段協調、事件/結果類型、控制面介面、設定檔 metadata，以及 Keysight 34460A/34461A 擷取執行階段的安全規則。它會隨單一的 `meters-tool` 發行套件一起發布，同時保留 `meters_tool_core` 的 import 邊界。
+Core 負責共享的請求模型、驗證、dry-run 規劃、執行階段工作階段協調、事件/結果類型、控制面介面、設定檔 metadata，以及 Meters Tool 擷取執行階段的安全規則。它會隨單一的 `meters-tool` 發行套件一起發布，同時保留 `meters_tool_core` 的 import 邊界。
 
 Core 可以透過 `StartRequest` 與 `InstrumentConfig` 傳遞選用的 `visa_library` 值。當未設定時，live VISA 工作階段會使用 `pyvisa.ResourceManager()`，也就是系統預設的 VISA 執行階段。CLI 診斷可以傳入像 `@py` 這類值；WebUI 執行則會保持未設定。
 

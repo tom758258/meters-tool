@@ -12,8 +12,9 @@
 - [Meters Orchestrator Workflows](../contracts/meters-orchestrator-workflows.md) - Meters subprocess examples for agents and automation.
 - [Meters Worker Contract](../contracts/meters-worker-contract.md) - Meters worker control plane, JSONL, and artifact contract for agents and orchestrators.
 
-CLI-first Python logger for Keysight 34460A and 34461A DC/AC current,
-DC/AC voltage, DCV ratio, frequency, period, and 2-wire or 4-wire resistance measurements over VISA.
+CLI-first Python logger for supported digital multimeters, covering DC/AC
+current, DC/AC voltage, DCV ratio, frequency, period, and 2-wire or 4-wire
+resistance measurements over VISA.
 It records one CSV row per captured sample and supports software, external
 hardware, and immediate trigger modes.
 
@@ -115,7 +116,8 @@ Important limitations:
 
 - Python 3.10 or newer.
 - A VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
-- A supported Keysight Truevolt DMM visible to VISA. The 34460A base profile
+- A supported digital multimeter visible to VISA; see Supported Models for the
+  currently validated models and connection scopes. The 34460A base profile
   does not assume optional LAN/LXI or external trigger support.
 
 Optional pyvisa-py testing is supported through CLI arguments, but pyvisa-py is
@@ -136,7 +138,7 @@ virtual environment, install the package with development dependencies, then
 run the default tests:
 
 ```powershell
-cd path\to\Keysight
+cd path\to\meters-tool
 uv venv .venv
 uv pip install -e ".[all,dev]"
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
@@ -255,7 +257,7 @@ the instrument.
    wrapper never scans for or guesses a resource:
 
 ```powershell
-$env:KEYSIGHT_METER_RESOURCE = "USB0::...::INSTR"
+$env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
 The value can be any live VISA resource returned by discovery, including USB
@@ -276,7 +278,7 @@ are updated.
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource $env:KEYSIGHT_METER_RESOURCE `
+  -Resource $env:METER_RESOURCE `
   -Suite minimal `
   -PlanOnly
 ```
@@ -289,7 +291,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource $env:KEYSIGHT_METER_RESOURCE `
+  -Resource $env:METER_RESOURCE `
   -Suite minimal
 ```
 
@@ -349,7 +351,7 @@ Preview the Frequency/Period live suite without opening VISA:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource $env:KEYSIGHT_METER_RESOURCE `
+  -Resource $env:METER_RESOURCE `
   -Suite frequency-period `
   -PlanOnly
 ```
@@ -411,7 +413,7 @@ Use the 34460A expected-model guard when live-starting a 34460A. The same
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
   --model 34460A `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1
@@ -423,7 +425,7 @@ require `--allow-buffer-overflow-risk`:
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
   --model 34460A `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate-custom `
   --measurement voltage-dc `
   --trigger-count 2 `
@@ -452,7 +454,7 @@ uv run meters-tool list-resources --visa-library "@py" --verify
 uv run meters-tool start-trigger-record `
   --model 34461A `
   --visa-library "@py" `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1
@@ -636,7 +638,7 @@ without touching the instrument:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1 `
@@ -1010,7 +1012,7 @@ One immediate current sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -1027,7 +1029,7 @@ Dry-run 10 A terminal check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement current-dc `
   --auto-range off `
@@ -1059,7 +1061,7 @@ the current path is safe for the 10 A input terminal and expected current.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_10a_terminal_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -1078,7 +1080,7 @@ Terminal 1, start recording and wait for five software triggers:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_5.csv" `
   --trigger-mode software `
   --max-samples 5 `
@@ -1112,7 +1114,7 @@ Dry-run Auto Zero once check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --auto-zero once `
@@ -1139,7 +1141,7 @@ Auto range, one immediate voltage sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1153,7 +1155,7 @@ Manual 10 V range, one immediate voltage sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_range10_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1168,7 +1170,7 @@ Live Auto Zero once smoke check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_auto_zero_once_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1190,7 +1192,7 @@ DCV Input Z smoke check, Auto mode:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_dcv_input_z_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1205,7 +1207,7 @@ DCV Input Z smoke check, fixed 10 MOhm:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_dcv_input_z_10m_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1236,7 +1238,7 @@ Dry-run DCV Ratio check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
   --max-samples 1 `
@@ -1261,7 +1263,7 @@ Product-open 34461A live DCV Ratio smoke check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_dc_ratio_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
@@ -1288,7 +1290,7 @@ Dry-run AC bandwidth check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-ac `
   --ac-bandwidth-hz 20 `
@@ -1315,7 +1317,7 @@ Suggested Auto Range AC voltage smoke test:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_ac_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-ac `
@@ -1328,7 +1330,7 @@ Suggested manual-range AC current smoke test:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_ac_range100ma_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-ac `
@@ -1354,7 +1356,7 @@ Preview each setup before live I/O:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --measurement frequency `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -1362,7 +1364,7 @@ Preview each setup before live I/O:
   --status-format jsonl
 
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --measurement period `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -1393,7 +1395,7 @@ Auto range, one immediate resistance sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_2w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1407,7 +1409,7 @@ Manual 1000 Ohm range, one immediate resistance sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_2w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1436,7 +1438,7 @@ Auto range, one immediate 4-wire resistance sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_4w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1449,7 +1451,7 @@ Manual 1000 Ohm range, one immediate 4-wire resistance sample:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_4w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1478,7 +1480,7 @@ The metadata is accepted by the command endpoint and written to the CSV
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_limited.csv" `
   --trigger-mode software `
   --sw-min-interval-ms 250 `
@@ -1493,7 +1495,7 @@ full, the HTTP endpoint returns `429`.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_timer_100.csv" `
   --trigger-mode software `
   --timer-interval-s 1.0 `
@@ -1511,7 +1513,7 @@ logger, not a no-loss precision timing mode.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\external_10.csv" `
   --trigger-mode external `
   --max-samples 10 `
@@ -1531,7 +1533,7 @@ protective re-arm condition; it should not be counted as an error by itself.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\immediate_100.csv" `
   --trigger-mode immediate `
   --max-samples 100 `
@@ -1548,7 +1550,7 @@ Immediate mode does not wait for `send-command` or external trigger edges. Use
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\immediate_custom_1000.csv" `
   --trigger-mode immediate-custom `
   --trigger-count 1 `
@@ -1573,7 +1575,7 @@ is set.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_custom_20.csv" `
   --trigger-mode software-custom `
   --trigger-count 2 `
@@ -1600,7 +1602,7 @@ should produce 20 CSV rows.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\external_custom_10.csv" `
   --trigger-mode external-custom `
   --trigger-count 1 `
@@ -1624,7 +1626,7 @@ external edge.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\lan_software.csv" `
   --trigger-mode software `
   --max-samples 5
@@ -1644,7 +1646,7 @@ for diagnosis.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_high_accuracy.csv" `
   --trigger-mode software `
   --auto-range off `
@@ -1665,7 +1667,7 @@ pulse slope.
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "$env:KEYSIGHT_METER_RESOURCE" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\vm_comp_pos.csv" `
   --trigger-mode software `
   --max-samples 5 `

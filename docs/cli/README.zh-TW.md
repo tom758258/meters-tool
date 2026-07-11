@@ -12,7 +12,7 @@
 - [Meters 協調器工作流程](../contracts/meters-orchestrator-workflows.md) - 用於 Agent 和自動化的 Meters 子程序範例。
 - [Meters Worker 合約](../contracts/meters-worker-contract.md) - 用於 Agent 和協調器的 Meters 工作器控制面、JSONL 與產物合約。
 
-適用於 Keysight 34460A 與 34461A Truevolt 數位萬用電表的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率、頻率、週期以及 2 線式或 4 線式電阻量測。
+適用於支援的數位萬用電表的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率、頻率、週期以及 2 線式或 4 線式電阻量測。
 它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。
 
 對於標準操作人員的工作流程，請從 [CLI 使用者指南](USER_GUIDE.zh-TW.md) 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。
@@ -60,7 +60,7 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 
 - Python 3.10 或更新版本。
 - VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。
-- 透過 USB 或 LAN 對 VISA 可見的 Keysight Truevolt DMM。
+- 透過 USB 或 LAN 對 VISA 可見的支援數位萬用電表；目前已驗證的型號與連線範圍請參閱支援型號文件。
 
 ## 開發
 

@@ -2,7 +2,7 @@
 
 Schema version: `1`
 
-This document defines the operational contract for the Keysight meter worker
+This document defines the operational contract for the Meters worker
 used by agents and orchestration tools. It follows the lifecycle shape in
 [Common Worker Protocol](common-worker-protocol.md) and covers Meters-specific
 process modes, local control HTTP, runtime JSONL, and wrapper artifacts. It
