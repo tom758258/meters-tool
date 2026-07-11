@@ -880,6 +880,19 @@ the experiment. The USB resource shown below is the 34461A used during project
 validation; replace resource strings and CSV paths with values appropriate for
 your instrument and test run.
 
+Before running the live examples below, copy an exact resource returned by
+`list-resources --live-only` and set it once for the current PowerShell session:
+
+```powershell
+$env:METER_RESOURCE = "USB0::...::INSTR"
+```
+
+`METER_RESOURCE` is a PowerShell documentation example only. The CLI does not
+read or search this environment variable; pass the selected resource explicitly
+with `--resource "$env:METER_RESOURCE"`. The dry-run examples use the same
+explicit variable for consistency. Do not guess, scan and auto-select, or
+hard-code a real instrument resource.
+
 ### List VISA Resources
 
 ```powershell
@@ -931,7 +944,7 @@ Preview the discovery contract without touching VISA:
 Verified output is tab-separated:
 
 ```text
-live    USB0::<vendor_id>::<product_id>::<serial>::0::INSTR    Keysight Technologies,34461A,...
+live    USB0::...::INSTR    Keysight Technologies,34461A,...
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...
 stale   ASRL6::INSTR                                   ASRL verification timed out after 1000 ms
 ```
@@ -951,7 +964,7 @@ Verified JSON output is a single object:
     {
       "detail": "Keysight Technologies,34461A,...",
       "live": true,
-      "resource": "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR",
+      "resource": "USB0::...::INSTR",
       "status": "live"
     }
   ],
@@ -969,7 +982,7 @@ stale entries, and adds `live_only`:
     {
       "detail": "Keysight Technologies,34461A,...",
       "live": true,
-      "resource": "USB0::<vendor_id>::<product_id>::<serial>::0::INSTR",
+      "resource": "USB0::...::INSTR",
       "status": "live"
     }
   ],
@@ -980,9 +993,12 @@ stale entries, and adds `live_only`:
 Example resource strings:
 
 ```text
-USB0::<vendor_id>::<product_id>::<serial>::0::INSTR
-TCPIP0::<host>::hislip0::INSTR
+USB0::...::INSTR
+TCPIP0::...::hislip0::INSTR
 ```
+
+Copy actual values directly from VISA discovery output; do not construct
+resource strings manually.
 
 ### Real-Instrument Validation Path
 

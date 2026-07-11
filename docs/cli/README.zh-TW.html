@@ -650,7 +650,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <h2 id="agent-friendly-workflow">友善 Agent 的 CLI 工作流程</h2>
         <p>使用 <code>--dry-run</code> 來驗證命令並檢查規劃的 SCPI/讀取路徑，而不接觸實體儀器：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --max-samples 1 `
@@ -799,6 +799,9 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
 
         <h2 id="examples">範例</h2>
         <p>這些範例依照實用驗證路徑排序：先確認作用中資源，然後執行單一樣本快速功能健檢，最後使用符合實驗設計的觸發模式。下方顯示的 USB 資源是專案驗證時使用的 34461A；請替換為適合您儀器和測試執行的資源字串與 CSV 路徑。</p>
+        <p>在執行下方的實機範例前，從 <code>list-resources --live-only</code> 的輸出複製一個確切的資源字串，並在目前的 PowerShell 工作階段中設定一次：</p>
+        <div class="code-wrapper"><pre><code>$env:METER_RESOURCE = "USB0::...::INSTR"</code></pre></div>
+        <p><code>METER_RESOURCE</code> 只是 PowerShell 文件範例。CLI 不會自動讀取或搜尋這個環境變數；請透過 <code>--resource "$env:METER_RESOURCE"</code> 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼真實儀器資源。</p>
 
         <h3>列出 VISA 資源</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources</code></pre></div>
@@ -812,7 +815,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p>預覽探測合約而不接觸 VISA：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --dry-run --live-only --json</code></pre></div>
         <p>驗證後的文字輸出以 tab 分隔：</p>
-        <div class="code-wrapper"><pre><code>live    USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR    Keysight Technologies,34461A,...
+        <div class="code-wrapper"><pre><code>live    USB0::...::INSTR    Keysight Technologies,34461A,...
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></pre></div>
         <p><code>--live-only</code> 仍會驗證每個資源，但會隱藏過期（stale）的資料列。如果沒有資源回應，文字輸出會列印：</p>
         <div class="code-wrapper"><pre><code>no live VISA resources found</code></pre></div>
@@ -822,7 +825,7 @@ stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></
     {
       "detail": "Keysight Technologies,34461A,...",
       "live": true,
-      "resource": "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR",
+      "resource": "USB0::...::INSTR",
       "status": "live"
     }
   ],
@@ -835,15 +838,16 @@ stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></
     {
       "detail": "Keysight Technologies,34461A,...",
       "live": true,
-      "resource": "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR",
+      "resource": "USB0::...::INSTR",
       "status": "live"
     }
   ],
   "verify": true
 }</code></pre></div>
         <p>資源字串範例：</p>
-        <div class="code-wrapper"><pre><code>USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR
-TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
+        <div class="code-wrapper"><pre><code>USB0::...::INSTR
+TCPIP0::...::hislip0::INSTR</code></pre></div>
+        <p>請直接從 VISA discovery 輸出複製實際值，不要手動拼接資源字串。</p>
 
         <h3>真實儀器驗證路徑</h3>
         <p>在檢查環境設定時，請使用此順序：</p>
@@ -859,7 +863,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <h3>DC 電流快速功能健檢</h3>
         <p>單一即時電流樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -872,7 +876,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>Dry-run 10 A 端子檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement current-dc `
   --auto-range off `
@@ -897,7 +901,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>實際 10 A 端子快速功能健檢。僅在操作者確認電流路徑對 10 A 輸入端子和預期電流安全後才可執行：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_10a_terminal_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-dc `
@@ -912,7 +916,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <h3>軟體觸發，限制樣本執行</h3>
         <p>終端機 1，開始記錄並等待五次軟體觸發：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_5.csv" `
   --trigger-mode software `
   --max-samples 5 `
@@ -931,7 +935,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>Dry-run Auto Zero once 檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc `
   --auto-zero once `
@@ -952,7 +956,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>自動範圍，單一即時電壓樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -963,7 +967,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>手動 10 V 範圍，單一即時電壓樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_range10_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -975,7 +979,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>實際 Auto Zero once 快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_auto_zero_once_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -989,7 +993,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>DCV Input Z 快速功能健檢，自動模式：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_dcv_input_z_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1001,7 +1005,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>DCV Input Z 快速功能健檢，固定 10 MOhm：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_dcv_input_z_10m_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc `
@@ -1017,7 +1021,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>Dry-run DCV Ratio 檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
   --max-samples 1 `
@@ -1036,7 +1040,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>產品開放的 34461A 實機 DCV Ratio 快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_dc_ratio_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-dc-ratio `
@@ -1051,7 +1055,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>Dry-run AC 頻寬檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --trigger-mode immediate `
   --measurement voltage-ac `
   --ac-bandwidth-hz 20 `
@@ -1072,7 +1076,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>建議的自動範圍 AC 電壓快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_ac_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement voltage-ac `
@@ -1082,7 +1086,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>建議的手動範圍 AC 電流快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_ac_range100ma_smoke.csv" `
   --trigger-mode immediate `
   --measurement current-ac `
@@ -1120,7 +1124,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>自動範圍，單一即時電阻樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_2w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1131,7 +1135,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>手動 1000 Ohm 範圍，單一即時電阻樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_2w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-2w `
@@ -1147,7 +1151,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>自動範圍，單一即時 4 線電阻樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_4w_auto_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1157,7 +1161,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <p>手動 1000 Ohm 範圍，單一即時 4 線電阻樣本：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_4w_range1000_smoke.csv" `
   --trigger-mode immediate `
   --measurement resistance-4w `
@@ -1175,7 +1179,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>軟體觸發速率限制與佇列限制</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_limited.csv" `
   --trigger-mode software `
   --sw-min-interval-ms 250 `
@@ -1185,7 +1189,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>軟體計時器，限制樣本執行</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_timer_100.csv" `
   --trigger-mode software `
   --timer-interval-s 1.0 `
@@ -1198,7 +1202,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>外接硬體觸發，限制樣本執行</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\external_10.csv" `
   --trigger-mode external `
   --max-samples 10 `
@@ -1212,7 +1216,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>即時模式，限制樣本執行</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\immediate_100.csv" `
   --trigger-mode immediate `
   --max-samples 100 `
@@ -1224,7 +1228,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>即時自訂（Immediate Custom）模式</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\immediate_custom_1000.csv" `
   --trigger-mode immediate-custom `
   --trigger-count 1 `
@@ -1237,7 +1241,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>軟體自訂（Software Custom）模式</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_custom_20.csv" `
   --trigger-mode software-custom `
   --trigger-count 2 `
@@ -1253,7 +1257,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>外接自訂（External Custom）模式</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\external_custom_10.csv" `
   --trigger-mode external-custom `
   --trigger-count 1 `
@@ -1268,7 +1272,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>LAN 資源範例</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "TCPIP0::&lt;host&gt;::hislip0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\lan_software.csv" `
   --trigger-mode software `
   --max-samples 5</code></pre></div>
@@ -1278,7 +1282,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
 
         <h3>較慢的高精度 DC/電阻設定</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\software_high_accuracy.csv" `
   --trigger-mode software `
   --auto-range off `
@@ -1290,7 +1294,7 @@ TCPIP0::&lt;host&gt;::hislip0::INSTR</code></pre></div>
         <h3>VM Comp 斜率</h3>
         <p>除非您需要設定後面板 VM Comp 輸出脈衝斜率，否則請省略 <code>--vm-comp-slope</code>。</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "USB0::&lt;vendor_id&gt;::&lt;product_id&gt;::&lt;serial&gt;::0::INSTR" `
+  --resource "$env:METER_RESOURCE" `
   --csv ".\data\vm_comp_pos.csv" `
   --trigger-mode software `
   --max-samples 5 `
