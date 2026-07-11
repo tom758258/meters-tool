@@ -362,7 +362,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource "&lt;VISA_RESOURCE&gt;" `
+  -Resource "$env:METER_RESOURCE" `
   -Suite minimal `
   -PlanOnly</code></pre></div>
             
@@ -370,7 +370,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource "&lt;VISA_RESOURCE&gt;" `
+  -Resource "$env:METER_RESOURCE" `
   -Suite minimal</code></pre></div>
             
         <p>最小套件會擷取一個受限的即時模式樣本。它會將 <code>report.json</code>、<code>summary.md</code>、指令 stdout/stderr 檔案以及測試案例 CSV 寫入 <code>.tmp_tests\cli_live\...</code>。請先檢查 <code>summary.md</code>；通過的測試案例應顯示 <code>captured=1</code>、<code>errors=0</code>，且至少有一列 CSV 數據。在信任較長期的擷取之前，請將 CSV 數值與 34461A 前面板進行對比。</p>
@@ -380,7 +380,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
-  -Resource "&lt;VISA_RESOURCE&gt;" `
+  -Resource "$env:METER_RESOURCE" `
   -Suite frequency-period `
   -PlanOnly</code></pre></div>
         <p>在檢閱規劃後，移除 <code>-PlanOnly</code> 以執行這兩個有界限的實機案例。此套件使用 Auto Range（自動範圍）、<code>20</code> Hz AC 濾波器、<code>0.1</code> 秒閘門時間（gate time）、自動頻率逾時（automatic Frequency timeout）、無週期逾時指令，以及每個量測各一個樣本。
@@ -798,7 +798,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         </ul>
 
         <h2 id="examples">範例</h2>
-        <p>這些範例依照實用驗證路徑排序：先確認作用中資源，然後執行單一樣本快速功能健檢，最後使用符合實驗設計的觸發模式。下方顯示的 USB 資源是專案驗證時使用的 34461A；請替換為適合您儀器和測試執行的資源字串與 CSV 路徑。</p>
+        <p>這些範例依照實用驗證路徑排序：先確認作用中資源，然後執行單一樣本快速功能健檢，最後使用符合實驗設計的觸發模式。下方的資源字串皆為示意遮蔽值。請使用 VISA discovery 回傳的確切資源，並使用適合您的儀器與測試執行的 CSV 路徑。</p>
         <p>在執行下方的實機範例前，從 <code>list-resources --live-only</code> 的輸出複製一個確切的資源字串，並在目前的 PowerShell 工作階段中設定一次：</p>
         <div class="code-wrapper"><pre><code>$env:METER_RESOURCE = "USB0::...::INSTR"</code></pre></div>
         <p><code>METER_RESOURCE</code> 只是 PowerShell 文件範例。CLI 不會自動讀取或搜尋這個環境變數；請透過 <code>--resource "$env:METER_RESOURCE"</code> 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼真實儀器資源。</p>
@@ -1100,7 +1100,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
 
         <p>在實機 I/O 前預覽各個設定：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "&lt;VISA_RESOURCE&gt;" `
+  --resource "$env:METER_RESOURCE" `
   --measurement frequency `
   --trigger-mode immediate `
   --max-samples 1 `
@@ -1108,7 +1108,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --status-format jsonl
 
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
-  --resource "&lt;VISA_RESOURCE&gt;" `
+  --resource "$env:METER_RESOURCE" `
   --measurement period `
   --trigger-mode immediate `
   --max-samples 1 `

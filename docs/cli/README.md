@@ -876,9 +876,9 @@ Additional validation rules:
 
 These examples are ordered as a practical validation path: first identify a live
 resource, then run one-sample smoke checks, then use the trigger mode that fits
-the experiment. The USB resource shown below is the 34461A used during project
-validation; replace resource strings and CSV paths with values appropriate for
-your instrument and test run.
+the experiment. The resource strings shown below are illustrative placeholders.
+Use exact values returned by VISA discovery and CSV paths appropriate for your
+instrument and test run.
 
 Before running the live examples below, copy an exact resource returned by
 `list-resources --live-only` and set it once for the current PowerShell session:
