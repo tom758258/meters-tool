@@ -83,6 +83,18 @@ public artifact.
 
 ### New Models and Capabilities
 
+Every new `InstrumentProfile` must explicitly declare a unique stable
+`model_id` in lowercase hyphenated form, such as `keysight-34461a`. Keep the
+canonical instrument `model` token separate, and do not generate the model ID
+at runtime from vendor or display text. The profile registry rejects empty,
+malformed, duplicate, or ambiguous model identities.
+
+Adding a model ID registers stable Core identity only. It does not make the
+model Product-open, introduce `candidate`, `catalog_only`, `de_scoped`, or
+`product_active` lifecycle state, or change Product/Validation policy modes.
+Live support remains governed separately by exact workflow, connection,
+measurement, and trigger-mode support metadata plus evidence-backed promotion.
+
 When the maintained wrapper already supports a target, suite, or case,
 contributors must use it for repeatable validation and formal pull-request
 artifacts. For a new model, capability, workflow, or validation case, the usual

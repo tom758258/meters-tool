@@ -5,6 +5,7 @@ from .models import (
     InstrumentProfile,
     StartRequest,
     get_default_instrument_profile,
+    normalize_model_id,
     resolve_instrument_profile,
 )
 from .run_plan import StartPlan, build_start_plan
@@ -56,6 +57,7 @@ __all__ = [
     "SUPPORT_POLICY_MODE_VALIDATION",
     "VALIDATION_STATUS_FEATURE_PENDING",
     "get_default_instrument_profile",
+    "normalize_model_id",
     "resolve_instrument_profile",
     "StartPlan",
     "build_start_plan",

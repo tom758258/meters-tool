@@ -33,6 +33,7 @@ class CapabilitiesTests(unittest.TestCase):
         self.assertIn(KEYSIGHT_34461A_PROFILE, INSTRUMENT_PROFILES)
         self.assertEqual("Keysight", capabilities.vendor)
         self.assertEqual("34461A", capabilities.model)
+        self.assertEqual("keysight-34461a", capabilities.model_id)
         self.assertIn("34461A", capabilities.aliases)
         self.assertEqual(10000, capabilities.reading_memory_limit)
         self.assertEqual(
@@ -128,6 +129,20 @@ class CapabilitiesTests(unittest.TestCase):
             KEYSIGHT_34461A_PROFILE,
         )
 
+    def test_34461a_profile_lookup_accepts_model_id_and_existing_aliases(self):
+        for identity in (
+            "34461A",
+            "34461a",
+            "keysight-34461a",
+            "KEYSIGHT-34461A",
+            "KEYSIGHT TECHNOLOGIES,34461A",
+        ):
+            with self.subTest(identity=identity):
+                self.assertIs(
+                    find_instrument_profile_by_model(identity),
+                    KEYSIGHT_34461A_PROFILE,
+                )
+
     def test_34460a_capabilities_capture_profile_limits(self):
         capabilities = KEYSIGHT_34460A_CAPABILITIES
 
@@ -135,6 +150,7 @@ class CapabilitiesTests(unittest.TestCase):
         self.assertIn(KEYSIGHT_34460A_PROFILE, INSTRUMENT_PROFILES)
         self.assertEqual("Keysight", capabilities.vendor)
         self.assertEqual("34460A", capabilities.model)
+        self.assertEqual("keysight-34460a", capabilities.model_id)
         self.assertIn("34460A", capabilities.aliases)
         self.assertEqual(1000, capabilities.reading_memory_limit)
         self.assertEqual(
@@ -153,8 +169,19 @@ class CapabilitiesTests(unittest.TestCase):
                 self.assertEqual((), options.current_terminal_options)
 
     def test_34460a_profile_lookup_accepts_model_and_idn_aliases(self):
+        for identity in (
+            "34460A",
+            "34460a",
+            "keysight-34460a",
+            "KEYSIGHT-34460A",
+            "AGILENT TECHNOLOGIES,34460A",
+        ):
+            with self.subTest(identity=identity):
+                self.assertIs(
+                    find_instrument_profile_by_model(identity),
+                    KEYSIGHT_34460A_PROFILE,
+                )
         self.assertIs(resolve_instrument_profile("34460A"), KEYSIGHT_34460A_PROFILE)
-        self.assertIs(find_instrument_profile_by_model("34460A"), KEYSIGHT_34460A_PROFILE)
         self.assertIs(
             find_instrument_profile_by_idn("Keysight Technologies,34460A,MY123,1.0"),
             KEYSIGHT_34460A_PROFILE,

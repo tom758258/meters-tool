@@ -12,10 +12,27 @@ evidence, implementation status, and future promotion decisions.
 
 Core currently provides these instrument profiles:
 
-| Profile | Instrument | Reading memory | Current max | External trigger | Live validation |
+| Model ID | Instrument | Reading memory | Current max | External trigger | Live validation |
 | --- | --- | ---: | ---: | --- | --- |
 | `keysight-34461a` | Keysight 34461A | 10000 | 10 A with 10A terminal | supported | `live_validated_full_suite` for currently implemented profile-supported suite coverage |
 | `keysight-34460a` | Keysight 34460A | 1000 | 3 A | base profile disabled; optional LAN/external trigger not assumed | `live_validated_full_suite` for USB/system-VISA suite-covered profile-supported workflows |
+
+Core distinguishes stable profile identity from instrument and presentation
+text:
+
+| Concept | Example | Meaning |
+| --- | --- | --- |
+| model | `34461A` | Canonical instrument model token and existing user-facing model contract |
+| model ID | `keysight-34461a` | Stable machine-readable profile identifier |
+| selected model | `34461A` or another accepted profile identity | Offline profile selection or live expected-model guard |
+| detected model | `34461A` | Model resolved from live `*IDN?` |
+| display model | `Keysight 34461A` when applicable | Presentation text only |
+
+Every maintained `InstrumentProfile` explicitly owns both `model` and
+`model_id`. Profile lookup accepts the canonical model, stable model ID, and
+existing aliases case-insensitively. Canonical requested-model normalization
+continues to return `model`, while stable-ID normalization returns `model_id`.
+Neither value is generated from display text at runtime.
 
 CLI and WebUI live starts auto-detect 34460A/34461A from `*IDN?` when the model
 request is omitted. Explicit model selection is an expected-model guard for
@@ -25,9 +42,11 @@ model never overrides the live IDN-selected profile. Dry-run and simulator
 starts use the selected model profile unless the simulator resource encodes a
 single supported model token such as `SIM::34460A` or `SIM::34461A`.
 
-Core profile logic normalizes requested model names, including lowercase input
-such as `34460a` or `34461a`, and rejects unknown models with a validation
-message that lists the supported models from the profile registry.
+Core profile logic normalizes requested profile identities, including lowercase
+model input such as `34460a` or `34461a` and stable IDs such as
+`keysight-34460a` or `keysight-34461a`. Existing requested-model contracts
+still receive the canonical model token. Unknown identities are rejected with
+a validation message that lists the supported models from the profile registry.
 
 Live validation must use the explicit VISA resource supplied by the operator.
 Core component validation must not scan, guess, or auto-select a resource. A

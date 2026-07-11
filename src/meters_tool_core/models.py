@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -57,6 +58,7 @@ class MeasurementOptions:
 class InstrumentProfile:
     vendor: str
     model: str
+    model_id: str
     aliases: tuple[str, ...]
     reading_memory_limit: int
     supports_buffered_reading_memory: bool
@@ -157,6 +159,7 @@ KEYSIGHT_34461A_FREQ_PERIOD_DEFAULT_TIMEOUT = "auto"
 KEYSIGHT_34461A_PROFILE = InstrumentProfile(
     vendor="Keysight",
     model="34461A",
+    model_id="keysight-34461a",
     aliases=(
         "KEYSIGHT TECHNOLOGIES,34461A",
         "KEYSIGHT,34461A",
@@ -229,6 +232,7 @@ KEYSIGHT_34461A_PROFILE = InstrumentProfile(
 KEYSIGHT_34460A_PROFILE = InstrumentProfile(
     vendor="Keysight",
     model="34460A",
+    model_id="keysight-34460a",
     aliases=(
         "KEYSIGHT TECHNOLOGIES,34460A",
         "KEYSIGHT,34460A",
@@ -314,13 +318,91 @@ def supported_instrument_models() -> tuple[str, ...]:
     return tuple(sorted(profile.model for profile in INSTRUMENT_PROFILES))
 
 
-def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
-    normalized = str(model).strip().upper()
-    for profile in INSTRUMENT_PROFILES:
-        if profile.model.upper() == normalized or any(
-            alias.upper() == normalized for alias in profile.aliases
-        ):
+def _normalize_profile_identity(value: str) -> str:
+    return str(value).strip().upper()
+
+
+def _find_instrument_profile(
+    value: str,
+    profiles: tuple[InstrumentProfile, ...],
+) -> InstrumentProfile | None:
+    normalized = _normalize_profile_identity(value)
+    for profile in profiles:
+        identities = (profile.model, profile.model_id, *profile.aliases)
+        if any(_normalize_profile_identity(identity) == normalized for identity in identities):
             return profile
+    return None
+
+
+def _validate_instrument_profiles(profiles: tuple[InstrumentProfile, ...]) -> None:
+    model_owners: dict[str, InstrumentProfile] = {}
+    model_id_owners: dict[str, InstrumentProfile] = {}
+
+    for profile in profiles:
+        model_id = str(profile.model_id)
+        if not model_id.strip():
+            raise ValueError(f"Instrument profile {profile.model} has an empty model_id")
+        if model_id != model_id.lower():
+            raise ValueError(
+                f"Instrument profile {profile.model} model_id must be lowercase: {model_id!r}"
+            )
+        if re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", model_id) is None:
+            raise ValueError(
+                f"Instrument profile {profile.model} has malformed model_id: {model_id!r}"
+            )
+
+        normalized_model = _normalize_profile_identity(profile.model)
+        previous_model = model_owners.get(normalized_model)
+        if previous_model is not None:
+            raise ValueError(
+                f"Duplicate instrument model {profile.model!r} for profiles "
+                f"{previous_model.model} and {profile.model}"
+            )
+        model_owners[normalized_model] = profile
+
+        normalized_model_id = _normalize_profile_identity(model_id)
+        previous_model_id = model_id_owners.get(normalized_model_id)
+        if previous_model_id is not None:
+            raise ValueError(
+                f"Duplicate instrument model_id {model_id!r} for profiles "
+                f"{previous_model_id.model} and {profile.model}"
+            )
+        model_id_owners[normalized_model_id] = profile
+
+    identity_owners: dict[str, tuple[InstrumentProfile, str, str]] = {}
+    for profile in profiles:
+        identities = (
+            ("model", profile.model),
+            ("model_id", profile.model_id),
+            *(("alias", alias) for alias in profile.aliases),
+        )
+        for identity_kind, identity in identities:
+            normalized = _normalize_profile_identity(identity)
+            previous = identity_owners.get(normalized)
+            if previous is not None and previous[0] is not profile:
+                previous_profile, previous_kind, previous_identity = previous
+                raise ValueError(
+                    f"Instrument profile {profile.model} {identity_kind} {identity!r} conflicts "
+                    f"with profile {previous_profile.model} {previous_kind} "
+                    f"{previous_identity!r}"
+                )
+            identity_owners.setdefault(normalized, (profile, identity_kind, identity))
+
+    for profile in profiles:
+        if _find_instrument_profile(profile.model_id, profiles) is not profile:
+            raise ValueError(
+                f"Instrument profile {profile.model} model_id {profile.model_id!r} "
+                "does not resolve to its declaring profile"
+            )
+
+
+_validate_instrument_profiles(INSTRUMENT_PROFILES)
+
+
+def find_instrument_profile_by_model(model: str) -> InstrumentProfile:
+    profile = _find_instrument_profile(model, INSTRUMENT_PROFILES)
+    if profile is not None:
+        return profile
     supported = ", ".join(supported_instrument_models())
     raise ValueError(f"Unsupported instrument model: {model}. Supported models: {supported}")
 
@@ -332,6 +414,10 @@ def normalize_requested_model(model: str | None) -> str | None:
     if not text:
         return None
     return find_instrument_profile_by_model(text).model
+
+
+def normalize_model_id(value: str) -> str:
+    return find_instrument_profile_by_model(value).model_id
 
 
 def resolve_instrument_profile(model: str | None = None) -> InstrumentProfile:

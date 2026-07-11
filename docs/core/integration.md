@@ -46,6 +46,7 @@ from meters_tool_core import (
     get_core_capabilities,
     get_default_instrument_profile,
     find_feature_support,
+    normalize_model_id,
     normalize_support_feature_value,
     resolve_instrument_profile,
     resolve_trigger_mode,
@@ -130,6 +131,28 @@ measurement names such as `current-dc` while keeping internal normalized
 measurement types such as `current_dc`. Per-measurement capabilities include
 Frequency/Period gate-time choices and Frequency-only timeout choices plus
 their effective defaults.
+
+## Profile Identity
+
+`InstrumentProfile.model` remains the canonical instrument model token used by
+existing request, expected-model, IDN, CLI, WebUI, and runtime contracts.
+`InstrumentProfile.model_id` is the explicit stable machine-readable profile
+identifier. For example, the 34461A profile uses model `34461A` and model ID
+`keysight-34461a`; display text such as `Keysight 34461A` is presentation only.
+
+Profile lookup accepts a canonical model, stable model ID, or existing alias
+case-insensitively. Use `normalize_model_id(...)` when an integration needs the
+stable Core identity:
+
+```python
+assert normalize_model_id("34461a") == "keysight-34461a"
+assert normalize_model_id("KEYSIGHT-34460A") == "keysight-34460a"
+```
+
+Requested-model normalization deliberately continues to return `34461A` or
+`34460A`, not a model ID, so existing expected-model and adapter contracts do
+not change. A selected live identity remains an expected-model guard only; the
+detected `*IDN?` profile remains authoritative at runtime.
 
 ## Validation Flow
 

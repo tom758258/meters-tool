@@ -32,6 +32,7 @@ from core_test_helpers import (
 FAKE_NO_BUFFER_PROFILE = InstrumentProfile(
     vendor="Fake",
     model="NO_BUFFER",
+    model_id="fake-no-buffer",
     aliases=("NO_BUFFER",),
     reading_memory_limit=5,
     supported_measurement_types=("current_dc",),
@@ -44,6 +45,7 @@ FAKE_NO_BUFFER_PROFILE = InstrumentProfile(
 FAKE_SMALL_BUFFER_PROFILE = InstrumentProfile(
     vendor="Fake",
     model="SMALL_BUFFER",
+    model_id="fake-small-buffer",
     aliases=("SMALL_BUFFER",),
     reading_memory_limit=5,
     supported_measurement_types=("current_dc",),

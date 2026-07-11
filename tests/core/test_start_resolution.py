@@ -6,6 +6,7 @@ from unittest.mock import patch
 from meters_tool_core.models import (
     StartRequest,
     find_instrument_profile_by_idn,
+    normalize_model_id,
     normalize_requested_model,
     supported_instrument_models,
 )
@@ -28,6 +29,23 @@ class StartResolutionTests(unittest.TestCase):
         self.assertEqual("34461A", normalize_requested_model("34461A"))
         self.assertEqual("34460A", normalize_requested_model(" 34460a "))
         self.assertEqual("34461A", normalize_requested_model("34461a"))
+        self.assertEqual("34460A", normalize_requested_model("keysight-34460a"))
+        self.assertEqual("34461A", normalize_requested_model("keysight-34461a"))
+
+    def test_normalize_model_id_accepts_models_and_stable_ids(self):
+        cases = (
+            ("34460A", "keysight-34460a"),
+            ("34460a", "keysight-34460a"),
+            ("keysight-34460a", "keysight-34460a"),
+            ("KEYSIGHT-34460A", "keysight-34460a"),
+            ("34461A", "keysight-34461a"),
+            ("34461a", "keysight-34461a"),
+            ("keysight-34461a", "keysight-34461a"),
+            ("KEYSIGHT-34461A", "keysight-34461a"),
+        )
+        for value, expected in cases:
+            with self.subTest(value=value):
+                self.assertEqual(expected, normalize_model_id(value))
 
     def test_unsupported_model_error_lists_supported_models(self):
         with self.assertRaises(ValueError) as exc:
@@ -37,6 +55,9 @@ class StartResolutionTests(unittest.TestCase):
         self.assertIn("Unsupported instrument model: BADMODEL", message)
         for model in supported_instrument_models():
             self.assertIn(model, message)
+
+        with self.assertRaisesRegex(ValueError, "Unsupported instrument model: unknown-id"):
+            normalize_model_id("unknown-id")
 
     def test_idn_matching_accepts_keysight_and_agilent_supported_aliases(self):
         cases = [
@@ -87,6 +108,20 @@ class StartResolutionTests(unittest.TestCase):
 
         self.assertEqual("34460A", request.instrument_model)
         self.assertEqual("34460A", profile.model)
+        preflight.assert_not_called()
+
+    def test_dry_run_selected_model_id_keeps_canonical_model_contract(self):
+        with patch("meters_tool_core.start_resolution.VisaInstrument.preflight_idn") as preflight:
+            request, profile = resolve_start_profile(
+                StartRequest(
+                    resource="USB::FAKE",
+                    instrument_model="keysight-34460a",
+                    dry_run=True,
+                )
+            )
+
+        self.assertEqual("34460A", request.instrument_model)
+        self.assertIs(profile, find_instrument_profile_by_idn("Keysight,34460A,MY123,1.0"))
         preflight.assert_not_called()
 
     def test_simulate_omitted_model_rejects_non_deterministic_resource(self):

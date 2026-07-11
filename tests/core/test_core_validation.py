@@ -28,6 +28,7 @@ from meters_tool_core.validation import (
 FAKE_CURRENT_ONLY_PROFILE = InstrumentProfile(
     vendor="Fake",
     model="FAKE100",
+    model_id="fake-100",
     aliases=("FAKE100",),
     reading_memory_limit=5,
     supports_buffered_reading_memory=True,
