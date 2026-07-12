@@ -44,12 +44,28 @@ function Get-RedactedResourceDisplay {
 function Get-DistinctiveSensitiveTokens {
     param([AllowNull()][AllowEmptyString()][string]$Resource)
 
-    if ([string]::IsNullOrWhiteSpace($Resource) -or $Resource -notmatch '^(?i)USB') { return @() }
+    if ([string]::IsNullOrWhiteSpace($Resource)) { return @() }
     $parts = @($Resource -split '::')
-    if ($parts.Count -lt 5) { return @() }
-    $serial = $parts[3]
-    if ($serial.Length -lt 6 -or $serial -match '^[0]+$') { return @() }
-    return @($serial)
+    if ($Resource -match '^(?i)USB') {
+        if ($parts.Count -lt 5) { return @() }
+        $serial = $parts[3]
+        if ($serial.Length -lt 6 -or $serial -match '^[0]+$') { return @() }
+        return @($serial)
+    }
+    if ($Resource -match '^(?i)TCPIP') {
+        if ($parts.Count -lt 2) { return @() }
+        $hostValue = $parts[1].Trim()
+        if (
+            $hostValue.Length -lt 6 -or
+            $hostValue -match '^[0]+$' -or
+            $hostValue -in @('localhost', 'localhost.localdomain', '0.0.0.0', '127.0.0.1', '::1') -or
+            $hostValue -notmatch '^[A-Za-z0-9][A-Za-z0-9.:%_-]*$'
+        ) {
+            return @()
+        }
+        return @($hostValue)
+    }
+    return @()
 }
 
 function Protect-ArtifactText {
@@ -73,10 +89,12 @@ function Protect-ArtifactText {
     }
     $safe = $safe -replace [regex]::Escape($PrivateRoot), '<private-local-path>'
     $safe = $safe -replace [regex]::Escape($RepoRoot), '<repository-root>'
-    $safe = $safe -replace '(?im)(Keysight Technologies|Agilent Technologies),[^\r\n]+', '<redacted-idn>'
+    $safe = $safe -replace '(?im)(Keysight(?: Technologies)?|Agilent(?: Technologies)?),[^\r\n]+', '<redacted-idn>'
     $safe = $safe -replace '(?i)TCPIP\d*::[^\s"'',]+(?:::[^\s"'',]+)*', 'lan:<redacted-resource>'
     $safe = $safe -replace '(?i)USB\d*::[^\s"'',]+(?:::[^\s"'',]+)*', 'usb:<redacted-resource>'
-    $safe = $safe -replace '(?<!\d)(10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2})(?!\d)', '<redacted-ip>'
+    $octet = '(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)'
+    $privateIpPattern = "(?<![\d.])(?:10\.$octet\.$octet\.$octet|172\.(?:1[6-9]|2\d|3[01])\.$octet\.$octet|192\.168\.$octet\.$octet|169\.254\.$octet\.$octet)(?![\d.])"
+    $safe = $safe -replace $privateIpPattern, '<redacted-ip>'
     $safe = $safe -replace '(?i)(?:[A-Z]:\\(?:Users|Documents and Settings|Temp)\\[^\s"'']+)', '<redacted-path>'
     $safe = $safe -replace '(?i)(?:[A-Z]:\\[^\s"'']+)', '<redacted-path>'
     $safe = $safe -replace '(?i)(?:/(?:home|Users|mnt|tmp)/[^\s"'']+)', '<redacted-path>'
@@ -107,7 +125,9 @@ function ConvertTo-ShareableArtifactValue {
 
     if ($Value -is [string]) {
         $text = [string]$Value
-        if ([System.IO.Path]::IsPathRooted($text)) {
+        $isRootedPath = $false
+        try { $isRootedPath = [System.IO.Path]::IsPathRooted($text) } catch { $isRootedPath = $false }
+        if ($isRootedPath) {
             if (Test-ArtifactPathUnderRoot -RootPath $PrivateRoot -Path $text) {
                 if ([System.IO.Path]::GetExtension($text) -ieq '.csv') { return '<private-local-path>' }
                 $relative = Get-PortableRelativePath -BasePath $PrivateRoot -Path $text
@@ -125,12 +145,26 @@ function ConvertTo-ShareableArtifactValue {
         foreach ($entryKey in $Value.Keys) {
             $result[[string]$entryKey] = ConvertTo-ShareableArtifactValue -Value $Value[$entryKey] -FieldName ([string]$entryKey) -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
         }
+        if (
+            $Value.Contains('command') -and
+            [string]$Value['command'] -eq 'READ?' -and
+            $Value.Contains('response')
+        ) {
+            $result['response'] = '<redacted-measurement-value>'
+            $result['response_omitted'] = $true
+        }
         return $result
     }
     if ($Value -is [pscustomobject]) {
         $result = [ordered]@{}
         foreach ($property in $Value.PSObject.Properties) {
             $result[$property.Name] = ConvertTo-ShareableArtifactValue -Value $property.Value -FieldName $property.Name -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+        }
+        $commandProperty = $Value.PSObject.Properties['command']
+        $responseProperty = $Value.PSObject.Properties['response']
+        if ($null -ne $commandProperty -and [string]$commandProperty.Value -eq 'READ?' -and $null -ne $responseProperty) {
+            $result['response'] = '<redacted-measurement-value>'
+            $result['response_omitted'] = $true
         }
         return $result
     }
@@ -148,7 +182,7 @@ function New-SafeJsonPlaceholder {
         artifact_kind = $ArtifactKind
         parse_status = $ParseStatus
         parse_error = if ($ParseStatus -eq 'failed') { "Could not parse $ArtifactKind." } else { $null }
-        private_raw_artifact_retained = $true
+        private_raw_artifact_retained = ($ParseStatus -ne 'missing')
     }
 }
 
@@ -242,8 +276,10 @@ function New-CsvEvidence {
 function Copy-ShareableArtifactTree {
     param([Parameter(Mandatory = $true)][hashtable]$Context)
 
+    $privateReportPath = [System.IO.Path]::GetFullPath((Join-Path $Context.PrivateRoot 'report.json'))
+    $privateSummaryPath = [System.IO.Path]::GetFullPath((Join-Path $Context.PrivateRoot 'summary.md'))
     foreach ($file in Get-ChildItem -LiteralPath $Context.PrivateRoot -File -Recurse) {
-        if ($file.Name -in @('report.json', 'summary.md')) { continue }
+        if ($file.FullName -ieq $privateReportPath -or $file.FullName -ieq $privateSummaryPath) { continue }
         $relative = Get-PortableRelativePath -BasePath $Context.PrivateRoot -Path $file.FullName
         if ($file.Extension -ieq '.csv') { continue }
         $destination = Join-Path $Context.ShareableRoot $relative

@@ -820,6 +820,7 @@ $summaryPath = Join-Path $privateRoot "summary.md"
 $canonicalSummaryPath = ((Get-PortableRelativePath -BasePath $RepoRoot -Path (Join-Path $shareableRoot "summary.md")).Replace('\', '/'))
 $stdinRedirected = [Console]::IsInputRedirected
 $handlingArtifactFailure = $false
+$liveExecuted = $false
 
 trap {
     if (-not $handlingArtifactFailure -and -not (Test-Path -LiteralPath $reportPath)) {
@@ -827,7 +828,7 @@ trap {
         [void](Write-LiveArtifacts `
             -Status "wrapper_failed" `
             -PlanOnlyRun ([bool]$PlanOnly) `
-            -LiveExecuted $false `
+            -LiveExecuted ([bool]$liveExecuted) `
             -CaseItems @($caseResults.ToArray()) `
             -DryRunItems @($dryRunResults.ToArray()) `
             -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
@@ -952,8 +953,8 @@ if ($stdinRedirected) {
 Write-Host ""
 [void](Read-Host "Press Enter to run suite '$Suite', or Ctrl+C to cancel")
 
-$suiteStatus = "passed"
 $liveExecuted = $true
+$suiteStatus = "passed"
 foreach ($caseInfo in @($dryRunResults.ToArray())) {
     $case = @($cases | Where-Object { $_.name -eq $caseInfo.name } | Select-Object -First 1)[0]
     $scpiProbeCommand = $null

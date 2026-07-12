@@ -17,6 +17,10 @@ POWERSHELL = shutil.which("powershell.exe")
 PYTHON = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
 
 
+def ps_quote(value: str | Path) -> str:
+    return "'" + str(value).replace("'", "''") + "'"
+
+
 def require_wrapper_tools() -> None:
     if POWERSHELL is None:
         pytest.skip("powershell.exe is required for wrapper script tests")
@@ -24,7 +28,9 @@ def require_wrapper_tools() -> None:
         pytest.skip(f"venv Python is required for wrapper script tests: {PYTHON}")
 
 
-def run_wrapper(script: str, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+def run_wrapper_path(
+    script_path: Path, *args: str, stdin: str | None = None
+) -> subprocess.CompletedProcess[str]:
     require_wrapper_tools()
     return subprocess.run(
         [
@@ -33,7 +39,7 @@ def run_wrapper(script: str, *args: str, stdin: str | None = None) -> subprocess
             "-ExecutionPolicy",
             "Bypass",
             "-File",
-            str(REPO_ROOT / script),
+            str(script_path),
             *args,
         ],
         cwd=REPO_ROOT,
@@ -42,6 +48,10 @@ def run_wrapper(script: str, *args: str, stdin: str | None = None) -> subprocess
         capture_output=True,
         check=False,
     )
+
+
+def run_wrapper(script: str, *args: str, stdin: str | None = None) -> subprocess.CompletedProcess[str]:
+    return run_wrapper_path(REPO_ROOT / script, *args, stdin=stdin)
 
 
 def run_powershell_command(command: str) -> subprocess.CompletedProcess[str]:
@@ -918,3 +928,84 @@ def test_live_redirected_stdin_writes_confirmation_required_report():
     assert report_path == run_root / "shareable" / "report.json"
     assert (run_root / "private" / "report.json").exists()
     assert not (run_root / "report.json").exists()
+
+
+def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path):
+    raw_resource = "TCPIP0::meter-lab.local::inst0::INSTR"
+    timestamp = f"synthetic-{uuid4().hex}"
+    run_root = (
+        REPO_ROOT
+        / ".tmp_tests"
+        / "cli_live"
+        / "keysight-34461a"
+        / "lan"
+        / "frequency-period"
+        / timestamp
+    )
+    private_path = run_root / "private" / "synthetic-private.json"
+    wrapper_text = (REPO_ROOT / "scripts" / "live-cli-check.ps1").read_text(
+        encoding="utf-8-sig"
+    )
+    timestamp_line = '$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"'
+    stdin_line = "$stdinRedirected = [Console]::IsInputRedirected"
+    confirmation_line = (
+        "[void](Read-Host \"Press Enter to run suite '$Suite', or Ctrl+C to cancel\")"
+    )
+    probe_line = "$probe = Invoke-FrequencyPeriodScpiProbe -CaseInfo $caseInfo"
+    assert wrapper_text.count(timestamp_line) == 1
+    assert wrapper_text.count(stdin_line) == 1
+    assert wrapper_text.count(confirmation_line) == 1
+    assert wrapper_text.count(probe_line) == 1
+    scripts_root = ps_quote(REPO_ROOT / "scripts")
+    wrapper_text = wrapper_text.replace("$PSScriptRoot", scripts_root)
+    wrapper_text = wrapper_text.replace(
+        timestamp_line,
+        f"$timestamp = '{timestamp}'",
+    )
+    wrapper_text = wrapper_text.replace(
+        stdin_line,
+        "$stdinRedirected = $false",
+    )
+    wrapper_text = wrapper_text.replace(
+        confirmation_line,
+        "[void]$null",
+    )
+    wrapper_text = wrapper_text.replace(
+        probe_line,
+        "throw "
+        + ps_quote(
+            f"Synthetic live probe failure for {raw_resource} at {private_path}"
+        ),
+    )
+    synthetic_wrapper = tmp_path / "live-cli-check-synthetic-failure.ps1"
+    synthetic_wrapper.write_text(wrapper_text, encoding="utf-8")
+
+    result = run_wrapper_path(
+        synthetic_wrapper,
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "lan",
+        "-Resource",
+        raw_resource,
+        "-Suite",
+        "frequency-period",
+    )
+    assert result.returncode != 0
+    report_path = report_from_summary_output(result.stdout + result.stderr)
+    assert report_path == run_root / "shareable" / "report.json"
+    private_report = load_json(run_root / "private" / "report.json")
+    shareable_report = load_json(report_path)
+    for report in (private_report, shareable_report):
+        assert report["status"] == "wrapper_failed"
+        assert report["live_executed"] is True
+        assert report["validation_mode"] == "live"
+        assert report["private_raw_artifacts_retained"] is True
+    assert private_report["resource"] == raw_resource
+    assert shareable_report["resource"] == "lan:<redacted-resource>"
+    assert (run_root / "shareable" / "summary.md").exists()
+    console = result.stdout + result.stderr
+    assert raw_resource not in console
+    assert "meter-lab.local" not in console
+    assert str(private_path) not in console
+    assert str(REPO_ROOT) not in console

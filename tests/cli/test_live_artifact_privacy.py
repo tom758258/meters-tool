@@ -31,7 +31,11 @@ def run_privacy_command(body: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def privacy_context(tmp_path: Path, resource: str = "USB0::1::2::SERIAL12345::INSTR") -> str:
+def privacy_context(
+    tmp_path: Path,
+    resource: str = "USB0::1::2::SERIAL12345::INSTR",
+    connection: str = "usb",
+) -> str:
     run_root = tmp_path / "run"
     private = run_root / "private"
     shareable = run_root / "shareable"
@@ -41,10 +45,44 @@ def privacy_context(tmp_path: Path, resource: str = "USB0::1::2::SERIAL12345::IN
         "@{"
         f"RunRoot={ps_quote(run_root)};PrivateRoot={ps_quote(private)};"
         f"ShareableRoot={ps_quote(shareable)};RepoRoot={ps_quote(REPO_ROOT)};"
-        f"Resource={ps_quote(resource)};Connection='usb';"
+        f"Resource={ps_quote(resource)};Connection={ps_quote(connection)};"
         f"SensitiveValues=@(Get-DistinctiveSensitiveTokens -Resource {ps_quote(resource)})"
         "}"
     )
+
+
+def private_report_payload(
+    private: Path, resource: str, *, diagnostics: list[dict] | None = None
+) -> dict:
+    return {
+        "schema_version": "1.1",
+        "kind": "meters_tool_live_validation",
+        "artifact_visibility": "private",
+        "candidate_evidence_only": True,
+        "promotes_live_support": False,
+        "private_raw_artifacts_retained": True,
+        "redaction_applied": False,
+        "redaction_version": 1,
+        "target": "keysight-34461a",
+        "model_id": "keysight-34461a",
+        "expected_model": "34461A",
+        "connection": "lan",
+        "backend": "system_visa",
+        "suite": "frequency-period",
+        "resource": resource,
+        "package_version": "1.6.0",
+        "git_head": "synthetic",
+        "validation_mode": "live",
+        "output_dir": str(private),
+        "artifact_paths": {},
+        "status": "passed",
+        "plan_only": False,
+        "live_executed": True,
+        "cases": [],
+        "dry_runs": [],
+        "scpi_diagnostics": diagnostics or [],
+        "commands": [],
+    }
 
 
 @pytest.mark.parametrize(
@@ -52,9 +90,14 @@ def privacy_context(tmp_path: Path, resource: str = "USB0::1::2::SERIAL12345::IN
     [
         ("private host 192.168.1.50", "<redacted-ip>"),
         ("private host 10.2.3.4", "<redacted-ip>"),
+        ("private host 172.16.0.1", "<redacted-ip>"),
+        ("private host 172.20.10.5", "<redacted-ip>"),
+        ("private host 172.31.255.254", "<redacted-ip>"),
         ("link-local host 169.254.8.9", "<redacted-ip>"),
         ("Keysight Technologies,34461A,SERIAL12345,A.03.03", "<redacted-idn>"),
         ("Agilent Technologies,34461A,SERIAL12345,A.03.03", "<redacted-idn>"),
+        ("KEYSIGHT,34461A,DISTINCTIVE123,A.03.03", "<redacted-idn>"),
+        ("AGILENT,34461A,DISTINCTIVE123,A.03.03", "<redacted-idn>"),
         (r"C:\Users\Alice\private\artifact.json", "<redacted-path>"),
         ("/home/alice/private/artifact.json", "<redacted-path>"),
         ("/Users/alice/private/artifact.json", "<redacted-path>"),
@@ -72,6 +115,19 @@ def test_free_form_redaction_covers_network_idn_and_personal_paths(
     assert result.returncode == 0, result.stderr
     assert secret not in result.stdout
     assert expected in result.stdout
+
+
+def test_tcpip_hostname_is_redacted_when_detached_from_resource(tmp_path: Path):
+    resource = "TCPIP0::meter-lab.local::inst0::INSTR"
+    context = privacy_context(tmp_path, resource, "lan")
+    result = run_privacy_command(
+        f"$c={context}; Protect-ArtifactText -Text 'Could not connect to meter-lab.local' "
+        "-Resource $c.Resource -RepoRoot $c.RepoRoot -PrivateRoot $c.PrivateRoot "
+        "-SensitiveValues $c.SensitiveValues"
+    )
+    assert result.returncode == 0, result.stderr
+    assert "meter-lab.local" not in result.stdout
+    assert "Could not connect to <redacted>" in result.stdout
 
 
 def test_structured_redaction_preserves_safe_values_and_numeric_zero(tmp_path: Path):
@@ -103,6 +159,102 @@ def test_structured_redaction_preserves_safe_values_and_numeric_zero(tmp_path: P
     assert payload["nested"]["trigger_metadata"] == "<redacted-trigger-metadata>"
 
 
+def test_read_response_is_redacted_but_scpi_error_evidence_is_preserved(tmp_path: Path):
+    resource = "TCPIP0::meter-lab.local::inst0::INSTR"
+    context = privacy_context(tmp_path, resource, "lan")
+    private = tmp_path / "run" / "private"
+    shareable = tmp_path / "run" / "shareable"
+    diagnostic = {
+        "measurement": "frequency",
+        "firmware_revision": "A.03.03",
+        "status": "passed",
+        "read": {
+            "command": "READ?",
+            "operation": "query",
+            "response": "98765.4321",
+            "transport_error": None,
+            "system_error_responses": [
+                {
+                    "raw": '+0,"No error"',
+                    "code": 0,
+                    "message": "No error",
+                    "is_error": False,
+                }
+            ],
+            "all_error_responses_zero": True,
+        },
+    }
+    private_report = {
+        "schema_version": "1.1",
+        "kind": "meters_tool_live_validation",
+        "artifact_visibility": "private",
+        "candidate_evidence_only": True,
+        "promotes_live_support": False,
+        "private_raw_artifacts_retained": True,
+        "redaction_applied": False,
+        "redaction_version": 1,
+        "target": "keysight-34461a",
+        "model_id": "keysight-34461a",
+        "expected_model": "34461A",
+        "connection": "lan",
+        "backend": "system_visa",
+        "suite": "frequency-period",
+        "resource": resource,
+        "package_version": "1.6.0",
+        "git_head": "synthetic",
+        "validation_mode": "live",
+        "output_dir": str(private),
+        "artifact_paths": {},
+        "status": "passed",
+        "plan_only": False,
+        "live_executed": True,
+        "cases": [],
+        "dry_runs": [],
+        "scpi_diagnostics": [diagnostic],
+        "commands": [],
+    }
+    (private / "diagnostic.json").write_text(
+        json.dumps(diagnostic), encoding="utf-8"
+    )
+    (private / "report.json").write_text(
+        json.dumps(private_report), encoding="utf-8"
+    )
+    (private / "summary.md").write_text("private summary", encoding="utf-8")
+    result = run_privacy_command(
+        f"$c={context}; $report=Get-Content -LiteralPath {ps_quote(private / 'report.json')} -Raw | ConvertFrom-Json; "
+        "[void](New-ShareableArtifactSet -PrivateReport $report -RunRoot $c.RunRoot "
+        "-PrivateRoot $c.PrivateRoot -ShareableRoot $c.ShareableRoot -RepoRoot $c.RepoRoot "
+        "-Resource $c.Resource -Connection $c.Connection)"
+    )
+    assert result.returncode == 0, result.stderr
+
+    shareable_diagnostic = json.loads(
+        (shareable / "diagnostic.json").read_text(encoding="utf-8")
+    )
+    shareable_report = json.loads(
+        (shareable / "report.json").read_text(encoding="utf-8")
+    )
+    for payload in (shareable_diagnostic, shareable_report["scpi_diagnostics"][0]):
+        assert payload["read"]["response"] == "<redacted-measurement-value>"
+        assert payload["read"]["response_omitted"] is True
+        assert payload["read"]["system_error_responses"] == [
+            {
+                "raw": '+0,"No error"',
+                "code": 0,
+                "message": "No error",
+                "is_error": False,
+            }
+        ]
+        assert payload["measurement"] == "frequency"
+        assert payload["firmware_revision"] == "A.03.03"
+        assert payload["status"] == "passed"
+    assert "98765.4321" not in "\n".join(
+        path.read_text(encoding="utf-8-sig")
+        for path in shareable.rglob("*")
+        if path.is_file()
+    )
+
+
 def test_json_artifacts_fail_closed_for_malformed_and_missing_input(tmp_path: Path):
     context = privacy_context(tmp_path)
     malformed = tmp_path / "run" / "private" / "malformed.json"
@@ -115,9 +267,81 @@ def test_json_artifacts_fail_closed_for_malformed_and_missing_input(tmp_path: Pa
         f"Convert-PrivateJsonArtifact -SourcePath {ps_quote(missing)} -DestinationPath {ps_quote(missing_out)} -Context $c"
     )
     assert result.returncode == 0, result.stderr
-    assert json.loads(malformed_out.read_text(encoding="utf-8"))["parse_status"] == "failed"
-    assert json.loads(missing_out.read_text(encoding="utf-8"))["parse_status"] == "missing"
+    malformed_payload = json.loads(malformed_out.read_text(encoding="utf-8"))
+    missing_payload = json.loads(missing_out.read_text(encoding="utf-8"))
+    assert malformed_payload["parse_status"] == "failed"
+    assert malformed_payload["private_raw_artifact_retained"] is True
+    assert missing_payload["parse_status"] == "missing"
+    assert missing_payload["private_raw_artifact_retained"] is False
     assert '{"resource":' not in malformed_out.read_text(encoding="utf-8")
+
+
+def test_nested_preflight_report_and_summary_are_safely_preserved(tmp_path: Path):
+    resource = "TCPIP0::meter-lab.local::inst0::INSTR"
+    context = privacy_context(tmp_path, resource, "lan")
+    private = tmp_path / "run" / "private"
+    shareable = tmp_path / "run" / "shareable"
+    preflight = private / "preflight"
+    preflight.mkdir()
+    (private / "report.json").write_text(
+        json.dumps(private_report_payload(private, resource)), encoding="utf-8"
+    )
+    (private / "summary.md").write_text(
+        f"root private {resource}", encoding="utf-8"
+    )
+    (preflight / "report.json").write_text(
+        json.dumps(
+            {
+                "status": "passed",
+                "resource": resource,
+                "idn": "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
+                "path": r"C:\Users\Alice\private\preflight.json",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (preflight / "summary.md").write_text(
+        "\n".join(
+            [
+                f"Resource: {resource}",
+                "IDN: KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
+                "Host: meter-lab.local 172.20.10.5",
+                r"Path: C:\Users\Alice\private\preflight.json",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result = run_privacy_command(
+        f"$c={context}; $report=Get-Content -LiteralPath {ps_quote(private / 'report.json')} -Raw | ConvertFrom-Json; "
+        "[void](New-ShareableArtifactSet -PrivateReport $report -RunRoot $c.RunRoot "
+        "-PrivateRoot $c.PrivateRoot -ShareableRoot $c.ShareableRoot -RepoRoot $c.RepoRoot "
+        "-Resource $c.Resource -Connection $c.Connection)"
+    )
+    assert result.returncode == 0, result.stderr
+    nested_report_path = shareable / "preflight" / "report.json"
+    nested_summary_path = shareable / "preflight" / "summary.md"
+    assert nested_report_path.exists()
+    assert nested_summary_path.exists()
+    assert json.loads(nested_report_path.read_text(encoding="utf-8")) == {
+        "status": "passed",
+        "resource": "lan:<redacted-resource>",
+        "idn": "<redacted-idn>",
+        "path": "<redacted-path>",
+    }
+    nested_text = nested_summary_path.read_text(encoding="utf-8")
+    for forbidden in (
+        resource,
+        "meter-lab.local",
+        "172.20.10.5",
+        "DISTINCTIVE123",
+        r"C:\Users\Alice\private\preflight.json",
+    ):
+        assert forbidden not in nested_text
+    root_shareable_report = json.loads(
+        (shareable / "report.json").read_text(encoding="utf-8")
+    )
+    assert root_shareable_report["artifact_visibility"] == "shareable"
+    assert "root private" not in (shareable / "summary.md").read_text(encoding="utf-8")
 
 
 def test_jsonl_redaction_keeps_valid_lines_and_replaces_malformed_line(tmp_path: Path):
@@ -173,8 +397,8 @@ def test_csv_evidence_omits_measurement_value_and_trigger_metadata(tmp_path: Pat
 
 
 def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
-    resource = "USB0::1::2::DISTINCTIVE123::INSTR"
-    context = privacy_context(tmp_path, resource)
+    resource = "TCPIP0::meter-lab.local::inst0::INSTR"
+    context = privacy_context(tmp_path, resource, "lan")
     private = tmp_path / "run" / "private"
     shareable = tmp_path / "run" / "shareable"
     python_path = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
@@ -184,9 +408,10 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
         "\n".join(
             [
                 resource,
-                "DISTINCTIVE123",
-                "Keysight Technologies,34461A,DISTINCTIVE123,A.03.03",
+                "Could not connect to meter-lab.local",
+                "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
                 "192.168.4.5",
+                "172.20.10.5",
                 str(REPO_ROOT),
                 str(python_path),
                 r"C:\Users\Alice\secret.txt",
@@ -195,6 +420,19 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
                 str(private_path),
                 "firmware=1.0 model=34461A measurement_type=current_dc unit=A row_count=1 exit_code=0 status=passed",
             ]
+        ),
+        encoding="utf-8",
+    )
+    (private / "scpi.json").write_text(
+        json.dumps(
+            {
+                "command": "READ?",
+                "response": "98765.4321",
+                "firmware": "1.0",
+                "measurement": 0.05,
+                "exit_code": 0,
+                "captured": 0,
+            }
         ),
         encoding="utf-8",
     )
@@ -208,9 +446,12 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
     )
     for forbidden in (
         resource,
+        "meter-lab.local",
         "DISTINCTIVE123",
-        "Keysight Technologies,34461A,DISTINCTIVE123,A.03.03",
+        "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
         "192.168.4.5",
+        "172.20.10.5",
+        "98765.4321",
         str(REPO_ROOT),
         str(python_path),
         r"C:\Users\Alice\secret.txt",
