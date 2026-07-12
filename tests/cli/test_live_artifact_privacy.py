@@ -130,6 +130,73 @@ def test_tcpip_hostname_is_redacted_when_detached_from_resource(tmp_path: Path):
     assert "Could not connect to <redacted>" in result.stdout
 
 
+def test_short_tcpip_hostname_redaction_uses_token_boundaries(tmp_path: Path):
+    resource = "TCPIP0::dmm01::inst0::INSTR"
+    context = privacy_context(tmp_path, resource, "lan")
+    text = "\n".join(
+        [
+            resource,
+            "Could not connect to dmm01",
+            "Could not connect to DMM01",
+            "Socket dmm01:5025 refused",
+            "Host (dmm01) unavailable",
+            "prefixdmm01suffix",
+            "collaborate",
+        ]
+    )
+    result = run_privacy_command(
+        f"$c={context}; Protect-ArtifactText -Text {ps_quote(text)} "
+        "-Resource $c.Resource -RepoRoot $c.RepoRoot -PrivateRoot $c.PrivateRoot "
+        "-SensitiveValues $c.SensitiveValues"
+    )
+    assert result.returncode == 0, result.stderr
+    assert resource not in result.stdout
+    assert "Could not connect to dmm01" not in result.stdout
+    assert "Could not connect to DMM01" not in result.stdout
+    assert "Socket dmm01:5025 refused" not in result.stdout
+    assert "Host (dmm01) unavailable" not in result.stdout
+    assert "prefixdmm01suffix" in result.stdout
+    assert "collaborate" in result.stdout
+
+
+def test_three_character_hostname_does_not_redact_inside_words(tmp_path: Path):
+    resource = "TCPIP0::lab::inst0::INSTR"
+    context = privacy_context(tmp_path, resource, "lan")
+    result = run_privacy_command(
+        f"$c={context}; Protect-ArtifactText -Text 'lab collaborate (LAB)' "
+        "-Resource $c.Resource -RepoRoot $c.RepoRoot -PrivateRoot $c.PrivateRoot "
+        "-SensitiveValues $c.SensitiveValues"
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "<redacted> collaborate (<redacted>)"
+
+
+@pytest.mark.parametrize(
+    "resource",
+    [
+        "TCPIP0::0::inst0::INSTR",
+        "TCPIP0::localhost::inst0::INSTR",
+        "TCPIP0::localhost.localdomain::inst0::INSTR",
+        "TCPIP0::0.0.0.0::inst0::INSTR",
+        "TCPIP0::127.0.0.1::inst0::INSTR",
+        "TCPIP0::::1::inst0::INSTR",
+        "TCPIP0::inst0::INSTR",
+        "TCPIP0::instr::inst0::INSTR",
+        "TCPIP0::socket::inst0::INSTR",
+        "TCPIP0::hislip0::INSTR",
+        "TCPIP0::tcpip::inst0::INSTR",
+        "TCPIP0::tcpip0::inst0::INSTR",
+    ],
+)
+def test_tcpip_reserved_tokens_are_not_sensitive_values(resource: str):
+    result = run_privacy_command(
+        f"@(Get-DistinctiveSensitiveTokens -Resource {ps_quote(resource)}) "
+        "| ConvertTo-Json -Compress"
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() in {"", "null"}
+
+
 def test_structured_redaction_preserves_safe_values_and_numeric_zero(tmp_path: Path):
     resource = "USB0::1::2::0::INSTR"
     context = privacy_context(tmp_path, resource)
@@ -397,7 +464,7 @@ def test_csv_evidence_omits_measurement_value_and_trigger_metadata(tmp_path: Pat
 
 
 def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
-    resource = "TCPIP0::meter-lab.local::inst0::INSTR"
+    resource = "TCPIP0::dmm01::inst0::INSTR"
     context = privacy_context(tmp_path, resource, "lan")
     private = tmp_path / "run" / "private"
     shareable = tmp_path / "run" / "shareable"
@@ -408,7 +475,8 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
         "\n".join(
             [
                 resource,
-                "Could not connect to meter-lab.local",
+                "Could not connect to dmm01",
+                "Could not connect to DMM01",
                 "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
                 "192.168.4.5",
                 "172.20.10.5",
@@ -418,7 +486,7 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
                 "/home/alice/secret.txt",
                 "/Users/alice/secret.txt",
                 str(private_path),
-                "firmware=1.0 model=34461A measurement_type=current_dc unit=A row_count=1 exit_code=0 status=passed",
+                "firmware=1.0 model=34461A measurement=0.05 measurement_type=current_dc unit=A row_count=1 exit_code=0 captured=0 status=failed",
             ]
         ),
         encoding="utf-8",
@@ -446,7 +514,8 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
     )
     for forbidden in (
         resource,
-        "meter-lab.local",
+        "dmm01",
+        "DMM01",
         "DISTINCTIVE123",
         "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
         "192.168.4.5",
@@ -463,11 +532,13 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
     for safe in (
         "firmware=1.0",
         "model=34461A",
+        "measurement=0.05",
         "measurement_type=current_dc",
         "unit=A",
         "row_count=1",
         "exit_code=0",
-        "status=passed",
+        "captured=0",
+        "status=failed",
     ):
         assert safe in tree_text
     assert not (shareable / "unknown.bin").exists()

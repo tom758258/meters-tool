@@ -972,8 +972,13 @@ foreach ($caseInfo in @($dryRunResults.ToArray())) {
                 -Probe $probe
             $caseResults.Add($probeFailure) | Out-Null
             $suiteStatus = "failed"
+            $safeFailureReasons = ConvertTo-SafeConsoleFailureReasons `
+                -FailureReasons @($probeFailure.failure_reasons) `
+                -Resource $Resource `
+                -RepoRoot $RepoRoot `
+                -PrivateRoot $privateRoot
             Write-Host "SCPI probe failed: $($case.name)"
-            Write-Host "failure reasons: $($probeFailure.failure_reasons -join '; ')"
+            Write-Host "failure reasons: $($safeFailureReasons -join '; ')"
             continue
         }
     }
@@ -990,8 +995,13 @@ foreach ($caseInfo in @($dryRunResults.ToArray())) {
         Write-Host "live case passed: $($case.name)"
     } else {
         $suiteStatus = "failed"
+        $safeFailureReasons = ConvertTo-SafeConsoleFailureReasons `
+            -FailureReasons @($liveResult.failure_reasons) `
+            -Resource $Resource `
+            -RepoRoot $RepoRoot `
+            -PrivateRoot $privateRoot
         Write-Host "live case failed: $($case.name)"
-        Write-Host "failure reasons: $($liveResult.failure_reasons -join '; ')"
+        Write-Host "failure reasons: $($safeFailureReasons -join '; ')"
         break
     }
 }

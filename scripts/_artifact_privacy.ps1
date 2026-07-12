@@ -55,10 +55,14 @@ function Get-DistinctiveSensitiveTokens {
     if ($Resource -match '^(?i)TCPIP') {
         if ($parts.Count -lt 2) { return @() }
         $hostValue = $parts[1].Trim()
+        $reservedTokens = @(
+            '0', 'localhost', 'localhost.localdomain', '0.0.0.0', '127.0.0.1', '::1',
+            'inst0', 'instr', 'socket', 'hislip0', 'tcpip', 'tcpip0'
+        )
         if (
-            $hostValue.Length -lt 6 -or
+            $hostValue.Length -lt 3 -or
             $hostValue -match '^[0]+$' -or
-            $hostValue -in @('localhost', 'localhost.localdomain', '0.0.0.0', '127.0.0.1', '::1') -or
+            $hostValue -in $reservedTokens -or
             $hostValue -notmatch '^[A-Za-z0-9][A-Za-z0-9.:%_-]*$'
         ) {
             return @()
@@ -84,7 +88,14 @@ function Protect-ArtifactText {
     }
     foreach ($item in @($SensitiveValues)) {
         if (-not [string]::IsNullOrWhiteSpace($item)) {
-            $safe = $safe -replace [regex]::Escape($item), '<redacted>'
+            $escaped = [regex]::Escape($item)
+            $pattern = "(?<![A-Za-z0-9_.-])$escaped(?![A-Za-z0-9_.-])"
+            $safe = [regex]::Replace(
+                $safe,
+                $pattern,
+                '<redacted>',
+                [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+            )
         }
     }
     $safe = $safe -replace [regex]::Escape($PrivateRoot), '<private-local-path>'
@@ -99,6 +110,27 @@ function Protect-ArtifactText {
     $safe = $safe -replace '(?i)(?:[A-Z]:\\[^\s"'']+)', '<redacted-path>'
     $safe = $safe -replace '(?i)(?:/(?:home|Users|mnt|tmp)/[^\s"'']+)', '<redacted-path>'
     return $safe
+}
+
+function ConvertTo-SafeConsoleFailureReasons {
+    param(
+        [AllowNull()][AllowEmptyCollection()][object[]]$FailureReasons,
+        [Parameter(Mandatory = $true)][string]$Resource,
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [Parameter(Mandatory = $true)][string]$PrivateRoot
+    )
+
+    $sensitiveValues = @(Get-DistinctiveSensitiveTokens -Resource $Resource)
+    return @(
+        foreach ($reason in @($FailureReasons)) {
+            Protect-ArtifactText `
+                -Text ([string]$reason) `
+                -Resource $Resource `
+                -RepoRoot $RepoRoot `
+                -PrivateRoot $PrivateRoot `
+                -SensitiveValues $sensitiveValues
+        }
+    )
 }
 
 function ConvertTo-ShareableArtifactValue {

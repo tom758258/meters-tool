@@ -1009,3 +1009,176 @@ def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path):
     assert "meter-lab.local" not in console
     assert str(private_path) not in console
     assert str(REPO_ROOT) not in console
+
+
+def synthetic_confirmed_live_wrapper(timestamp: str) -> str:
+    wrapper_text = (REPO_ROOT / "scripts" / "live-cli-check.ps1").read_text(
+        encoding="utf-8-sig"
+    )
+    wrapper_text = wrapper_text.replace("$PSScriptRoot", ps_quote(REPO_ROOT / "scripts"))
+    replacements = {
+        '$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"': f"$timestamp = '{timestamp}'",
+        "$stdinRedirected = [Console]::IsInputRedirected": "$stdinRedirected = $false",
+        "[void](Read-Host \"Press Enter to run suite '$Suite', or Ctrl+C to cancel\")": "[void]$null",
+    }
+    for source, replacement in replacements.items():
+        assert wrapper_text.count(source) == 1, source
+        wrapper_text = wrapper_text.replace(source, replacement)
+    return wrapper_text
+
+
+def assert_normal_failure_artifact_privacy(
+    result: subprocess.CompletedProcess[str],
+    run_root: Path,
+    raw_reasons: list[str],
+) -> None:
+    assert result.returncode != 0
+    report_path = report_from_summary_output(result.stdout + result.stderr)
+    assert report_path == run_root / "shareable" / "report.json"
+    private_report = load_json(run_root / "private" / "report.json")
+    shareable_report = load_json(report_path)
+    for report in (private_report, shareable_report):
+        assert report["status"] == "failed"
+        assert report["live_executed"] is True
+        assert report["validation_mode"] == "live"
+    private_failure_reasons = [
+        reason
+        for case in private_report["cases"]
+        for reason in case["failure_reasons"]
+    ]
+    shareable_report_text = json.dumps(shareable_report, ensure_ascii=False)
+    shareable_tree_text = "\n".join(
+        path.read_text(encoding="utf-8-sig")
+        for path in (run_root / "shareable").rglob("*")
+        if path.is_file()
+    )
+    console = result.stdout + result.stderr
+    for reason in raw_reasons:
+        assert reason in private_failure_reasons
+        assert reason not in shareable_report_text
+        assert reason not in shareable_tree_text
+        assert reason not in console
+    assert "failure reasons:" in console
+    assert "summary: .tmp_tests/cli_live/" in console
+    assert "/shareable/summary.md" in console
+
+
+def test_normal_scpi_probe_failure_console_is_sanitized(tmp_path: Path):
+    raw_resource = "TCPIP0::dmm01::inst0::INSTR"
+    timestamp = f"synthetic-{uuid4().hex}"
+    run_root = (
+        REPO_ROOT
+        / ".tmp_tests"
+        / "cli_live"
+        / "keysight-34461a"
+        / "lan"
+        / "frequency-period"
+        / timestamp
+    )
+    private_path = run_root / "private" / "synthetic-probe.json"
+    raw_reasons = [
+        raw_resource,
+        "dmm01",
+        "172.20.10.5",
+        "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
+        r"C:\Users\Alice\private\probe.json",
+        str(REPO_ROOT),
+        str(private_path),
+    ]
+    wrapper_text = synthetic_confirmed_live_wrapper(timestamp)
+    probe_line = "$probe = Invoke-FrequencyPeriodScpiProbe -CaseInfo $caseInfo"
+    assert wrapper_text.count(probe_line) == 1
+    synthetic_reasons = ",".join(ps_quote(reason) for reason in raw_reasons)
+    probe_result = "\n".join(
+        [
+            "$probe = [pscustomobject]@{",
+            "  success = $false",
+            "  command = [pscustomobject]@{ name='synthetic_probe'; command='python'; arguments=@(); exit_code=1; duration_seconds=0; stdout=(Join-Path $caseInfo.case_dir 'scpi_probe.json'); stderr=(Join-Path $caseInfo.case_dir 'scpi_probe.stderr.txt'); success=$false }",
+            "  diagnostic = [pscustomobject]@{ schema_version=1; resource=$Resource; measurement=$caseInfo.plan.measurement_cli_name; status='failed'; all_scpi_error_responses_zero=$false; idn='KEYSIGHT,34461A,DISTINCTIVE123,A.03.03'; firmware_revision='A.03.03'; identity_system_errors=$null; commands=@(); read=$null; failure_reasons=@("
+            + synthetic_reasons
+            + "); cleanup=$null; artifact_path=(Join-Path $caseInfo.case_dir 'scpi_probe.json'); stderr_path=(Join-Path $caseInfo.case_dir 'scpi_probe.stderr.txt') }",
+            "}",
+        ]
+    )
+    wrapper_text = wrapper_text.replace(probe_line, probe_result)
+    synthetic_wrapper = tmp_path / "live-cli-check-synthetic-probe-failure.ps1"
+    synthetic_wrapper.write_text(wrapper_text, encoding="utf-8")
+
+    result = run_wrapper_path(
+        synthetic_wrapper,
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "lan",
+        "-Resource",
+        raw_resource,
+        "-Suite",
+        "frequency-period",
+    )
+    assert_normal_failure_artifact_privacy(result, run_root, raw_reasons)
+    assert "SCPI probe failed:" in result.stdout
+
+
+def test_normal_live_case_failure_console_is_sanitized(tmp_path: Path):
+    raw_resource = "TCPIP0::dmm01::inst0::INSTR"
+    timestamp = f"synthetic-{uuid4().hex}"
+    run_root = (
+        REPO_ROOT
+        / ".tmp_tests"
+        / "cli_live"
+        / "keysight-34461a"
+        / "lan"
+        / "minimal"
+        / timestamp
+    )
+    private_path = run_root / "private" / "synthetic-live.jsonl"
+    raw_reasons = [
+        raw_resource,
+        "dmm01",
+        "172.20.10.5",
+        "KEYSIGHT,34461A,DISTINCTIVE123,A.03.03",
+        r"C:\Users\Alice\private\live.jsonl",
+        str(REPO_ROOT),
+        str(private_path),
+    ]
+    wrapper_text = synthetic_confirmed_live_wrapper(timestamp)
+    live_call = "\n".join(
+        [
+            "    $liveResult = Invoke-LiveCase `",
+            "        -Case $case `",
+            "        -CaseDir $caseInfo.case_dir `",
+            "        -Port $caseInfo.port `",
+            "        -CsvPath $caseInfo.csv `",
+            "        -ScpiProbeCommand $scpiProbeCommand `",
+            "        -ScpiDiagnostic $scpiDiagnostic",
+        ]
+    )
+    assert wrapper_text.count(live_call) == 1
+    synthetic_reasons = ",".join(ps_quote(reason) for reason in raw_reasons)
+    live_result = "\n".join(
+        [
+            "    $liveResult = [pscustomobject]@{",
+            "        command=[pscustomobject]@{ name='synthetic_live'; command='python'; arguments=@(); exit_code=1; duration_seconds=0; stdout=(Join-Path $caseInfo.case_dir 'live.jsonl'); stderr=(Join-Path $caseInfo.case_dir 'live.stderr.txt'); success=$false }",
+            "        name=$case.name; status='failed'; failure_reasons=@("
+            + synthetic_reasons
+            + "); run_id=$null; expected_captured=$case.expected_captured; captured_count=0; captured=0; errors=0; ready_events=0; csv_row_count=0; csv_rows=0; measurement_type=$case.expected_measurement_type; unit=$case.expected_unit; value=$null; csv=$caseInfo.csv; jsonl=(Join-Path $caseInfo.case_dir 'live.jsonl'); stderr=(Join-Path $caseInfo.case_dir 'live.stderr.txt'); live_command_skipped=$false; scpi_probe_command=$null; scpi_diagnostic_path=$null; scpi_diagnostic=$null",
+            "    }",
+        ]
+    )
+    wrapper_text = wrapper_text.replace(live_call, live_result)
+    synthetic_wrapper = tmp_path / "live-cli-check-synthetic-live-failure.ps1"
+    synthetic_wrapper.write_text(wrapper_text, encoding="utf-8")
+
+    result = run_wrapper_path(
+        synthetic_wrapper,
+        "-Target",
+        "keysight-34461a",
+        "-Connection",
+        "lan",
+        "-Resource",
+        raw_resource,
+        "-Suite",
+        "minimal",
+    )
+    assert_normal_failure_artifact_privacy(result, run_root, raw_reasons)
+    assert "live case failed:" in result.stdout
