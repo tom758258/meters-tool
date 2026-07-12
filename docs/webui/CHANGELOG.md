@@ -28,6 +28,10 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   consistently describe Start-time IDN matching.
 - Extracted WebUI request-payload mapping into focused helpers while preserving
   HTTP endpoints and request payload contracts.
+- Added the dependency-free `en` / `zh-TW` browser locale runtime foundation
+  with English fallback and safe named interpolation. P2.1 does not migrate
+  browser prose or activate user-visible language switching, and API, Core,
+  and runtime behavior remain unchanged.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 

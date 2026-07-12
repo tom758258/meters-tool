@@ -9,9 +9,10 @@ use the Core integration guide. Keep this guide focused on durable public
 WebUI behavior and maintainer boundaries.
 
 The [WebUI Localization Contract](localization-contract.md) defines the planned
-v2 localization of browser presentation. Locale runtime and translations are
-not implemented yet; the current English UI, HTTP API, and Core contracts
-remain unchanged.
+v2 localization of browser presentation. The dependency-free P2.1 browser i18n
+foundation and empty production locale catalogs now exist, but browser prose
+has not been migrated and language switching is not active. The current UI
+still renders in English; HTTP API and Core contracts remain unchanged.
 
 ## Purpose
 

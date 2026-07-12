@@ -52,6 +52,10 @@ until final release preparation.
   auto-detect fallback view, expected-model guidance, exact support status,
   open workflows, limits, and pending scopes. The WebUI continues to use the
   system VISA runtime and does not expose the optional CLI backend selector.
+- Added the dependency-free WebUI `en` / `zh-TW` locale runtime foundation
+  with English fallback and safe named interpolation. Browser prose remains
+  English and language switching is not active in P2.1; HTTP API, Core, and
+  acquisition behavior are unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

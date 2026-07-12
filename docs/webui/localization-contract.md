@@ -6,14 +6,73 @@ This contract governs localization of the browser WebUI. The first maintained
 locales are `en` and `zh-TW`. English is the complete source locale and the
 mandatory fallback locale.
 
-Phase 2 Part 0 (P2.0) defines the contract and inventories current text only.
+Phase 2 Part 0 (P2.0) completed this contract and the current-text inventory.
 Locale runtime, translation dictionaries, and language switching are not
-implemented in P2.0. P2.1 and later Parts implement those features. Nothing in
-this document claims that the current WebUI can switch languages.
+implemented in P2.0. P2.1 now provides the dependency-free runtime foundation
+and empty production catalog modules; P2.2 and later Parts remain responsible
+for prose migration and activation. Nothing in this document claims that the
+current WebUI can switch languages.
 
 The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
+
+### P2.1 Runtime Foundation And Current Status
+
+P2.1 adds three native ES modules at the static root:
+
+- `locale_en.js` exports the frozen English source catalog `EN_MESSAGES`;
+- `locale_zh_tw.js` exports the frozen Traditional Chinese catalog
+  `ZH_TW_MESSAGES`;
+- `i18n.js` exports the locale contract and translator API.
+
+The production catalogs intentionally contain no migrated browser prose yet.
+The existing browser modules do not import or activate `i18n.js`, so the
+currently rendered UI remains the existing English UI. There is no active
+language button, browser detection, saved-locale lookup, DOM translation,
+`<html lang>` update, or runtime language switching. Those integration tasks
+belong to P2.2 and later Parts, especially P2.6 for selection and switching.
+
+The runtime exports these constants:
+
+```text
+SOURCE_LOCALE = "en"
+FALLBACK_LOCALE = "en"
+SUPPORTED_LOCALES = ["en", "zh-TW"] (frozen)
+LOCALE_STORAGE_KEY = "meters-tool.webui.locale"
+```
+
+`LOCALE_STORAGE_KEY` defines the future persistence contract only; P2.1 does
+not access storage. `isSupportedLocale(value)` accepts only the two exact
+maintained identifiers. It does not map browser language results.
+
+`createI18n({ catalogs, initialLocale, onMissingKey })` creates an isolated
+translator with `getLocale()`, `setLocale(locale)`, and `t(key, params)`.
+Catalog input must be a plain object containing plain-object catalogs for both
+maintained locales. Keys must follow the flat semantic key convention, and
+every message value must be a string. The factory validates and freezes
+shallow copies without mutating caller-owned catalogs. A valid explicit
+`initialLocale` is used; otherwise the initial locale is `en`. An invalid
+explicit locale raises `RangeError`.
+
+`setLocale(locale)` accepts only an exact maintained identifier, changes only
+that translator's internal locale, and returns the resulting locale. A
+rejected locale raises `RangeError` without changing the previous locale.
+The production singleton is exposed through module-level `getLocale()`,
+`setLocale(locale)`, and `t(key, params)` functions and starts in English.
+
+`t(key, params)` requires a non-empty string key and looks up the current
+catalog first, then the English source catalog. A key missing from both
+catalogs is returned unchanged. The optional missing-key callback receives an
+object containing `key`, `locale`, and `fallbackLocale`; diagnostics cannot
+replace or hide the returned key.
+
+Named interpolation replaces `{name}`-style placeholders only from matching
+own properties in `params`, using ordinary string conversion. Repeated
+placeholders are supported, extra parameters are ignored, and missing or
+undefined parameters remain visible. Interpolation neither parses nor
+executes markup. The runtime reads no DOM, browser locale, storage, or network
+state and triggers no application action.
 
 ## Locked Product Decisions
 
@@ -157,8 +216,9 @@ with fragile string concatenation.
 
 English must define every maintained key. A missing `zh-TW` key falls back to
 English. A missing English key is a contract and test failure. Unknown keys
-remain diagnosable and must not silently render an empty string. P2.0 does not
-implement this translation API.
+remain diagnosable and must not silently render an empty string. P2.1
+implements lookup, fallback, and interpolation; later Parts own production
+message keys and browser integration.
 
 ## User-Visible Text Inventory
 
