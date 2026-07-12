@@ -272,6 +272,40 @@ Normal CLI starts, the WebUI, and direct Core live calls remain product-gated
 until reviewed artifacts are accepted and support metadata plus documentation
 are updated.
 
+Every invocation that reaches run-directory creation, including `-PlanOnly`,
+confirmation-required, preflight-failed, passed, and failed runs, automatically
+uses this artifact layout:
+
+```text
+.tmp_tests/cli_live/<model-id>/<connection>/<suite>/<timestamp>/
+|- private/
+|  |- report.json
+|  |- summary.md
+|  `- ... raw command, diagnostic, JSONL, stderr, and CSV evidence
+`- shareable/
+   |- report.json
+   |- summary.md
+   `- ... redacted command, diagnostic, JSONL, stderr, and CSV evidence
+```
+
+The final `summary:` console line points to the repository-relative
+`shareable/summary.md`. `private/` is complete local debugging evidence and
+must never be committed, attached, or published. Only `shareable/` is suitable
+for a pull request; compress and attach the entire shareable directory so its
+relative references remain intact. Both reports use artifact schema `1.1`.
+The private report retains raw resources and local paths. The shareable report
+and tree redact resources, complete IDNs and serials, private addresses,
+operator metadata, and personal or absolute paths.
+
+Full acquisition CSV files remain only under `private/`. Each live case with a
+CSV receives a shareable `csv-evidence.json` that records safe schema and row
+facts without measurement values or trigger metadata. JSON and JSONL are
+parsed before redaction; malformed or missing inputs produce safe placeholders
+instead of copying raw text. Unknown binary formats remain private. A failure
+to generate shareable evidence makes the wrapper fail closed and does not turn
+raw evidence into a fallback. Passed or failed artifacts are candidate evidence
+only and never promote product support automatically.
+
 Wrapper `-Target` values are stable Core model IDs. The maintained values are
 `keysight-34461a` and `keysight-34460a`; they map to the physical CLI model
 tokens `34461A` and `34460A`, respectively. The wrapper target remains an
@@ -306,11 +340,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check
 The minimal suite follows the existing `current-dc immediate` validation
 convention and captures one bounded immediate-mode sample. It is live hardware
 validation, not the generally safest smoke test; current cases require correct
-current input wiring before execution. It writes `report.json`, `summary.md`,
-command stdout/stderr files, and the case CSV under `.tmp_tests\cli_live\...`.
-Check `summary.md` first; a passed case should show `captured=1`, `errors=0`,
-and at least one CSV data row. Compare the CSV value with the instrument front
-panel before trusting longer captures.
+current input wiring before execution. It writes raw command output and the
+full case CSV under `private/`, then generates the redacted `shareable/` report,
+summary, command evidence, and `csv-evidence.json`. Check the canonical
+`shareable/summary.md` first; a passed case should show `captured=1`, `errors=0`,
+and at least one CSV data row. Compare the private CSV value with the instrument
+front panel locally before trusting longer captures; do not publish that CSV.
 
 For broader live coverage, use `-Suite basic` after the minimal suite passes.
 That suite covers immediate measurements and software-triggered paths. Current,
@@ -368,10 +403,12 @@ After reviewing the plans, remove `-PlanOnly` to run the two bounded live
 cases. The suite uses Auto Range, a `20` Hz AC filter, a `0.1` second gate
 time, automatic Frequency timeout, no Period timeout command, and one sample
 per measurement.
-Before each formal CLI case, a private diagnostic session validates identity
+Before each formal CLI case, a diagnostic session validates identity
 against the selected target model, sends the planned SCPI commands, and checks
-`SYST:ERR?` after every command and after `READ?`. The report includes the IDN,
-firmware revision, per-command error responses, and the diagnostic JSON path. A
+`SYST:ERR?` after every command and after `READ?`. The private report includes
+the complete IDN and raw diagnostic path; the shareable report retains safe
+manufacturer/model, firmware, command, response, and error outcome fields while
+redacting complete IDN, serial, resource, and private paths. A
 probe error fails that case and skips its duplicate formal run while allowing
 the other measurement to be diagnosed. Compare the reported value and CSV row
 with the selected meter front panel. On a 34461A with firmware A.03.03, both
@@ -1407,8 +1444,9 @@ The same pair of checks is available through
 preflight and dry-run planning first, requires interactive confirmation before
 live I/O, checks the SCPI error queue after each planned Frequency/Period
 command, and records the diagnostics plus each measured value and unit in
-`report.json` and `summary.md`. `-PlanOnly` remains no-hardware and does not run
-the SCPI probe.
+the private artifacts. Shareable `report.json` and `summary.md` omit measured
+values and private identifiers. `-PlanOnly` remains no-hardware, still creates
+both artifact directories, and does not run the SCPI probe.
 
 ### Validated Resistance 2-Wire Smoke Tests
 

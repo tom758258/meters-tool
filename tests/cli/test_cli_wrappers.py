@@ -77,14 +77,17 @@ def assert_under_tmp_tests(path_text: str) -> Path:
 def report_from_summary_output(output: str) -> Path:
     match = re.search(r"summary:\s*(.+)", output)
     assert match, output
-    summary = Path(match.group(1).strip()).resolve()
+    summary = Path(match.group(1).strip())
+    if not summary.is_absolute():
+        summary = REPO_ROOT / summary
+    summary = summary.resolve()
     assert summary.exists()
     report = summary.with_name("report.json")
     assert report.exists()
     return report
 
 
-def assert_command_artifacts(commands: list[dict], output_dir: Path) -> None:
+def assert_command_artifacts(commands: list[dict], output_dir: Path, run_root: Path | None = None) -> None:
     required = {
         "name",
         "command",
@@ -97,8 +100,14 @@ def assert_command_artifacts(commands: list[dict], output_dir: Path) -> None:
     }
     for command in commands:
         assert required <= command.keys()
-        stdout = Path(command["stdout"]).resolve()
-        stderr = Path(command["stderr"]).resolve()
+        stdout = Path(command["stdout"])
+        stderr = Path(command["stderr"])
+        if run_root is not None and not stdout.is_absolute():
+            stdout = run_root / stdout
+        if run_root is not None and not stderr.is_absolute():
+            stderr = run_root / stderr
+        stdout = stdout.resolve()
+        stderr = stderr.resolve()
         assert stdout.exists(), command
         assert stderr.exists(), command
         assert output_dir == stdout or output_dir in stdout.parents
@@ -379,6 +388,7 @@ def test_preflight_rejects_output_root_outside_tmp_tests():
 
 
 def test_live_plan_only_minimal_report_contract():
+    raw_resource = "USB0::0x2A8D::0x1301::MY12345678::INSTR"
     result = run_wrapper(
         "scripts/live-cli-check.ps1",
         "-Target",
@@ -386,15 +396,25 @@ def test_live_plan_only_minimal_report_contract():
         "-Connection",
         "usb",
         "-Resource",
-        "SIM::34461A",
+        raw_resource,
         "-Suite",
         "minimal",
         "-PlanOnly",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
-    report = load_json(report_from_summary_output(result.stdout))
-    assert report["schema_version"] == 1
+    report_path = report_from_summary_output(result.stdout)
+    report = load_json(report_path)
+    run_root = report_path.parents[1]
+    private_report = load_json(run_root / "private" / "report.json")
+    assert report["schema_version"] == "1.1"
+    assert report["kind"] == "meters_tool_live_validation"
+    assert report["artifact_visibility"] == "shareable"
+    assert report["candidate_evidence_only"] is True
+    assert report["promotes_live_support"] is False
+    assert report["private_raw_artifacts_retained"] is True
+    assert report["redaction_applied"] is True
+    assert report["redaction_version"] == 1
     assert report["status"] == "planned"
     assert report["target"] == "keysight-34461a"
     assert report["model_id"] == "keysight-34461a"
@@ -410,11 +430,24 @@ def test_live_plan_only_minimal_report_contract():
     assert report["plan_only"] is True
     assert report["live_executed"] is False
     assert report["suite"] == "minimal"
-    assert report["resource"] == "SIM::34461A"
+    assert report["resource"] == "usb:<redacted-resource>"
+    assert private_report["resource"] == raw_resource
+    assert private_report["artifact_visibility"] == "private"
+    assert private_report["redaction_applied"] is False
     assert report["cases"] == []
     assert report["scpi_diagnostics"] == []
-    assert_under_tmp_tests(report["output_dir"])
-    assert "keysight-34461a" in Path(report["output_dir"]).parts
+    assert report["output_dir"] == "shareable"
+    assert report["artifact_paths"] == {
+        "output_dir": "shareable",
+        "report": "shareable/report.json",
+        "summary": "shareable/summary.md",
+    }
+    assert {path.name for path in run_root.iterdir()} == {"private", "shareable"}
+    assert not (run_root / "report.json").exists()
+    assert not (run_root / "summary.md").exists()
+    assert raw_resource not in result.stdout + result.stderr
+    assert str(REPO_ROOT) not in result.stdout + result.stderr
+    assert str(PYTHON) not in result.stdout + result.stderr
 
     assert {dry_run["name"] for dry_run in report["dry_runs"]} == {
         "minimal_current_dc_immediate"
@@ -434,9 +467,19 @@ def test_live_plan_only_minimal_report_contract():
     args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
     assert "--validation-allow-pending-live-support" in args
     assert args[args.index("--model") + 1] == "34461A"
-    summary = Path(report["artifact_paths"]["summary"]).read_text(encoding="utf-8")
+    assert args[args.index("--resource") + 1] == "<redacted-resource>"
+    summary = (run_root / report["artifact_paths"]["summary"]).read_text(encoding="utf-8")
     assert "- Model ID: keysight-34461a" in summary
     assert "- Expected model: 34461A" in summary
+    assert_command_artifacts(report["commands"], report_path.parent, run_root)
+    assert_command_artifacts(private_report["commands"], run_root / "private")
+    shareable_text = "\n".join(
+        path.read_text(encoding="utf-8-sig", errors="strict")
+        for path in (run_root / "shareable").rglob("*")
+        if path.is_file()
+    )
+    for forbidden in (raw_resource, "MY12345678", str(REPO_ROOT), str(PYTHON)):
+        assert forbidden not in shareable_text
 
 
 def test_live_plan_only_full_report_contract():
@@ -456,13 +499,14 @@ def test_live_plan_only_full_report_contract():
 
     report_path = report_from_summary_output(result.stdout)
     report = load_json(report_path)
-    output_dir = Path(report["output_dir"]).resolve()
+    run_root = report_path.parents[1]
+    output_dir = report_path.parent.resolve()
     assert report["status"] == "planned"
     assert report["plan_only"] is True
     assert report["live_executed"] is False
     assert report["cases"] == []
     assert report["scpi_diagnostics"] == []
-    assert_under_tmp_tests(report["output_dir"])
+    assert report["output_dir"] == "shareable"
 
     expected_names = [
         "basic_immediate_current_dc",
@@ -502,10 +546,10 @@ def test_live_plan_only_full_report_contract():
         assert dry_run["plan"]["read_path"] == expected_read_paths[dry_run["name"]]
         command = dry_run["command"]
         assert command["success"]
-        assert Path(command["stdout"]).resolve().exists()
-        assert Path(command["stderr"]).resolve().exists()
+        assert (run_root / command["stdout"]).resolve().exists()
+        assert (run_root / command["stderr"]).resolve().exists()
 
-    assert_command_artifacts(report["commands"], output_dir)
+    assert_command_artifacts(report["commands"], output_dir, run_root)
 
 
 def test_live_plan_only_34460a_minimal_uses_34460a_model():
@@ -534,7 +578,7 @@ def test_live_plan_only_34460a_minimal_uses_34460a_model():
     args = command_arguments(report, "minimal_current_dc_immediate_dry_run")
     assert "--validation-allow-pending-live-support" in args
     assert args[args.index("--model") + 1] == "34460A"
-    assert "keysight-34460a" in Path(report["output_dir"]).parts
+    assert report["output_dir"] == "shareable"
 
 
 def test_live_plan_only_mixed_case_target_normalizes_to_model_id():
@@ -554,7 +598,7 @@ def test_live_plan_only_mixed_case_target_normalizes_to_model_id():
     assert report["target"] == "keysight-34461a"
     assert report["model_id"] == "keysight-34461a"
     assert report["expected_model"] == "34461A"
-    assert "keysight-34461a" in Path(report["output_dir"]).parts
+    assert report["output_dir"] == "shareable"
 
 
 def test_live_rejects_unknown_target_with_usage_failure():
@@ -860,7 +904,9 @@ def test_live_redirected_stdin_writes_confirmation_required_report():
         result.stdout + result.stderr
     )
 
-    report = load_json(report_from_summary_output(result.stdout + result.stderr))
+    report_path = report_from_summary_output(result.stdout + result.stderr)
+    report = load_json(report_path)
+    run_root = report_path.parents[1]
     assert report["status"] == "confirmation_required"
     assert report["plan_only"] is False
     assert report["live_executed"] is False
@@ -868,3 +914,7 @@ def test_live_redirected_stdin_writes_confirmation_required_report():
     assert {dry_run["name"] for dry_run in report["dry_runs"]} == {
         "minimal_current_dc_immediate"
     }
+    assert {path.name for path in run_root.iterdir()} == {"private", "shareable"}
+    assert report_path == run_root / "shareable" / "report.json"
+    assert (run_root / "private" / "report.json").exists()
+    assert not (run_root / "report.json").exists()

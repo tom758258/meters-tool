@@ -81,6 +81,24 @@ Do not place a real VISA resource, complete serial number, private or
 link-local lab address, or personal filesystem path in a commit, issue, or
 public artifact.
 
+Every wrapper invocation that creates a run directory automatically creates
+`private/` and `shareable/` subdirectories. `private/` contains complete local
+raw evidence, including resources, paths, diagnostics, command output, and full
+acquisition CSV files. Never commit, attach, upload, or otherwise publish that
+directory. `shareable/` contains the automatically redacted report, summary,
+text, JSON, JSONL, diagnostics, and CSV evidence intended for review. Attach
+only `shareable/`; compressing that entire directory is the recommended way to
+add the evidence to a pull request.
+
+The shareable report uses live-validation artifact schema `1.1`. A full CSV
+remains private; its shareable case directory contains `csv-evidence.json` with
+header validity, row counts, measurement type, and unit, but no measured value
+or trigger metadata. Missing, empty, malformed, or unsupported artifacts fail
+closed: the wrapper writes a safe placeholder or omits an unknown format and
+never falls back to copying raw content. If shareable generation fails, the
+wrapper fails even when the underlying validation succeeded, while retaining
+the private raw evidence locally.
+
 ### New Models and Capabilities
 
 Every new `InstrumentProfile` must explicitly declare a unique stable
@@ -116,8 +134,9 @@ order is:
 4. Use the hidden validation mode or maintained wrapper with an explicit
    resource and bounded counts/timeouts. Extend the wrapper only when a small,
    repeatable case fits its current architecture.
-5. Preserve and attach the complete commands, stdout/stderr, JSON/JSONL, CSV,
-   report, errors, partial results, and cleanup artifacts.
+5. Preserve complete raw evidence locally under `private/`, and attach only the
+   automatically redacted `shareable/` directory with its report, summary,
+   JSON/JSONL, CSV evidence, errors, partial results, and cleanup outcome.
 6. Obtain maintainer review of the implementation and exact-scope evidence.
 7. Promote the exact feature metadata and public documentation later, as an
    explicit reviewed decision. Passing evidence does not promote it
@@ -234,15 +253,16 @@ than only reporting success in prose. Include:
   backend, without private connection details;
 * exact wrapper invocation, target, connection, suite, selected cases, backend,
   and whether the result was plan-only or live;
-* wrapper `report.json`, `summary.md`, generated JSON/JSONL logs, CSV output
-  where acquisition ran, SCPI diagnostics where generated, and relevant
-  stdout/stderr; and
+* the complete wrapper `shareable/` directory, including `report.json`,
+  `summary.md`, generated redacted JSON/JSONL logs, `csv-evidence.json` where
+  acquisition ran, safe SCPI diagnostics, and relevant redacted stdout/stderr;
+  and
 * exit codes, captured row counts, errors or failures, skipped cases, partial
   output, and cleanup/release results.
 
 Report failures as evidence too. Preserve failed cases, non-zero exits, SCPI
-errors, timeouts, cleanup warnings, and partial CSV output after redacting
-private identifiers.
+errors, timeouts, cleanup warnings, and partial raw CSV output under `private/`;
+share only the fail-closed evidence generated under `shareable/`.
 
 Passing artifacts are candidate evidence only. They do not automatically
 promote product support, and the hidden validation mode does not update public
@@ -272,6 +292,8 @@ the pull-request process when review needs them.
 - [ ] Public contracts and safety behavior are unchanged, or the change is documented.
 - [ ] No real VISA resource, complete serial number, private lab address, or personal path was committed.
 - [ ] Live validation is attached when the change affects live behavior.
+- [ ] Only the wrapper `shareable/` directory was attached; `private/` raw evidence was kept local.
+- [ ] Shareable evidence was checked for redacted resources, IDNs, serials, addresses, paths, values, and trigger metadata.
 - [ ] Existing wrapper targets and cases were used where available.
 - [ ] New model or workflow contributions extend the maintained wrapper when repeatable validation is appropriate.
 - [ ] Direct hidden CLI validation was used only as bounded bootstrap validation for a target or case not yet supported by the wrapper.

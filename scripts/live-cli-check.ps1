@@ -26,9 +26,10 @@ $Python = Join-Path $RepoRoot ".venv\Scripts\python.exe"
 $PreflightScript = Join-Path $PSScriptRoot "preflight-cli.ps1"
 $ScpiProbeScript = Join-Path $PSScriptRoot "_frequency_period_scpi_probe.py"
 . (Join-Path $PSScriptRoot "_validation_helpers.ps1")
+. (Join-Path $PSScriptRoot "_artifact_privacy.ps1")
 
 if (-not (Test-Path -LiteralPath $Python)) {
-    throw "Python executable not found: $Python"
+        throw "Repository virtual-environment Python executable not found."
 }
 
 Add-RepoSrcToPythonPath -RepoRoot $RepoRoot
@@ -380,7 +381,7 @@ function Invoke-LiveDryRun {
     Write-Host "  Trigger mode: $($events[0].trigger_mode)"
     Write-Host "  Read path: $($events[0].read_path)"
     Write-Host "  Cleanup: $($events[0].cleanup_steps -join ', ')"
-    Write-Host "  CSV: $csv"
+    Write-Host "  CSV: <private-local-path>"
     Write-Host "  SCPI/configuration:"
     foreach ($command in $events[0].scpi_commands) {
         Write-Host "    $command"
@@ -650,7 +651,14 @@ function Write-LiveArtifacts {
     )
 
     $report = [ordered]@{
-        schema_version = 1
+        schema_version = "1.1"
+        kind = "meters_tool_live_validation"
+        artifact_visibility = "private"
+        candidate_evidence_only = $true
+        promotes_live_support = $false
+        private_raw_artifacts_retained = $true
+        redaction_applied = $false
+        redaction_version = 1
         target = $resolvedTarget
         model_id = $resolvedTarget
         expected_model = $resolvedCliModel
@@ -665,9 +673,9 @@ function Write-LiveArtifacts {
         package_version = Get-PackageVersion
         git_head = Get-GitHead
         validation_mode = if ($PlanOnlyRun) { "live_plan_only" } elseif ($LiveExecuted) { "live" } else { "live_not_executed" }
-        output_dir = $runDir
+        output_dir = $privateRoot
         artifact_paths = [ordered]@{
-            output_dir = $runDir
+            output_dir = $privateRoot
             report = $reportPath
             summary = $summaryPath
         }
@@ -699,7 +707,7 @@ function Write-LiveArtifacts {
         "- Validation mode: $($report.validation_mode)",
         "- Plan only: $PlanOnlyRun",
         "- Live executed: $LiveExecuted",
-        "- Output directory: $runDir",
+        "- Output directory: $privateRoot",
         "- Report: $reportPath",
         "",
         "## Dry Runs"
@@ -763,6 +771,21 @@ function Write-LiveArtifacts {
         }
     }
     Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines
+
+    try {
+        [void](New-ShareableArtifactSet `
+            -PrivateReport $report `
+            -RunRoot $runDir `
+            -PrivateRoot $privateRoot `
+            -ShareableRoot $shareableRoot `
+            -RepoRoot $RepoRoot `
+            -Resource $Resource `
+            -Connection $resolvedConnection)
+        return $true
+    } catch {
+        Write-MinimalShareableFailure -ShareableRoot $shareableRoot -Status "artifact_generation_failed"
+        return $false
+    }
 }
 
 if ([string]::IsNullOrWhiteSpace($Resource)) {
@@ -783,19 +806,48 @@ $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runDir = Join-Path (Join-Path (Join-Path (Join-Path $LiveRoot $resolvedTarget) $resolvedConnection) $Suite) $timestamp
 Assert-UnderTmpRoot -Path $runDir
 New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+$privateRoot = Join-Path $runDir "private"
+$shareableRoot = Join-Path $runDir "shareable"
+New-Item -ItemType Directory -Force -Path $privateRoot | Out-Null
+New-Item -ItemType Directory -Force -Path $shareableRoot | Out-Null
 
 $commands = [System.Collections.Generic.List[object]]::new()
 $caseResults = [System.Collections.Generic.List[object]]::new()
 $dryRunResults = [System.Collections.Generic.List[object]]::new()
 $scpiDiagnostics = [System.Collections.Generic.List[object]]::new()
-$reportPath = Join-Path $runDir "report.json"
-$summaryPath = Join-Path $runDir "summary.md"
+$reportPath = Join-Path $privateRoot "report.json"
+$summaryPath = Join-Path $privateRoot "summary.md"
+$canonicalSummaryPath = ((Get-PortableRelativePath -BasePath $RepoRoot -Path (Join-Path $shareableRoot "summary.md")).Replace('\', '/'))
 $stdinRedirected = [Console]::IsInputRedirected
+$handlingArtifactFailure = $false
+
+trap {
+    if (-not $handlingArtifactFailure -and -not (Test-Path -LiteralPath $reportPath)) {
+        $handlingArtifactFailure = $true
+        [void](Write-LiveArtifacts `
+            -Status "wrapper_failed" `
+            -PlanOnlyRun ([bool]$PlanOnly) `
+            -LiveExecuted $false `
+            -CaseItems @($caseResults.ToArray()) `
+            -DryRunItems @($dryRunResults.ToArray()) `
+            -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
+            -CommandItems @($commands.ToArray()))
+        Write-Host "summary: $canonicalSummaryPath"
+    }
+    $safeFailure = Protect-ArtifactText `
+        -Text $_.Exception.Message `
+        -Resource $Resource `
+        -RepoRoot $RepoRoot `
+        -PrivateRoot $privateRoot `
+        -SensitiveValues @(Get-DistinctiveSensitiveTokens -Resource $Resource)
+    [Console]::Error.WriteLine($safeFailure)
+    exit 1
+}
 
 if (-not ($stdinRedirected -and (-not $PlanOnly))) {
-    $preflightOut = Join-Path $runDir "preflight.stdout.txt"
-    $preflightErr = Join-Path $runDir "preflight.stderr.txt"
-    $preflightRoot = Join-Path $runDir "preflight"
+    $preflightOut = Join-Path $privateRoot "preflight.stdout.txt"
+    $preflightErr = Join-Path $privateRoot "preflight.stderr.txt"
+    $preflightRoot = Join-Path $privateRoot "preflight"
     $preflightResult = Invoke-CapturedCommand `
         -Name "preflight" `
         -FilePath "powershell.exe" `
@@ -815,7 +867,7 @@ if (-not ($stdinRedirected -and (-not $PlanOnly))) {
     $commands.Add([pscustomobject]$preflightResult) | Out-Null
 
     if (-not $preflightResult.success) {
-        Write-LiveArtifacts `
+        $artifactsWritten = Write-LiveArtifacts `
             -Status "preflight_failed" `
             -PlanOnlyRun ([bool]$PlanOnly) `
             -LiveExecuted $false `
@@ -823,7 +875,9 @@ if (-not ($stdinRedirected -and (-not $PlanOnly))) {
             -DryRunItems @() `
             -ScpiDiagnosticItems @() `
             -CommandItems @($commands.ToArray())
-        throw "Preflight failed. See $preflightOut and $preflightErr"
+        Write-Host "summary: $canonicalSummaryPath"
+        if (-not $artifactsWritten) { throw "Shareable artifact generation failed." }
+        throw "Preflight failed. Review the private artifacts locally."
     }
 }
 
@@ -833,8 +887,8 @@ Write-Host "Target: $resolvedTarget"
 Write-Host "Connection: $resolvedConnection"
 Write-Host "VISA library/backend: $(if ([string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) { 'system_visa' } else { $resolvedVisaLibrary })"
 Write-Host "Suite: $Suite"
-Write-Host "Resource: $Resource"
-Write-Host "Output directory: $runDir"
+Write-Host "Resource: $(Get-RedactedResourceDisplay -Resource $Resource -Connection $resolvedConnection)"
+Write-Host "Output directory: $((Get-PortableRelativePath -BasePath $RepoRoot -Path $runDir).Replace('\', '/'))"
 Write-Host ""
 if ($PlanOnly) {
     Write-Host "PlanOnly: generating dry-run plans only; no VISA resource will be opened."
@@ -850,7 +904,7 @@ if ($PlanOnly) {
 
 foreach ($case in $cases) {
     $caseName = New-SafeCaseName -Name $case.name
-    $caseDir = Join-Path $runDir $caseName
+    $caseDir = Join-Path $privateRoot $caseName
     Assert-UnderTmpRoot -Path $caseDir
     New-Item -ItemType Directory -Force -Path $caseDir | Out-Null
     $port = Get-AvailableTcpPort
@@ -867,7 +921,7 @@ foreach ($case in $cases) {
 }
 
 if ($PlanOnly) {
-    Write-LiveArtifacts `
+    $artifactsWritten = Write-LiveArtifacts `
         -Status "planned" `
         -PlanOnlyRun $true `
         -LiveExecuted $false `
@@ -876,12 +930,13 @@ if ($PlanOnly) {
         -ScpiDiagnosticItems @() `
         -CommandItems @($commands.ToArray())
     Write-Host "live CLI plan generated: $Suite"
-    Write-Host "summary: $summaryPath"
+    Write-Host "summary: $canonicalSummaryPath"
+    if (-not $artifactsWritten) { throw "Shareable artifact generation failed." }
     exit 0
 }
 
 if ($stdinRedirected) {
-    Write-LiveArtifacts `
+    $artifactsWritten = Write-LiveArtifacts `
         -Status "confirmation_required" `
         -PlanOnlyRun $false `
         -LiveExecuted $false `
@@ -889,7 +944,8 @@ if ($stdinRedirected) {
         -DryRunItems @($dryRunResults.ToArray()) `
         -ScpiDiagnosticItems @() `
         -CommandItems @($commands.ToArray())
-    Write-Host "summary: $summaryPath"
+    Write-Host "summary: $canonicalSummaryPath"
+    if (-not $artifactsWritten) { throw "Shareable artifact generation failed." }
     throw "Live suite requires interactive Enter confirmation; stdin is redirected."
 }
 
@@ -939,7 +995,7 @@ foreach ($caseInfo in @($dryRunResults.ToArray())) {
     }
 }
 
-Write-LiveArtifacts `
+$artifactsWritten = Write-LiveArtifacts `
     -Status $suiteStatus `
     -PlanOnlyRun $false `
     -LiveExecuted $liveExecuted `
@@ -948,9 +1004,15 @@ Write-LiveArtifacts `
     -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
     -CommandItems @($commands.ToArray())
 
+if (-not $artifactsWritten) {
+    Write-Host "summary: $canonicalSummaryPath"
+    throw "Shareable artifact generation failed. Private raw artifacts were retained."
+}
+
 if ($suiteStatus -ne "passed") {
-    throw "Live CLI suite failed: $Suite. See $summaryPath"
+    Write-Host "summary: $canonicalSummaryPath"
+    throw "Live CLI suite failed: $Suite. Review the shareable summary."
 }
 
 Write-Host "live CLI suite passed: $Suite"
-Write-Host "summary: $summaryPath"
+Write-Host "summary: $canonicalSummaryPath"
