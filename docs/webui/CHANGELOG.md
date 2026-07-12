@@ -32,6 +32,10 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   with English fallback and safe named interpolation. P2.1 does not migrate
   browser prose or activate user-visible language switching, and API, Core,
   and runtime behavior remain unchanged.
+- Moved static browser prose into matching `en` / `zh-TW` catalogs and bound it
+  through a dependency-free DOM adapter. P2.2 still initializes in English and
+  adds no language selector, browser detection, or persistence; API, Core, and
+  runtime behavior remain unchanged.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 

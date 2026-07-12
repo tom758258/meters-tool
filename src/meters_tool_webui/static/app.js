@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { applyStaticTranslations } from "./dom_i18n.js";
 import {
   acBandwidthSelect,
   autoRangeCheckbox,
@@ -367,6 +368,7 @@ openCsvButton.addEventListener("click", async () => {
   }
 });
 
+applyStaticTranslations(document);
 initializeStatusUi();
 initializeLiveDataUi();
 setDeviceResourceExpanded(true);

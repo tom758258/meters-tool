@@ -56,6 +56,10 @@ until final release preparation.
   with English fallback and safe named interpolation. Browser prose remains
   English and language switching is not active in P2.1; HTTP API, Core, and
   acquisition behavior are unchanged.
+- Moved static WebUI browser prose into matching `en` / `zh-TW` catalogs and
+  explicit dependency-free DOM bindings. P2.2 still initializes in English
+  without a language selector, browser detection, or persistence; HTTP API,
+  Core, and acquisition behavior are unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

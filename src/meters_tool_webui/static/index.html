@@ -3,23 +3,27 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Meters Tool</title>
+    <title data-i18n="app.title">Meters Tool</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="shell">
       <section class="toolbar">
         <div>
-          <h1>Meters Tool</h1>
-          <p class="subtitle">Unofficial Tool</p>
+          <h1 data-i18n="app.title">Meters Tool</h1>
+          <p class="subtitle" data-i18n="app.unofficial_tool">Unofficial Tool</p>
         </div>
       </section>
 
       <section class="resource-row" id="device-resource-section">
         <div class="resource-row-header">
           <div class="resource-row-title">
-            <h2>Device / Resource</h2>
-            <p id="device-resource-summary" class="resource-summary">
+            <h2 data-i18n="device.resource_heading">Device / Resource</h2>
+            <p
+              id="device-resource-summary"
+              class="resource-summary"
+              data-i18n="device.summary_empty"
+            >
               No resource / not scanned / Auto-detect
             </p>
           </div>
@@ -31,6 +35,8 @@
                 type="button"
                 title="Device options"
                 aria-label="Device options"
+                data-i18n-title="accessibility.device_options"
+                data-i18n-aria-label="accessibility.device_options"
                 aria-controls="device-options-panel"
                 aria-expanded="false"
               >
@@ -41,32 +47,40 @@
                 class="device-options-panel is-hidden"
                 aria-labelledby="device-options-title"
               >
-                <h2 id="device-options-title">Device options</h2>
+                <h2 id="device-options-title" data-i18n="device.options">Device options</h2>
                 <label>
-                  Expected model
+                  <span data-i18n="device.expected_model">Expected model</span>
                   <select name="instrument_model" id="instrument-model" form="run-form">
-                    <option value="">Auto-detect</option>
-                    <option value="34460A">Require 34460A</option>
-                    <option value="34461A">Require 34461A</option>
+                    <option value="" data-i18n="device.auto_detect">Auto-detect</option>
+                    <option
+                      value="34460A"
+                      data-i18n="device.require_model"
+                      data-i18n-params='{"model":"34460A"}'
+                    >Require 34460A</option>
+                    <option
+                      value="34461A"
+                      data-i18n="device.require_model"
+                      data-i18n-params='{"model":"34461A"}'
+                    >Require 34461A</option>
                   </select>
                 </label>
-                <p class="device-options-help">
+                <p class="device-options-help" data-i18n="device.expected_model_help">
                   Auto-detect uses the connected instrument IDN. Select a model only when you want to require a specific one. In live mode, the detected IDN model remains the runtime driver.
                 </p>
                 <div id="model-support-summary" class="model-support-summary" aria-live="polite">
-                  <strong>Model support</strong>
-                  <p id="model-support-status">Loading support status</p>
+                  <strong data-i18n="support.heading">Model support</strong>
+                  <p id="model-support-status" data-i18n="support.loading">Loading support status</p>
                   <dl>
                     <div>
-                      <dt>Open</dt>
+                      <dt data-i18n="support.open">Open</dt>
                       <dd id="model-support-open">--</dd>
                     </div>
                     <div>
-                      <dt>Limits</dt>
+                      <dt data-i18n="support.limits">Limits</dt>
                       <dd id="model-support-limits">--</dd>
                     </div>
                     <div>
-                      <dt>Pending</dt>
+                      <dt data-i18n="support.pending">Pending</dt>
                       <dd id="model-support-pending">--</dd>
                     </div>
                   </dl>
@@ -80,6 +94,7 @@
               aria-controls="device-resource-body"
               aria-expanded="true"
               aria-label="Collapse Device / Resource"
+              data-i18n-aria-label="accessibility.collapse_device_resource"
             >
               -
             </button>
@@ -87,17 +102,24 @@
         </div>
         <div id="device-resource-body" class="resource-row-body">
           <label>
-            VISA resource
-            <input id="resource" name="resource" form="run-form" placeholder="Waiting Scan" required />
+            <span data-i18n="resource.visa_resource">VISA resource</span>
+            <input
+              id="resource"
+              name="resource"
+              form="run-form"
+              placeholder="Waiting Scan"
+              data-i18n-placeholder="resource.waiting_scan"
+              required
+            />
           </label>
           <div class="live-resource-field">
             <label>
-              Live resource
+              <span data-i18n="resource.live_resource">Live resource</span>
               <select id="resource-select">
-                <option value="">Scan to load live resources</option>
+                <option value="" data-i18n="resource.scan_to_load">Scan to load live resources</option>
               </select>
             </label>
-            <button id="refresh-resources" type="button">Scan Device</button>
+            <button id="refresh-resources" type="button" data-i18n="resource.scan_button">Scan Device</button>
           </div>
         </div>
       </section>
@@ -107,8 +129,8 @@
           <form id="run-form" class="panel collapsible-panel" data-panel="run-setup">
             <div class="panel-header">
               <div>
-                <h2>Run Setup</h2>
-                <p class="panel-summary" data-summary-for="run-setup">Software current-dc</p>
+                <h2 data-i18n="run.setup_heading">Run Setup</h2>
+                <p class="panel-summary" data-summary-for="run-setup" data-i18n="run.summary_initial">Software current-dc</p>
               </div>
               <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
@@ -116,31 +138,31 @@
               <div class="csv-path-field">
                 <div class="csv-path-header">
                   <label for="csv-path-input">
-                    <span class="label-title">CSV path <span class="optional-mark">(Optional)</span></span>
+                    <span class="label-title"><span data-i18n="run.csv_path">CSV path</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
                   </label>
-                  <button id="select-csv-folder" type="button">Select</button>
+                  <button id="select-csv-folder" type="button" data-i18n="common.select">Select</button>
                 </div>
-                <input id="csv-path-input" name="csv" placeholder="Default" />
+                <input id="csv-path-input" name="csv" placeholder="Default" data-i18n-placeholder="common.default" />
               </div>
             <label>
-              Measurement
+              <span data-i18n="measurement.heading">Measurement</span>
               <select name="measurement" id="measurement"></select>
             </label>
             <label>
-              Trigger mode
+              <span data-i18n="trigger.mode">Trigger mode</span>
               <select name="trigger_mode" id="trigger-mode"></select>
             </label>
             <label>
-              <span class="label-title">Timeout ms <span class="optional-mark">(Optional)</span></span>
-              <input name="timeout_ms" type="number" min="100" max="600000" placeholder="Default: 5000" />
+              <span class="label-title"><span data-i18n="run.timeout_ms">Timeout ms</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="timeout_ms" type="number" min="100" max="600000" placeholder="Default: 5000" data-i18n-placeholder="common.default_5000" />
             </label>
             <label data-mode-scope="trigger-timeout">
-              <span class="label-title">Trigger timeout ms <span class="optional-mark">(Optional)</span></span>
-              <input name="trigger_timeout_ms" type="number" min="500" max="600000" placeholder="Default: 10000" />
+              <span class="label-title"><span data-i18n="trigger.timeout_ms">Trigger timeout ms</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="trigger_timeout_ms" type="number" min="500" max="600000" placeholder="Default: 10000" data-i18n-placeholder="common.default_10000" />
             </label>
             <label data-mode-scope="simple">
-              <span class="label-title">Max samples <span class="optional-mark">(Optional)</span></span>
-              <input name="max_samples" type="number" min="1" max="1000000" placeholder="Default: Unlimited" />
+              <span class="label-title"><span data-i18n="run.max_samples">Max samples</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="max_samples" type="number" min="1" max="1000000" placeholder="Default: Unlimited" data-i18n-placeholder="common.default_unlimited" />
             </label>
             </div>
           </form>
@@ -148,19 +170,19 @@
           <section class="panel collapsible-panel" data-panel="measurement-options">
             <div class="panel-header">
               <div>
-                <h2>Measurement options</h2>
-                <p class="panel-summary" data-summary-for="measurement-options">Auto range, auto zero</p>
+                <h2 data-i18n="measurement.options_heading">Measurement options</h2>
+                <p class="panel-summary" data-summary-for="measurement-options" data-i18n="measurement.summary_initial">Auto range, auto zero</p>
               </div>
               <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
               <div class="switch-row">
-                <label><input name="auto_range" form="run-form" type="checkbox" checked /> Auto range</label>
+                <label><input name="auto_range" form="run-form" type="checkbox" checked /> <span data-i18n="measurement.auto_range">Auto range</span></label>
               </div>
               <div class="single-field" id="range-container">
                 <label>
                   <span class="field-title">
-                    Range
+                    <span data-i18n="measurement.range">Range</span>
                     <span id="range-unit" class="unit-chip">A</span>
                   </span>
                   <div class="input-with-unit">
@@ -174,23 +196,23 @@
                 </label>
               </div>
             <label id="auto-zero-container">
-              Auto zero
+              <span data-i18n="measurement.auto_zero">Auto zero</span>
               <select name="auto_zero" form="run-form"></select>
             </label>
             <label id="nplc-field">
-              NPLC
+              <span data-i18n="measurement.nplc">NPLC</span>
               <select id="nplc" name="nplc" form="run-form"></select>
             </label>
             <label id="ac-bandwidth-container" class="is-hidden">
-              AC filter <span class="optional-mark">(Optional)</span>
+              <span data-i18n="measurement.ac_filter">AC filter</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span>
               <select id="ac-bandwidth" name="ac_bandwidth_hz" form="run-form" disabled></select>
             </label>
             <label id="gate-time-container" class="is-hidden">
-              Gate time
+              <span data-i18n="measurement.gate_time">Gate time</span>
               <select id="gate-time" name="gate_time_s" form="run-form" disabled></select>
             </label>
             <label id="freq-period-timeout-container" class="is-hidden">
-              Timeout
+              <span data-i18n="measurement.timeout">Timeout</span>
               <select
                 id="freq-period-timeout"
                 name="freq_period_timeout"
@@ -199,23 +221,23 @@
               ></select>
             </label>
             <label id="current-terminal-container" class="is-hidden">
-              Current terminal <span class="optional-mark">(Optional)</span>
+              <span data-i18n="measurement.current_terminal">Current terminal</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span>
               <select id="current-terminal" name="current_terminal" form="run-form" disabled></select>
             </label>
             <label data-measurement-scope="voltage-dc,voltage-dc-ratio">
-              DCV input Z
+              <span data-i18n="measurement.dcv_input_z">DCV input Z</span>
               <select name="dcv_input_impedance" form="run-form">
-                <option value="default">Default</option>
+                <option value="default" data-i18n="common.default">Default</option>
                 <option value="10m">10M</option>
-                <option value="auto">Auto</option>
+                <option value="auto" data-i18n="common.auto">Auto</option>
               </select>
             </label>
               <label>
-                VM Comp slope
+                <span data-i18n="measurement.vm_comp_slope">VM Comp slope</span>
                 <select name="vm_comp_slope" form="run-form">
-                  <option value="">Leave unchanged</option>
-                  <option value="pos">Pos</option>
-                  <option value="neg">Neg</option>
+                  <option value="" data-i18n="common.leave_unchanged">Leave unchanged</option>
+                  <option value="pos" data-i18n="common.positive">Pos</option>
+                  <option value="neg" data-i18n="common.negative">Neg</option>
                 </select>
               </label>
             </div>
@@ -224,8 +246,8 @@
           <section id="trigger-options-panel" class="panel collapsible-panel" data-panel="trigger-options">
             <div class="panel-header">
               <div>
-                <h2>Trigger options</h2>
-                <p class="panel-summary" data-summary-for="trigger-options">Software trigger ready</p>
+                <h2 data-i18n="trigger.options_heading">Trigger options</h2>
+                <p class="panel-summary" data-summary-for="trigger-options" data-i18n="trigger.summary_initial">Software trigger ready</p>
               </div>
               <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
@@ -233,49 +255,49 @@
               <div class="switch-row" data-mode-scope="software">
                 <label>
                   <input id="timer-trigger-checkbox" type="checkbox" />
-                  Timer trigger
+                  <span data-i18n="trigger.timer">Timer trigger</span>
                </label>
               </div>
             <label data-mode-scope="custom">
-              Trigger count
+              <span data-i18n="trigger.trigger_count">Trigger count</span>
               <input name="trigger_count" form="run-form" type="number" min="1" max="1000000" />
             </label>
             <label data-mode-scope="custom">
-              Sample count
+              <span data-i18n="trigger.sample_count">Sample count</span>
               <input name="sample_count" form="run-form" type="number" min="1" max="1000000" />
             </label>
             <label data-mode-scope="custom">
-              <span class="label-title">Buffer drain size <span class="optional-mark">(Optional)</span></span>
-              <input name="buffer_drain_size" form="run-form" type="number" min="1" max="10000" placeholder="Default: No limit" />
+              <span class="label-title"><span data-i18n="trigger.buffer_drain_size">Buffer drain size</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="buffer_drain_size" form="run-form" type="number" min="1" max="10000" placeholder="Default: No limit" data-i18n-placeholder="common.default_no_limit" />
             </label>
             <label data-mode-scope="hardware">
-              <span class="label-title">HW delay s <span class="optional-mark">(Optional)</span></span>
-              <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" max="3600" step="0.001" placeholder="Default: 0" />
+              <span class="label-title"><span data-i18n="trigger.hardware_delay_s">HW delay s</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="hw_trigger_delay_s" form="run-form" type="number" min="0" max="3600" step="0.001" placeholder="Default: 0" data-i18n-placeholder="common.default_0" />
             </label>
             <label data-mode-scope="hardware">
-              HW slope
+              <span data-i18n="trigger.hardware_slope">HW slope</span>
               <select name="hw_trigger_slope" form="run-form">
-                <option value="neg">Neg</option>
-                <option value="pos">Pos</option>
+                <option value="neg" data-i18n="common.negative">Neg</option>
+                <option value="pos" data-i18n="common.positive">Pos</option>
               </select>
             </label>
             <label id="sw-min-interval-container" data-mode-scope="software-trigger">
-              <span class="label-title">SW min interval ms <span class="optional-mark">(Optional)</span></span>
-              <input name="sw_min_interval_ms" form="run-form" type="number" min="0" max="600000" placeholder="Default: 0 (Disabled)" />
+              <span class="label-title"><span data-i18n="trigger.software_min_interval_ms">SW min interval ms</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="sw_min_interval_ms" form="run-form" type="number" min="0" max="600000" placeholder="Default: 0 (Disabled)" data-i18n-placeholder="common.default_disabled" />
             </label>
             <label id="sw-queue-max-container" data-mode-scope="software-trigger">
-              <span class="label-title">SW queue max <span class="optional-mark">(Optional)</span></span>
-              <input name="sw_queue_max" form="run-form" type="number" min="0" max="10000" placeholder="Default: 0 (Disabled)" />
+              <span class="label-title"><span data-i18n="trigger.software_queue_max">SW queue max</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+              <input name="sw_queue_max" form="run-form" type="number" min="0" max="10000" placeholder="Default: 0 (Disabled)" data-i18n-placeholder="common.default_disabled" />
             </label>
             <label id="timer-interval-container" data-mode-scope="software" class="is-hidden">
-              Timer interval s
+              <span data-i18n="trigger.timer_interval_s">Timer interval s</span>
               <input name="timer_interval_s" form="run-form" type="number" min="0.5" max="86400" step="0.001" disabled />
             </label>
               <div class="switch-row" data-mode-scope="custom">
-                <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> Allow buffer risk</label>
+                <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> <span data-i18n="trigger.allow_buffer_risk">Allow buffer risk</span></label>
               </div>
               <label id="trigger-metadata-container" data-mode-scope="software-trigger">
-                <span class="label-title">Trigger metadata JSON <span class="optional-mark">(Optional)</span></span>
+                <span class="label-title"><span data-i18n="trigger.metadata_json">Trigger metadata JSON</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
                 <textarea id="trigger-metadata" rows="3" placeholder="{&quot;batch&quot;:&quot;A1&quot;}"></textarea>
               </label>
             </div>
@@ -285,55 +307,55 @@
         <section class="panel live-data-panel" aria-labelledby="live-data-heading">
           <div class="live-data-header">
             <div>
-              <h2 id="live-data-heading">Live data</h2>
-              <p id="live-data-summary" class="panel-summary">No samples captured</p>
+              <h2 id="live-data-heading" data-i18n="live_data.heading">Live data</h2>
+              <p id="live-data-summary" class="panel-summary" data-i18n="live_data.no_samples">No samples captured</p>
             </div>
             <div class="live-header-actions">
               <div class="live-data-metrics" aria-live="polite">
                 <div>
-                  <span>State</span>
-                  <strong id="status-state">Idle</strong>
+                  <span data-i18n="status.state">State</span>
+                  <strong id="status-state" data-i18n="status.idle">Idle</strong>
                 </div>
                 <div>
-                  <span>Sample</span>
+                  <span data-i18n="status.sample">Sample</span>
                   <strong id="status-captured">0</strong>
                 </div>
                 <div>
-                  <span>Errors</span>
+                  <span data-i18n="status.errors">Errors</span>
                   <strong id="status-errors">0</strong>
                 </div>
                 <div class="is-hidden" aria-hidden="true">
                   <span>CSV</span>
-                  <strong id="status-csv">Default</strong>
+                  <strong id="status-csv" data-i18n="common.default">Default</strong>
                 </div>
               </div>
               <div class="run-controls">
-                <button id="start-run" type="button" class="primary">Start</button>
-                <button id="trigger-run" type="button">Trigger</button>
-                <button id="stop-run" type="button" class="danger">Stop</button>
-                <button id="open-csv" type="button" class="open-csv" disabled>Open CSV</button>
+                <button id="start-run" type="button" class="primary" data-i18n="run.start">Start</button>
+                <button id="trigger-run" type="button" data-i18n="trigger.send">Trigger</button>
+                <button id="stop-run" type="button" class="danger" data-i18n="run.stop">Stop</button>
+                <button id="open-csv" type="button" class="open-csv" data-i18n="run.open_csv" disabled>Open CSV</button>
               </div>
             </div>
           </div>
 
           <div class="live-latest-grid">
             <div class="live-latest-value">
-              <span>Latest</span>
+              <span data-i18n="live_data.latest">Latest</span>
               <strong id="live-latest-value">--</strong>
             </div>
             <div>
-              <span>Time UTC+8</span>
+              <span data-i18n="live_data.time_utc_plus_8">Time UTC+8</span>
               <strong id="live-latest-time">--</strong>
             </div>
             <div>
-              <span>Trigger</span>
+              <span data-i18n="trigger.heading">Trigger</span>
               <strong id="live-latest-trigger">--</strong>
             </div>
           </div>
 
           <div class="live-collapse-section">
             <div class="live-section-header">
-              <span>Trend</span>
+              <span data-i18n="live_data.trend">Trend</span>
               <button
                 id="toggle-live-chart"
                 class="live-collapse-toggle"
@@ -347,19 +369,19 @@
             <div id="live-chart-content" class="live-chart-content">
               <div class="live-chart-controls">
                 <label>
-                  Scale mode
+                  <span data-i18n="live_data.scale_mode">Scale mode</span>
                   <select id="live-chart-scale-mode">
-                    <option value="auto-deviation" selected>Auto deviation</option>
-                    <option value="auto-absolute">Auto absolute</option>
-                    <option value="manual-span">Manual span</option>
-                    <option value="range-step" disabled>Range step</option>
+                    <option value="auto-deviation" data-i18n="live_data.scale.auto_deviation" selected>Auto deviation</option>
+                    <option value="auto-absolute" data-i18n="live_data.scale.auto_absolute">Auto absolute</option>
+                    <option value="manual-span" data-i18n="live_data.scale.manual_span">Manual span</option>
+                    <option value="range-step" data-i18n="live_data.scale.range_step" disabled>Range step</option>
                   </select>
-                  <span id="live-chart-scale-mode-help" class="field-help is-hidden">
+                  <span id="live-chart-scale-mode-help" class="field-help is-hidden" data-i18n="live_data.range_step_auto_range">
                     Range step disabled because Auto range is on.
                   </span>
                 </label>
                 <label id="live-chart-manual-span-field" class="is-hidden" aria-hidden="true">
-                  Manual span
+                  <span data-i18n="live_data.scale.manual_span">Manual span</span>
                   <input
                     id="live-chart-manual-span"
                     type="number"
@@ -370,7 +392,7 @@
                   />
                 </label>
               </div>
-              <p id="live-chart-scale-info" class="live-chart-scale-info">Auto deviation</p>
+              <p id="live-chart-scale-info" class="live-chart-scale-info" data-i18n="live_data.scale.auto_deviation">Auto deviation</p>
               <div id="live-chart-shell" class="live-chart-shell">
                 <svg
                   id="live-trend-chart"
@@ -379,15 +401,16 @@
                   preserveAspectRatio="none"
                   role="img"
                   aria-label="Live sample value trend"
+                  data-i18n-aria-label="accessibility.live_sample_trend"
                 ></svg>
-                <div id="live-chart-empty" class="live-chart-empty">Waiting for samples</div>
+                <div id="live-chart-empty" class="live-chart-empty" data-i18n="live_data.waiting_samples">Waiting for samples</div>
               </div>
             </div>
           </div>
 
           <div class="live-collapse-section">
             <div class="live-section-header">
-              <span>Statistics</span>
+              <span data-i18n="live_data.statistics">Statistics</span>
               <button
                 id="toggle-live-stats"
                 class="live-collapse-toggle"
@@ -398,29 +421,29 @@
                 -
               </button>
             </div>
-            <div id="live-stats-grid" class="live-stats-grid" aria-label="Live sample statistics">
+            <div id="live-stats-grid" class="live-stats-grid" aria-label="Live sample statistics" data-i18n-aria-label="accessibility.live_sample_statistics">
               <div>
-                <span>Min</span>
+                <span data-i18n="live_data.stat.minimum">Min</span>
                 <strong id="live-stat-min">--</strong>
               </div>
               <div>
-                <span>Average</span>
+                <span data-i18n="live_data.stat.average">Average</span>
                 <strong id="live-stat-average">--</strong>
               </div>
               <div>
-                <span>Max</span>
+                <span data-i18n="live_data.stat.maximum">Max</span>
                 <strong id="live-stat-max">--</strong>
               </div>
               <div>
-                <span>Span</span>
+                <span data-i18n="live_data.stat.span">Span</span>
                 <strong id="live-stat-span">--</strong>
               </div>
               <div>
-                <span>Std dev</span>
+                <span data-i18n="live_data.stat.standard_deviation">Std dev</span>
                 <strong id="live-stat-std-dev">--</strong>
               </div>
               <div>
-                <span>Sample</span>
+                <span data-i18n="live_data.stat.sample">Sample</span>
                 <strong id="live-stat-sample">--</strong>
               </div>
             </div>
@@ -428,7 +451,7 @@
 
           <div class="live-collapse-section">
             <div class="live-section-header">
-              <span>Recent samples</span>
+              <span data-i18n="live_data.recent_samples">Recent samples</span>
               <button
                 id="toggle-live-samples"
                 class="live-collapse-toggle"
@@ -440,21 +463,21 @@
               </button>
             </div>
             <div id="live-table-wrap" class="live-table-wrap">
-              <table class="live-samples-table" aria-label="Recent live samples">
+              <table class="live-samples-table" aria-label="Recent live samples" data-i18n-aria-label="accessibility.recent_live_samples">
                 <thead>
                   <tr>
-                    <th>Seq</th>
-                    <th>Time UTC+8</th>
-                    <th>Value</th>
-                    <th>Unit</th>
-                    <th>Trigger</th>
-                    <th>Status</th>
-                    <th>Details</th>
+                    <th data-i18n="live_data.column_sequence">Seq</th>
+                    <th data-i18n="live_data.time_utc_plus_8">Time UTC+8</th>
+                    <th data-i18n="live_data.column_value">Value</th>
+                    <th data-i18n="live_data.column_unit">Unit</th>
+                    <th data-i18n="live_data.column_trigger">Trigger</th>
+                    <th data-i18n="live_data.column_status">Status</th>
+                    <th data-i18n="live_data.column_details">Details</th>
                   </tr>
                 </thead>
                 <tbody id="live-samples-body">
                   <tr>
-                    <td colspan="7">No samples captured</td>
+                    <td colspan="7" data-i18n="live_data.no_samples">No samples captured</td>
                   </tr>
                 </tbody>
               </table>
@@ -464,14 +487,15 @@
           <div id="live-sample-metadata" class="live-sample-metadata is-hidden">
             <div class="live-metadata-header">
               <div>
-                <span>Sample details</span>
-                <strong id="live-selected-sample">No sample selected</strong>
+                <span data-i18n="live_data.sample_details">Sample details</span>
+                <strong id="live-selected-sample" data-i18n="live_data.no_sample_selected">No sample selected</strong>
               </div>
               <button
                 id="close-live-sample-details"
                 class="live-sample-close"
                 type="button"
                 aria-label="Close sample details"
+                data-i18n-aria-label="accessibility.close_sample_details"
               >
                 X
               </button>
@@ -482,12 +506,13 @@
 
         <section class="panel log-panel">
           <div class="status-panel-header">
-            <h2>Status</h2>
+            <h2 data-i18n="status.heading">Status</h2>
             <button
               id="toggle-status-details"
               type="button"
               aria-controls="status-details"
               aria-expanded="false"
+              data-i18n="status.show_details"
             >
               Show Details
             </button>
@@ -498,6 +523,7 @@
             role="log"
             aria-live="polite"
             aria-label="Status log"
+            data-i18n-aria-label="accessibility.status_log"
           ></div>
           <div id="status-details" class="status-details is-hidden">
             <pre id="fatal-error"></pre>

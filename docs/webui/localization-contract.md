@@ -8,16 +8,18 @@ mandatory fallback locale.
 
 Phase 2 Part 0 (P2.0) completed this contract and the current-text inventory.
 Locale runtime, translation dictionaries, and language switching are not
-implemented in P2.0. P2.1 now provides the dependency-free runtime foundation
-and empty production catalog modules; P2.2 and later Parts remain responsible
-for prose migration and activation. Nothing in this document claims that the
-current WebUI can switch languages.
+implemented in P2.0. P2.1 provides the dependency-free runtime foundation.
+P2.2 registers the static browser prose from `index.html` in English and
+Traditional Chinese catalogs, adds explicit text, placeholder, title, and
+ARIA-label bindings, then applies them once at startup using the singleton's
+default English locale.
+Nothing in this document claims that the current WebUI can switch languages.
 
 The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
 
-### P2.1 Runtime Foundation And Current Status
+### P2.1-P2.2 Foundation And Current Status
 
 P2.1 adds three native ES modules at the static root:
 
@@ -26,12 +28,14 @@ P2.1 adds three native ES modules at the static root:
   `ZH_TW_MESSAGES`;
 - `i18n.js` exports the locale contract and translator API.
 
-The production catalogs intentionally contain no migrated browser prose yet.
-The existing browser modules do not import or activate `i18n.js`, so the
-currently rendered UI remains the existing English UI. There is no active
-language button, browser detection, saved-locale lookup, DOM translation,
-`<html lang>` update, or runtime language switching. Those integration tasks
-belong to P2.2 and later Parts, especially P2.6 for selection and switching.
+The production catalogs now contain the matching P2.2 static HTML key set.
+English fallback literals remain in `index.html`, and the browser applies the
+static bindings once before the existing UI initialization. The singleton
+still starts in English, so the currently rendered UI remains English. Dynamic
+form, status, error, Live data, and support-summary prose remains owned by later
+Parts. There is no active language button, browser detection, saved-locale
+lookup, `<html lang>` update, or runtime language switching; P2.6 owns locale
+selection and switching.
 
 The runtime exports these constants:
 
@@ -73,6 +77,13 @@ placeholders are supported, extra parameters are ignored, and missing or
 undefined parameters remain visible. Interpolation neither parses nor
 executes markup. The runtime reads no DOM, browser locale, storage, or network
 state and triggers no application action.
+
+P2.2 adds `applyStaticTranslations(root, translate)` in `dom_i18n.js`. The
+adapter recognizes only `data-i18n`, `data-i18n-placeholder`,
+`data-i18n-title`, and `data-i18n-aria-label`, with optional JSON-object
+parameters from `data-i18n-params`. It validates and translates all pending
+bindings before writing through `textContent` or fixed safe attributes. Module
+import has no DOM, storage, browser-locale, network, or application side effect.
 
 ## Locked Product Decisions
 
@@ -217,8 +228,9 @@ with fragile string concatenation.
 English must define every maintained key. A missing `zh-TW` key falls back to
 English. A missing English key is a contract and test failure. Unknown keys
 remain diagnosable and must not silently render an empty string. P2.1
-implements lookup, fallback, and interpolation; later Parts own production
-message keys and browser integration.
+implements lookup, fallback, and interpolation; P2.2 owns the static HTML key
+set and bindings, while later Parts own dynamic message keys and language
+selection.
 
 ## User-Visible Text Inventory
 

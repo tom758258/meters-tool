@@ -190,9 +190,12 @@ class WebUiStaticTests(unittest.TestCase):
     def test_static_ui_expected_model_payload_semantics_remain_instrument_model(self):
         index, app_js = load_static_ui()
 
-        self.assertRegex(index, r'<option value="">Auto-detect</option>')
-        self.assertRegex(index, r'<option value="34460A">Require 34460A</option>')
-        self.assertRegex(index, r'<option value="34461A">Require 34461A</option>')
+        for value in ["", "34460A", "34461A"]:
+            with self.subTest(value=value):
+                assert_tag_with_attrs(self, index, "option", {"value": value})
+        self.assertIn("Auto-detect</option>", index)
+        self.assertIn("Require 34460A</option>", index)
+        self.assertIn("Require 34461A</option>", index)
         self.assertIn(
             'instrument_model: textOrNull(data.get("instrument_model"))',
             app_js,
@@ -341,9 +344,9 @@ class WebUiStaticTests(unittest.TestCase):
         index, app_js = load_static_ui()
 
         trend_section = re.search(
-            r"<div class=\"live-collapse-section\">[\s\S]*?<span>Trend</span>"
+            r"<div class=\"live-collapse-section\">[\s\S]*?<span[^>]*>Trend</span>"
             r"[\s\S]*?</div>\s*</div>\s*"
-            r"<div class=\"live-collapse-section\">[\s\S]*?<span>Statistics</span>",
+            r"<div class=\"live-collapse-section\">[\s\S]*?<span[^>]*>Statistics</span>",
             index,
         )
         self.assertIsNotNone(trend_section)
@@ -723,11 +726,11 @@ class WebUiStaticTests(unittest.TestCase):
         for name in optional_fields:
             with self.subTest(name=name):
                 marker_before_name = re.search(
-                    rf"optional-mark[\s\S]{{0,240}}name=\"{re.escape(name)}\"",
+                    rf"optional-mark[\s\S]{{0,400}}name=\"{re.escape(name)}\"",
                     index,
                 )
                 marker_after_name = re.search(
-                    rf"name=\"{re.escape(name)}\"[\s\S]{{0,240}}optional-mark",
+                    rf"name=\"{re.escape(name)}\"[\s\S]{{0,400}}optional-mark",
                     index,
                 )
                 self.assertTrue(marker_before_name or marker_after_name)
@@ -868,6 +871,39 @@ class WebUiStaticTests(unittest.TestCase):
                         imported_name=imported_name,
                     ):
                         self.assertIn(imported_name, exported_names)
+
+    def test_static_i18n_applies_once_before_existing_initialization(self):
+        app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn(
+            'import { applyStaticTranslations } from "./dom_i18n.js";',
+            app_js,
+        )
+        self.assertEqual(app_js.count("applyStaticTranslations(document);"), 1)
+        apply_index = app_js.index("applyStaticTranslations(document);")
+        self.assertLess(apply_index, app_js.index("initializeStatusUi();"))
+        self.assertLess(apply_index, app_js.index("initializeLiveDataUi();"))
+        self.assertLess(apply_index, app_js.index("loadCapabilities()"))
+
+        for forbidden in [
+            "setLocale(",
+            "navigator.language",
+            "navigator.languages",
+            "localStorage",
+            "LOCALE_STORAGE_KEY",
+            "language-button",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, app_js)
+
+        for deferred_dynamic_text in [
+            "Scanning live resources...",
+            "Live resources found:",
+            "Range step disabled because Auto range is on.",
+            "Check highlighted run settings before Start",
+        ]:
+            with self.subTest(deferred_dynamic_text=deferred_dynamic_text):
+                self.assertIn(deferred_dynamic_text, app_js)
 
 
 
