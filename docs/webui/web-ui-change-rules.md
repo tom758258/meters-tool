@@ -100,6 +100,19 @@ The Web UI is intentionally simple:
 - No external CDN dependency.
 - No framework migration unless explicitly approved by the user.
 
+## Localization Boundary
+
+Read the [WebUI Localization Contract](localization-contract.md) before any
+localization change. Preserve element IDs, form names, canonical values, API
+fields, and runtime schemas. Raw machine values drive comparison,
+de-duplication, suppression, validation, and control logic; translations are
+display-only, with English as the mandatory fallback.
+
+Use one HTML page for all locales. Do not add a duplicate page per locale, an
+external translation service, a CDN dependency, a frontend framework or build
+system, or backend locale coupling. Browser locale state must not alter Core or
+API behavior.
+
 ## API Contract To Preserve
 
 Do not rename, remove, or repurpose these endpoints:

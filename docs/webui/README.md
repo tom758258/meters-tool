@@ -8,6 +8,11 @@ For release notes, use the package changelog. For Core API and ownership rules,
 use the Core integration guide. Keep this guide focused on durable public
 WebUI behavior and maintainer boundaries.
 
+The [WebUI Localization Contract](localization-contract.md) defines the planned
+v2 localization of browser presentation. Locale runtime and translations are
+not implemented yet; the current English UI, HTTP API, and Core contracts
+remain unchanged.
+
 ## Purpose
 
 The WebUI adapter provides a local FastAPI and browser interface around the
