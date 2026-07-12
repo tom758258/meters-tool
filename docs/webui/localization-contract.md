@@ -19,7 +19,7 @@ The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
 
-### P2.1-P2.3 Foundation And Current Status
+### P2.1-P2.4 Foundation And Current Status
 
 P2.1 adds three native ES modules at the static root:
 
@@ -28,20 +28,24 @@ P2.1 adds three native ES modules at the static root:
   `ZH_TW_MESSAGES`;
 - `i18n.js` exports the locale contract and translator API.
 
-The production catalogs contain the matching P2.2 static HTML key set and the
-P2.3 dynamic run-form, measurement, trigger, validation, panel-summary,
-application-subtitle, and rebuilt expected-model option prose. English fallback
+The production catalogs contain the matching P2.2 static HTML key set, the P2.3
+dynamic run-form presentation, and the P2.4 app/resource, status/log, Live data,
+dynamic ARIA, and recognized browser-error presentation. English fallback
 literals remain in `index.html`, and the browser applies the static bindings
-once before the existing UI initialization. Dynamic run-form nodes render
+once before the existing UI initialization. Dynamic translated nodes render
 through the same singleton and retain semantic binding metadata where
-practical. The singleton still starts in English, so the currently rendered UI
-remains English.
+practical. Status comparisons, suppression, de-duplication, software-trigger
+burst handling, and control decisions continue to use raw machine values.
+Unknown Core/backend/status diagnostics remain raw fallbacks, and raw status
+JSON, sample metadata, and schemas are not translated. The singleton still
+starts in English, so the currently rendered UI remains English.
 
-P2.4 still owns `app.js`, status, Live data, resource, and browser error prose.
 P2.5 still owns support-summary semantic keys and fallback presentation. There
 is no active language selector, browser detection, saved-locale lookup,
 `<html lang>` update, or runtime locale switch; P2.6 owns locale selection and
-switching. The current inventory remains the authoritative ownership record.
+switching. API, Core, support policy, SCPI, VISA, trigger, acquisition, CSV,
+JSON, JSONL, SSE, and cleanup contracts are unchanged. The current inventory
+remains the authoritative ownership record.
 
 The runtime exports these constants:
 

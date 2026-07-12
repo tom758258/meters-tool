@@ -17,12 +17,18 @@ import {
   triggerModeSelect,
 } from "./dom.js";
 import { renderLiveData } from "./live_data.js";
-import { capitalizeFirst } from "./run_form.js";
+import { t } from "./i18n.js";
+import {
+  browserErrorPresentation,
+  latestStatusPresentation,
+  normalizeStatusValue,
+  runStatePresentation,
+} from "./presentation_i18n.js";
 
 const STATUS_LOG_LINE_COUNT = 5;
 const SOFTWARE_TRIGGER_QUEUED_BURST_COUNT = 5;
 const SOFTWARE_TRIGGER_QUEUED_BURST_MS = 2000;
-let statusLogMessages = [];
+let statusLogEntries = [];
 let lastApiLatestStatus = "";
 let softwareTriggerQueuedTimes = [];
 let showNextSoftwareTriggerQueued = false;
@@ -32,39 +38,91 @@ let pollingIntervalId = null;
 let loggedSseFallback = false;
 let latestRenderedStatus = null;
 let lastRunControlsActive = false;
-const ACTIVE_RUN_UNLOAD_MESSAGE =
-  "A measurement run is active. Refreshing or closing the page will not stop it.";
+
+function clearTranslationBinding(element, binding = "data-i18n") {
+  element.removeAttribute(binding);
+  element.removeAttribute("data-i18n-params");
+}
+
+function setTranslatedText(element, key, params = {}) {
+  element.setAttribute("data-i18n", key);
+  if (Object.keys(params).length > 0) {
+    element.setAttribute("data-i18n-params", JSON.stringify(params));
+  } else {
+    element.removeAttribute("data-i18n-params");
+  }
+  element.textContent = t(key, params);
+}
+
+function setRawText(element, text) {
+  clearTranslationBinding(element);
+  element.textContent = String(text ?? "");
+}
+
+function renderPresentation(element, presentation) {
+  if (presentation.kind === "translated") {
+    setTranslatedText(element, presentation.key, presentation.params);
+  } else {
+    setRawText(element, presentation.text);
+  }
+}
 
 function renderStatusLog() {
-  const blankLineCount = Math.max(0, STATUS_LOG_LINE_COUNT - statusLogMessages.length);
+  const blankLineCount = Math.max(0, STATUS_LOG_LINE_COUNT - statusLogEntries.length);
   const visibleLines = [
-    ...Array.from({ length: blankLineCount }, () => ""),
-    ...statusLogMessages,
+    ...Array.from({ length: blankLineCount }, () => ({
+      kind: "raw",
+      text: "",
+      identity: "blank",
+    })),
+    ...statusLogEntries,
   ];
   latestStatus.replaceChildren(
-    ...visibleLines.map((message) => {
+    ...visibleLines.map((entry) => {
       const line = document.createElement("div");
       line.className = "status-log-line";
-      line.textContent = message;
+      renderPresentation(line, entry);
       return line;
     })
   );
 }
 
-function formatStatusLogMessage(message) {
-  return capitalizeFirst(String(message || "").trim());
+function appendStatusLogEntry(entry) {
+  if (entry.kind === "raw" && !entry.text) {
+    return;
+  }
+  if (statusLogEntries[statusLogEntries.length - 1]?.identity === entry.identity) {
+    return;
+  }
+  statusLogEntries = [...statusLogEntries, entry].slice(-STATUS_LOG_LINE_COUNT);
+  renderStatusLog();
+}
+
+export function appendRawStatusLog(message) {
+  const text = String(message ?? "");
+  appendStatusLogEntry({ kind: "raw", text, identity: `raw:${text}` });
+}
+
+export function appendTranslatedStatusLog(key, params = {}) {
+  appendStatusLogEntry({
+    kind: "translated",
+    key,
+    params,
+    identity: `translated:${key}:${JSON.stringify(params)}`,
+  });
+}
+
+export function appendBrowserError(error) {
+  const presentation = browserErrorPresentation(error?.message ?? error);
+  if (presentation.kind === "translated") {
+    appendTranslatedStatusLog(presentation.key, presentation.params);
+  } else {
+    appendRawStatusLog(presentation.text);
+  }
 }
 
 export function appendStatusLog(message) {
-  const formatted = formatStatusLogMessage(message);
-  if (!formatted) {
-    return;
-  }
-  if (statusLogMessages[statusLogMessages.length - 1] === formatted) {
-    return;
-  }
-  statusLogMessages = [...statusLogMessages, formatted].slice(-STATUS_LOG_LINE_COUNT);
-  renderStatusLog();
+  appendRawStatusLog(message);
 }
 
 function appendApiStatusLog(statusOrMessage) {
@@ -73,23 +131,26 @@ function appendApiStatusLog(statusOrMessage) {
       ? statusOrMessage
       : null;
   const message = status ? status.latest_status : statusOrMessage;
-  const formatted = formatStatusLogMessage(message);
-  if (!formatted || shouldSuppressApiStatusLog(formatted, status)) {
+  const normalized = normalizeStatusValue(message);
+  if (!normalized || shouldSuppressApiStatusLog(normalized, status)) {
     return;
   }
-  if (formatted.toLowerCase() === "idle") {
-    lastApiLatestStatus = formatted;
+  if (normalized === "idle") {
+    lastApiLatestStatus = normalized;
     return;
   }
-  if (formatted === lastApiLatestStatus) {
+  if (normalized === lastApiLatestStatus) {
     return;
   }
-  lastApiLatestStatus = formatted;
-  appendStatusLog(formatted);
+  lastApiLatestStatus = normalized;
+  const presentation = latestStatusPresentation(message);
+  appendStatusLogEntry({
+    ...presentation,
+    identity: `api:${normalized}`,
+  });
 }
 
-function shouldSuppressApiStatusLog(formatted, status) {
-  const normalized = formatted.toLowerCase();
+function shouldSuppressApiStatusLog(normalized, status) {
   const mode = String(status?.trigger_mode || triggerModeSelect.value || "");
   const runId = String(status?.run_id || "no-run");
   if (
@@ -131,24 +192,32 @@ function warnBeforeUnloadIfActive(event) {
   if (!isRunActive()) {
     return undefined;
   }
+  const message = t("status.active_run_unload_warning");
   event.preventDefault();
-  event.returnValue = ACTIVE_RUN_UNLOAD_MESSAGE;
-  return ACTIVE_RUN_UNLOAD_MESSAGE;
+  event.returnValue = message;
+  return message;
 }
 
 function setStatusDetailsVisible(visible) {
   statusDetails.classList.toggle("is-hidden", !visible);
   toggleStatusDetailsButton.setAttribute("aria-expanded", String(visible));
-  toggleStatusDetailsButton.textContent = visible ? "Hide Details" : "Show Details";
+  setTranslatedText(
+    toggleStatusDetailsButton,
+    visible ? "status.hide_details" : "status.show_details"
+  );
 }
 
 export function renderStatus(status) {
   latestRenderedStatus = status || null;
-  statusState.textContent = capitalizeFirst(status.state || "idle");
+  renderPresentation(statusState, runStatePresentation(status.state || "idle"));
   statusCaptured.textContent = String(status.captured ?? 0);
   statusErrors.textContent = String(status.errors ?? 0);
   if (statusCsv) {
-    statusCsv.textContent = status.csv_path || "Default";
+    if (status.csv_path) {
+      setRawText(statusCsv, status.csv_path);
+    } else {
+      setTranslatedText(statusCsv, "common.default");
+    }
   }
   updateRunControlButtons(status);
   updateOpenCsvButton(status);
@@ -167,8 +236,8 @@ function updateRunControlButtons(status) {
     stopRunButton.disabled = false;
   }
   if (active && !lastRunControlsActive) {
-    appendStatusLog("A run is already active. Stop it before starting another run.");
-    appendStatusLog("Stop the active run before scanning resources.");
+    appendTranslatedStatusLog("status.active_run_start_blocked");
+    appendTranslatedStatusLog("status.active_run_scan_blocked");
   }
   lastRunControlsActive = active;
 }
@@ -183,7 +252,7 @@ export async function pollStatus() {
   try {
     renderStatus(await api("/api/runs/current"));
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 }
 
@@ -203,7 +272,7 @@ function stopPolling() {
 function initSSE() {
   if (typeof EventSource === "undefined") {
     if (!loggedSseFallback) {
-      appendStatusLog("SSE unavailable, falling back to polling");
+      appendTranslatedStatusLog("status.sse_unavailable_polling");
       loggedSseFallback = true;
     }
     startPolling();
@@ -226,7 +295,7 @@ function initSSE() {
   };
   sseSource.onerror = () => {
     if (!loggedSseFallback) {
-      appendStatusLog("SSE connection lost, falling back to polling");
+      appendTranslatedStatusLog("status.sse_connection_lost_polling");
       loggedSseFallback = true;
     }
     startPolling();

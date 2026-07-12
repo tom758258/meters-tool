@@ -41,6 +41,13 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   Chinese catalogs. P2.3 still does not activate language switching; API,
   Core, support policy, SCPI, VISA, acquisition, schemas, and cleanup behavior
   are unchanged.
+- Moved P2.4 app/resource, status/log, Live data, dynamic ARIA, and known
+  browser-error presentation into matching English and Traditional Chinese
+  catalogs. Raw status comparisons, suppression, de-duplication, unknown
+  Core/backend diagnostics, status JSON, and sample metadata remain raw.
+  Language switching is still inactive, and API, Core, support policy, SCPI,
+  VISA, trigger, acquisition, CSV/JSON/JSONL schemas, and cleanup behavior are
+  unchanged.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 

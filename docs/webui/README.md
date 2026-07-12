@@ -13,10 +13,15 @@ v2 localization of browser presentation. The dependency-free P2.1 browser i18n
 foundation exists, and P2.2 has migrated static HTML prose into matching
 English and Traditional Chinese catalogs with explicit DOM bindings. P2.3 has
 also migrated dynamic run-form, measurement, trigger, validation, summary,
-subtitle, and rebuilt expected-model option prose. The UI still initializes and
-renders in English, and user-visible language switching remains inactive. Core,
-HTTP API, form values, support policy, and instrument runtime contracts remain
-unchanged.
+subtitle, and rebuilt expected-model option prose. P2.4 has migrated dynamic
+app/resource, status/log, Live data, dynamic ARIA, and recognized browser-error
+presentation. Status comparisons, suppression, de-duplication, and control
+logic continue to use raw machine values; unknown Core/backend/status
+diagnostics, raw status JSON, and sample metadata remain untranslated. The UI
+still initializes and renders in English, and no language selector, browser
+detection, persistence, or runtime locale switching is active. Core, HTTP API,
+form values, support policy, instrument runtime, and CSV/JSON/JSONL schemas
+remain unchanged.
 
 ## Purpose
 

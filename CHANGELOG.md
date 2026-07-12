@@ -65,6 +65,12 @@ until final release preparation.
   Traditional Chinese catalogs. P2.3 still does not activate language
   switching; API, Core, support policy, SCPI, VISA, acquisition, schemas, and
   cleanup behavior are unchanged.
+- Moved P2.4 WebUI app/resource, status/log, Live data, dynamic ARIA, and known
+  browser-error presentation into the matching English and Traditional Chinese
+  catalogs. Raw status identity, unknown Core/backend diagnostics, status JSON,
+  and sample metadata remain untranslated; language switching is still
+  inactive, and API, Core, support policy, SCPI, VISA, trigger, acquisition,
+  CSV/JSON/JSONL schemas, and cleanup behavior are unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

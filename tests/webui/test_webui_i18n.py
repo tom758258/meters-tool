@@ -132,6 +132,54 @@ assert.equal(ZH_TW_MESSAGES["measurement.option.voltage_dc"], "直流電壓");
 assert.equal(ZH_TW_MESSAGES["measurement.option.resistance_2w"], "二線式電阻");
 assert.equal(ZH_TW_MESSAGES["trigger.option.software_custom"], "軟體自訂");
 
+const p24Keys = [
+  "accessibility.collapse_device_resource", "accessibility.expand_device_resource",
+  "accessibility.toggle_sample_details", "common.default", "device.auto_detect",
+  "device.resource_summary", "error.command_no_active_run",
+  "error.command_not_ready", "error.csv_folder_selector_unavailable",
+  "error.csv_not_found", "error.csv_run_active", "error.csv_unavailable",
+  "error.model_idn_mismatch", "error.model_mode_unsupported",
+  "error.request_json_object", "error.resource_required", "error.run_active",
+  "live_data.column_details", "live_data.no_sample_selected", "live_data.no_samples",
+  "live_data.range_step_auto_range", "live_data.range_step_requires_manual_range",
+  "live_data.recent_sample_summary", "live_data.scale_info.auto_absolute",
+  "live_data.scale_info.auto_deviation", "live_data.scale_info.manual_span",
+  "live_data.scale_info.manual_span_invalid", "live_data.scale_info.range_step",
+  "live_data.scale.auto_absolute", "live_data.scale.auto_deviation",
+  "live_data.scale.manual_span", "live_data.scale.range_step",
+  "live_data.selected_sample", "live_data.waiting_samples",
+  "resource.live_model", "resource.live_selected",
+  "resource.model_inference_failed", "resource.no_live_resources",
+  "resource.no_resource", "resource.not_scanned", "resource.option_with_detail",
+  "resource.scan_result_count", "resource.scanning", "resource.select_live",
+  "resource.status.live", "resource.status.stale",
+  "run.csv_folder_selection_cancelled", "run.csv_path_selected",
+  "run.opened_csv", "run.opening_csv_folder_selector",
+  "status.active_run_scan_blocked", "status.active_run_start_blocked",
+  "status.active_run_unload_warning", "status.error", "status.hide_details",
+  "status.idle",
+  "status.ready", "status.recording_stopped", "status.running",
+  "status.software_trigger_queued", "status.sse_connection_lost_polling",
+  "status.sse_unavailable_polling", "status.starting", "status.stop_requested",
+  "status.stopped", "status.stopping", "status.waiting_software_custom_trigger",
+  "status.show_details", "status.waiting_trigger", "validation.check_run_settings",
+  "validation.visa_resource_required",
+];
+for (const key of p24Keys) {
+  assert.equal(typeof EN_MESSAGES[key], "string", `missing en key ${key}`);
+  assert.equal(typeof ZH_TW_MESSAGES[key], "string", `missing zh-TW key ${key}`);
+  assert.notEqual(EN_MESSAGES[key], "");
+  assert.notEqual(ZH_TW_MESSAGES[key], "");
+}
+assert.equal(ZH_TW_MESSAGES["status.running"], "執行中");
+assert.equal(ZH_TW_MESSAGES["status.waiting_trigger"], "等待觸發");
+assert.equal(ZH_TW_MESSAGES["status.software_trigger_queued"], "軟體觸發已排入佇列");
+assert.equal(ZH_TW_MESSAGES["live_data.no_samples"], "尚無取樣");
+assert.equal(
+  ZH_TW_MESSAGES["live_data.range_step_requires_manual_range"],
+  "量程步進需要關閉自動量程並選擇手動量程。"
+);
+
 const productionZh = i18n.createI18n({
   catalogs: { en: EN_MESSAGES, "zh-TW": ZH_TW_MESSAGES },
   initialLocale: "zh-TW",
@@ -154,6 +202,30 @@ assert.equal(
 assert.equal(
   productionZh.t("validation.interval_range", { min: 50, max: 600000 }),
   "使用 0 停用節流，或使用 50–600000 ms。"
+);
+assert.equal(
+  productionZh.t("resource.scan_result_count", { count: 3 }),
+  "找到的實機資源：3"
+);
+assert.equal(
+  productionZh.t("run.csv_path_selected", { path: "C:\\meter\\out.csv" }),
+  "已選取 CSV 路徑：C:\\meter\\out.csv"
+);
+assert.equal(
+  productionZh.t("error.model_idn_mismatch", {
+    selected: "34460A", connected: "34461A",
+  }),
+  "選取的型號 34460A 與已連接儀器的 IDN 34461A 不符。請選取 34461A 或重新掃描裝置。"
+);
+assert.equal(
+  productionZh.t("live_data.selected_sample", { sequence: 17 }),
+  "取樣 #17"
+);
+assert.equal(
+  productionZh.t("live_data.scale_info.range_step", {
+    center: "1.2 V", span: "3 V", grid: "0.6 V",
+  }),
+  "量程步進：中心 1.2 V / 跨度 3 V / 格線 0.6 V"
 );
 assert.equal(productionZh.t("p23.unknown_key"), "p23.unknown_key");
 
@@ -511,7 +583,10 @@ def test_static_html_bindings_cover_p2_2_prose_and_preserve_fallbacks():
         )
     )
 
-    dynamic_source = (STATIC_DIR / "run_form.js").read_text(encoding="utf-8")
+    dynamic_source = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in STATIC_DIR.glob("*.js")
+    )
     dynamic_keys = set(re.findall(r'"([a-z][a-z0-9_.]+)"', dynamic_source))
     assert binding_keys <= catalog_keys
     assert catalog_keys - binding_keys <= dynamic_keys

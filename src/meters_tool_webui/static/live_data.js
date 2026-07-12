@@ -30,6 +30,7 @@ import {
   toggleLiveSamplesButton,
   toggleLiveStatsButton,
 } from "./dom.js";
+import { t } from "./i18n.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const LIVE_CHART_VISIBLE_GRID_LIMIT = 4;
@@ -41,8 +42,38 @@ let liveChartBaselineValue = null;
 let liveChartScaleMode = "auto-deviation";
 let liveChartManualSpan = null;
 let liveChartManualSpanInputInvalid = false;
-let liveChartScaleNotice = "";
+let liveChartScaleNoticeKey = "";
 let lastLiveChartSamples = [];
+
+function setTranslatedText(element, key, params = {}) {
+  element.setAttribute("data-i18n", key);
+  if (Object.keys(params).length > 0) {
+    element.setAttribute("data-i18n-params", JSON.stringify(params));
+  } else {
+    element.removeAttribute("data-i18n-params");
+  }
+  element.textContent = t(key, params);
+}
+
+function setRawText(element, text) {
+  element.removeAttribute("data-i18n");
+  element.removeAttribute("data-i18n-params");
+  element.textContent = String(text ?? "");
+}
+
+function setTranslatedAriaLabel(element, key, params = {}) {
+  element.setAttribute("data-i18n-aria-label", key);
+  if (Object.keys(params).length > 0) {
+    element.setAttribute("data-i18n-params", JSON.stringify(params));
+  } else {
+    element.removeAttribute("data-i18n-params");
+  }
+  element.setAttribute("aria-label", t(key, params));
+}
+
+function setScaleInfo(presentation) {
+  setTranslatedText(liveChartScaleInfo, presentation.key, presentation.params);
+}
 
 if (typeof window !== "undefined") {
   window.__KEYSIGHT_LIVE_DATA_SCALE_MODES__ = true;
@@ -65,7 +96,7 @@ export function initializeLiveDataUi() {
   });
   liveChartScaleModeSelect.addEventListener("change", () => {
     liveChartScaleMode = liveChartScaleModeSelect.value || "auto-deviation";
-    liveChartScaleNotice = "";
+    liveChartScaleNoticeKey = "";
     liveChartManualSpanInputInvalid =
       liveChartScaleMode === "manual-span" && !validManualSpanInput();
     refreshLiveChartScaleAvailability();
@@ -73,7 +104,7 @@ export function initializeLiveDataUi() {
     renderLiveChart(lastLiveChartSamples);
   });
   liveChartManualSpanInput.addEventListener("input", () => {
-    liveChartScaleNotice = "";
+    liveChartScaleNoticeKey = "";
     const span = Number(liveChartManualSpanInput.value);
     if (Number.isFinite(span) && span > 0) {
       liveChartManualSpan = span;
@@ -115,7 +146,7 @@ export function initializeLiveDataUi() {
 
 export function refreshLiveChartScaleAvailability(notice = null) {
   if (notice !== null) {
-    liveChartScaleNotice = notice;
+    liveChartScaleNoticeKey = notice;
   }
   const rangeStepOption = liveChartScaleModeSelect.querySelector(
     'option[value="range-step"]'
@@ -126,9 +157,11 @@ export function refreshLiveChartScaleAvailability(notice = null) {
   const rangeStepAvailable = liveChartRangeStepAvailable();
   rangeStepOption.disabled = !rangeStepAvailable;
   if (liveChartScaleModeHelp) {
-    liveChartScaleModeHelp.textContent = rangeStepAvailable
-      ? ""
-      : rangeStepUnavailableMessage();
+    if (rangeStepAvailable) {
+      setRawText(liveChartScaleModeHelp, "");
+    } else {
+      setTranslatedText(liveChartScaleModeHelp, rangeStepUnavailableKey());
+    }
     liveChartScaleModeHelp.classList.toggle("is-hidden", rangeStepAvailable);
   }
   if (liveChartScaleMode !== "range-step") {
@@ -141,7 +174,7 @@ export function refreshLiveChartScaleAvailability(notice = null) {
   }
   liveChartScaleMode = "auto-deviation";
   liveChartScaleModeSelect.value = "auto-deviation";
-  liveChartScaleNotice = notice || rangeStepUnavailableMessage();
+  liveChartScaleNoticeKey = notice || rangeStepUnavailableKey();
   updateLiveChartScaleControls();
   renderLiveChart(lastLiveChartSamples);
 }
@@ -161,9 +194,14 @@ export function renderLiveData(status) {
     selectedLiveSampleSequence = latest.sequence;
   }
 
-  liveDataSummary.textContent = samples.length
-    ? `${samples.length}/${capacity} recent samples`
-    : "No samples captured";
+  if (samples.length) {
+    setTranslatedText(liveDataSummary, "live_data.recent_sample_summary", {
+      count: samples.length,
+      capacity,
+    });
+  } else {
+    setTranslatedText(liveDataSummary, "live_data.no_samples");
+  }
   liveLatestValue.textContent = latest
     ? formatLiveValueWithUnit(latest.value, latest.unit)
     : "--";
@@ -264,11 +302,12 @@ function renderLiveChart(samples) {
   }
 
   if (numericSamples.length === 0) {
-    liveChartEmpty.textContent = "Waiting for samples";
+    setTranslatedText(liveChartEmpty, "live_data.waiting_samples");
     liveChartEmpty.classList.remove("is-hidden");
-    liveChartScaleInfo.textContent = liveChartScaleNotice
-      ? liveChartScaleNotice
-      : scaleModeLabel(liveChartScaleMode);
+    setScaleInfo({
+      key: liveChartScaleNoticeKey || scaleModeLabelKey(liveChartScaleMode),
+      params: {},
+    });
     return;
   }
 
@@ -329,9 +368,11 @@ function renderLiveChart(samples) {
     class: "live-chart-point",
   }));
   liveChartEmpty.classList.add("is-hidden");
-  liveChartScaleInfo.textContent = liveChartScaleNotice
-    ? liveChartScaleNotice
-    : formatLiveChartScaleInfo(scale, unit);
+  setScaleInfo(
+    liveChartScaleNoticeKey
+      ? { key: liveChartScaleNoticeKey, params: {} }
+      : liveChartScaleInfoPresentation(scale, unit)
+  );
 }
 
 function updateLiveChartScaleControls() {
@@ -456,40 +497,65 @@ function selectedManualRange() {
   return Number.isFinite(range) ? range : null;
 }
 
-function rangeStepUnavailableMessage() {
+function rangeStepUnavailableKey() {
   if (autoRangeCheckbox.checked) {
-    return "Range step disabled because Auto range is on.";
+    return "live_data.range_step_auto_range";
   }
-  return "Range step requires Auto range off and a selected manual Range.";
+  return "live_data.range_step_requires_manual_range";
 }
 
-function formatLiveChartScaleInfo(scale, unit) {
+function liveChartScaleInfoPresentation(scale, unit) {
   if (scale.mode === "auto-absolute") {
-    return `Auto absolute: Range ${formatLiveValueWithUnit(scale.min, unit)} to ${formatLiveValueWithUnit(scale.max, unit)}`;
+    return {
+      key: "live_data.scale_info.auto_absolute",
+      params: {
+        min: formatLiveValueWithUnit(scale.min, unit),
+        max: formatLiveValueWithUnit(scale.max, unit),
+      },
+    };
   }
   if (scale.mode === "range-step") {
-    return `Range step: Center ${formatLiveValueWithUnit(scale.center, unit)} / Span ${formatLiveValueWithUnit(scale.span, unit)} / Grid ${formatLiveValueWithUnit(scale.gridStepValue, unit)}`;
+    return {
+      key: "live_data.scale_info.range_step",
+      params: {
+        center: formatLiveValueWithUnit(scale.center, unit),
+        span: formatLiveValueWithUnit(scale.span, unit),
+        grid: formatLiveValueWithUnit(scale.gridStepValue, unit),
+      },
+    };
   }
   if (scale.mode === "manual-span") {
-    return `Manual span: Center ${formatLiveValueWithUnit(scale.center, unit)} / Span ${formatLiveValueWithUnit(scale.span, unit)}`;
+    return {
+      key: "live_data.scale_info.manual_span",
+      params: {
+        center: formatLiveValueWithUnit(scale.center, unit),
+        span: formatLiveValueWithUnit(scale.span, unit),
+      },
+    };
   }
   if (scale.mode === "manual-span-invalid") {
-    return "Manual span requires a positive value";
+    return { key: "live_data.scale_info.manual_span_invalid", params: {} };
   }
-  return `Auto deviation: Center ${formatLiveValueWithUnit(scale.center, unit)} / Grid ${formatLiveValueWithUnit(scale.gridStepValue, unit)}`;
+  return {
+    key: "live_data.scale_info.auto_deviation",
+    params: {
+      center: formatLiveValueWithUnit(scale.center, unit),
+      grid: formatLiveValueWithUnit(scale.gridStepValue, unit),
+    },
+  };
 }
 
-function scaleModeLabel(mode) {
+function scaleModeLabelKey(mode) {
   if (mode === "auto-absolute") {
-    return "Auto absolute";
+    return "live_data.scale.auto_absolute";
   }
   if (mode === "manual-span") {
-    return "Manual span";
+    return "live_data.scale.manual_span";
   }
   if (mode === "range-step") {
-    return "Range step";
+    return "live_data.scale.range_step";
   }
-  return "Auto deviation";
+  return "live_data.scale.auto_deviation";
 }
 
 function clamp(value, min, max) {
@@ -501,7 +567,7 @@ function renderLiveSamplesTable(samples) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.colSpan = 7;
-    cell.textContent = "No samples captured";
+    setTranslatedText(cell, "live_data.no_samples");
     row.appendChild(cell);
     liveSamplesBody.replaceChildren(row);
     return;
@@ -526,7 +592,7 @@ function renderLiveSamplesTable(samples) {
       const detailsButton = document.createElement("button");
       detailsButton.type = "button";
       detailsButton.className = "live-detail-button";
-      detailsButton.textContent = "Details";
+      setTranslatedText(detailsButton, "live_data.column_details");
       detailsButton.setAttribute(
         "aria-expanded",
         String(
@@ -534,9 +600,10 @@ function renderLiveSamplesTable(samples) {
           sameSequence(sample.sequence, selectedLiveSampleSequence)
         )
       );
-      detailsButton.setAttribute(
-        "aria-label",
-        `Toggle details for sample ${sample.sequence}`
+      setTranslatedAriaLabel(
+        detailsButton,
+        "accessibility.toggle_sample_details",
+        { sequence: sample.sequence }
       );
       detailsButton.addEventListener("click", () => {
         const closing =
@@ -560,12 +627,14 @@ function renderLiveSampleDetails(sample) {
     !liveSampleDetailsVisible || !sample
   );
   if (!liveSampleDetailsVisible || !sample) {
-    liveSelectedSample.textContent = "No sample selected";
-    liveSampleDetails.textContent = "";
+    setTranslatedText(liveSelectedSample, "live_data.no_sample_selected");
+    setRawText(liveSampleDetails, "");
     return;
   }
-  liveSelectedSample.textContent = `Sample #${sample.sequence}`;
-  liveSampleDetails.textContent = JSON.stringify(
+  setTranslatedText(liveSelectedSample, "live_data.selected_sample", {
+    sequence: sample.sequence,
+  });
+  setRawText(liveSampleDetails, JSON.stringify(
     {
       sequence: sample.sequence,
       trigger_metadata: sample.trigger_metadata || {},
@@ -573,7 +642,7 @@ function renderLiveSampleDetails(sample) {
     },
     null,
     2
-  );
+  ));
 }
 
 function updateLiveSelectedRows() {

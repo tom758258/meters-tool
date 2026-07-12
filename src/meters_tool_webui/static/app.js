@@ -1,5 +1,6 @@
 import { api } from "./api.js";
 import { applyStaticTranslations } from "./dom_i18n.js";
+import { t } from "./i18n.js";
 import {
   acBandwidthSelect,
   autoRangeCheckbox,
@@ -49,7 +50,8 @@ import {
   validateSwMinInterval,
 } from "./run_form.js";
 import {
-  appendStatusLog,
+  appendBrowserError,
+  appendTranslatedStatusLog,
   initializeStatusUi,
   isRunActive,
   markSoftwareTriggerQueuedForLog,
@@ -57,6 +59,27 @@ import {
   renderStatus,
   startStatusUpdates,
 } from "./status.js";
+import { resourceStatusPresentation } from "./presentation_i18n.js";
+
+function setTranslatedText(element, key, params = {}) {
+  element.setAttribute("data-i18n", key);
+  if (Object.keys(params).length > 0) {
+    element.setAttribute("data-i18n-params", JSON.stringify(params));
+  } else {
+    element.removeAttribute("data-i18n-params");
+  }
+  element.textContent = t(key, params);
+}
+
+function setTranslatedAriaLabel(element, key, params = {}) {
+  element.setAttribute("data-i18n-aria-label", key);
+  if (Object.keys(params).length > 0) {
+    element.setAttribute("data-i18n-params", JSON.stringify(params));
+  } else {
+    element.removeAttribute("data-i18n-params");
+  }
+  element.setAttribute("aria-label", t(key, params));
+}
 
 function setPanelExpanded(button, expanded) {
   const panel = button.closest(".collapsible-panel");
@@ -83,9 +106,11 @@ function setDeviceResourceExpanded(expanded) {
   deviceResourceBody.classList.toggle("is-hidden", !expanded);
   deviceResourceToggleButton.setAttribute("aria-expanded", String(expanded));
   deviceResourceToggleButton.textContent = expanded ? "-" : "+";
-  deviceResourceToggleButton.setAttribute(
-    "aria-label",
-    expanded ? "Collapse Device / Resource" : "Expand Device / Resource"
+  setTranslatedAriaLabel(
+    deviceResourceToggleButton,
+    expanded
+      ? "accessibility.collapse_device_resource"
+      : "accessibility.expand_device_resource"
   );
 }
 
@@ -103,26 +128,28 @@ let scanMetadataByResource = new Map();
 
 function liveResourceSummary() {
   if (!resourceSelect.value) {
-    return "not scanned";
+    return t("resource.not_scanned");
   }
   const model = scanMetadataByResource.get(resourceSelect.value)?.instrument_model;
-  return model ? `live ${model}` : "live selected";
+  return model
+    ? t("resource.live_model", { model })
+    : t("resource.live_selected");
 }
 
 function expectedModelSummary() {
-  return instrumentModelSelect.selectedOptions[0]?.textContent || "Auto-detect";
+  return instrumentModelSelect.selectedOptions[0]?.textContent || t("device.auto_detect");
 }
 
 function updateDeviceResourceSummary() {
   if (!deviceResourceSummary) {
     return;
   }
-  const resource = resourceInput.value.trim() || "No resource";
-  deviceResourceSummary.textContent = [
-    resource,
-    liveResourceSummary(),
-    expectedModelSummary(),
-  ].join(" / ");
+  const params = {
+    resource: resourceInput.value.trim() || t("resource.no_resource"),
+    availability: liveResourceSummary(),
+    model: expectedModelSummary(),
+  };
+  setTranslatedText(deviceResourceSummary, "device.resource_summary", params);
 }
 
 async function applyScannedResource(resource) {
@@ -137,7 +164,7 @@ async function applyScannedResource(resource) {
   updateFeatureAvailability();
   updateDeviceResourceSummary();
   if (!inferredModel) {
-    appendStatusLog("Live resource model could not be inferred; Start will auto-detect it.");
+    appendTranslatedStatusLog("resource.model_inference_failed");
     return;
   }
   await loadCapabilities(forcedModel || inferredModel);
@@ -149,24 +176,36 @@ async function applyScannedResource(resource) {
 }
 
 async function refreshResources() {
-  appendStatusLog("Scanning live resources...");
+  appendTranslatedStatusLog("resource.scanning");
   const result = await api("/api/resources?verify=true&live_only=true");
   scanMetadataByResource = new Map(
     result.resources.map((item) => [item.resource, item])
   );
   const placeholder = document.createElement("option");
   placeholder.value = "";
-  placeholder.textContent = result.resources.length
-    ? "Select live resource"
-    : "No live resources found";
+  setTranslatedText(
+    placeholder,
+    result.resources.length ? "resource.select_live" : "resource.no_live_resources"
+  );
   resourceSelect.replaceChildren(
     placeholder,
     ...result.resources.map((item) => {
       const option = document.createElement("option");
       option.value = item.resource;
-      option.textContent = item.detail
-        ? `${item.resource} (${item.status}: ${item.detail})`
-        : item.resource;
+      if (!item.detail) {
+        option.textContent = item.resource;
+        return option;
+      }
+      const statusPresentation = resourceStatusPresentation(item.status);
+      if (statusPresentation.kind === "translated") {
+        setTranslatedText(option, "resource.option_with_detail", {
+          resource: item.resource,
+          status: t(statusPresentation.key),
+          detail: item.detail,
+        });
+      } else {
+        option.textContent = `${item.resource} (${item.status}: ${item.detail})`;
+      }
       return option;
     })
   );
@@ -174,18 +213,20 @@ async function refreshResources() {
     await applyScannedResource(result.resources[0].resource);
   }
   updateDeviceResourceSummary();
-  appendStatusLog(`Live resources found: ${result.resources.length}`);
+  appendTranslatedStatusLog("resource.scan_result_count", {
+    count: result.resources.length,
+  });
 }
 
 refreshResourcesButton.addEventListener("click", async () => {
   if (isRunActive()) {
-    appendStatusLog("Stop the active run before scanning resources.");
+    appendTranslatedStatusLog("status.active_run_scan_blocked");
     return;
   }
   try {
     await refreshResources();
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 
@@ -194,7 +235,7 @@ resourceSelect.addEventListener("change", async () => {
     try {
       await applyScannedResource(resourceSelect.value);
     } catch (error) {
-      appendStatusLog(error.message);
+      appendBrowserError(error);
     }
   } else {
     updateDeviceResourceSummary();
@@ -208,16 +249,16 @@ resourceInput.addEventListener("input", () => {
 
 selectCsvFolderButton.addEventListener("click", async () => {
   try {
-    appendStatusLog("Opening CSV folder selector...");
+    appendTranslatedStatusLog("run.opening_csv_folder_selector");
     const result = await api("/api/csv/select-folder", { method: "POST" });
     if (result.selected && result.csv_path) {
       csvInput.value = result.csv_path;
-      appendStatusLog(`CSV path selected: ${result.csv_path}`);
+      appendTranslatedStatusLog("run.csv_path_selected", { path: result.csv_path });
     } else {
-      appendStatusLog("CSV folder selection cancelled");
+      appendTranslatedStatusLog("run.csv_folder_selection_cancelled");
     }
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 
@@ -228,7 +269,7 @@ instrumentModelSelect.addEventListener("change", async () => {
     updateRangeAndLiveChartScale();
     updateDeviceResourceSummary();
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 triggerModeSelect.addEventListener("change", updateTriggerModeUi);
@@ -240,7 +281,7 @@ timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", () => {
   updateRangeAndLiveChartScale(
     autoRangeCheckbox.checked
-      ? "Range step disabled because Auto range is on."
+      ? "live_data.range_step_auto_range"
       : ""
   );
 });
@@ -306,19 +347,19 @@ if (deviceOptionsToggleButton && deviceOptionsPanel) {
 
 startRunButton.addEventListener("click", async () => {
   if (isRunActive()) {
-    appendStatusLog("A run is already active. Stop it before starting another run.");
+    appendTranslatedStatusLog("status.active_run_start_blocked");
     return;
   }
   try {
     const payload = formPayload();
     if (!payload.resource) {
-      appendStatusLog("Select or enter a VISA resource before Start");
+      appendTranslatedStatusLog("validation.visa_resource_required");
       resourceInput.focus();
       return;
     }
     validateSwMinInterval();
     if (!form.checkValidity()) {
-      appendStatusLog("Check highlighted run settings before Start");
+      appendTranslatedStatusLog("validation.check_run_settings");
       form.reportValidity();
       return;
     }
@@ -327,7 +368,7 @@ startRunButton.addEventListener("click", async () => {
       body: JSON.stringify(payload),
     }));
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 
@@ -347,7 +388,7 @@ triggerRunButton.addEventListener("click", async () => {
     }
     renderStatus(status);
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 
@@ -355,16 +396,16 @@ stopRunButton.addEventListener("click", async () => {
   try {
     renderStatus(await api("/api/runs/current/stop", { method: "POST" }));
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 
 openCsvButton.addEventListener("click", async () => {
   try {
     const result = await api("/api/runs/current/open-csv", { method: "POST" });
-    appendStatusLog(`Opened CSV: ${result.csv_path}`);
+    appendTranslatedStatusLog("run.opened_csv", { path: result.csv_path });
   } catch (error) {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
   }
 });
 
@@ -385,6 +426,6 @@ loadCapabilities()
   })
   .then(startStatusUpdates)
   .catch((error) => {
-    appendStatusLog(error.message);
+    appendBrowserError(error);
     startStatusUpdates();
   });

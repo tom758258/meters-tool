@@ -182,7 +182,9 @@ class WebUiStaticTests(unittest.TestCase):
             "scanMetadataByResource.get(resourceSelect.value)?.instrument_model",
             app_js,
         )
-        self.assertIn('return model ? `live ${model}` : "live selected";', app_js)
+        self.assertIn('t("resource.live_model", { model })', app_js)
+        self.assertIn('t("resource.live_selected")', app_js)
+        self.assertIn('setTranslatedText(deviceResourceSummary, "device.resource_summary", params)', app_js)
         self.assertIn('resourceInput.addEventListener("input", () =>', app_js)
         self.assertIn("updateDeviceResourceSummary();", app_js)
         self.assertIn("updateFeatureAvailability();", app_js)
@@ -208,8 +210,9 @@ class WebUiStaticTests(unittest.TestCase):
             'translatedOptionElement(profile.model, "device.require_model"',
             app_js,
         )
-        self.assertNotIn("model_mode", app_js)
-        self.assertNotIn("modelMode", app_js)
+        run_form_js = (STATIC_DIR / "run_form.js").read_text(encoding="utf-8")
+        self.assertNotIn("model_mode:", run_form_js)
+        self.assertNotIn("modelMode:", run_form_js)
 
     def test_static_ui_scan_resource_metadata_reloads_capabilities_without_forcing_model(self):
         _index, app_js = load_static_ui()
@@ -560,11 +563,8 @@ class WebUiStaticTests(unittest.TestCase):
         )
         self.assertIn("export const liveChartScaleModeHelp", app_js)
         self.assertIn("liveChartScaleModeHelp", app_js)
-        self.assertIn(
-            "liveChartScaleModeHelp.textContent = rangeStepAvailable",
-            app_js,
-        )
-        self.assertIn(": rangeStepUnavailableMessage();", app_js)
+        self.assertIn("setTranslatedText(liveChartScaleModeHelp, rangeStepUnavailableKey())", app_js)
+        self.assertIn('return "live_data.range_step_requires_manual_range";', app_js)
         self.assertIn(
             'liveChartScaleModeHelp.classList.toggle("is-hidden", rangeStepAvailable)',
             app_js,
@@ -587,7 +587,7 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("updateRangeAndLiveChartScale(", app_js)
         self.assertIn(
             'autoRangeCheckbox.checked\n'
-            '      ? "Range step disabled because Auto range is on."\n'
+            '      ? "live_data.range_step_auto_range"\n'
             '      : ""',
             app_js,
         )
@@ -673,7 +673,7 @@ class WebUiStaticTests(unittest.TestCase):
             : app_js.index("resourceSelect.addEventListener")
         ]
         self.assertIn("if (isRunActive())", scan_handler)
-        self.assertIn("Stop the active run before scanning resources.", scan_handler)
+        self.assertIn('appendTranslatedStatusLog("status.active_run_scan_blocked")', scan_handler)
         self.assertLess(scan_handler.index("if (isRunActive())"), scan_handler.index("refreshResources()"))
 
         start_handler = app_js[
@@ -682,7 +682,7 @@ class WebUiStaticTests(unittest.TestCase):
         ]
         self.assertIn("if (isRunActive())", start_handler)
         self.assertIn(
-            "A run is already active. Stop it before starting another run.",
+            'appendTranslatedStatusLog("status.active_run_start_blocked")',
             start_handler,
         )
         self.assertLess(start_handler.index("if (isRunActive())"), start_handler.index('api("/api/runs"'))
@@ -695,10 +695,7 @@ class WebUiStaticTests(unittest.TestCase):
     def test_static_ui_warns_before_unload_only_for_active_run(self):
         _index, app_js = load_static_ui()
 
-        self.assertIn(
-            "A measurement run is active. Refreshing or closing the page will not stop it.",
-            app_js,
-        )
+        self.assertIn('t("status.active_run_unload_warning")', app_js)
         self.assertIn(
             'window.addEventListener("beforeunload", warnBeforeUnloadIfActive)',
             app_js,
@@ -712,7 +709,7 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("if (!isRunActive())", handler_body)
         self.assertIn("return undefined", handler_body)
         self.assertIn("event.preventDefault()", handler_body)
-        self.assertIn("event.returnValue = ACTIVE_RUN_UNLOAD_MESSAGE", handler_body)
+        self.assertIn("event.returnValue = message", handler_body)
 
     def test_static_ui_marks_blankable_inputs_optional(self):
         index, _app_js = load_static_ui()
@@ -905,14 +902,83 @@ class WebUiStaticTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, app_js)
 
-        for deferred_dynamic_text in [
+        for migrated_key in [
+            "resource.scanning",
+            "resource.scan_result_count",
+            "live_data.range_step_auto_range",
+            "validation.check_run_settings",
+        ]:
+            with self.subTest(migrated_key=migrated_key):
+                self.assertIn(f'"{migrated_key}"', app_js)
+
+        for migrated_literal in [
             "Scanning live resources...",
             "Live resources found:",
             "Range step disabled because Auto range is on.",
             "Check highlighted run settings before Start",
         ]:
-            with self.subTest(deferred_dynamic_text=deferred_dynamic_text):
-                self.assertIn(deferred_dynamic_text, app_js)
+            with self.subTest(migrated_literal=migrated_literal):
+                self.assertNotIn(migrated_literal, app_js)
+
+    def test_p24_status_and_live_data_keep_raw_machine_contracts(self):
+        app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
+        status_js = (STATIC_DIR / "status.js").read_text(encoding="utf-8")
+        live_data_js = (STATIC_DIR / "live_data.js").read_text(encoding="utf-8")
+        presentation_js = (STATIC_DIR / "presentation_i18n.js").read_text(
+            encoding="utf-8"
+        )
+
+        for raw_status in (
+            "waiting trigger",
+            "waiting software custom trigger",
+            "software trigger queued",
+            "idle",
+        ):
+            self.assertIn(f'"{raw_status}"', status_js)
+        self.assertIn("const normalized = normalizeStatusValue(message)", status_js)
+        self.assertIn("shouldSuppressApiStatusLog(normalized, status)", status_js)
+        self.assertIn("`${runId}:${normalized}`", status_js)
+        self.assertIn('identity: `api:${normalized}`', status_js)
+        self.assertIn('normalized === "software trigger queued"', status_js)
+        self.assertIn('normalized === "idle"', status_js)
+        self.assertIn('status.latest_status === "software trigger queued"', app_js)
+
+        self.assertIn("fatalError.textContent = status.fatal_error", status_js)
+        self.assertIn("cleanupStatus.textContent = status.cleanup_status", status_js)
+        self.assertIn("rawStatus.textContent = JSON.stringify(status, null, 2)", status_js)
+        self.assertIn("tableCell(sample.status || \"--\")", live_data_js)
+        self.assertIn("return sample.trigger_source || \"--\"", live_data_js)
+        self.assertIn("trigger_metadata: sample.trigger_metadata || {}", live_data_js)
+        self.assertIn("measurement_metadata: sample.measurement_metadata || {}", live_data_js)
+        self.assertIn("setRawText(liveSampleDetails, JSON.stringify(", live_data_js)
+
+        self.assertIn("element.removeAttribute(\"data-i18n\")", live_data_js)
+        self.assertIn("element.removeAttribute(\"data-i18n-params\")", live_data_js)
+        self.assertIn("clearTranslationBinding(element)", status_js)
+        self.assertIn(": rawPresentation(value)", presentation_js)
+        self.assertNotIn("includes(text)", presentation_js)
+
+        production_sources = "\n".join(
+            (STATIC_DIR / name).read_text(encoding="utf-8")
+            for name in (
+                "app.js",
+                "status.js",
+                "live_data.js",
+                "presentation_i18n.js",
+            )
+        )
+        for forbidden in (
+            "setLocale(",
+            "navigator.language",
+            "navigator.languages",
+            "localStorage",
+            "status_key",
+            "runtime_driver_note_key",
+            "open_workflow_keys",
+            "limit_keys",
+            "pending_keys",
+        ):
+            self.assertNotIn(forbidden, production_sources)
 
 
 
