@@ -68,9 +68,12 @@ until final release preparation.
 - Moved P2.4 WebUI app/resource, status/log, Live data, dynamic ARIA, and known
   browser-error presentation into the matching English and Traditional Chinese
   catalogs. Raw status identity, unknown Core/backend diagnostics, status JSON,
-  and sample metadata remain untranslated; language switching is still
-  inactive, and API, Core, support policy, SCPI, VISA, trigger, acquisition,
-  CSV/JSON/JSONL schemas, and cleanup behavior are unchanged.
+  and sample metadata remain untranslated. Structured command-response
+  `message` values now reach exact browser-error translations, while unknown
+  `reason` values remain raw diagnostics and FastAPI `detail` remains first
+  priority. Language switching is still inactive, and API endpoints, status
+  codes, response schemas, Core, support policy, SCPI, VISA, trigger,
+  acquisition, CSV/JSON/JSONL schemas, and cleanup behavior are unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

@@ -27,5 +27,11 @@ function formatApiError(payload, fallback) {
   if (detail) {
     return JSON.stringify(detail);
   }
+  if (typeof payload.message === "string" && payload.message) {
+    return payload.message;
+  }
+  if (typeof payload.reason === "string" && payload.reason) {
+    return payload.reason;
+  }
   return fallback;
 }

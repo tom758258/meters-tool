@@ -37,8 +37,12 @@ through the same singleton and retain semantic binding metadata where
 practical. Status comparisons, suppression, de-duplication, software-trigger
 burst handling, and control decisions continue to use raw machine values.
 Unknown Core/backend/status diagnostics remain raw fallbacks, and raw status
-JSON, sample metadata, and schemas are not translated. The singleton still
-starts in English, so the currently rendered UI remains English.
+JSON, sample metadata, and schemas are not translated. Browser HTTP errors keep
+FastAPI `detail` as first priority, then preserve structured command-response
+`message` and raw `reason` values before the HTTP status-text fallback. Exact
+known command messages may therefore use semantic browser translations, while
+unknown rejection reasons remain raw diagnostics. The singleton still starts
+in English, so the currently rendered UI remains English.
 
 P2.5 still owns support-summary semantic keys and fallback presentation. There
 is no active language selector, browser detection, saved-locale lookup,
@@ -389,9 +393,9 @@ form.
 | `api.js` | HTTP detail string | server `detail` string | raw server diagnostic | `preserve_raw` | none | P2.4 |
 | `api.js` | Validation array | `{loc}: {msg}` joined by `; ` | raw validation diagnostic/wrapper | location/message `preserve_raw`; punctuation wrapper may be localized only without loss | `error.validation_item` | P2.4 |
 | `api.js` | Structured detail | `JSON.stringify(detail)` | raw diagnostic | `preserve_raw` | none | P2.4 |
-| `api.js` | Browser fallback | HTTP `statusText` when no detail exists | browser/platform diagnostic | `preserve_raw` | optional `error.http_failure` wrapper | P2.4 |
+| `api.js` | Browser fallback | HTTP `statusText` when no usable `detail`, `message`, or `reason` exists | browser/platform diagnostic | `preserve_raw` | optional `error.http_failure` wrapper | P2.4 |
 | `api.js` | Invalid response body | JSON parse exception exposed through caught `error.message` | browser/platform diagnostic | `preserve_raw` | optional `error.response_invalid_json` wrapper | P2.4 |
-| `api.js` | Command-envelope diagnostics | `message`, `error`, and `reason` are currently not selected by `formatApiError`; non-detail failures fall back to HTTP `statusText` | machine fields/current fallback | fields `machine_value`; any future rendered diagnostic `preserve_raw` | optional `error.command_failure` wrapper | P2.4 |
+| `api.js` | Command-envelope diagnostics | non-empty `message`, then non-empty `reason`, are selected after `detail`; `error` remains machine data | machine fields/raw diagnostic | exact known messages may use browser presentation keys; unknown reasons `preserve_raw` | `error.command_*` where exact known | P2.4 |
 | `api.js` | Protocol | `Content-Type`, JSON parsing, response status behavior | HTTP contract | `machine_value` | none | P2.1 (preserve) |
 
 ### Browser-Facing Python

@@ -17,11 +17,14 @@ subtitle, and rebuilt expected-model option prose. P2.4 has migrated dynamic
 app/resource, status/log, Live data, dynamic ARIA, and recognized browser-error
 presentation. Status comparisons, suppression, de-duplication, and control
 logic continue to use raw machine values; unknown Core/backend/status
-diagnostics, raw status JSON, and sample metadata remain untranslated. The UI
-still initializes and renders in English, and no language selector, browser
-detection, persistence, or runtime locale switching is active. Core, HTTP API,
-form values, support policy, instrument runtime, and CSV/JSON/JSONL schemas
-remain unchanged.
+diagnostics, raw status JSON, and sample metadata remain untranslated. The
+browser preserves structured command-response `message` values for exact known
+error presentation and preserves unknown `reason` values as raw diagnostics,
+after the existing first-priority FastAPI `detail` handling. The UI still
+initializes and renders in English, and no language selector, browser detection,
+persistence, or runtime locale switching is active. Core, HTTP API endpoints,
+status codes and response schemas, form values, support policy, instrument
+runtime, and CSV/JSON/JSONL schemas remain unchanged.
 
 ## Purpose
 
