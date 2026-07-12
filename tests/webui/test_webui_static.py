@@ -200,8 +200,14 @@ class WebUiStaticTests(unittest.TestCase):
             'instrument_model: textOrNull(data.get("instrument_model"))',
             app_js,
         )
-        self.assertIn('optionElement("", "Auto-detect")', app_js)
-        self.assertIn('optionElement(profile.model, `Require ${profile.model}`)', app_js)
+        self.assertIn(
+            'translatedOptionElement("", "device.auto_detect")',
+            app_js,
+        )
+        self.assertIn(
+            'translatedOptionElement(profile.model, "device.require_model"',
+            app_js,
+        )
         self.assertNotIn("model_mode", app_js)
         self.assertNotIn("modelMode", app_js)
 
@@ -267,9 +273,9 @@ class WebUiStaticTests(unittest.TestCase):
             'validationStatus === "feature_pending"',
             'validationStatus === "not_supported_by_model"',
             "option.disabled = !availability.available",
-            "Pending live validation",
-            "Not supported by model",
-            "Not available for current transport/backend scope",
+            '"support.reason.pending_live_validation"',
+            '"support.reason.not_supported_by_model"',
+            '"support.reason.scope_unavailable"',
             'scope.backend_scope === "system_visa"',
         ]:
             with self.subTest(expected=expected):
@@ -808,7 +814,10 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn("payload.freq_period_timeout", app_js)
         self.assertIn("payload.current_terminal", app_js)
         self.assertIn("AC Filter >", app_js)
-        self.assertIn('optionElement("", "Keep current setting")', app_js)
+        self.assertIn(
+            'translatedOptionElement("", "measurement.keep_current_setting")',
+            app_js,
+        )
         self.assertNotIn("Auto (Default)", app_js)
         self.assertIn(
             "if (defaultAcBandwidth === null || defaultAcBandwidth === undefined)",

@@ -36,6 +36,11 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   through a dependency-free DOM adapter. P2.2 still initializes in English and
   adds no language selector, browser detection, or persistence; API, Core, and
   runtime behavior remain unchanged.
+- Moved dynamic run-form, measurement, trigger, validation, summary, subtitle,
+  and rebuilt model-option presentation into matching English and Traditional
+  Chinese catalogs. P2.3 still does not activate language switching; API,
+  Core, support policy, SCPI, VISA, acquisition, schemas, and cleanup behavior
+  are unchanged.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 

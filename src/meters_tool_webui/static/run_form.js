@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { t } from "./i18n.js";
 import {
   acBandwidthContainer,
   acBandwidthSelect,
@@ -50,6 +51,91 @@ let supportedTriggerModes = [];
 let liveSupport = null;
 let inputLimits = {};
 
+const MEASUREMENT_MESSAGE_KEYS = Object.freeze({
+  "current-dc": "measurement.option.current_dc",
+  "voltage-dc": "measurement.option.voltage_dc",
+  "voltage-dc-ratio": "measurement.option.voltage_dc_ratio",
+  "current-ac": "measurement.option.current_ac",
+  "voltage-ac": "measurement.option.voltage_ac",
+  frequency: "measurement.option.frequency",
+  period: "measurement.option.period",
+  "resistance-2w": "measurement.option.resistance_2w",
+  "resistance-4w": "measurement.option.resistance_4w",
+});
+
+const TRIGGER_MESSAGE_KEYS = Object.freeze({
+  software: "trigger.option.software",
+  immediate: "trigger.option.immediate",
+  external: "trigger.option.external",
+  "immediate-custom": "trigger.option.immediate_custom",
+  "software-custom": "trigger.option.software_custom",
+  "external-custom": "trigger.option.external_custom",
+});
+
+function bindTranslation(element, binding, key, params) {
+  element.setAttribute(binding, key);
+  if (params !== undefined) {
+    element.setAttribute("data-i18n-params", JSON.stringify(params));
+  }
+  return t(key, params);
+}
+
+function setTranslatedText(element, key, params) {
+  element.textContent = bindTranslation(element, "data-i18n", key, params);
+}
+
+function translatedOptionElement(value, key, params) {
+  const option = optionElement(value, "");
+  setTranslatedText(option, key, params);
+  return option;
+}
+
+function measurementDisplayName(value) {
+  const key = MEASUREMENT_MESSAGE_KEYS[value];
+  return key ? t(key) : capitalizeFirst(value);
+}
+
+function triggerDisplayName(value) {
+  const key = TRIGGER_MESSAGE_KEYS[value];
+  return key ? t(key) : capitalizeFirst(value);
+}
+
+function measurementOptionElement(item) {
+  const key = MEASUREMENT_MESSAGE_KEYS[item.name];
+  if (!key) {
+    return featureOptionElement(
+      item.name,
+      `${capitalizeFirst(item.name)} (${item.unit})`,
+      "measurement"
+    );
+  }
+  return featureOptionElement(
+    item.name,
+    t("measurement.option_label", {
+      name: t(key),
+      canonical: item.name,
+      unit: item.unit,
+    }),
+    "measurement",
+    "measurement.option_label",
+    { name: t(key), canonical: item.name, unit: item.unit }
+  );
+}
+
+function triggerOptionElement(mode) {
+  const key = TRIGGER_MESSAGE_KEYS[mode];
+  if (!key) {
+    return featureOptionElement(mode, capitalizeFirst(mode), "trigger_mode");
+  }
+  return featureOptionElement(
+    mode,
+    t("trigger.option_label", { name: t(key), canonical: mode }),
+    "trigger_mode",
+    "trigger.option_label",
+    { name: t(key), canonical: mode }
+  );
+}
+
 function inferTransportScope(resource) {
   const normalized = String(resource || "").trim().toUpperCase();
   if (normalized.startsWith("USB")) {
@@ -79,7 +165,7 @@ function featureAvailability(featureKind, featureValue) {
   if (!scope) {
     return {
       available: false,
-      reason: "Not available for current transport/backend scope",
+      reasonKey: "support.reason.scope_unavailable",
       validationStatus: "missing",
     };
   }
@@ -87,36 +173,53 @@ function featureAvailability(featureKind, featureValue) {
     const notSupported = scope.validation_status === "not_supported_by_model";
     return {
       available: false,
-      reason: notSupported ? "Not supported by model" : "Pending live validation",
+      reasonKey: notSupported
+        ? "support.reason.not_supported_by_model"
+        : "support.reason.pending_live_validation",
       validationStatus: scope.validation_status || "missing",
     };
   }
   const feature = scope.features?.[featureKind]?.[featureValue];
   const validationStatus = feature?.validation_status || "missing";
   if (validationStatus === "live_validated_full_suite") {
-    return { available: true, reason: "", validationStatus };
+    return { available: true, reasonKey: null, validationStatus };
   }
   if (validationStatus === "feature_pending") {
-    return { available: false, reason: "Pending live validation", validationStatus };
+    return {
+      available: false,
+      reasonKey: "support.reason.pending_live_validation",
+      validationStatus,
+    };
   }
   if (validationStatus === "not_supported_by_model") {
-    return { available: false, reason: "Not supported by model", validationStatus };
+    return {
+      available: false,
+      reasonKey: "support.reason.not_supported_by_model",
+      validationStatus,
+    };
   }
   return {
     available: false,
-    reason: "Not available for current transport/backend scope",
+    reasonKey: "support.reason.scope_unavailable",
     validationStatus,
   };
 }
 
-function featureOptionElement(value, text, featureKind) {
+function featureOptionElement(value, text, featureKind, textKey, textParams) {
   const availability = featureAvailability(featureKind, value);
-  const option = optionElement(
-    value,
-    availability.available ? text : `${text} — ${availability.reason}`
-  );
+  const option = optionElement(value, text);
+  if (availability.available && textKey) {
+    setTranslatedText(option, textKey, textParams);
+  } else if (!availability.available) {
+    const reason = t(availability.reasonKey);
+    setTranslatedText(option, "support.unavailable_option", { label: text, reason });
+    option.title = bindTranslation(
+      option,
+      "data-i18n-title",
+      availability.reasonKey
+    );
+  }
   option.disabled = !availability.available;
-  option.title = availability.reason;
   option.dataset.validationStatus = availability.validationStatus;
   return option;
 }
@@ -133,20 +236,12 @@ function selectAvailableOption(select, previousValue) {
 
 function populateFeatureOptions(previousMeasurement, previousTriggerMode) {
   measurementSelect.replaceChildren(
-    ...[...measurementsByName.values()].map((item) =>
-      featureOptionElement(
-        item.name,
-        `${capitalizeFirst(item.name)} (${item.unit})`,
-        "measurement"
-      )
-    )
+    ...[...measurementsByName.values()].map(measurementOptionElement)
   );
   selectAvailableOption(measurementSelect, previousMeasurement);
 
   triggerModeSelect.replaceChildren(
-    ...supportedTriggerModes.map((mode) =>
-      featureOptionElement(mode, capitalizeFirst(mode), "trigger_mode")
-    )
+    ...supportedTriggerModes.map(triggerOptionElement)
   );
   selectAvailableOption(triggerModeSelect, previousTriggerMode);
 }
@@ -324,7 +419,7 @@ export function validateSwMinInterval() {
   }
   if (!Number.isFinite(value) || value < nonzeroMin || value > max) {
     swMinIntervalInput.setCustomValidity(
-      `Use 0 to disable throttling, or use ${nonzeroMin}-${max} ms.`
+      t("validation.interval_range", { min: nonzeroMin, max })
     );
     return false;
   }
@@ -342,10 +437,10 @@ export function triggerMetadataPayload() {
   try {
     parsed = JSON.parse(text);
   } catch (_error) {
-    throw new Error("Trigger metadata must be valid JSON object");
+    throw new Error(t("error.trigger_metadata_invalid_json"));
   }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Trigger metadata must be a JSON object");
+    throw new Error(t("error.trigger_metadata_not_object"));
   }
   return { source: "web-ui", ...parsed };
 }
@@ -360,9 +455,9 @@ export function updateMeasurementUi() {
   if (autoZeroVisible) {
     const existingAutoZero = autoZeroSelect.value || "on";
     autoZeroSelect.replaceChildren(
-      optionElement("on", "On"),
-      optionElement("off", "Off"),
-      optionElement("once", "Once")
+      translatedOptionElement("on", "common.on"),
+      translatedOptionElement("off", "common.off"),
+      translatedOptionElement("once", "measurement.auto_zero_once")
     );
     autoZeroSelect.value = ["on", "off", "once"].includes(existingAutoZero)
       ? existingAutoZero
@@ -379,10 +474,14 @@ export function updateMeasurementUi() {
     const bandwidthOptions = measurement?.ac_bandwidth_hz_options || [];
     const defaultAcBandwidth = measurement?.defaults?.ac_bandwidth_hz;
     const bandwidthOptionElements = bandwidthOptions.map((value) =>
-      optionElement(value, `${formatNumberLabel(value)} Hz`)
+      translatedOptionElement(value, "measurement.value_hz", {
+        value: formatNumberLabel(value),
+      })
     );
     if (defaultAcBandwidth === null || defaultAcBandwidth === undefined) {
-      bandwidthOptionElements.unshift(optionElement("", "Keep current setting"));
+      bandwidthOptionElements.unshift(
+        translatedOptionElement("", "measurement.keep_current_setting")
+      );
     }
     acBandwidthSelect.replaceChildren(...bandwidthOptionElements);
     if (defaultAcBandwidth !== null && defaultAcBandwidth !== undefined) {
@@ -404,7 +503,9 @@ export function updateMeasurementUi() {
     const defaultGateTime = measurement?.defaults?.gate_time_s;
     gateTimeSelect.replaceChildren(
       ...gateTimeOptions.map((value) =>
-        optionElement(value, `${formatNumberLabel(value)} s`)
+        translatedOptionElement(value, "measurement.value_seconds", {
+          value: formatNumberLabel(value),
+        })
       )
     );
     gateTimeSelect.value = String(defaultGateTime ?? gateTimeOptions[0] ?? "");
@@ -420,7 +521,9 @@ export function updateMeasurementUi() {
     const defaultTimeout = measurement?.defaults?.freq_period_timeout;
     freqPeriodTimeoutSelect.replaceChildren(
       ...timeoutOptions.map((value) =>
-        optionElement(value, value === "auto" ? "Auto" : "1 s")
+        value === "auto"
+          ? translatedOptionElement(value, "common.auto")
+          : translatedOptionElement(value, "measurement.value_seconds", { value: 1 })
       )
     );
     freqPeriodTimeoutSelect.value = String(defaultTimeout ?? timeoutOptions[0] ?? "");
@@ -435,9 +538,11 @@ export function updateMeasurementUi() {
     const existingCurrentTerminal = currentTerminalSelect.value;
     const terminalOptions = measurement?.current_terminal_options || [];
     currentTerminalSelect.replaceChildren(
-      optionElement("", "Default"),
+      translatedOptionElement("", "common.default"),
       ...terminalOptions.map((value) =>
-        optionElement(value, `${formatNumberLabel(value)} A`)
+        translatedOptionElement(value, "measurement.terminal_value", {
+          value: formatNumberLabel(value),
+        })
       )
     );
     currentTerminalSelect.value = terminalOptions
@@ -476,7 +581,7 @@ function populateRangeOptions(measurement) {
   const existing = measurementRangeInput.value;
   const options = measurement?.range_options || [];
   measurementRangeInput.replaceChildren(
-    optionElement("", "Select range"),
+    translatedOptionElement("", "measurement.select_range"),
     ...options.map((item) => optionElement(item.value, item.label))
   );
   if (options.some((item) => String(item.value) === existing)) {
@@ -602,43 +707,76 @@ export function updatePanelSummaries() {
     const measurement = measurementSelect.value || "current-dc";
     const mode = triggerModeSelect.value || "software";
     const maxSamples = document.querySelector("[name='max_samples']")?.value;
-    runSummary.textContent = `${capitalizeFirst(mode)} / ${measurement}${
-      maxSamples ? ` / max ${maxSamples}` : ""
-    }`;
+    const params = {
+      trigger: t("trigger.option_label", {
+        name: triggerDisplayName(mode),
+        canonical: mode,
+      }),
+      measurement: t("measurement.summary_label", {
+        name: measurementDisplayName(measurement),
+        canonical: measurement,
+      }),
+    };
+    if (maxSamples) {
+      params.max = maxSamples;
+      setTranslatedText(runSummary, "run.summary_with_max", params);
+    } else {
+      setTranslatedText(runSummary, "run.summary", params);
+    }
   }
   if (measurementSummary) {
     const selectedMeasurement = measurementSelect.value || "current-dc";
     const measurement = measurementsByName.get(selectedMeasurement);
     const frequencyOrPeriod = ["frequency", "period"].includes(selectedMeasurement);
     const autoZeroText = supportsAutoZero(selectedMeasurement) && autoZeroSelect.value
-      ? `Auto zero ${autoZeroSelect.value}`
+      ? t("measurement.summary.auto_zero", {
+        value: autoZeroSelect.value === "once"
+          ? t("measurement.auto_zero_once")
+          : t(`common.${autoZeroSelect.value}`),
+      })
       : "";
-    measurementSummary.textContent = [
-      autoRangeCheckbox.checked ? "Auto range" : "Manual range",
+    const fragments = [
+      t(autoRangeCheckbox.checked
+        ? "measurement.summary.auto_range"
+        : "measurement.summary.manual_range"),
       autoZeroText,
-      (!nplcSelect.disabled && nplcSelect.value) ? `NPLC ${nplcSelect.value}` : "",
+      (!nplcSelect.disabled && nplcSelect.value)
+        ? t("measurement.summary.nplc", { value: nplcSelect.value })
+        : "",
       (supportsAcBandwidth(measurement) && acBandwidthSelect.value)
         ? (frequencyOrPeriod
-          ? `AC Filter >${acBandwidthSelect.value} Hz`
-          : `AC Band ${acBandwidthSelect.value} Hz`)
+          ? t("measurement.summary.ac_filter", { value: acBandwidthSelect.value })
+          : t("measurement.summary.ac_band", { value: acBandwidthSelect.value }))
         : "",
       (supportsGateTime(measurement) && gateTimeSelect.value)
-        ? `Gate ${gateTimeSelect.value} s`
+        ? t("measurement.summary.gate", { value: gateTimeSelect.value })
         : "",
       (supportsFreqPeriodTimeout(measurement) && freqPeriodTimeoutSelect.value)
-        ? `Timeout ${freqPeriodTimeoutSelect.value}`
+        ? t("measurement.summary.timeout", { value: freqPeriodTimeoutSelect.value })
         : "",
       (supportsCurrentTerminal(measurement) && currentTerminalSelect.value)
-        ? `Terminal ${currentTerminalSelect.value} A`
+        ? t("measurement.summary.terminal", { value: currentTerminalSelect.value })
         : "",
-    ].filter(Boolean).join(", ");
+    ].filter(Boolean);
+    setTranslatedText(measurementSummary, "measurement.summary", {
+      fragments: fragments.join(t("measurement.summary.separator")),
+    });
   }
   if (triggerSummary) {
     const mode = triggerModeSelect.value || "software";
     const timerEnabled = mode === "software" && timerTriggerCheckbox.checked;
-    triggerSummary.textContent = timerEnabled
-      ? `Timer ${timerIntervalInput.value || "unset"} s`
-      : `${capitalizeFirst(mode)} trigger`;
+    if (timerEnabled) {
+      setTranslatedText(triggerSummary, "trigger.summary.timer", {
+        value: timerIntervalInput.value || t("common.unset"),
+      });
+    } else {
+      setTranslatedText(triggerSummary, "trigger.summary.mode", {
+        mode: t("trigger.option_label", {
+          name: triggerDisplayName(mode),
+          canonical: mode,
+        }),
+      });
+    }
   }
 }
 
@@ -647,7 +785,11 @@ function applyAppMetadata(app) {
     return;
   }
   const version = app?.version;
-  subtitle.textContent = version ? `Unofficial Tool v${version}` : "Unofficial Tool";
+  if (version) {
+    setTranslatedText(subtitle, "app.unofficial_tool_version", { version });
+  } else {
+    setTranslatedText(subtitle, "app.unofficial_tool");
+  }
 }
 
 function renderSupportSummary(summary) {
@@ -698,9 +840,11 @@ export async function loadCapabilities(model = null) {
       String(a.model || "").localeCompare(String(b.model || ""))
     );
     instrumentModelSelect.replaceChildren(
-      optionElement("", "Auto-detect"),
+      translatedOptionElement("", "device.auto_detect"),
       ...profileOptions.map((profile) =>
-        optionElement(profile.model, `Require ${profile.model}`)
+        translatedOptionElement(profile.model, "device.require_model", {
+          model: profile.model,
+        })
       )
     );
     instrumentModelSelect.value = forcedModel || "";

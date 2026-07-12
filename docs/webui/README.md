@@ -11,10 +11,12 @@ WebUI behavior and maintainer boundaries.
 The [WebUI Localization Contract](localization-contract.md) defines the planned
 v2 localization of browser presentation. The dependency-free P2.1 browser i18n
 foundation exists, and P2.2 has migrated static HTML prose into matching
-English and Traditional Chinese catalogs with explicit DOM bindings. The UI
-still initializes and renders in English: user-visible language switching is
-not active, and later Parts retain ownership of dynamic browser prose. HTTP API
-and Core contracts remain unchanged.
+English and Traditional Chinese catalogs with explicit DOM bindings. P2.3 has
+also migrated dynamic run-form, measurement, trigger, validation, summary,
+subtitle, and rebuilt expected-model option prose. The UI still initializes and
+renders in English, and user-visible language switching remains inactive. Core,
+HTTP API, form values, support policy, and instrument runtime contracts remain
+unchanged.
 
 ## Purpose
 

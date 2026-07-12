@@ -19,7 +19,7 @@ The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
 
-### P2.1-P2.2 Foundation And Current Status
+### P2.1-P2.3 Foundation And Current Status
 
 P2.1 adds three native ES modules at the static root:
 
@@ -28,14 +28,20 @@ P2.1 adds three native ES modules at the static root:
   `ZH_TW_MESSAGES`;
 - `i18n.js` exports the locale contract and translator API.
 
-The production catalogs now contain the matching P2.2 static HTML key set.
-English fallback literals remain in `index.html`, and the browser applies the
-static bindings once before the existing UI initialization. The singleton
-still starts in English, so the currently rendered UI remains English. Dynamic
-form, status, error, Live data, and support-summary prose remains owned by later
-Parts. There is no active language button, browser detection, saved-locale
-lookup, `<html lang>` update, or runtime language switching; P2.6 owns locale
-selection and switching.
+The production catalogs contain the matching P2.2 static HTML key set and the
+P2.3 dynamic run-form, measurement, trigger, validation, panel-summary,
+application-subtitle, and rebuilt expected-model option prose. English fallback
+literals remain in `index.html`, and the browser applies the static bindings
+once before the existing UI initialization. Dynamic run-form nodes render
+through the same singleton and retain semantic binding metadata where
+practical. The singleton still starts in English, so the currently rendered UI
+remains English.
+
+P2.4 still owns `app.js`, status, Live data, resource, and browser error prose.
+P2.5 still owns support-summary semantic keys and fallback presentation. There
+is no active language selector, browser detection, saved-locale lookup,
+`<html lang>` update, or runtime locale switch; P2.6 owns locale selection and
+switching. The current inventory remains the authoritative ownership record.
 
 The runtime exports these constants:
 

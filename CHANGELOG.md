@@ -60,6 +60,11 @@ until final release preparation.
   explicit dependency-free DOM bindings. P2.2 still initializes in English
   without a language selector, browser detection, or persistence; HTTP API,
   Core, and acquisition behavior are unchanged.
+- Moved dynamic WebUI run-form, measurement, trigger, validation, summary,
+  subtitle, and rebuilt model-option presentation into matching English and
+  Traditional Chinese catalogs. P2.3 still does not activate language
+  switching; API, Core, support policy, SCPI, VISA, acquisition, schemas, and
+  cleanup behavior are unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

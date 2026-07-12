@@ -93,6 +93,70 @@ assert.equal(ZH_TW_MESSAGES["measurement.nplc"], "NPLC");
 assert.match(ZH_TW_MESSAGES["device.expected_model_help"], /IDN/);
 assert.match(ZH_TW_MESSAGES["live_data.time_utc_plus_8"], /UTC\+8/);
 
+const p23Keys = [
+  "app.unofficial_tool_version",
+  "common.off", "common.on", "common.unset",
+  "error.trigger_metadata_invalid_json", "error.trigger_metadata_not_object",
+  "measurement.auto_zero_once", "measurement.keep_current_setting",
+  "measurement.option.current_ac", "measurement.option.current_dc",
+  "measurement.option.frequency", "measurement.option.period",
+  "measurement.option.resistance_2w", "measurement.option.resistance_4w",
+  "measurement.option.voltage_ac", "measurement.option.voltage_dc",
+  "measurement.option.voltage_dc_ratio", "measurement.option_label",
+  "measurement.select_range", "measurement.summary", "measurement.summary.ac_band",
+  "measurement.summary.ac_filter", "measurement.summary.auto_range",
+  "measurement.summary.auto_zero", "measurement.summary.gate",
+  "measurement.summary.manual_range", "measurement.summary.nplc",
+  "measurement.summary.separator", "measurement.summary.terminal",
+  "measurement.summary.timeout", "measurement.summary_label",
+  "measurement.terminal_value", "measurement.value_hz",
+  "measurement.value_seconds", "run.summary", "run.summary_with_max",
+  "support.reason.not_supported_by_model",
+  "support.reason.pending_live_validation", "support.reason.scope_unavailable",
+  "support.unavailable_option", "trigger.option.external",
+  "trigger.option.external_custom", "trigger.option.immediate",
+  "trigger.option.immediate_custom", "trigger.option.software",
+  "trigger.option.software_custom", "trigger.option_label",
+  "trigger.summary.mode", "trigger.summary.timer", "validation.interval_range",
+];
+for (const key of p23Keys) {
+  assert.equal(typeof EN_MESSAGES[key], "string", `missing en key ${key}`);
+  assert.equal(typeof ZH_TW_MESSAGES[key], "string", `missing zh-TW key ${key}`);
+  assert.notEqual(EN_MESSAGES[key], "");
+  assert.notEqual(ZH_TW_MESSAGES[key], "");
+}
+assert.equal(ZH_TW_MESSAGES["support.reason.scope_unavailable"], "目前的傳輸／後端範圍不可用");
+assert.equal(ZH_TW_MESSAGES["support.reason.not_supported_by_model"], "型號不支援");
+assert.equal(ZH_TW_MESSAGES["support.reason.pending_live_validation"], "等待實機驗證");
+assert.equal(ZH_TW_MESSAGES["measurement.option.voltage_dc"], "直流電壓");
+assert.equal(ZH_TW_MESSAGES["measurement.option.resistance_2w"], "二線式電阻");
+assert.equal(ZH_TW_MESSAGES["trigger.option.software_custom"], "軟體自訂");
+
+const productionZh = i18n.createI18n({
+  catalogs: { en: EN_MESSAGES, "zh-TW": ZH_TW_MESSAGES },
+  initialLocale: "zh-TW",
+});
+assert.equal(
+  productionZh.t("measurement.option_label", {
+    name: productionZh.t("measurement.option.voltage_dc"),
+    canonical: "voltage-dc",
+    unit: "V",
+  }),
+  "直流電壓（voltage-dc，V）"
+);
+assert.equal(
+  productionZh.t("trigger.option_label", {
+    name: productionZh.t("trigger.option.software_custom"),
+    canonical: "software-custom",
+  }),
+  "軟體自訂（software-custom）"
+);
+assert.equal(
+  productionZh.t("validation.interval_range", { min: 50, max: 600000 }),
+  "使用 0 停用節流，或使用 50–600000 ms。"
+);
+assert.equal(productionZh.t("p23.unknown_key"), "p23.unknown_key");
+
 assert.equal(i18n.getLocale(), "en");
 assert.equal(i18n.setLocale("zh-TW"), "zh-TW");
 assert.equal(i18n.getLocale(), "zh-TW");
@@ -447,7 +511,10 @@ def test_static_html_bindings_cover_p2_2_prose_and_preserve_fallbacks():
         )
     )
 
-    assert binding_keys == catalog_keys
+    dynamic_source = (STATIC_DIR / "run_form.js").read_text(encoding="utf-8")
+    dynamic_keys = set(re.findall(r'"([a-z][a-z0-9_.]+)"', dynamic_source))
+    assert binding_keys <= catalog_keys
+    assert catalog_keys - binding_keys <= dynamic_keys
     assert '<html lang="en">' in html
     for fallback in [
         "Meters Tool",
