@@ -161,6 +161,23 @@ assert.throws(
   () => i18n.createI18n({ catalogs: { en: { bad: "value" }, "zh-TW": {} } }),
   TypeError
 );
+assert.throws(
+  () => i18n.createI18n({
+    catalogs: {
+      en: {},
+      "zh-TW": { "test.zh_only": "只有繁中" },
+    },
+  }),
+  /test\.zh_only.*zh-TW.*English source catalog/i
+);
+const englishOnly = i18n.createI18n({
+  catalogs: {
+    en: { "test.english_only": "English fallback" },
+    "zh-TW": {},
+  },
+  initialLocale: "zh-TW",
+});
+assert.equal(englishOnly.t("test.english_only"), "English fallback");
 assert.throws(() => i18n.createI18n({ catalogs, initialLocale: "fr" }), RangeError);
 assert.throws(() => i18n.createI18n({ catalogs, onMissingKey: true }), TypeError);
 

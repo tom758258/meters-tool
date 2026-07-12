@@ -46,6 +46,21 @@ function normalizeCatalogs(catalogs) {
     }
     normalized[locale] = Object.freeze({ ...catalog });
   }
+
+  const sourceCatalog = normalized[SOURCE_LOCALE];
+  for (const locale of SUPPORTED_LOCALES) {
+    if (locale === SOURCE_LOCALE) {
+      continue;
+    }
+    for (const key of Object.keys(normalized[locale])) {
+      if (!hasOwn(sourceCatalog, key)) {
+        throw new TypeError(
+          `message key ${key} in ${locale} is missing from the English source catalog`
+        );
+      }
+    }
+  }
+
   return Object.freeze(normalized);
 }
 
