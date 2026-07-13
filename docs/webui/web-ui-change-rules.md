@@ -126,8 +126,9 @@ globe-and-text button limited to `en` and `zh-TW`, with saved locale precedence,
 browser detection, English fallback, and the `meters-tool.webui.locale` key.
 Runtime switching must update presentation from cached browser state without a
 reload, API request, polling/SSE restart, form reset, or active-run reset.
-Preserve raw diagnostic text and all canonical form/runtime values. P2.7 owns
-final translation-quality and cross-Part integration validation.
+Preserve raw diagnostic text and all canonical form/runtime values. P2.7
+completes the final catalog-quality, terminology, documentation, and cross-Part
+integration review while retaining those boundaries.
 
 ## API Contract To Preserve
 
@@ -362,6 +363,9 @@ The UI may look different, but these behaviors must remain true:
   optional if they are required in the current mode, such as VISA resource,
   Range when Auto Range is off, custom trigger count/sample count, or Timer
   interval when Timer trigger is checked.
+- Group a field title and its optional marker in the existing `.label-title`
+  wrapper so they remain inline at ordinary widths and wrap naturally only
+  when space is genuinely narrow.
 - CLI compatibility-only controls remain omitted from the UI:
   `current_range`, `enable_hw_trigger`, and `sw_trigger_port`.
 

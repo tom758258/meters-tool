@@ -22,8 +22,9 @@ settings, resource metadata, and support summaries. Unknown Core/backend/status
 diagnostics, raw status JSON, sample metadata, and schemas remain raw. Core,
 HTTP API endpoints and status codes, existing response fields, form values,
 support policy, instrument runtime, and CSV/JSON/JSONL schemas remain
-unchanged. P2.7 owns final translation-quality and cross-Part integration
-validation.
+unchanged. P2.7 completes the final catalog-quality and terminology review,
+cross-Part integration validation, operator documentation, and focused label
+polish without changing those boundaries.
 
 ## Purpose
 
@@ -178,6 +179,12 @@ runtime endpoint, and preserves the current form, active run, panel, status,
 Live data, chart, resource, and support-summary state. Unknown diagnostics stay
 raw.
 
+P2.7 completes the English / Traditional Chinese presentation review. The
+Traditional Chinese Measurement options control shows
+`自動量程（Auto range）`; compact summaries continue to use `自動量程`. Optional
+markers share the inline field-title layout, including AC filter and Current
+terminal, and may wrap naturally only when the viewport is too narrow.
+
 The UI intentionally has no frontend build step, Node package manager, external
 CDN, or framework runtime. Static assets are plain HTML, CSS, and native
 JavaScript modules.
@@ -310,7 +317,8 @@ enforcement. Raw `validation_status`, transport, backend, model, and profile
 identity values remain machine values. The latest raw summary can be
 re-rendered from memory without another capability request. P2.6 uses that
 cache during locale switching and does not send the browser locale to the API.
-P2.7 owns final translation-quality and cross-Part integration validation.
+P2.7 completes the final translation-quality and cross-Part integration
+validation for this behavior.
 
 Canonical model names remain valid for normal use, and stable model IDs are
 also accepted profile lookup inputs. A selected model remains an expected-model

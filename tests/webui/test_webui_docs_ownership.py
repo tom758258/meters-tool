@@ -106,6 +106,9 @@ def test_webui_localization_contract_records_stable_locale_decisions():
     assert "raw machine values" in text
     assert "display-only" in text
     assert "p2.6 activates browser locale selection" in normalized
+    assert "p2.7 completes the final translation-quality review" in normalized
+    assert "| Auto range control label | 自動量程（Auto range） |" in text
+    assert "| Auto range in prose and compact summaries | 自動量程 |" in text
 
 
 def test_webui_localization_contract_protects_machine_contracts_and_part_ownership():

@@ -2,12 +2,57 @@ from __future__ import annotations
 
 import re
 import unittest
+from html.parser import HTMLParser
 from pathlib import Path
 
 from webui_test_helpers import STATIC_DIR, assert_tag_with_attrs, load_static_ui
 
 
 APP_JS_CACHEBUSTER_TOKEN = "__METERS_TOOL_APP_JS_CACHEBUSTER__"
+
+
+class _HtmlTreeParser(HTMLParser):
+    _VOID_ELEMENTS = {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.root = {"tag": None, "attrs": {}, "children": []}
+        self.stack = [self.root]
+
+    def handle_starttag(self, tag, attrs):
+        node = {"tag": tag, "attrs": dict(attrs), "children": []}
+        self.stack[-1]["children"].append(node)
+        if tag not in self._VOID_ELEMENTS:
+            self.stack.append(node)
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in self._VOID_ELEMENTS:
+            self.stack.pop()
+
+    def handle_endtag(self, tag):
+        if len(self.stack) > 1 and self.stack[-1]["tag"] == tag:
+            self.stack.pop()
+
+    def find_by_id(self, element_id):
+        pending = [self.root]
+        while pending:
+            node = pending.pop()
+            if node["attrs"].get("id") == element_id:
+                return node
+            pending.extend(reversed(node["children"]))
+        return None
 
 
 class WebUiStaticTests(unittest.TestCase):
@@ -748,6 +793,54 @@ class WebUiStaticTests(unittest.TestCase):
                     index,
                 )
                 self.assertTrue(marker_before_name or marker_after_name)
+
+    def test_dynamic_optional_labels_group_title_and_marker_before_select(self):
+        index, _app_js = load_static_ui()
+        parser = _HtmlTreeParser()
+        parser.feed(index)
+
+        contracts = {
+            "ac-bandwidth-container": {
+                "title_key": "measurement.ac_filter",
+                "select_id": "ac-bandwidth",
+                "name": "ac_bandwidth_hz",
+            },
+            "current-terminal-container": {
+                "title_key": "measurement.current_terminal",
+                "select_id": "current-terminal",
+                "name": "current_terminal",
+            },
+        }
+        for container_id, contract in contracts.items():
+            with self.subTest(container_id=container_id):
+                label = parser.find_by_id(container_id)
+                self.assertIsNotNone(label)
+                self.assertEqual(label["tag"], "label")
+                self.assertIn("is-hidden", label["attrs"].get("class", "").split())
+                self.assertEqual(len(label["children"]), 2)
+
+                title, select = label["children"]
+                self.assertEqual(title["tag"], "span")
+                self.assertIn("label-title", title["attrs"].get("class", "").split())
+                self.assertEqual(len(title["children"]), 2)
+                self.assertEqual(
+                    title["children"][0]["attrs"].get("data-i18n"),
+                    contract["title_key"],
+                )
+                self.assertIn(
+                    "optional-mark",
+                    title["children"][1]["attrs"].get("class", "").split(),
+                )
+                self.assertEqual(
+                    title["children"][1]["attrs"].get("data-i18n"),
+                    "common.optional",
+                )
+
+                self.assertEqual(select["tag"], "select")
+                self.assertEqual(select["attrs"].get("id"), contract["select_id"])
+                self.assertEqual(select["attrs"].get("name"), contract["name"])
+                self.assertEqual(select["attrs"].get("form"), "run-form")
+                self.assertIn("disabled", select["attrs"])
 
     def test_static_ui_scopes_trigger_options_by_mode(self):
         index, app_js = load_static_ui()

@@ -85,8 +85,14 @@ until final release preparation.
   take precedence over browser detection and use `meters-tool.webui.locale`;
   switching is immediate, state-preserving, and performs no page reload or
   runtime/API request. Unknown diagnostics remain raw, and Core, CLI, HTTP,
-  SSE, instrument, and schema behavior remain unchanged. P2.7 owns final
-  translation-quality and cross-Part integration validation.
+  SSE, instrument, and schema behavior remain unchanged.
+- Completed P2.7 final English / Traditional Chinese catalog quality,
+  terminology, browser-presentation coverage, cross-Part integration, and
+  operator-documentation review. The Traditional Chinese Auto range control
+  now shows `自動量程（Auto range）`, while compact summaries remain concise;
+  AC filter and Current terminal optional markers now use the shared inline
+  label layout. Runtime, API, support-policy, instrument, and schema contracts
+  remain unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

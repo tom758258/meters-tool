@@ -14,14 +14,14 @@ P2.2 registers the static browser prose from `index.html` in English and
 Traditional Chinese catalogs, adds explicit text, placeholder, title, and
 ARIA-label bindings, then P2.6 applies them once at startup after resolving the
 initial locale.
-P2.7 remains responsible for final translation-quality review and cross-Part
-integration validation.
+P2.7 completes the final translation-quality review, terminology QA,
+cross-Part integration validation, and operator documentation.
 
 The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
 
-### P2.1-P2.6 Foundation And Current Status
+### P2.1-P2.7 Foundation And Current Status
 
 P2.1 adds three native ES modules at the static root:
 
@@ -66,6 +66,13 @@ Live data presentation without reload or runtime/API requests. API endpoints,
 Core, support policy, SCPI, VISA, trigger, acquisition, CSV, JSON, JSONL, SSE,
 and cleanup contracts are unchanged. The current inventory remains the
 authoritative ownership record.
+
+P2.7 completes the English / Traditional Chinese catalog quality review and
+cross-Part regression coverage. The Traditional Chinese Auto range control
+label is `自動量程（Auto range）`, while ordinary prose and compact summaries
+remain `自動量程`. Dynamic optional field labels use the shared inline
+`.label-title` structure. These presentation refinements do not change form,
+API, support-policy, runtime, or machine contracts.
 
 The runtime exports these constants:
 
@@ -539,7 +546,8 @@ otherwise translated explanation.
 | Software trigger | 軟體觸發 |
 | External trigger | 外部觸發 |
 | Timer trigger | 定時觸發 |
-| Auto range | 自動量程 |
+| Auto range control label | 自動量程（Auto range） |
+| Auto range in prose and compact summaries | 自動量程 |
 | Auto zero | 自動歸零 |
 | Range | 量程 |
 | Pending live validation | 等待實機驗證 |
@@ -590,15 +598,15 @@ collapsed into one term when their meanings differ.
 | P2.4 — status, log and error presentation | Browser logs, known status mapping, raw fallback, Live data, API error wrappers, and dynamic ARIA. Depends on P2.1. |
 | P2.5 — additive support-summary semantic keys | Completed additive backend presentation metadata, prose-authoritative fallback, and cached frontend re-render boundary. Depends on P2.1 and preserves existing prose. |
 | P2.6 — language toggle, detection and persistence | Toolbar button, detection, saved-locale precedence, `<html lang>`, runtime switch wiring, and state-preserving switch. Depends on P2.1-P2.5. |
-| P2.7 — complete zh-TW translation, integration tests and final docs | Key completion, terminology QA, cross-Part integration, and operator documentation after the feature exists. |
+| P2.7 — complete zh-TW translation, integration tests and final docs | Completed key coverage, terminology QA, cross-Part integration validation, UI label polish, and operator documentation. |
 
 Rows with two Parts identify a dependency rather than duplicate ownership. In
 particular, P2.2 owns initial static text while P2.3/P2.4 own later dynamic
 replacement; P2.5 supplies support keys and P2.4 retains raw error fallback.
 
-## Future Test Obligations
+## Completed Integration Validation
 
-Later Parts must test:
+P2.7 regression coverage verifies:
 
 - exact English and `zh-TW` key-set parity and a complete English source locale;
 - English fallback, missing-key diagnostics, and safe parameter interpolation;

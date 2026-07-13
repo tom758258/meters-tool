@@ -89,7 +89,7 @@ export const ZH_TW_MESSAGES = Object.freeze({
   "locale.switch_to_en": "English",
   "locale.switch_to_zh_tw": "繁體中文",
   "measurement.ac_filter": "AC 濾波器",
-  "measurement.auto_range": "自動量程",
+  "measurement.auto_range": "自動量程（Auto range）",
   "measurement.auto_zero_once": "單次",
   "measurement.auto_zero": "自動歸零",
   "measurement.current_terminal": "電流端子",

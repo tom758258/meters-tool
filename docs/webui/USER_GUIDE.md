@@ -79,6 +79,11 @@ The current form values, active run, panels, status log, Live data selection,
 chart settings, resource scan, and support summary remain in place. Unknown
 diagnostic text remains unchanged.
 
+In Traditional Chinese, the Measurement options control displays
+`自動量程（Auto range）`; summaries use the shorter `自動量程`. Optional markers
+stay beside their field titles at ordinary desktop widths, including AC filter
+and Current terminal, and wrap naturally on very narrow screens.
+
 ## First Run
 
 Use this flow for a basic immediate measurement:

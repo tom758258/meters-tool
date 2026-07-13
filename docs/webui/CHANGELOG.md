@@ -62,8 +62,13 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   locale values use `meters-tool.webui.locale` and take precedence over
   browser detection; switching updates `<html lang>` without reload or runtime
   requests, preserves form/run/status/Live/chart/resource state, and keeps
-  unknown diagnostics raw. P2.7 owns final translation-quality and cross-Part
-  integration validation.
+  unknown diagnostics raw.
+- Completed P2.7 final catalog-quality, terminology, browser-presentation,
+  cross-Part integration, and operator-documentation review. The Traditional
+  Chinese Auto range control now shows `自動量程（Auto range）`, while compact
+  summaries remain `自動量程`; AC filter and Current terminal optional markers
+  now share the inline label-title layout. API, Core, support-policy, runtime,
+  and schema behavior remain unchanged.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 
