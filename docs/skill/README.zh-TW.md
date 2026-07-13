@@ -86,7 +86,6 @@ cp docs/contracts/common-cli-jsonl-contract.md "$skill/references/"
 cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
 cp docs/contracts/meters-worker-contract.md "$skill/references/"
 cp docs/contracts/meters-cli-jsonl-contract.md "$skill/references/"
-cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
 cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 ```
 
