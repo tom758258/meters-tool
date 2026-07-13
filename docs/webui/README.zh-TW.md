@@ -144,9 +144,17 @@ http://127.0.0.1:8767/
 
 ## 資源掃描
 
-按一下 `Scan Device` 會呼叫 API `/api/scan_resources`。後端使用 PyVISA 尋找可用的 USB 與 TCPIP 資源，對每個資源開啟工作階段，查詢 `*IDN?`，並傳回有回應的實體資源清單。
+按一下 `Scan Device` 會呼叫：
 
-為了避免網頁停頓，掃描在背景以非同步方式執行。若未發現任何資源，網頁會允許操作員手動輸入已知的資源字串。
+```text
+GET /api/resources?verify=true&live_only=true
+```
+
+後端沿用 Core 的資源列舉行為，開啟候選資源並查詢 `*IDN?`。`live_only=true` 只傳回實際有回應的裝置。若 IDN 符合支援的 34460A 或 34461A 設定檔，回應會包含可為空值的 `instrument_model`、`instrument_model_id` 與 `matched_profile` 中繼資料；未知或空白 IDN 不會由 fallback capability profile 猜測模型。
+
+選取掃描結果會把資源複製到 `VISA resource`。即使掃描辨識出支援模型，`Expected model` 仍可維持 Auto-detect；啟動時一定會重新執行 IDN 預檢。
+
+WebUI 使用 Core 的預設系統 VISA 執行期，不提供 pyvisa-py 後端選擇。待驗證的傳輸／後端、測量或觸發功能在 Product-open 前仍會被瀏覽器停用，且 Core 支援政策與 `run_start_session()` 最終關卡仍是安全邊界。34460A LAN/TCPIP 目前仍為待驗證範圍。
 
 ## 測量模式
 
@@ -167,57 +175,77 @@ WebUI 將所選的測量類型映射至 Core 所支援的實體測量：
 WebUI 支援與 CLI 相同的完整觸發設定：
 
 - `immediate`（立即）→ 啟動後直接連續採集，通常受限於 `max_samples`。
-- `software`（軟體觸發）→ 等待 WebUI 傳送軟體觸發訊號。按一下 `Trigger` 將會向 `/api/trigger` 傳送請求。支援選用的 `timer_interval_s` 自動計時器觸發。
+- `software`（軟體觸發）→ 等待 WebUI 傳送軟體觸發訊號。按一下 `Trigger` 會透過 `POST /api/runs/current/command` 傳送軟體觸發命令。支援選用的 `timer_interval_s` 自動計時器觸發。
 - `external`（外部觸發）→ 等待萬用電表後方的實體外部觸發訊號。
 - 自訂硬體序列模式（立即自訂 `immediate-custom`、軟體自訂 `software-custom`、外部自訂 `external-custom`）→ 必須指定 `trigger_count`（觸發次數）與 `sample_count`（樣本次數）。多個測量值會暫存在儀器記憶體中，最後一次讀出，以支援較高頻率或特定硬體序列的採集。
 
 ## 啟動、停止與清理
 
-- **啟動**：按一下 `Start` 會向 `/api/start` 傳送包含目前表單數值的 JSON 請求內容。後端驗證通過後，在背景非同步啟動 Core 引擎。
-- **停止**：按一下 `Stop` 會向 `/api/stop` 傳送請求。背景處理程序被通知停止，完成目前的工作，執行必要的清理動作（釋放至本地、關閉 VISA 連線、釋放資源），然後宣告狀態為 inactive。
-- **清理順序**：WebUI 遵循 Core 定義的安全清理順序：首先停止計時器與背景 worker，通知儀器釋放回本地控制面板，然後關閉工作階段，最後重置狀態，確保即使在發生異常時也不會損及實體儀器。
+- **啟動**：按一下 `Start` 會向 `POST /api/runs` 傳送目前表單的 JSON 請求內容。後端完成 Core 驗證與支援政策檢查後才啟動執行。
+- **觸發**：軟體觸發使用 `POST /api/runs/current/command`。成功接受回應後，前端會重新讀取 `GET /api/runs/current` 更新畫面。
+- **停止**：按一下 `Stop` 會向 `POST /api/runs/current/stop` 傳送請求，並透過 Core 控制面進行協同停止。
+- **清理順序**：WebUI 遵循 Core 定義的安全清理順序：停止計時器與背景 worker、通知儀器釋放回本地控制面板、關閉 VISA 工作階段，最後關閉控制面並重設狀態。
 
 ## 即時資料
 
-網頁會以 `250 ms` 的間隔定期向 `/api/status` 進行輪詢。傳回的 JSON 包含目前執行的統計（captured 數、errors 數、狀態字串）、最近 10 筆樣本資料列與最近 10 個快照。
+前端透過 `GET /api/runs/current/events` 的 Server-Sent Events（SSE）接收執行狀態變更，並在命令接受後以 `GET /api/runs/current` 取得目前或最近一次執行狀態。即時資料僅來自 Core `run_start_session()` 發出的 `sample` 事件；WebUI 不會為了更新面板而額外讀取 VISA 或解析 CSV。
 
-趨勢折線圖使用 HTML5 Canvas 或是輕量 SVG 動態繪製。在接收到新樣本時更新最新讀數、圖表資料與最近樣本。為確保瀏覽器效能，僅快取並顯示最近 100 筆樣本。
+後端樣本視窗最多保留最近 5000 筆；瀏覽器顯示最新讀數、統計、近期樣本與所選樣本中繼資料。停止後仍保留最新樣本供操作員檢視，啟動新執行時才建立新的樣本視窗。
 
 ## CSV 輸出、選擇與開啟 CSV
 
 - **輸出儲存**：所有測量都會即時寫入主機上的 CSV 檔案。
-- **Select 資料夾**：按一下 `Select` 會向 `/api/select_folder` 傳送請求，後端會在 Windows 上開啟原生資料夾選擇器。操作員選擇資料夾後，路徑會傳回網頁，並自動組合成具有時間戳記的預設 CSV 檔名（例如 `data/2026-07-13-14-30-00.csv`）。
-- **Open CSV**：按一下 `Open CSV` 會向 `/api/open_csv` 傳送包含目前 CSV 路徑的請求，後端會透過 Windows 原生 `ShellExecute`，使用系統預設程式（如 Excel 或記事本）開啟此檔案。只有在執行停止且 CSV 檔案實際產生時才可開啟。
+- **Select 資料夾**：按一下 `Select` 會向 `POST /api/csv/select-folder` 傳送請求。後端在 Windows 上開啟資料夾選擇器，並回傳帶有時間戳記的 `.csv` 路徑；取消選擇時會回傳 `selected: false`。
+- **Open CSV**：按一下 `Open CSV` 會向 `POST /api/runs/current/open-csv` 傳送請求。後端只會開啟 manager state 中目前或最近一次已完成執行的 CSV，不接受前端任意傳入檔案路徑。執行中、沒有已完成 CSV 或檔案遺失時會分別回傳對應的 `409` 或 `404`。
 
 ## HTTP API 摘要
 
-- `GET /` → 傳回靜態首頁 `static/index.html`。
-- `GET /api/scan_resources` → 掃描 VISA 資源並查詢 IDN。
-- `POST /api/start` → 以傳遞的表單 JSON 參數啟動背景採集執行。
-- `POST /api/stop` → 停止目前的採集執行。
-- `POST /api/trigger` → 對於軟體觸發模式傳送一次軟體觸發（BUS trigger）。
-- `GET /api/status` → 輪詢目前執行狀態、統計資料與最近樣本。
-- `GET /api/select_folder` → 在主機上開啟資料夾選擇視窗。
-- `POST /api/open_csv` → 在主機上開啟目前的 CSV 檔案。
+- `GET /` → 傳回靜態首頁 `index.html`。
+- `GET /api/capabilities` → 傳回 Core 支援的測量、觸發、模型識別與精確實體支援中繼資料。
+- `GET /api/resources?verify=true&live_only=true` → 掃描並驗證 VISA 資源；符合支援 IDN 時加入模型中繼資料。
+- `POST /api/runs` → 驗證並啟動執行。
+- `GET /api/runs/current` → 傳回目前或最近一次執行狀態。
+- `GET /api/runs/current/events` → 傳回執行狀態的 SSE 串流。
+- `POST /api/runs/current/command` → 對支援模式排入軟體觸發命令。
+- `POST /api/runs/current/stop` → 透過 Core 控制面要求停止。
+- `POST /api/runs/current/open-csv` → 開啟最近一次已完成執行的 CSV。
+- `POST /api/csv/select-folder` → 開啟本機資料夾選擇器並回傳帶時間戳記的 CSV 路徑。
+
+不得在沒有同步更新前端程式碼、測試與文件的情況下重新命名、移除或改變這些端點的用途。
 
 ## 前端請求欄位
 
-在向 `/api/start` 傳送的請求中，表單參數會序列化成 JSON 請求內容。對應 Core 的參數：
-- `resource`：VISA 資源位址。
-- `instrument_model`：預期模型限制 (`None`、`34460A`、`34461A`)。
-- `measurement`：測量類型。
-- `range_auto`：布林值，是否啟用自動量程。
-- `manual_range`：浮點數，指定的手動量程。
-- `nplc`：整合時間 NPLC 值。
-- `auto_zero`：自動歸零設定 (`off`、`on`、`once`)。
-- `ac_bandwidth_hz`：AC 濾波器頻寬。
-- `gate_time_s`：閘窗時間。
-- `freq_period_timeout`：頻率逾時設定。
-- `dcv_input_impedance`：DCV 輸入阻抗。
-- `current_terminal`：電流端子設定。
-- `trigger_mode`：觸發模式。
-- `trigger_count` / `sample_count`：自訂模式所需的計數器。
-- `csv_path`：寫入的 CSV 目標路徑。
+WebUI 傳送至 `POST /api/runs` 的重要欄位包括：
+
+- `resource`
+- `instrument_model`
+- `csv`
+- `timeout_ms`
+- `trigger_timeout_ms`
+- `trigger_mode`
+- `measurement`
+- `nplc`
+- `auto_zero`
+- `auto_range`
+- `measurement_range`
+- `dcv_input_impedance`
+- `vm_comp_slope`
+- `max_samples`
+- `timer_interval_s`
+- `trigger_count`
+- `sample_count`
+- `buffer_drain_size`
+- `allow_buffer_overflow_risk`
+- `hw_trigger_slope`
+- `hw_trigger_delay_s`
+- `sw_min_interval_ms`
+- `sw_queue_max`
+- `ac_bandwidth_hz`
+- `gate_time_s`
+- `freq_period_timeout`
+- `current_terminal`
+
+被隱藏的控制項必須同時停用，避免非作用中模式的舊值被提交。頻率與週期維持原始數值與單位：AC 濾波器以數字 Hz 傳送、閘窗時間以秒傳送，逾時為 `auto` 或 `1s`。
 
 ## 安全規則
 
@@ -267,7 +295,7 @@ uv run pytest tests -q -p no:cacheprovider
 - 變更測量類型可自動更新測量參數面板隱藏與顯示狀態。
 - 變更觸發模式可正確更新對應的參數欄位（如自訂模式下的觸發計數）。
 - 在軟體觸發模式下能正確顯示 `Trigger` 按鈕，而在其他模式下隱藏。
-- 折線趨勢圖在接收到模擬或實體樣本後，可正確依據 `Auto absolute`、`Manual span`、`Range step` 等模式調整 Y 軸縮放並正確繪製。
+- 折線趨勢圖在接收到模擬或實體樣本後，可正確依據 `Auto deviation`、`Auto absolute`、`Manual span`、`Range step` 等模式調整 Y 軸縮放並正確繪製。
 - 狀態記錄（Status log）可以持續加入狀態、警告與錯誤，且不會重複顯示輪詢訊息。
 - 頁面在手機寬度（~390px）下不會有文字、按鈕重疊，在桌面寬度（~1280px）下緊湊且易於閱讀。
 
@@ -277,7 +305,7 @@ uv run pytest tests -q -p no:cacheprovider
 - **連接埠已被佔用**：使用 `--port 8768` 或結束佔用連接埠的處理程序。
 - **無法用 `q` 停止**：此為預期行為，請在主控台使用 `Ctrl+C`。
 - **Scan Device 找不到任何裝置**：確認儀器已開機並連接，VISA 驅動程式可辨識，或者嘗試手動輸入已知位址。
-- **即時資料沒有樣本**：狀態輪詢可能因網頁異常而中斷，請重新整理網頁，或確認背景執行狀態是否處於 active。
+- **即時資料沒有樣本**：確認執行是否已擷取樣本，以及 SSE 狀態串流是否仍連線；必要時重新整理頁面並重新確認執行狀態。
 
 ## 相關文件
 
