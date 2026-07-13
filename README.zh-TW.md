@@ -193,7 +193,7 @@ release\<version>\checksums.txt
 
 ## Codex / 代理人技能（Agent Skill）
 
-本專案為希望要求 Codex 或其他代理人安全地遵循 Meters CLI/worker 合約的使用者提供選用的 Codex 技能範本。請參閱 [Codex 技能範本](docs/skill/README.md) 以取得安裝與使用指南。
+本專案為希望要求 Codex 或其他代理人安全地遵循 Meters CLI/worker 合約的使用者提供選用的 Codex 技能範本。請參閱 [Codex 技能範本](docs/skill/README.zh-TW.md) 以取得安裝與使用指南。
 
 ## 說明文件
 
@@ -206,7 +206,7 @@ release\<version>\checksums.txt
 * [Monorepo 架構](docs/architecture/monorepo-layout.md)
 * [測試指南](docs/testing-guidelines.md)
 * [貢獻指南](docs/CONTRIBUTING.md)
-* [Codex 技能範本](docs/skill/README.md)
+* [Codex 技能範本](docs/skill/README.zh-TW.md)
 * [公開合約](docs/contracts)
 * [Meters CLI JSONL 合約](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker 合約](docs/contracts/meters-worker-contract.md)
