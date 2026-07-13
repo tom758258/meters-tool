@@ -34,9 +34,6 @@ trigger-mode status.
 
 ## Project Structure
 
-Planning an upgrade from the pre-v2 `keysight-logger` names? See
-[Migrating to Meters Tool v2](docs/migration-v2.md).
-
 The repository now has one distribution and one version number. In examples,
 `<version>` means `[project].version` from the root `pyproject.toml`:
 
@@ -127,6 +124,17 @@ Windows creates virtualenv console wrappers such as
 `.\.venv\Scripts\meters-tool-webui-launcher.exe`.
 
 ## Build
+
+For release preparation, run the no-hardware release gate before building
+release artifacts:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-cli-check.ps1 -Target keysight-34461a
+```
+
+The default target is `keysight-34461a`. Use `keysight-34460a` when the release
+change is specifically model-dependent. The wrapper validates release readiness
+but does not build release artifacts.
 
 Build the wheel and source distribution. This uses the `build` package from
 the `dev` extra installed above:

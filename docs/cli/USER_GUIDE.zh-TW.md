@@ -1,6 +1,6 @@
 # Meters Tool CLI 使用者指南
 
-本指南適用於取得已建置之 CLI 執行檔或已安裝的 `meters-tool` 指令，並使用它來記錄支援的數位萬用電表量測數據的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
+本指南適用於取得已建置之 CLI 執行檔或已安裝的 `meters-tool` 指令，並使用它來記錄支援的數位萬用電表量測資料的操作人員。本指南專注於正常的量測工作流程與常見設定。如需開發人員設定、驗證腳本、JSON/JSONL 輸出與自動化合約，請參閱 [CLI README](README.zh-TW.md)。
 
 ## 啟動 CLI
 
@@ -37,7 +37,7 @@ $env:METER_RESOURCE = "USB0::...::INSTR"
 
    此值可以是任何由探測傳回的作用中 VISA 資源，包括 USB 或 TCPIP/LAN 資源。
 
-4. 執行一次有界限的即時模式 (immediate-mode) 樣本：
+4. 執行一次有界限的立即模式 (immediate mode) 取樣：
 
 ```powershell
 .\meters-tool.exe start-trigger-record `
@@ -49,11 +49,11 @@ $env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
 5. 確認指令正常退出、CSV 檔案已存在，且 CSV 包含一筆資料列。
-6. 在信任較長期的擷取之前，請將 CSV 數值與前面板讀數進行對比。
+6. 在信任較長期的擷取之前，請將 CSV 數值與前面板讀值進行對比。
 
 進行實機擷取時請使用明確的 `--resource` 值。傳遞 `"$env:METER_RESOURCE"` 仍會為 CLI 提供明確的資源；請勿依賴腳本或無人值守的工作流程來猜測應使用哪台儀器。
 
-實機啟動在省略 `--model` 時會透過已連接儀器的 IDN 自動偵測 34460A 或 34461A。只有在 Start 必須要求該 IDN 相符時，才加入 `--model 34460A` 或 `--model 34461A`；明確的 live 不符會在 setup SCPI 之前失敗。Dry-run 和模擬指令使用選定的型號設定檔，且需要 `--model`，除非資源是可確定型號的 simulator resource，例如 `SIM::34460A` 或 `SIM::34461A`。型號名稱由 Core 設定檔邏輯進行標準化與驗證，因此未知的型號會以清楚的驗證錯誤失敗。
+live 啟動省略 `--model` 時，連接儀器的 `*IDN?` 決定 runtime profile。明確指定 `--model 34460A` 或 `--model 34461A` 只是 expected-model guard；selected model 絕不會覆寫 IDN-selected profile。live mismatch 會在 setup SCPI 前失敗。dry-run 或 simulator 才由 selected model 選擇 profile，除非 simulator resource 已確定型號，例如 `SIM::34460A` 或 `SIM::34461A`。型號名稱由 Core 設定檔邏輯進行標準化與驗證，因此未知的型號會以清楚的驗證錯誤失敗。
 
 CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。進階的 pyvisa-py LAN 診斷可以安裝可選的 backend 套件，並在 `list-resources` 或 `start-trigger-record` 中加入 `--visa-library "@py"`；`--backend "@py"` 也接受作為別名。已驗證的選用 `@py` 擷取範圍是 LAN/TCPIP 上的 34461A；目前可用的儀器尚未開放 34460A LAN/`@py`。一般的 WebUI 執行則使用預設的系統 VISA 執行階段。
 
@@ -72,11 +72,11 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 - `resistance-4w`：4 線式電阻。
 
 測量電流或 4 線式電阻前，請先確認輸入端子是否正確。
-對於 AC、頻率與週期模式，請先執行低風險的快速功能健檢 (smoke test)，並將 CSV 數值與前面板讀數進行對比，確認無誤後再將該設定用於較長期的擷取。
+對於 AC、頻率與週期模式，請先執行低風險的快速功能健檢 (smoke test)，並將 CSV 數值與前面板讀值進行對比，確認無誤後再將該設定用於較長期的擷取。
 
 ## 選擇觸發模式
 
-`--trigger-mode immediate` 適用於最簡單的工作流程。作業一啟動，儀器就會開始擷取數據。除非您刻意要進行連續執行，否則請加上 `--max-samples`。
+`--trigger-mode immediate` 適用於最簡單的工作流程。作業一啟動，儀器就會開始擷取讀值。除非您刻意要進行連續執行，否則請加上 `--max-samples`。
 
 當作業需要等待軟體觸發指令時，請使用 `--trigger-mode software`。在一個終端機啟動記錄器 (logger)，然後從另一個終端機發送觸發訊號：
 
@@ -100,9 +100,9 @@ CLI 預設使用電腦的系統 VISA 執行階段，例如 Keysight IO Libraries
 
 `--max-samples` 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。
 
-`--auto-range` (自動範圍) 讓儀器自行選擇範圍。除非量測設定要求固定範圍，否則請保持啟用自動範圍。
+`--auto-range`（自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。
 
-當自動範圍停用時，使用 `--range` 來選擇手動範圍。請選擇一個能安全涵蓋預期訊號的範圍。
+當自動量程停用時，使用 `--range` 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。
 
 `--nplc` 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式僅接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。
 

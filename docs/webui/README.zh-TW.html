@@ -100,6 +100,14 @@
             scroll-margin-top: 2rem;
         }
 
+        h3 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            color: var(--text-main);
+        }
+
         p {
             margin-bottom: 1.25rem;
             color: var(--text-muted);
@@ -124,13 +132,38 @@
             text-decoration: underline;
         }
 
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
+        }
+
         /* Code Blocks & Inline Code */
         code {
             font-family: "Fira Code", "Consolas", monospace;
             font-size: 0.9em;
         }
 
-        p > code, li > code {
+        p > code, li > code, td > code {
             background-color: var(--bg-inline-code);
             color: #be123c;
             padding: 0.2em 0.4em;
@@ -208,23 +241,21 @@
     <main>
         <h1>Meters Tool WebUI 說明文件</h1>
         <p>本文件是 WebUI 元件的 WebUI 行為、API、驗證與維護者指南。對於一般的操作人員工作流程與欄位說明，請參閱 <a href="USER_GUIDE.zh-TW.html">WebUI 使用者指南</a>。</p>
-
         <p>關於版本發佈說明，請參閱套件變更日誌 (changelog)。關於 Core API 和擁有權規則，請參閱 Core 整合指南。請將本指南專注於長期的公開 WebUI 行為與維護者邊界。</p>
+        <p><a href="localization-contract.md">WebUI 本地化合約</a> 定義瀏覽器呈現的 v2 本地化。P2.1 提供不依賴套件的瀏覽器 i18n 基礎；P2.2 至 P2.5 涵蓋靜態與動態表單、app/resource、status/log、Live data、ARIA、瀏覽器錯誤與支援摘要呈現。P2.6 透過右上角永久顯示的地球與文字按鈕啟用英文／繁體中文選擇。有效的已儲存語系優先於瀏覽器偵測與 English fallback；手動選擇使用 <code>meters-tool.webui.locale</code> 儲存鍵。切換會立即更新頁面，不重新載入或呼叫 runtime/API，並從快取狀態重新轉譯，同時保留表單值、作用中的作業、面板、狀態日誌、Live 取樣、圖表設定、資源 metadata 與支援摘要。未知的 Core/backend/status 診斷、原始 status JSON、取樣 metadata 與 schema 保持原始內容。Core、HTTP API 端點與狀態碼、現有回應欄位、表單值、支援政策、儀器執行階段，以及 CSV/JSON/JSONL schema 都不變。P2.7 完成最終的語系目錄品質與術語審查、跨 Part 整合驗證、操作人員文件，以及不改變上述邊界的重點標籤修整。</p>
 
-        <h2 id="purpose">目的</h2>
+        <h2>目的</h2>
         <p>WebUI 配接器 (adapter) 圍繞 <code>meters_tool_core</code> 中共享的 Core 執行階段 (runtime)，提供本機 FastAPI 和瀏覽器介面。</p>
-
         <p>WebUI 擁有以下內容的擁有權：</p>
         <ul>
             <li>位於 <code>src/meters_tool_webui/static/</code> 的瀏覽器介面。</li>
             <li>位於 <code>src/meters_tool_webui/web_ui.py</code> 的 FastAPI 路由結構。</li>
             <li>面向瀏覽器的請求和回應序列化 (serialization)。</li>
-            <li>從 Core 樣本事件衍生而來的即時數據 (Live data) 顯示狀態。</li>
+            <li>從 Core 取樣事件衍生而來的即時資料 (Live data) 顯示狀態。</li>
             <li>資源掃描顯示。</li>
             <li>開啟 CSV 行為。</li>
             <li>開始 (Start)、觸發 (Trigger)、停止 (Stop) 和狀態輪詢 (polling) 的 UI 行為。</li>
         </ul>
-
         <p>Core 擁有以下內容的擁有權：</p>
         <ul>
             <li>請求驗證。</li>
@@ -235,119 +266,150 @@
             <li>寫入 CSV。</li>
             <li>量測與儀器 metadata。</li>
             <li>SCPI 指令產生與儀器 I/O。</li>
-            <li>釋放至本機 (Release-to-local)、關閉、清除釋放 (cleanup release) 以及控制面 (control-plane) 關閉順序。</li>
+            <li>釋放回本機控制 (release-to-local)、關閉、清理釋放 (cleanup release) 以及控制面 (control-plane) 關閉順序。</li>
         </ul>
-
-        <p>WebUI 必須使用 Core 的公開 API，不可依賴 CLI 配接器程式碼或直接存取擷取引擎內部運作。</p>
-
         <p>Core 會驗證量測請求並保護儀器端的限制。WebUI 使用者指南以 UI 術語說明各個欄位；本 README 則將 WebUI 行為、API、驗證與維護者邊界集中整理於一處。</p>
 
-        <h2 id="package-and-entry-point">套件與進入點 (Entry Point)</h2>
+        <h2>套件與進入點 (Entry Point)</h2>
         <p>WebUI 隨附於單一發行套件 (distribution) 中：</p>
         <div class="code-wrapper"><pre><code>meters-tool</code></pre></div>
-
         <p>Windows 主控台包裝器 (wrapper) 為：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe</code></pre></div>
-
         <p>Windows GUI 啟動器包裝器為：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui-launcher.exe</code></pre></div>
-
         <p>預設的本機伺服器為：</p>
         <div class="code-wrapper"><pre><code>http://127.0.0.1:8767/</code></pre></div>
-
         <p>該伺服器是一個 Uvicorn/FastAPI 程序。終端機按鍵 <code>q</code> 無法停止它。請使用 <code>Ctrl+C</code>；如果終端機沒有傳送 SIGINT，請透過 PID 停止監聽中的 <code>python.exe</code> 程序。</p>
 
-        <h2 id="installation">安裝或重新載入</h2>
+        <h2>安裝或重新載入</h2>
         <p>在 repository 根目錄下執行：</p>
         <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]" --link-mode=copy</code></pre></div>
-
         <p>檢查包裝器：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe --version</code></pre></div>
-
         <p>預期版本格式：</p>
         <div class="code-wrapper"><pre><code>meters-tool-webui &lt;package-version&gt;</code></pre></div>
-
         <p>啟動伺服器：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe --port 8767</code></pre></div>
-
         <p>或啟動雙擊執行的啟動器：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui-launcher.exe</code></pre></div>
-
         <p>啟動器預設為 <code>127.0.0.1:8767</code>，當勾選 <code>Use default port 8767</code> 時，會停用連接埠 (port) 欄位，並在點擊 Start (啟動) 後開啟瀏覽器，且保持視窗可用，以便透過 Quit 離開以停止本機 Uvicorn 伺服器。</p>
-
         <p>開啟：</p>
         <div class="code-wrapper"><pre><code>http://127.0.0.1:8767/</code></pre></div>
-
         <p>選用的 host 與 port 旗標：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool-webui.exe --host 127.0.0.1 --port 8767</code></pre></div>
-
         <p>除非有刻意的原因需要將伺服器公開至本機以外，否則請保持預設的 host 為 <code>127.0.0.1</code>。</p>
 
-        <h2 id="browser-layout">瀏覽器版面配置</h2>
-        <p>目前的 WebUI 版面是一個直接的擷取主控台，而非登陸頁面 (landing page)。</p>
-
+        <h2>瀏覽器版面配置</h2>
+        <p>目前的 WebUI 版面是一個直接的擷取主控台，而非著陸頁面 (landing page)。</p>
         <p>主要區域：</p>
         <ul>
             <li>標頭：<code>Meters Tool</code> 和 <code>Local acquisition console</code>。</li>
-            <li><code>Device / Resource</code> 列：<code>VISA resource</code>、<code>Live resource</code>、<code>Scan Device</code>，以及 <code>Device options</code> 齒輪中的 <code>Expected model</code> 選擇器與型號支援摘要。此列預設展開，可收合成資源/型號摘要。</li>
+            <li><code>Device / Resource</code> 列：<code>VISA resource</code>、<code>Live resource</code>（實機資源）、<code>Scan Device</code>，以及 <code>Device options</code> 齒輪中的 <code>Expected model</code> 選擇器與型號支援摘要。此列預設展開，可收合成資源/型號摘要。</li>
             <li><code>Expected model</code> 選擇器預設為 <code>Auto-detect</code>，會在 Start 時使用連接中的儀器 IDN。若明確選擇 <code>Require 34460A</code> 或 <code>Require 34461A</code>，仍會讀取 IDN，只有在符合時才啟動。偵測到的 IDN 選擇設定檔仍為實機執行階段設定檔。</li>
             <li>型號支援摘要顯示來自 <code>/api/capabilities</code> 的驗證狀態、開啟工作流程群組、型號限制以及傳輸/後端範圍狀態。這僅供操作人員檢視；Core 仍會透過支援原則與執行器最終關卡拒絕不支援的直接後端提交。</li>
             <li>狀態列 (Status strip)：<code>State</code>、<code>Captured</code>、<code>Errors</code> 和 <code>CSV</code>。</li>
             <li>動作按鈕：<code>Start</code>、<code>Trigger</code>、<code>Stop</code> 和 <code>Open CSV</code>。</li>
-            <li>用於裝置/資源設定、執行設定 (run configuration)、量測設定、觸發設定、即時數據 (Live data) 與狀態詳細資料的可摺疊設定面板。</li>
-            <li>即時數據面板包含最新數值、樣本時間、觸發來源、趨勢圖表、統計資料、最近樣本表格以及所選樣本的 metadata。</li>
+            <li>用於裝置/資源設定、執行設定 (run configuration)、量測設定、觸發設定、即時資料 (Live data) 與狀態詳細資料的可摺疊設定面板。</li>
+            <li>即時資料面板包含最新讀值、取樣時間、觸發來源、趨勢圖表、統計資料、最近取樣表格以及所選取樣的 metadata。</li>
         </ul>
 
+        <h3>瀏覽器語言</h3>
+        <p>右上角永久顯示的地球與文字按鈕可在 English 與繁體中文之間切換。在 English 中，目的地標籤為 <code>繁體中文</code>；在繁體中文中，目的地標籤為 <code>English</code>。首次載入時，WebUI 依序使用有效的已儲存語系、瀏覽器語言偵測，最後才使用 English。手動選擇會儲存在 <code>meters-tool.webui.locale</code>；偵測到的語系不會自動寫入。切換會改變 <code>&lt;html lang&gt;</code>，但不重新載入或呼叫 runtime endpoint，並保留目前的表單、作用中的作業、面板、狀態、Live data、圖表、資源與支援摘要狀態。未知的診斷文字保持原始內容。</p>
+        <p>P2.7 完成 English／繁體中文呈現審查。繁體中文的 Measurement options 控制項顯示 <code>自動量程（Auto range）</code>；精簡摘要繼續使用 <code>自動量程</code>。選用標記與欄位標題保持同一行，包括 AC filter 與 Current terminal，僅在 viewport 太窄時自然換行。</p>
         <p>此 UI 刻意不設計前端建置步驟、Node 套件管理器、外部 CDN 或框架執行階段。靜態資產皆為純 HTML、CSS 和原生的 JavaScript 模組。</p>
 
-        <h2 id="basic-workflow">基本工作流程</h2>
+        <h2>基本工作流程</h2>
         <ol>
             <li>啟動 WebUI 伺服器。</li>
             <li>開啟 <code>http://127.0.0.1:8767/</code>。</li>
             <li>手動輸入 VISA 資源或點擊 <code>Scan Device</code>。</li>
             <li>除非需要強制指定 34460A 或 34461A，否則請在 <code>Device options</code> 中將 <code>Expected model</code> 保持在 Auto-detect，然後選擇量測與觸發設定。</li>
-            <li>首次接觸真實儀器時，請保持低風險的預設值：啟用自動範圍 (Auto Range on)、即時觸發 (immediate trigger)，以及較小的 <code>max_samples</code> 值。</li>
+            <li>首次接觸實機硬體時，請保持低風險的預設值：啟用自動量程 (Auto Range on)、立即觸發 (immediate trigger)，以及較小的 <code>max_samples</code> 值。</li>
             <li>點擊 <code>Start</code>。</li>
-            <li>觀察狀態列與即時數據面板。</li>
+            <li>觀察狀態列與即時資料面板。</li>
             <li>若為手動軟體觸發模式，請在準備就緒時點擊 <code>Trigger</code>。</li>
             <li>點擊 <code>Stop</code> 以請求經由 Core 路由的停止動作。</li>
             <li>當執行停止 (inactive) 且 CSV 存在後，點擊 <code>Open CSV</code>。</li>
         </ol>
-
         <p>WebUI 每個後端程序僅允許一個作用中的執行 (run)。</p>
 
-        <h2 id="resource-scan">資源掃描</h2>
+        <h2>資源掃描</h2>
         <p><code>Scan Device</code> 會呼叫：</p>
-        <div class="code-wrapper"><pre><code>GET /api/resources?verify=true&amp;live_only=true</code></pre></div>
-
+        <div class="code-wrapper"><pre><code>GET /api/resources?verify=true&live_only=true</code></pre></div>
         <p>後端會使用 Core 的資源列表行為。啟用驗證時，它會開啟每個候選資源並查詢 <code>*IDN?</code>。當 <code>live_only=true</code> 時，它僅會傳回有回應且為作用中 (live) 裝置的資源。</p>
-
-        <p>驗證的掃描結果在傳回的 IDN 與支援的 Core 設定檔匹配時，包含可為空的型號 metadata。34460A IDN 傳回 <code>instrument_model: "34460A"</code>，而 34461A IDN 則傳回 <code>instrument_model: "34461A"</code>。未知的即時 IDN 仍保留在資源列表中，其型號 metadata 為 null，以便操作人員仍能檢查或輸入資源，而不會導致列表失敗。</p>
-
-        <p>選擇作用中的資源會將其複製到 <code>VISA resource</code> 輸入欄位中。當掃描推斷出支援的型號且 <code>Expected model</code> 仍為 Auto-detect 時，瀏覽器可能會載入 <code>/api/capabilities?model=&lt;model&gt;</code> 以顯示選項，但仍會將 <code>Expected model</code> 保持在 Auto-detect。Start 一律會先執行新的後端 IDN preflight。</p>
-
+        <p>驗證的掃描結果在傳回的 IDN 與支援的 Core 設定檔匹配時，包含可為空的型號 metadata。34460A IDN 傳回 <code>instrument_model: "34460A"</code> 與 <code>instrument_model_id: "keysight-34460a"</code>；34461A IDN 則傳回對應的 <code>34461A</code> 與 <code>keysight-34461a</code> 值。巢狀的 <code>matched_profile</code> 包含 <code>vendor</code>、<code>model</code> 與 <code>model_id</code>。未知或空白的實機 IDN 仍保留在資源列表中，並將 <code>instrument_model</code>、<code>instrument_model_id</code> 與 <code>matched_profile</code> 設為 null，因此後端不會從備援功能設定檔猜測偵測到的身份。</p>
+        <p>選擇實機資源會將其複製到 <code>VISA resource</code> 輸入欄位中。當掃描推斷出支援的型號且 <code>Expected model</code> 仍為 Auto-detect 時，瀏覽器可能會載入 <code>/api/capabilities?model=&lt;model&gt;</code> 以顯示選項，但仍會將 <code>Expected model</code> 保持在 Auto-detect。Start 一律會先執行新的後端 IDN preflight。</p>
         <p>使用者仍然可以手動輸入資源，並在掃描後於 <code>Device options</code> 中要求特定的 <code>Expected model</code>。</p>
-
         <p>WebUI 使用 Core 預設的系統 VISA 執行階段。瀏覽器中不提供 PyVISA backend 選擇器。34461A LAN/TCPIP 已透過此預設系統 VISA 路徑進行驗證。只有在需要可選的 pyvisa-py 診斷時，才使用 CLI 專用的 <code>--visa-library</code> 進階選項；已驗證的選用 <code>@py</code> 擷取範圍是 34461A LAN/TCPIP。</p>
-
         <p>WebUI 不公開驗證模式。待定的傳輸/後端範圍以及待定的量測或觸發模式功能將在瀏覽器啟動時被封鎖，直到經審核的產物透過精確範圍的 Core 支援 metadata 與說明文件提升為公開支援。瀏覽器會停用產品不可用的功能選項，但該狀態僅為 UX；Core 驗證、支援原則關卡以及 <code>run_start_session()</code> 最終關卡仍是安全邊界。34460A LAN/TCPIP 待定範圍僅為未來驗證路徑，在 WebUI 中保持關閉。</p>
 
-        <h2 id="measurement-modes">量測模式</h2>
+        <h2>量測模式</h2>
         <p>量測選項是透過以下方式自 Core 載入：</p>
         <div class="code-wrapper"><pre><code>GET /api/capabilities
 GET /api/capabilities?model=34460A
-GET /api/capabilities?model=34461A</code></pre></div>
-
-        <p>當省略 <code>model</code> 時，<code>/api/capabilities</code> 會傳回具有 <code>defaults.instrument_model = null</code> 與 <code>model_resolution.resolved = false</code> 的相容 34461A 形狀能力表。瀏覽器在 Auto 時不送出 <code>instrument_model</code>；明確的 Expected model 選擇會送出 <code>"34460A"</code> 或 <code>"34461A"</code>。在 Auto-detect 模式下，能力控制項與支援摘要會使用該後備能力檢視，直到 Start 或 Scan 偵測到 IDN。此顯示上下文不會選擇實機驅動程式；實機執行仍使用偵測到的 IDN 選擇設定檔作為執行階段驅動程式。</p>
-
+GET /api/capabilities?model=34461A
+GET /api/capabilities?model=keysight-34461a</code></pre></div>
+        <p>當省略 <code>model</code> 時，<code>/api/capabilities</code> 會傳回具有 <code>defaults.instrument_model = null</code> 與 <code>model_resolution.resolved = false</code> 的相容 34461A 形狀能力表。瀏覽器在 Auto 時不送出 <code>instrument_model</code>；明確的 Expected model 選擇會送出 <code>"34460A"</code> 或 <code>"34461A"</code>。在 Auto-detect 模式下，能力控制項與支援摘要會使用該備援功能檢視，直到 Start 或 Scan 偵測到 IDN。此顯示上下文不會選擇實機驅動程式；實機執行仍使用偵測到的 IDN 選擇設定檔作為執行階段驅動程式。</p>
+        <p>型號身份 metadata 是附加內容；現有型號欄位保留原本的值與意義：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>欄位</th>
+                    <th>範例</th>
+                    <th>意義</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>model</code></td>
+                    <td><code>34461A</code></td>
+                    <td>標準化的儀器型號 token，以及既有的公開型號合約。</td>
+                </tr>
+                <tr>
+                    <td><code>model_id</code></td>
+                    <td><code>keysight-34461a</code></td>
+                    <td>穩定且可供機器讀取的設定檔識別碼。</td>
+                </tr>
+                <tr>
+                    <td><code>display_model</code></td>
+                    <td><code>Auto-detect</code> 或 <code>34461A</code></td>
+                    <td>供 UI 顯示的文字。</td>
+                </tr>
+                <tr>
+                    <td><code>capability_profile</code></td>
+                    <td><code>34461A</code></td>
+                    <td>目前顯示能力所使用的設定檔。</td>
+                </tr>
+                <tr>
+                    <td><code>capability_profile_id</code></td>
+                    <td><code>keysight-34461a</code></td>
+                    <td>顯示中能力設定檔的穩定 ID。</td>
+                </tr>
+                <tr>
+                    <td><code>instrument_model</code></td>
+                    <td><code>34461A</code></td>
+                    <td>依所屬 payload 而定的既有選定或偵測型號欄位。</td>
+                </tr>
+                <tr>
+                    <td><code>instrument_model_id</code></td>
+                    <td><code>keysight-34461a</code></td>
+                    <td>只有在資源 IDN 與設定檔匹配後才會有值的穩定 ID。</td>
+                </tr>
+            </tbody>
+        </table>
+        <p><code>instrument_profile</code> 與每個 <code>available_profiles</code> 項目都包含 <code>model</code> 與 <code>model_id</code>。<code>support_summary.model_id</code> 對應其既有的 <code>model</code>，而 <code>capability_profile_id</code> 對應 <code>capability_profile</code>。對尚未解析的 Auto-detect，兩個 ID 都描述顯示中的 34461A 備援能力設定檔：<code>display_model</code> 保持 <code>Auto-detect</code>、<code>defaults.instrument_model</code> 保持 null，且 <code>model_resolution</code> 保持未解析，同時增加 <code>fallback_profile_id: "keysight-34461a"</code>。此 fallback ID 不代表已偵測到實機儀器。明確的設定檔查詢則讓兩個 fallback 欄位保持 null。</p>
+        <p><code>support_summary</code> 保留既有的 English 呈現欄位，並新增下列同層級的語意鍵 metadata：</p>
+        <div class="code-wrapper"><pre><code>status_key
+runtime_driver_note_key
+open_workflow_keys
+limit_keys
+pending_keys</code></pre></div>
+        <p>純量鍵分別對應 <code>status_text</code> 與 <code>runtime_driver_note</code>；鍵列表則依位置對應 <code>open_workflows</code>、<code>limits</code> 與 <code>pending</code>。瀏覽器在可用時使用已識別的鍵。遺失、格式錯誤、未知、較短或較長的鍵列表都不能移除、重新排序或增加文字項目：既有的文字列表仍是權威的顯示項目與備援內容。這些鍵只是呈現 metadata，不會影響支援原則的執行。原始的 <code>validation_status</code>、傳輸、後端、型號與設定檔身份值仍是機器值。最新的原始摘要可從記憶體重新轉譯，不需再次要求 capability。P2.6 在語系切換時使用此快取，且不會將瀏覽器語系傳給 API。P2.7 完成此行為的最終翻譯品質與跨 Part 整合驗證。</p>
+        <p>標準型號名稱仍可供一般使用，穩定的型號 ID 也可作為設定檔查詢輸入。選定的型號仍是預期型號防護；從 live <code>*IDN?</code> 偵測到的設定檔仍是執行階段驅動程式。型號 ID 不代表支援狀態或生命週期狀態。</p>
         <p><code>/api/capabilities</code> 也包含額外的支援 metadata。每個確切的實機連線範圍保留其現有的 <code>validation_status</code>、<code>transport_scope</code> 與 <code>backend_scope</code> 欄位，並新增 <code>features.measurement</code> 與 <code>features.trigger_mode</code> 對照表。功能項目公開其自身的 <code>validation_status</code>；量測鍵使用現有的配接器端名稱，例如 <code>voltage-dc-ratio</code>。現有的回應欄位不會被移除或重新命名。</p>
-
-        <p>瀏覽器使用此 metadata 來顯示型號的實機支援，並停用對目前資源傳輸與 WebUI 固定系統-VISA 後端而言非產品開放的功能。它能區分待定實機驗證、型號不支援以及確切範圍不可用。在資源已知之前，Auto-detect 保持現有的後備能力檢視，且僅使用後備設定檔宣告的產品範圍；它絕不會推廣待定功能。對於 34461A，該 metadata 包含驗證過的 USB/system-VISA、LAN/system-VISA 以及選用的 CLI 專用 LAN/pyvisa-py <code>@py</code> 範圍。對於 34460A，DCV Ratio 在 USB/system-VISA 上為 <code>feature_pending</code>，而 LAN/TCPIP 範圍則保持 <code>transport_pending</code>。現有的量測、觸發、範圍與限制欄位仍是控制項定義的 source of truth。</p>
-
+        <p>瀏覽器使用此 metadata 來顯示型號的實機支援，並停用對目前資源傳輸與 WebUI 固定系統-VISA 後端而言非產品開放的功能。它能區分待定實機驗證、型號不支援以及確切範圍不可用。在資源已知之前，Auto-detect 保持現有的備援功能檢視，且僅使用備援設定檔宣告的產品範圍；它絕不會推廣待定功能。對於 34461A，該 metadata 包含驗證過的 USB/system-VISA、LAN/system-VISA 以及選用的 CLI 專用 LAN/pyvisa-py <code>@py</code> 範圍。對於 34460A，DCV Ratio 在 USB/system-VISA 上為 <code>Product-open</code>；34460A LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py <code>@py</code> 仍為 <code>transport_pending</code>。Ratio promotion 是在維護者審查獨立、有界限的實機證據後明確完成；既有的 12-case wrapper full suite 不包含 Ratio，且不延伸至 LAN 或 pyvisa-py scope。現有的量測、觸發、範圍與限制欄位仍是控制項定義的 source of truth。</p>
         <p>Expected model 檢查是選用的。Core 會在 Start 時驗證連接儀器的識別資訊。若明確指定的預期型號與新的 IDN preflight 不符，WebUI 會回報選取的型號以及 IDN 中找到的支援型號。</p>
-
         <p>選取的 WebUI 型號不得被視為功能解鎖。停用或隱藏的控制項僅為 UX；Core 支援原則與 <code>run_start_session()</code> 最終關卡仍是 WebUI 後端提交的安全邊界。WebUI 不應將 pyvisa-py 後端選擇器作為驗證工具的一部分加入；後端診斷保持 CLI 專用，除非未來的產品決策變更該邊界。</p>
-
         <p>目前呈現的量測模式包括：</p>
         <ul>
             <li><code>current-dc</code></li>
@@ -360,9 +422,7 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li><code>resistance-2w</code></li>
             <li><code>resistance-4w</code></li>
         </ul>
-
         <p>前端絕不可自行發明/虛構量測選項。它應該從 <code>/api/capabilities</code> 填入選項、預設值、範圍、NPLC 選項、AC 頻寬/濾波器選項、頻率/週期閘門時間 (gate-time) 選項、頻率逾時 (timeout) 選項、電流端子選項以及量測特有的控制項。</p>
-
         <p>量測特有的 UI 行為：</p>
         <ul>
             <li>NPLC 僅出現在支援的量測中。</li>
@@ -371,16 +431,15 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li>AC 電流和 AC 電壓可選擇 <code>Keep current setting</code>，此選項不會送出 AC filter payload；頻率和週期則直接選取其預設的 <code>20 Hz</code>。</li>
             <li>閘門時間 (Gate Time) 僅出現在頻率和週期，預設值為 <code>0.1</code> 秒。逾時 (Timeout) 僅出現在頻率，預設為 <code>auto</code>；週期會隱藏它且不送出逾時 payload。</li>
             <li>電流端子選擇僅在支援的電流量測中顯示。</li>
-            <li>在 34460A 設定檔選定時，電流範圍排除 10 A 且電流端子選擇會被隱藏，因為基礎 34460A 設定檔沒有 10 A 端子/路徑。自訂模式讀數記憶體限制為 1000 筆。</li>
-            <li>在 34460A USB/system-VISA 範圍下，<code>voltage-dc-ratio</code> 仍顯示為已知能力，但被停用，因為其即時狀態為 <code>feature_pending</code>。直接 WebUI 啟動保持產品限制，並會拒絕 Ratio 請求。</li>
+            <li>在 34460A 設定檔選定時，電流量程排除 10 A 且電流端子選擇會被隱藏，因為基礎 34460A 設定檔沒有 10 A 端子/路徑。自訂模式讀值記憶體限制為 1000 筆。</li>
+            <li>在 34460A USB/system-VISA 範圍下，<code>voltage-dc-ratio</code> 會由能力 metadata 啟用，直接的產品模式 WebUI 啟動可接受它。這不會開放 34460A LAN 範圍的 Ratio，也不會公開 pyvisa-py 選擇器。</li>
             <li>DCV Input Z (輸入阻抗) 僅在 <code>voltage-dc</code> 與 <code>voltage-dc-ratio</code> 中顯示。</li>
             <li>在 Core 支援的情況下，VM Comp 仍會作為量測選項。</li>
             <li>透過 Core 能力 (capabilities)，支援的 DC/電阻量測可使用 Auto Zero Once。</li>
         </ul>
 
-        <h2 id="trigger-modes">觸發模式</h2>
+        <h2>觸發模式</h2>
         <p>觸發選項同樣自 <code>/api/capabilities</code> 載入。</p>
-
         <p>目前呈現的觸發模式包括：</p>
         <ul>
             <li><code>immediate</code></li>
@@ -390,38 +449,29 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li><code>software-custom</code></li>
             <li><code>external-custom</code></li>
         </ul>
-
         <p>確切列表為設定檔專屬。34460A 基礎設定檔隱藏 <code>external</code> 與 <code>external-custom</code>，因為 LAN/LXI/外接觸發能力為選用且非假設擁有。不支援的 34460A 選項會透過 <code>/api/capabilities?model=34460A</code> 予以排除；前端不會維護一個分開的手寫 34460A 選項清單。</p>
-
         <p>對於設定檔清單中保留的觸發模式，瀏覽器也會套用確切範圍的功能狀態。<code>feature_pending</code> 與 <code>not_supported_by_model</code> 選項將被停用，而 <code>live_validated_full_suite</code> 選項則保持可選。不提供驗證模式切換或後端選擇器。</p>
-
-        <p>簡單的即時與軟體觸發讀取使用 Core 的 <code>READ?</code> 路徑。硬體觸發的簡單讀取在觸發配接器裝載並完成量測後，使用 Core 的 <code>FETC?</code> 路徑。</p>
-
+        <p>簡單的立即與軟體觸發讀取使用 Core 的 <code>READ?</code> 路徑。硬體觸發的簡單讀取在觸發配接器裝載並完成量測後，使用 Core 的 <code>FETC?</code> 路徑。</p>
         <p>UI 行為：</p>
         <ul>
             <li>非自訂的觸發模式顯示 <code>max_samples</code>。</li>
             <li><code>software</code> 模式可使用選用的軟體計時器。</li>
             <li>手動軟體觸發模式顯示 <code>Trigger</code> 按鈕。</li>
-            <li>自訂觸發模式顯示觸發次數、樣本數、緩衝區排空大小與緩衝區溢位風險。</li>
+            <li>自訂觸發模式顯示觸發次數、取樣數、緩衝區排空大小與緩衝區溢位風險。</li>
             <li>外接觸發模式顯示硬體斜率、硬體延遲與觸發逾時。</li>
             <li>硬體觸發逾時是保護性的重新準備條件，本身不是擷取錯誤。</li>
         </ul>
-
         <p>WebUI 觸發按鈕將 metadata 發送到後端。空白的觸發 metadata 會送出：</p>
-        <div class="code-wrapper"><pre><code>{ "source": "web-ui" }</code></pre></div>
+        <div class="code-wrapper"><pre><code class="language-json">{ "source": "web-ui" }</code></pre></div>
         <p>非空白的 metadata 必須是有效的 JSON，且會合併到該預設物件中。</p>
 
-        <h2 id="start-stop-cleanup">開始、停止與清除</h2>
+        <h2>開始、停止與清除</h2>
         <p>Start 呼叫：</p>
         <div class="code-wrapper"><pre><code>POST /api/runs</code></pre></div>
-
         <p>後端將瀏覽器 payload 轉換為 Core <code>StartRequest</code>，透過 Core 進行驗證，建立配接器可見的狀態，並在背景工作器上啟動 Core <code>run_start_session()</code>。</p>
-
         <p>Stop 呼叫：</p>
         <div class="code-wrapper"><pre><code>POST /api/runs/current/stop</code></pre></div>
-
         <p>停止動作會經由 Core 控制面進行路由。WebUI 程式碼絕不可直接關閉 VISA 握把、呼叫擷取引擎內部或重新排列清除順序。</p>
-
         <p>保留的清除順序：</p>
         <ol>
             <li>等待工作器。</li>
@@ -431,22 +481,18 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li>停止 HTTP/控制面路徑。</li>
         </ol>
 
-        <h2 id="live-data">即時數據 (Live Data)</h2>
-        <p>即時數據與狀態更新主要由伺服器傳送事件 (SSE) 驅動：</p>
+        <h2>即時資料 (Live Data)</h2>
+        <p>即時資料與狀態更新主要由伺服器傳送事件 (SSE) 驅動：</p>
         <div class="code-wrapper"><pre><code>GET /api/runs/current/events</code></pre></div>
-
         <p>這會傳回包含目前狀態快照的 <code>run-status</code> 事件的 <code>text/event-stream</code>。若 SSE 連線失敗，前端會自動降級為標準輪詢：</p>
         <div class="code-wrapper"><pre><code>GET /api/runs/current</code></pre></div>
-
-        <p>狀態回應包含 WebUI 擁有的即時數據欄位：</p>
+        <p>狀態回應包含 WebUI 擁有的即時資料欄位：</p>
         <ul>
             <li><code>latest_sample</code></li>
             <li><code>recent_samples</code></li>
             <li><code>sample_capacity</code></li>
         </ul>
-
         <p>樣本視窗限制為最新的 5000 筆樣本。</p>
-
         <p>樣本欄位包含：</p>
         <ul>
             <li><code>sequence</code></li>
@@ -461,32 +507,26 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li><code>resource_id</code></li>
             <li><code>status</code></li>
         </ul>
-
-        <p>即時數據衍生自 <code>run_start_session()</code> 發送的 Core <code>sample</code> 事件。WebUI 絕不可執行額外的 VISA 讀取或讀取 CSV 檔案來更新即時面板。</p>
-
+        <p>即時資料衍生自 <code>run_start_session()</code> 發送的 Core <code>sample</code> 事件。WebUI 絕不可執行額外的 VISA 讀取或讀取 CSV 檔案來更新即時面板。</p>
         <p>已停止的執行保持最新的樣本視窗供操作人員檢閱。啟動新的執行會建立一個新的樣本視窗。</p>
-
         <p>瀏覽器端趨勢圖具有三種僅限前端的縮放模式：</p>
         <ul>
             <li><code>Auto deviation</code> 是預設值，並保留原本的圖表行為。它將執行中的第一個數值樣本保持為基線，並在每次轉譯時重新縮放，使得最大可見偏差對應到中心線往外四個網格步長。</li>
             <li><code>Auto absolute</code> 使用最近可見數值樣本的實際最小值和最大值，並帶有微小襯墊，使線條不會貼在圖表邊界上。</li>
-            <li><code>Manual span</code> 將第一個數值樣本保持為中心，並使用操作人員輸入的正數原始單位跨度作為固定的 <code>baseline +/- span</code> 範圍。此範圍外的數值會被裁切到圖表邊界。</li>
+            <li><code>Manual span</code> 將第一個數值取樣保持為中心，並使用操作人員輸入的正數原始單位跨度作為固定的 <code>baseline +/- span</code> 範圍。此範圍外的數值會被裁切到圖表邊界，且目前版本不會另外顯示 <code>clipped indicator</code>。</li>
         </ul>
-
         <p>這些模式僅影響圖表顯示，不影響原始樣本值、統計數據、CSV 輸出、API 樣本 payload、儀器設定或 SCPI 指令。圖表縮放控制項不包含在 <code>POST /api/runs</code> 中。</p>
 
-        <h2 id="csv-output-selection-open">CSV 輸出、選擇與開啟 CSV</h2>
+        <h2>CSV 輸出、選擇與開啟 CSV</h2>
         <p>執行 payload 可包含選用的 <code>csv</code> 路徑。若省略，Core/預設行為會選擇 CSV 輸出路徑。</p>
-
         <p><code>CSV path</code> 欄位也有一個 <code>Select</code> 按鈕。它呼叫：</p>
         <div class="code-wrapper"><pre><code>POST /api/csv/select-folder</code></pre></div>
-
         <p>後端行為：</p>
         <ul>
             <li>在執行 WebUI 後端的機器上開啟資料夾選擇器。</li>
             <li>選擇後，傳回：</li>
         </ul>
-        <div class="code-wrapper"><pre><code>{
+        <div class="code-wrapper"><pre><code class="language-json">{
   "selected": true,
   "folder_path": "C:\\path\\to\\folder",
   "csv_path": "C:\\path\\to\\folder\\2026-06-01-14-30-05.csv"
@@ -494,21 +534,18 @@ GET /api/capabilities?model=34461A</code></pre></div>
         <ul>
             <li>取消時，傳回：</li>
         </ul>
-        <div class="code-wrapper"><pre><code>{ "selected": false, "folder_path": null, "csv_path": null }</code></pre></div>
+        <div class="code-wrapper"><pre><code class="language-json">{ "selected": false, "folder_path": null, "csv_path": null }</code></pre></div>
         <ul>
             <li>如果資料夾選擇器不可用，傳回 <code>503</code>。</li>
         </ul>
-
         <p>前端行為：</p>
         <ul>
             <li>選取的資料夾會在現有的 <code>CSV path</code> 輸入欄位中填入傳回的帶有時間戳記的 <code>.csv</code> 路徑。</li>
             <li>操作人員仍可手動編輯或清除 CSV 路徑。</li>
             <li><code>Start</code> 會在點擊時使用輸入欄位中的值。</li>
         </ul>
-
         <p>Open CSV 按鈕呼叫：</p>
         <div class="code-wrapper"><pre><code>POST /api/runs/current/open-csv</code></pre></div>
-
         <p>後端行為：</p>
         <ul>
             <li>僅開啟管理程式狀態中的目前或上一次完成執行的 CSV。</li>
@@ -518,8 +555,7 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li>如果記錄的 CSV 路徑遺失，傳回 <code>404</code> 伴隨 <code>CSV file not found</code>。</li>
             <li>成功時，使用 Windows 預設應用程式開啟器並傳回：</li>
         </ul>
-        <div class="code-wrapper"><pre><code>{ "opened": true, "csv_path": "..." }</code></pre></div>
-
+        <div class="code-wrapper"><pre><code class="language-json">{ "opened": true, "csv_path": "..." }</code></pre></div>
         <p>前端行為：</p>
         <ul>
             <li>預設停用。</li>
@@ -528,12 +564,12 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li>將成功與失敗訊息附加到 Status 日誌中。</li>
         </ul>
 
-        <h2 id="http-api-summary">HTTP API 摘要</h2>
+        <h2>HTTP API 摘要</h2>
         <p>面向瀏覽器的 API 介面為：</p>
         <ul>
             <li><code>GET /</code>：提供 <code>index.html</code>。</li>
-            <li><code>GET /api/capabilities</code>：傳回 Core 支援的量測與觸發能力。選用的 <code>model=34460A</code> 或 <code>model=34461A</code> 選擇設定檔；省略型號會傳回未解析的自動 metadata 以及相容的 34461A 形狀能力表。確切的實機支援範圍新增量測與觸發模式功能狀態對照表，而不移除現有欄位。</li>
-            <li><code>GET /api/resources?verify=true&amp;live_only=true</code>：掃描 VISA 資源，且對於驗證過支援的 IDN，包含可為空的 <code>instrument_model</code> 與 <code>matched_profile</code> metadata。</li>
+            <li><code>GET /api/capabilities</code>：傳回 Core 支援的量測與觸發能力。選用的標準型號或已註冊穩定型號 ID 可選擇設定檔；省略型號會傳回未解析的自動 metadata 以及相容的 34461A 形狀能力表。設定檔身份與確切的實機支援範圍新增 metadata，而不移除現有欄位。</li>
+            <li><code>GET /api/resources?verify=true&live_only=true</code>：掃描 VISA 資源，且對於驗證過支援的 IDN，包含可為空的 <code>instrument_model</code>、<code>instrument_model_id</code> 與 <code>matched_profile</code> metadata。</li>
             <li><code>POST /api/runs</code>：驗證並啟動執行。</li>
             <li><code>GET /api/runs/current</code>：傳回目前或最新的執行狀態。</li>
             <li><code>GET /api/runs/current/events</code>：傳回執行狀態變更的伺服器傳送事件 (SSE) 串流。</li>
@@ -542,15 +578,15 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li><code>POST /api/runs/current/open-csv</code>：開啟最新完成的 CSV。</li>
             <li><code>POST /api/csv/select-folder</code>：開啟本機資料夾選擇器，並為現有的 CSV 輸入欄位傳回帶有時間戳記的 CSV 路徑。</li>
         </ul>
-
         <p>請勿重新命名、移除或修改這些端點，否則必須同時更新前端程式碼、測試與文件。</p>
         <p>在接受命令回應後，前端會擷取 <code>GET /api/runs/current</code> 以更新顯示的執行狀態。命令回應不嵌入完整的執行狀態。</p>
 
-        <h2 id="frontend-payload-fields">前端 Payload 欄位</h2>
+        <h2>前端 Payload 欄位</h2>
         <p>WebUI 傳送的重要欄位包括：</p>
         <ul>
             <li><code>resource</code></li>
             <li><code>instrument_model</code></li>
+            <li><code>instrument_model_id</code></li>
             <li><code>csv</code></li>
             <li><code>timeout_ms</code></li>
             <li><code>trigger_timeout_ms</code></li>
@@ -578,10 +614,9 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li><code>current_terminal</code></li>
         </ul>
         <p>隱藏的控制項必須停用，以防送出非作用中模式的過期值。</p>
+        <p>頻率與週期 payload 保持原始數值：AC Filter <code>20 Hz</code> 以 <code>ac_bandwidth_hz: 20</code> 傳送，閘門時間為秒，逾時為 <code>auto</code> 或 <code>1s</code>。即時資料將頻率顯示為 <code>Hz</code>，週期顯示為 <code>s</code>，而不進行自動單位縮放。</p>
 
-        <p>頻率與週期 payload 保持原始數值：AC Filter <code>20 Hz</code> 以 <code>ac_bandwidth_hz: 20</code> 傳送，閘門時間為秒，逾時為 <code>auto</code> 或 <code>1s</code>。即時數據將頻率顯示為 <code>Hz</code>，週期顯示為 <code>s</code>，而不進行自動單位縮放。</p>
-
-        <h2 id="safety-rules">安全規則</h2>
+        <h2>安全規則</h2>
         <p>將所有影響儀器的變更視為高風險。</p>
         <p>未經使用者明確核准，請勿變更以下任何內容：</p>
         <ul>
@@ -595,28 +630,26 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li>VM Comp 行為。</li>
             <li>DCV Input Z 行為。</li>
             <li>停止行為。</li>
-            <li>釋放/本機行為。</li>
+            <li>釋放回本機控制行為。</li>
             <li>清除順序。</li>
             <li>硬體觸發逾時處理。</li>
             <li>硬體觸發讀取是否使用 <code>FETC?</code>。</li>
-            <li>軟體觸發或即時讀取是否使用 <code>READ?</code>。</li>
+            <li>軟體觸發或立即讀取是否使用 <code>READ?</code>。</li>
         </ul>
-        <p>對於首次真實儀器快速功能健檢，請使用低風險的即時模式、啟用自動範圍與較小的 bounded 樣本數。</p>
+        <p>對於首次實機硬體快速功能健檢，請使用低風險的立即模式、啟用自動量程與較小的 bounded 取樣數。</p>
 
-        <h2 id="development-boundaries">開發邊界</h2>
+        <h2>開發邊界</h2>
         <p>偏好的 WebUI 前端檔案：</p>
         <ul>
             <li><code>src/meters_tool_webui/static/index.html</code></li>
             <li><code>src/meters_tool_webui/static/styles.css</code></li>
             <li><code>src/meters_tool_webui/static/*.js</code></li>
         </ul>
-
         <p>後端配接器檔案：</p>
         <ul>
             <li><code>src/meters_tool_webui/web_ui.py</code></li>
             <li><code>src/meters_tool_webui/launcher.py</code></li>
         </ul>
-
         <p>測試：</p>
         <ul>
             <li><code>tests/webui/test_webui_api.py</code></li>
@@ -624,36 +657,29 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li><code>tests/webui/test_launcher.py</code></li>
             <li>下方驗證指令中列出的 Core 合約與套件邊界測試。</li>
         </ul>
-
         <p>未經使用者明確核准，請勿變更 <code>pyproject.toml</code> 中的根套件 metadata。套件名稱、版本、相依套件、主控台指令、建置系統、pytest/ruff/mypy 設定以及 Core/CLI/WebUI 的擁有權皆為產品邊界決策。</p>
 
-        <h2 id="validation">驗證</h2>
+        <h2>驗證</h2>
         <p>優先執行窄範圍的相關檢查。</p>
-
         <p>編輯前端模組後的 JavaScript 語法檢查：</p>
         <div class="code-wrapper"><pre><code>Get-ChildItem src\meters_tool_webui\static\*.js |
   ForEach-Object { node --check $_.FullName }</code></pre></div>
-
         <p>針對 WebUI/Core 的無硬體驗證：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m pytest tests/webui/test_webui_package_metadata.py tests/webui/test_webui_api.py tests/webui/test_webui_static.py tests/webui/test_launcher.py -q -p no:cacheprovider</code></pre></div>
-
         <p>在已安裝 <code>meters-tool</code> 的環境中，使用 PyInstaller 建置選用的本機啟動器 exe。PyInstaller 是本機版本建置工具，非 WebUI 執行階段相依套件，因此在全新機器上重新建置之前，請將其安裝到 venv 中：</p>
         <div class="code-wrapper"><pre><code>uv pip install pyinstaller</code></pre></div>
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_webui_exe.ps1</code></pre></div>
-
         <p>可行時執行更廣泛的無硬體驗證：</p>
         <div class="code-wrapper"><pre><code>uv run pytest tests -q -p no:cacheprovider</code></pre></div>
+        <p>實機驗證需要操作人員提供 VISA 資源。在進行觸發模式或更長期的擷取前，先從低風險的立即模式快速功能健檢、啟用自動量程且 <code>max_samples=1</code> 開始。</p>
+        <p>完整的測試執行可能會遇到本機 Windows 暫存或 pytest 快取權限警告。請清楚報告這些警告，並在更廣泛的測試套件被環境權限阻擋時，依賴針對性測試與實機硬體驗證。</p>
 
-        <p>實機驗證需要操作人員提供 VISA 資源。在進行觸發模式或更長期的擷取前，先從低風險的即時模式快速功能健檢、啟用自動範圍且 <code>max_samples=1</code> 開始。</p>
-
-        <p>完整的測試執行可能會遇到本機 Windows 暫存或 pytest 快取權限警告。請清楚報告這些警告，並在更廣泛的測試套件被環境權限阻擋時，依賴針對性測試與實際儀器驗證。</p>
-
-        <h2 id="smoke-test-checklist">手動 UI 快速健檢清單</h2>
+        <h2>手動 UI 快速健檢清單</h2>
         <p>無硬體 UI 快速健檢：</p>
         <ul>
             <li>頁面可在 <code>http://127.0.0.1:8767/</code> 載入。</li>
             <li>首次載入時沒有出現瀏覽器主控台錯誤。</li>
-            <li><code>Scan Device</code> 乾淨地更新即時資源選擇器或回報沒有即時資源。</li>
+            <li><code>Scan Device</code> 乾淨地更新實機資源選擇器或回報沒有實機資源。</li>
             <li>量測變更會更新範圍單位、範圍選擇與 NPLC 可見度。</li>
             <li><code>voltage-dc</code> 與 <code>voltage-dc-ratio</code> 顯示 DCV Input Z；其他量測會隱藏它。</li>
             <li>AC 量測在支援處顯示 AC 濾波器並隱藏 NPLC。</li>
@@ -663,68 +689,60 @@ GET /api/capabilities?model=34461A</code></pre></div>
             <li>觸發按鈕僅在手動軟體觸發模式下出現。</li>
             <li>Status log 附加具體訊息，而不洗版重複的輪詢狀態。</li>
             <li><code>Show Details</code> 可切換致命錯誤、清除狀態與原始狀態。</li>
-            <li>在擷取到模擬或真實樣本後，即時數據會轉譯最新值、圖表、統計、表格與選定樣本的 metadata。</li>
+            <li>在擷取到模擬或實機取樣後，即時資料會轉譯最新值、圖表、統計、表格與選定取樣的 metadata。</li>
             <li>行動裝置寬度（約 390 像素）沒有文字或控制項重疊。</li>
             <li>桌面寬度（約 1280 像素）保持密集但易讀。</li>
         </ul>
-
-        <p>對於真實儀器快速健檢，除非操作人員明確要求，否則請勿執行高風險的觸發實驗。從即時模式、啟用自動範圍且 <code>max_samples=1</code> 開始。</p>
-
-        <p>頻率與週期真實儀器檢查：</p>
+        <p>對於實機硬體快速健檢，除非操作人員明確要求，否則請勿執行高風險的觸發實驗。從立即模式、啟用自動量程且 <code>max_samples=1</code> 開始。</p>
+        <p>頻率與週期實機硬體檢查：</p>
         <ul>
             <li>連接 34461A 前面板可量測的穩定訊號。</li>
-            <li>選擇頻率，確認自動範圍、<code>20 Hz</code> AC 濾波器、<code>0.1 s</code> 閘門時間與 <code>Auto</code> 逾時，然後擷取一個即時樣本。</li>
-            <li>確認即時數據值使用原始 <code>Hz</code> 並與前面板對比。</li>
+            <li>選擇頻率，確認自動量程、<code>20 Hz</code> AC 濾波器、<code>0.1 s</code> 閘門時間與 <code>Auto</code> 逾時，然後擷取一個立即取樣。</li>
+            <li>確認即時資料值使用原始 <code>Hz</code> 並與前面板對比。</li>
             <li>重複週期步驟，確認原始單位為 <code>s</code>。</li>
             <li>在變更量測類型前停止執行，並在每次量測後檢查產生的 CSV 列。</li>
         </ul>
 
-        <h2 id="troubleshooting">疑難排解</h2>
+        <h2>疑難排解</h2>
         <p>包裝器遺失：</p>
         <ul>
             <li>重新執行 <code>uv pip install -e ".[all,dev]" --link-mode=copy</code>。</li>
             <li>確認 <code>.venv\Scripts\meters-tool-webui.exe</code> 存在。</li>
         </ul>
-
         <p>連接埠已被使用：</p>
         <ul>
             <li>使用其他連接埠啟動，例如 <code>--port 8768</code>。</li>
             <li>或者停止現有的監聽程序。</li>
         </ul>
-
         <p><code>q</code> 無法停止伺服器：</p>
         <ul>
             <li>這是預期行為。使用 <code>Ctrl+C</code>，或透過 PID 停止監聽中的 <code>python.exe</code>。</li>
         </ul>
-
-        <p>掃描找不到即時資源：</p>
+        <p>掃描找不到實機資源：</p>
         <ul>
             <li>確認儀器已開啟且已連接。</li>
             <li>確認已安裝 VISA 驅動程式且資源出現在應用程式之外。</li>
             <li>嘗試手動輸入已知的 VISA 資源。</li>
-            <li>在實機擷取前，從即時模式、啟用自動範圍且 <code>max_samples=1</code> 的 smoke 測試開始。</li>
+            <li>在實機擷取前，從立即模式、啟用自動量程且 <code>max_samples=1</code> 的 smoke 測試開始。</li>
         </ul>
-
         <p>Open CSV 按鈕被停用：</p>
         <ul>
             <li>等待執行變為 inactive。</li>
             <li>確認執行產生了 <code>csv_path</code>。</li>
             <li>執行完成後重新整理瀏覽器仍可顯示 <code>Open CSV</code>，因為後端會保留最新的已完成 CSV 路徑。</li>
         </ul>
-
         <p>觸發按鈕被隱藏：</p>
         <ul>
             <li>該按鈕僅針對手動軟體觸發模式顯示：無計時器觸發的 <code>software</code> 以及 <code>software-custom</code>。</li>
         </ul>
-
-        <p>即時面板沒有樣本：</p>
+        <p>即時面板沒有取樣：</p>
         <ul>
             <li>確認執行已擷取到樣本。</li>
             <li>確認狀態輪詢正常。</li>
-            <li>面面板僅使用 Core 樣本事件；它不獨立查詢儀器或解析 CSV 檔案。</li>
+            <li>面板僅使用 Core 取樣事件；它不獨立查詢儀器或解析 CSV 檔案。</li>
         </ul>
 
-        <h2 id="documentation-map">說明文件地圖</h2>
+        <h2>說明文件地圖</h2>
         <ul>
             <li><a href="USER_GUIDE.zh-TW.html">WebUI 使用者指南</a>：面向操作人員的 WebUI 使用指南。</li>
             <li><a href="README.zh-TW.html">WebUI README</a>：本 WebUI 行為、API、驗證與維護者指南。</li>
@@ -739,7 +757,7 @@ GET /api/capabilities?model=34461A</code></pre></div>
             // 自動產生 TOC 側邊導航欄
             const toc = document.getElementById("toc");
             const headers = document.querySelectorAll("h2");
-            
+
             headers.forEach(h2 => {
                 if (!h2.id) {
                     h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
@@ -756,10 +774,10 @@ GET /api/capabilities?model=34461A</code></pre></div>
                 const btn = document.createElement("button");
                 btn.innerText = "複製";
                 btn.className = "copy-btn";
-                
+
                 // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
                 pre.parentElement.appendChild(btn);
-                
+
                 btn.onclick = () => {
                     const code = pre.querySelector("code").innerText;
                     navigator.clipboard.writeText(code).then(() => {

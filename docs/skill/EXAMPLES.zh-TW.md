@@ -11,9 +11,9 @@
 
 - **引導型範例 (Guided examples)**：適合規劃、審查與理解流程。當您希望 agent 說明 workflow、提出合理假設，並在採取動作前詢問必要釐清問題時，請使用這類範例。
 - **執行型範例 (Direct-run examples)**：適合使用安全預設值進行無硬體驗證或立即審查。當您希望 agent 讀取 Skill 與合約、從 repository 確認實際 CLI 旗標拼法，並在環境缺失、CLI 無法使用、合約與 CLI help 不一致，或動作可能碰到實機硬體之外的情況下不要一直詢問確認時，請使用這類範例。
-- **明確授權的實機執行範例 (Explicit live execution examples)**：可能會碰到真實儀器。只有在您提供精確 VISA resource，並明確授權該 resource 可進行 live execution 時，才使用這類範例。
+- **明確授權的實機執行範例 (Explicit live execution examples)**：可能會碰到實機硬體。只有在您提供精確 VISA resource，並明確授權該 resource 可進行 live execution 時，才使用這類範例。
 
-如果您還在決定要量測什麼，或想先理解 workflow 的嚴謹程度，請使用引導型範例。如果您想測試 agent 是否能遵循合約，並用較少來回執行安全的無硬體路徑，請使用執行型範例。只有當您已準備好讓 agent 在 dry-run 與 simulator validation 後操作真實儀器時，才使用明確授權的實機執行範例。
+如果您還在決定要量測什麼，或想先理解 workflow 的嚴謹程度，請使用引導型範例。如果您想測試 agent 是否能遵循合約，並用較少來回執行安全的無硬體路徑，請使用執行型範例。只有當您已準備好讓 agent 在 dry-run 與 simulator validation 後操作實機硬體時，才使用明確授權的實機執行範例。
 
 ## Prompt 長度與安全邊界
 
@@ -326,7 +326,7 @@ Use $meters-tool-cli-orchestration.
 請準備 safe live one-sample voltage-dc workflow，但不要執行 live hardware。
 請先使用 SIM::34461A、software trigger、exactly one sample 進行或規劃 no-hardware validation。
 然後準備使用 <USER_SELECTED_VISA_RESOURCE> 的 live command template。
-此 prompt 不要求真實 resource，不要 scan 或 guess resources，並回報未來 live execution 前需要的 explicit confirmation。
+此 prompt 不要求實機 resource，不要 scan 或 guess resources，並回報未來 live execution 前需要的 explicit confirmation。
 ```
 
 #### 長 prompt / Strict prompt
@@ -361,7 +361,7 @@ template，並使用這個 placeholder resource：
 <USER_SELECTED_VISA_RESOURCE>
 
 不要 scan、guess、rotate 或 substitute VISA resources。此 prompt 不要求 live
-execution，所以不要向我詢問真實 live resource。不要執行 live command。只有在
+execution，所以不要向我詢問實機 live resource。不要執行 live command。只有在
 CLI 無法呼叫、dependencies 缺失、contracts 與 CLI help 不一致，或 planned
 command 會在我提供 explicit resource 並要求 live execution 前碰到 live hardware
 時，才停下來問我。
@@ -378,7 +378,7 @@ Report:
 
 - 短版只描述 no-hardware validation 與 live-template 目標，不列出每個 orchestration detail。
 - 長版重述 exact defaults、contract lookup、subprocess orchestration、placeholder resource 與 stop conditions。
-- 兩者都應只產生 live command template，不應碰 live hardware，也不應在這個 prompt 中要求真實 resource。
+- 兩者都應只產生 live command template，不應碰 live hardware，也不應在這個 prompt 中要求實機 resource。
 
 #### 預期 agent 行為
 
@@ -458,13 +458,13 @@ agent 應該回傳以合約為核心、可行動的 findings。如果沒有 diff
 
 ## 明確授權的實機執行範例 (Explicit live execution examples)
 
-這些範例可能會碰到真實儀器。只有在操作人員已選定精確 VISA resource，並明確授權該 resource 可以進行 live execution 時才使用。不要使用這些 prompt 來 discover、scan、guess、rotate 或 substitute live VISA resources。
+這些範例可能會碰到實機硬體。只有在操作人員已選定精確 VISA resource，並明確授權該 resource 可以進行 live execution 時才使用。不要使用這些 prompt 來 discover、scan、guess、rotate 或 substitute live VISA resources。
 
 ### 明確實機範例 1：指定 resource 的 one-sample live validation
 
 #### 目標
 
-使用明確提供的 VISA resource，對真實 Keysight 34461A 執行完整 dry-run、simulator 與 live validation 流程，並只擷取剛好一筆 sample。
+使用明確提供的 VISA resource，對實機 Keysight 34461A 執行完整 dry-run、simulator 與 live validation 流程，並只擷取剛好一筆 sample。
 
 #### 短 prompt
 

@@ -187,6 +187,17 @@ If PowerShell blocks activation because of execution policy, use the explicit
 
 ## Standalone EXE Build
 
+For release preparation, run the no-hardware release gate before building
+release artifacts:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-cli-check.ps1 -Target keysight-34461a
+```
+
+The default target is `keysight-34461a`. Use `keysight-34460a` when the release
+change is specifically model-dependent. The wrapper validates release readiness
+but does not build release artifacts.
+
 The installed `.venv\Scripts\meters-tool.exe` is a virtualenv console
 wrapper. It is not a standalone executable for machines without the project
 environment.

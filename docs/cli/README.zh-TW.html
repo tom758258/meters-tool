@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Meters Tool CLI 說明書</title>
+    <title>Meters Tool CLI</title>
     <style>
         :root {
             --primary: #2563eb;
@@ -72,20 +72,21 @@
         .toc-link:hover, .toc-link.active {
             background-color: #e2e8f0;
             color: var(--primary);
+            font-weight: 500;
         }
 
         /* Main Content */
         main {
             flex: 1;
             padding: 3rem 4rem;
-            max-width: 1000px;
+            max-width: 1000px; /* Slightly wider for the large tables in README */
             margin: 0 auto;
         }
 
         h1 {
             font-size: 2.5rem;
             font-weight: 700;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1.5rem;
             letter-spacing: -0.02em;
         }
 
@@ -104,7 +105,7 @@
             font-weight: 600;
             margin-top: 2rem;
             margin-bottom: 1rem;
-            color: #1e293b;
+            color: var(--text-main);
         }
 
         p {
@@ -129,6 +130,31 @@
 
         a:hover {
             text-decoration: underline;
+        }
+
+        /* Table Styling */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 0.75rem 1rem;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background-color: #f1f5f9;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        tr:nth-child(even) {
+            background-color: #f8fafc;
         }
 
         /* Code Blocks & Inline Code */
@@ -184,40 +210,6 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
-        /* Tables */
-        .table-container {
-            overflow-x: auto;
-            margin-bottom: 2rem;
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            text-align: left;
-        }
-
-        th, td {
-            padding: 0.875rem 1rem;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        th {
-            background-color: #f1f5f9;
-            font-weight: 600;
-            color: var(--text-main);
-            white-space: nowrap;
-        }
-
-        tr:last-child td {
-            border-bottom: none;
-        }
-
-        tr:hover td {
-            background-color: #f8fafc;
-        }
-
         /* Responsive */
         @media (max-width: 768px) {
             body {
@@ -229,6 +221,7 @@
                 position: relative;
                 border-right: none;
                 border-bottom: 1px solid var(--border-color);
+                padding: 1.5rem;
             }
             main {
                 padding: 1.5rem;
@@ -239,7 +232,7 @@
 <body>
 
     <aside>
-        <h3>目錄 (Table of Contents)</h3>
+        <h3>章節導覽</h3>
         <nav id="toc">
             <!-- JavaScript 會自動產生側邊導航 -->
         </nav>
@@ -248,11 +241,11 @@
     <main>
         <h1>Meters Tool CLI</h1>
 
-        <h2 id="documentation">文件集</h2>
+        <h2>文件集</h2>
         <ul>
             <li><a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> - 操作人員工作流程與常見設定指引。</li>
             <li><a href="README.zh-TW.html">CLI README</a> - 詳細的 CLI 參考、驗證與自動化指南。</li>
-            <li><a href="CHANGELOG.md">Changelog</a> - 版本發布說明與歷史紀錄。</li>
+            <li><a href="CHANGELOG.md">Changelog</a> - 版本發佈說明與歷史紀錄。</li>
             <li><a href="cli-integration.md">CLI 整合</a> - CLI 配接器維護邊界。</li>
             <li><a href="../contracts/common-cli-jsonl-contract.md">通用 CLI JSON / JSONL 合約</a> - 共享命令列 JSON 外殼規則。</li>
             <li><a href="../contracts/meters-cli-jsonl-contract.md">Meters CLI JSON / JSONL 合約</a> - Meters 命令列 JSON schema 與別名規則。</li>
@@ -260,13 +253,13 @@
             <li><a href="../contracts/meters-orchestrator-workflows.md">Meters 協調器工作流程</a> - 用於 Agent 和自動化的 Meters 子程序範例。</li>
             <li><a href="../contracts/meters-worker-contract.md">Meters Worker 合約</a> - 用於 Agent 和協調器的 Meters 工作器控制面、JSONL 與產物合約。</li>
         </ul>
-        <p>適用於支援的數位萬用電表的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率、頻率、週期以及 2 線式或 4 線式電阻量測。它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和即時觸發模式。</p>
+        <p>適用於支援的數位萬用電表的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率、頻率、週期以及 2 線式或 4 線式電阻量測。 它為每個擷取的樣本記錄一列 CSV，並支援軟體、外接硬體和立即觸發模式。</p>
         <p>對於標準操作人員的工作流程，請從 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a> 開始。本 README 則將詳細的指令參考、驗證路徑、JSON/JSONL 合約、範例及維護人員導向的 CLI 行為彙整於一處。</p>
-        <p><code>meters-tool</code> 是目前的單一 distribution 基準。其套件版本是 root <code>pyproject.toml</code> 內的 <code>[project].version</code>。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位：<code>voltage-dc-ratio</code>、<code>frequency</code>、<code>period</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code>、<code>--gate-time-s</code>、<code>--freq-period-timeout</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發布驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
+        <p><code>meters-tool</code> 是目前的單一 distribution 基準。其套件版本是 root <code>pyproject.toml</code> 內的 <code>[project].version</code>。CLI 保留其匯入套件、主控台指令、JSON/JSONL 合約、包裝器腳本和測試，同時與 Core 和 WebUI 共享同一個版本號。它繼續透過 CLI 公開 Core 量測欄位： <code>voltage-dc-ratio</code>、<code>frequency</code>、<code>period</code>、<code>--auto-zero once</code>、<code>--ac-bandwidth-hz</code>、<code>--gate-time-s</code>、<code>--freq-period-timeout</code> 和 <code>--current-terminal</code>。Core 的啟動驗證、dry-run 規劃、執行階段協調、公開整合匯出以及量測命名，仍與僅限配接器的 CLI 事務保持分離。此基準也保留了舊版根目錄層級匯入清除、CLI 合約診斷、無硬體發佈驗證、包裝器報告 metadata 以及 Core/CLI 邊界防護。</p>
         <p>Python 整合應從 <code>meters_tool_core</code> 或 <code>meters_tool_core.*</code> 匯入共享的 API。不再支援舊的根層級 Core 模組匯入，例如 <code>meters_tool.measurement</code> 和 <code>meters_tool.instrument</code>。</p>
 
-        <h2 id="current-scope">目前範圍</h2>
-        <h3>已實現：</h3>
+        <h2>目前範圍</h2>
+        <p>已實現：</p>
         <ul>
             <li>透過 PyVISA 偵測到的 USB 和 LAN 資源的 VISA 資源列表。</li>
             <li>DC 電流、DC 電壓、DCV 比率、AC 電流、AC 電壓、頻率、週期以及 2 線或 4 線電阻量測記錄。</li>
@@ -274,39 +267,43 @@
             <li>透過 <code>GET /status</code> 實現的本機工作器狀態端點。</li>
             <li>軟體計時器擷取（作為軟體觸發模式的一部分）。</li>
             <li>外接硬體觸發模式。</li>
-            <li>即時擷取模式。</li>
+            <li>立即擷取模式。</li>
             <li>透過 <code>--max-samples</code> 限制樣本數的執行。</li>
             <li>透過 HTTP、Ctrl+C、Ctrl+Break 或 <code>q</code> 進行正常停止。</li>
             <li>軟體觸發 metadata 儲存至 CSV 中的 <code>trigger_metadata</code>。</li>
             <li>當省略 <code>--csv</code> 時，選用的 UTC+8 時間戳記 CSV 輸出路徑。</li>
             <li>透過 <code>list-resources --verify</code> 進行選用的資源驗證。</li>
             <li>透過 <code>list-resources --live-only</code> 進行選用的作用中資源篩選。</li>
-            <li>選用的量測控制項：量測類型、自動範圍、手動範圍、DCV 輸入阻抗、包含 <code>once</code> 在內的自動歸零（Auto Zero）、NPLC、AC 頻寬/濾波器、頻率/週期閘門時間（gate time）、頻率逾時（timeout）、電流端子選擇、硬體觸發延遲、硬體觸發斜率與 VM Comp 斜率。</li>
+            <li>對會開啟 VISA 的指令，透過 <code>--visa-library</code> 提供選用的 CLI 專用 PyVISA library/backend 選擇，並以 <code>--backend</code> 作為別名。</li>
+            <li>選用的量測控制項：量測類型、自動量程、手動量程、DCV 輸入阻抗、包含 <code>once</code> 在內的自動歸零（Auto Zero）、NPLC、AC 頻寬/濾波器、頻率/週期閘門時間（gate time）、頻率逾時（timeout）、電流端子選擇、硬體觸發延遲、硬體觸發斜率與 VM Comp 斜率。</li>
             <li>每筆擷取樣本後立即排空（flush）CSV。</li>
         </ul>
-        <h3>重要限制：</h3>
+        <p>重要限制：</p>
         <ul>
             <li>本專案目前支援 Keysight 34460A 與 34461A Truevolt DMM 記錄。若省略 <code>--model</code>，實機啟動將從已連接之儀器的 IDN 自動偵測型號。</li>
-            <li>當 Start 必須要求 34460A IDN 相符時，請選擇 <code>--model 34460A</code>。在實機模式下，這僅作為預期型號防護 (expected-model guard)，並不會覆寫由 IDN 決定的設定檔。在 dry-run 或模擬模式下，它會選擇 34460A 的設定檔限制：無 10 A 電流範圍或電流端子選擇、1000 筆讀數的記憶體，且無基礎設定檔外接觸發模式。</li>
+            <li>當 Start 必須要求 34460A IDN 相符時，請選擇 <code>--model 34460A</code>。在實機模式下，這僅作為預期型號防護 (expected-model guard)，並不會覆寫由 IDN 決定的設定檔。在 dry-run 或模擬模式下，它會選擇 34460A 的設定檔限制：無 10 A 電流範圍或電流端子選擇、1000 筆讀值的記憶體，且無基礎設定檔外接觸發模式。</li>
             <li>當 Start 必須要求 34461A IDN 相符時，請選擇 <code>--model 34461A</code>。明確的實機不符會在 setup SCPI 之前失敗。型號名稱由 Core 設定檔邏輯進行標準化與驗證；未知的型號驗證會失敗，並列出支援的型號。</li>
             <li>實機產品支援具備功能感知 (feature-aware) 且範圍精確 (exact-scope)：對於偵測到的型號與確切的傳輸/VISA 後端，連線、量測與實際的觸發模式必須均為 <code>live_validated_full_suite</code>。缺少的功能 metadata 會以預設關閉 (fail-closed) 處理，而非繼承其他範圍的支援。</li>
-            <li>34460A DCV Ratio 已實作且在設定檔中為已知，但在 USB/system-VISA 上為 <code>feature_pending</code>。一般的 CLI 啟動會拒絕它。隱藏的貢獻者驗證模式可以執行有界限的證據請求，但不會提升產品支援狀態。</li>
-            <li>34460A 的最大讀數速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀數速率。</li>
-            <li>AC、頻率與週期模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀數進行對比。</li>
+            <li>34460A DCV Ratio 僅在 USB/system-VISA 上開放產品使用，這是在維護者審查並明確提升分開的有界限證據後完成的。一般 CLI 啟動不需要隱藏的貢獻者驗證選擇器。既有的 12 案例包裝器完整套件不包含 Ratio，且此提升不延伸至 34460A LAN 或 pyvisa-py 範圍。</li>
+            <li>34460A 的最大讀值速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀值速率。</li>
+            <li>AC、頻率與週期模式透過 <code>--ac-bandwidth-hz</code> 公開 34461A 的 <code>3</code>、<code>20</code> 和 <code>200</code> Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀值進行對比。</li>
             <li><code>--nplc</code> 和 <code>--auto-zero</code> 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>--nplc 1.0</code>；任何其他 NPLC 值都將被拒絕，因為這些模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。</li>
             <li>不支援在同一次執行中混合使用軟體和硬體擷取。</li>
             <li>單純呼叫 <code>list-resources</code> 會列出由探測傳回的 VISA 資源，可能包含過期的快取項目。使用 <code>list-resources --verify</code> 開啟每個資源並查詢 <code>*IDN?</code>；驗證成功的非 ASRL 資源會在關閉前盡力釋放回本機狀態。當您只需要有回應的資源時，請使用 <code>list-resources --live-only</code>。ASRL/RS-232 驗證使用短暫的有界限開啟與查詢逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。</li>
-            <li><code>immediate</code>（即時）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 <code>--max-samples</code>。</li>
+            <li><code>immediate</code>（立即）模式可以連續且快速地進行擷取。除非您刻意需要連續執行，否則請使用 <code>--max-samples</code>。</li>
         </ul>
 
-        <h2 id="system-requirements">系統需求</h2>
+        <h2>系統需求</h2>
         <ul>
             <li>Python 3.10 或更新版本。</li>
             <li>VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。</li>
-            <li>透過 USB 或 LAN 對 VISA 可見的支援數位萬用電表；目前已驗證的型號與連線範圍請參閱支援型號文件。</li>
+            <li>透過 VISA 可見的支援數位萬用電表；目前已驗證的型號與連線範圍請參閱支援型號文件。34460A 基礎設定檔不假設具備選用的 LAN/LXI 或外接觸發支援。</li>
         </ul>
+        <p>可透過 CLI 引數支援選用的 pyvisa-py 測試，但 pyvisa-py 並非必要相依套件。僅在需要時安裝選用的後端套件：</p>
+        <div class="code-wrapper"><pre><code>uv pip install pyvisa-py pyserial psutil zeroconf</code></pre></div>
+        <p>目前已驗證的選用 pyvisa-py 擷取範圍是 34461A 經由 LAN/TCPIP。除非未來驗證具備 LAN/LXI 能力的 34460A，否則 34460A LAN/TCPIP 與 34460A LAN/<code>@py</code> 對目前可用的儀器仍未開放。</p>
 
-        <h2 id="development">開發</h2>
+        <h2>開發</h2>
         <p>在 PowerShell 中，切換到專案目錄，建立或重複使用本機虛擬環境，安裝包含開發相依套件的套件，然後執行預設測試：</p>
         <div class="code-wrapper"><pre><code>cd path\to\meters-tool
 uv venv .venv
@@ -318,13 +315,16 @@ uv pip install -e ".[all,dev]"
         <p>安裝後，使用 <code>meters-tool</code> 主控台指令來執行專案命令：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe &lt;command&gt; [options]</code></pre></div>
         <p><code>.venv\Scripts\meters-tool.exe</code> 是安裝時產生的，並非受版本控制的專案檔案。如果遺失，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。如果 PowerShell 因執行原則限制而阻擋啟用，請繼續使用本指南中顯示的明確 <code>.\.venv\Scripts\...</code> 命令。</p>
-        <p>也支援將明確的模組形式作為開發/後備替代方案：</p>
+        <p>也支援將明確的模組形式作為開發／備援替代方案：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m meters_tool_cli &lt;command&gt; [options]</code></pre></div>
         <p>選用的環境啟用：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\Activate.ps1</code></pre></div>
         <p>如果 PowerShell 因執行原則限制而阻擋啟用，請使用上方顯示的明確 <code>.\.venv\Scripts\python.exe</code> 指令。</p>
 
-        <h2 id="standalone-exe">獨立 EXE 建置</h2>
+        <h2>獨立 EXE 建置</h2>
+        <p>準備發布時，請在建置發布產物之前先執行無硬體發布門檻檢查：</p>
+        <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-cli-check.ps1 -Target keysight-34461a</code></pre></div>
+        <p>預設 target 為 <code>keysight-34461a</code>。只有在發布變更明確與 34460A 型號相關時，才改用 <code>keysight-34460a</code>。此包裝器負責驗證發布就緒狀態，但不會建置發布產物。</p>
         <p>安裝的 <code>.venv\Scripts\meters-tool.exe</code> 是一個 virtualenv 主控台包裝器。對於沒有專案環境的機器，它並非獨立的執行檔。</p>
         <p>若要建置選用的獨立主控台 exe，請在已安裝 <code>meters-tool</code> 的環境中使用 PyInstaller。PyInstaller 是本機版本建置工具，而非 CLI 執行階段相依套件，因此在全新機器上重新建置之前，請將其安裝到 venv 中：</p>
         <div class="code-wrapper"><pre><code>uv pip install pyinstaller</code></pre></div>
@@ -338,44 +338,59 @@ uv pip install -e ".[all,dev]"
 .\dist\meters-tool.exe start-trigger-record --resource SIM::34461A --simulate --measurement voltage-dc --trigger-mode immediate --max-samples 1 --csv .tmp_tests\cli_exe_smoke.csv --status-format jsonl</code></pre></div>
         <p>PyInstaller 會將產生的檔案寫入本機 <code>build\</code> 和 <code>dist\</code> 目錄。除非專案刻意切換為簽入的 PyInstaller spec，否則請勿提交產生的 <code>.spec</code> 檔案。</p>
 
-        <h2 id="no-hardware-verification">無硬體驗證</h2>
+        <h2>無硬體驗證</h2>
         <p>在進行實體儀器工作前執行此配方：</p>
         <div class="code-wrapper"><pre><code>uv pip install -e ".[all,dev]"
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.ps1 -Target keysight-34461a
 .\.venv\Scripts\meters-tool.exe list-resources --dry-run --json</code></pre></div>
-        <p><code>list-resources --dry-run</code> 不會建立 VISA 資源管理員、列出 VISA 資源、開啟資源、查詢 <code>*IDN?</code> 或執行發布/本機清除。如果主控台指令尚未產生，請先安裝套件；上述的模組形式仍可作為開發後備方案。</p>
+        <p><code>list-resources --dry-run</code> 不會建立 VISA 資源管理員、列出 VISA 資源、開啟資源、查詢 <code>*IDN?</code> 或執行釋放回本機控制／清理。如果主控台指令尚未產生，請先安裝套件；上述的模組形式仍可作為開發備援方案。</p>
 
-        <h2 id="physical-instrument-verification">實體儀器驗證路徑</h2>
-        <p>當搬移到新電腦、新的 VISA 執行階段或不同的 34461A 時，請使用本段落。先從無硬體驗證開始，然後探測作用中的資源，接著在允許包裝器接觸儀器前，執行僅限規劃的實際包裝器。</p>
+        <h2>實體儀器驗證路徑</h2>
+        <p>當搬移到新電腦、新的 VISA 執行階段或不同的 34460A 或 34461A 時，請使用本段落。先從無硬體驗證開始，然後探測作用中的資源，接著在允許包裝器接觸儀器前，執行僅限規劃的實機驗證包裝器。</p>
         <ol>
             <li>執行上方的無硬體配方。</li>
-            <li>探測目前有回應 <code>*IDN?</code> 的資源：
-                <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --live-only --json</code></pre></div>
-            </li>
-            <li>從 JSON 輸出中複製一個資源字串。在下方的命令中使用該精確值。實際包裝器絕不會自行掃描或猜測資源。</li>
+            <li>探測目前有回應 <code>*IDN?</code> 的資源：</li>
         </ol>
-
-        <p>實際包裝器是驗證 harness，而非產品使用介面。它可以針對明確由操作人員提供的資源，執行明確註冊的 <code>transport_pending</code> 連線範圍以及 <code>feature_pending</code> 量測/觸發模式項目，以便收集產物 (artifacts)。通過的 <code>report.json</code> 或 <code>summary.md</code> 本身並不會提升公開支援狀態。一般的 CLI 啟動、WebUI 以及直接的 Core 實機呼叫仍會受到產品限制，直到審核過的產物被接受，且支援的 metadata 與說明文件更新為止。</p>
-
-        <p>4. 產生實際規劃，而不開啟 VISA 或變更儀器：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --live-only --json</code></pre></div>
+        <ol start="3">
+            <li>從 JSON 輸出中複製一個資源字串，並在目前的 PowerShell 工作階段中設定一次。在下方命令中使用該精確值。實機驗證包裝器絕不會自行掃描或猜測資源：</li>
+        </ol>
+        <div class="code-wrapper"><pre><code>$env:METER_RESOURCE = "USB0::...::INSTR"</code></pre></div>
+        <p>此值可以是探測傳回的任何作用中 VISA 資源，包括 USB 或 TCPIP/LAN 資源。</p>
+        <p>實機驗證包裝器是驗證 harness，而非產品使用介面。它可以針對明確由操作人員提供的資源，執行明確註冊的 <code>transport_pending</code> 連線範圍以及 <code>feature_pending</code> 量測/觸發模式項目，以便收集產物 (artifacts)。通過的 <code>report.json</code> 或 <code>summary.md</code> 本身並不會提升公開支援狀態。一般的 CLI 啟動、WebUI 以及直接的 Core 實機呼叫仍會受到產品限制，直到審核過的產物被接受，且支援的 metadata 與說明文件更新為止。</p>
+        <p>任何已建立執行目錄的呼叫（包括 <code>-PlanOnly</code>、需要確認、preflight 失敗、通過及失敗的執行）都會自動使用以下產物配置：</p>
+        <div class="code-wrapper"><pre><code>.tmp_tests/cli_live/&lt;model-id&gt;/&lt;connection&gt;/&lt;suite&gt;/&lt;timestamp&gt;/
+|- private/
+|  |- report.json
+|  |- summary.md
+|  `- ... 原始命令、診斷、JSONL、stderr 與 CSV 證據
+`- shareable/
+   |- report.json
+   |- summary.md
+   `- ... 已遮罩的命令、診斷、JSONL、stderr 與 CSV 證據</code></pre></div>
+        <p>最後的 <code>summary:</code> 主控台列會指向 repository 相對路徑的 <code>shareable/summary.md</code>。<code>private/</code> 是完整的本機除錯證據，絕不可提交、附加或發佈。只有 <code>shareable/</code> 適合 Pull Request；請壓縮並附加整個 shareable 目錄，以保留其相對參照。兩份報告都使用 artifact schema <code>1.1</code>。private 報告保留原始資源與本機路徑；shareable 報告與樹狀結構會遮罩資源、完整 IDN 與序號、私有位址、操作人員 metadata，以及個人或絕對路徑。</p>
+        <p>完整擷取 CSV 僅保留在 <code>private/</code>。每個含有 CSV 的實機案例都會產生 shareable <code>csv-evidence.json</code>，記錄安全的 schema 與資料列事實，不包含量測值或觸發 metadata。JSON 與 JSONL 會在遮罩前解析；遺失或格式錯誤的輸入會產生安全的佔位內容，而不是複製原始文字。未知的二進位格式仍保留在 private。若無法產生 shareable 證據，包裝器會 fail closed，不會將原始證據當作備援。通過或失敗的產物僅是候選證據，永遠不會自動提升產品支援。</p>
+        <p>包裝器的 <code>-Target</code> 值是穩定的 Core 型號 ID。目前維護的值為 <code>keysight-34461a</code> 與 <code>keysight-34460a</code>，分別對應實體 CLI 型號 token <code>34461A</code> 與 <code>34460A</code>。包裝器 target 仍是實機驗證的預期型號防護，而偵測到的 <code>*IDN?</code> 會選擇執行階段設定檔。型號 ID 不代表產品開放支援、生命週期、傳輸/後端、量測、觸發模式或驗證狀態；Meters 支援政策仍以工作流程為中心。</p>
+        <ol start="4">
+            <li>產生實機規劃，而不開啟 VISA 或變更儀器：</li>
+        </ol>
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
   -Resource "$env:METER_RESOURCE" `
   -Suite minimal `
   -PlanOnly</code></pre></div>
-            
-        <p>5. 如果規劃看起來正確，請執行最小限度的實際功能驗證（快速健檢）。包裝器會先執行 preflight，列印規劃的儀器狀態變更，並在實際擷取前要求互動式的 Enter 確認：</p>
+        <ol start="5">
+            <li>如果規劃看起來正確，請執行最小限度的實機功能驗證（快速健檢）。包裝器會先執行 preflight，列印規劃的儀器狀態變更，並在實機擷取前要求互動式的 Enter 確認：</li>
+        </ol>
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
   -Connection usb `
   -Resource "$env:METER_RESOURCE" `
   -Suite minimal</code></pre></div>
-            
-        <p>最小套件會擷取一個受限的即時模式樣本。它會將 <code>report.json</code>、<code>summary.md</code>、指令 stdout/stderr 檔案以及測試案例 CSV 寫入 <code>.tmp_tests\cli_live\...</code>。請先檢查 <code>summary.md</code>；通過的測試案例應顯示 <code>captured=1</code>、<code>errors=0</code>，且至少有一列 CSV 數據。在信任較長期的擷取之前，請將 CSV 數值與 34461A 前面板進行對比。</p>
-        <p>若要獲得更廣泛的實際覆蓋範圍，請在最小套件通過後使用 <code>-Suite basic</code>。該套件涵蓋即時量測和軟體觸發路徑。當連接了穩定的輸入訊號，且頻率（Frequency）與週期（Period）各需要擷取一個即時自動範圍（Auto Range）樣本時，請使用 <code>-Suite frequency-period</code>。僅當操作者可以安全提供所需的外接觸發邊緣時，才使用 <code>-Suite external</code>。僅當同時需要 basic、Frequency/Period 與 external 覆蓋範圍時，才使用 <code>-Suite full</code>。</p>
-
+        <p>最小套件遵循既有的 <code>current-dc immediate</code> 驗證慣例，擷取一個有界限的立即模式取樣。這是實機硬體驗證，不是通常最安全的快速健檢；current 案例執行前需要正確的電流輸入接線。它會將原始命令輸出與完整案例 CSV 寫入 <code>private/</code>，然後產生已遮罩的 <code>shareable/</code> 報告、摘要、命令證據與 <code>csv-evidence.json</code>。請先檢查標準的 <code>shareable/summary.md</code>；通過的案例應顯示 <code>captured=1</code>、<code>errors=0</code>，且至少有一列 CSV 資料。在信任較長期的擷取之前，請在本機將 private CSV 數值與儀器前面板進行對比；不要發佈該 CSV。</p>
+        <p>若要獲得更廣泛的實機覆蓋範圍，請在最小套件通過後使用 <code>-Suite basic</code>。該套件涵蓋立即量測和軟體觸發路徑。Current、AC、電阻、Frequency 與 Period 實機案例需要相符的實體接線及／或穩定訊號源。軟體計時器案例使用 CLI 端的路徑 <code>--trigger-mode software --timer-interval-s 0.5</code>；這不代表 34460A 設定檔支援儀器端的 sample timer 模式。當連接穩定輸入訊號，且 Frequency 與 Period 都應各擷取一個立即自動量程取樣時，請使用 <code>-Suite frequency-period</code>。只有在操作人員能安全提供所需外接觸發邊緣時，才使用 <code>-Suite external</code>，且只能搭配 <code>-Target keysight-34461a</code>。只有在同時需要 basic、Frequency/Period 與 external 覆蓋時，才對 34461A 使用 <code>-Suite full</code>。對 <code>-Target keysight-34460a</code> 而言，<code>-Suite full</code> 是 <code>basic</code> 加上 <code>frequency-period</code>；因為 34460A 基礎設定檔不支援外接觸發模式，所以會拒絕 <code>external</code>。</p>
         <p>在不開啟 VISA 的情況下預覽頻率/週期（Frequency/Period）實機套件：</p>
         <div class="code-wrapper"><pre><code>powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\live-cli-check.ps1 `
   -Target keysight-34461a `
@@ -383,271 +398,642 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
   -Resource "$env:METER_RESOURCE" `
   -Suite frequency-period `
   -PlanOnly</code></pre></div>
-        <p>在檢閱規劃後，移除 <code>-PlanOnly</code> 以執行這兩個有界限的實機案例。此套件使用 Auto Range（自動範圍）、<code>20</code> Hz AC 濾波器、<code>0.1</code> 秒閘門時間（gate time）、自動頻率逾時（automatic Frequency timeout）、無週期逾時指令，以及每個量測各一個樣本。
-        在每個正式的 CLI 案例之前，一個私有的診斷工作階段會傳送規劃的 SCPI 指令，並在每個指令後及 <code>READ?</code> 後檢查 <code>SYST:ERR?</code>。報告包含 IDN、韌體版本、個別指令的錯誤回應，以及診斷的 JSON 路徑。探測（probe）錯誤會使該案例失敗並跳過其重複的正式執行，同時允許診斷另一個量測。請將報告的數值和 CSV 資料列與 34461A 前面板進行對比。在韌體版本為 A.03.03 的 34461A 上，這兩個探測皆在沒有 SCPI 錯誤的情況下完成，且在省略週期逾時指令後，每個正式案例都產生了一個樣本和 CSV 資料列。<a href="https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf" target="_blank">Keysight Truevolt Series DMM Operating and Service Guide</a>，第 10 版，2024 年 5 月，包含了模糊的逾時語法；對於不支援的 Period 標頭，應以觀察到的儀器行為為準。</p>
-
-        <p>如果 stdin 被重新導向且未設定 <code>-PlanOnly</code>，<code>live-cli-check.ps1</code> 將拒絕實際擷取並寫入 <code>confirmation_required</code> 報告。這是預期行為：實際儀器執行需要互動式確認。</p>
-
+        <p>在檢閱規劃後，移除 <code>-PlanOnly</code> 以執行這兩個有界限的實機案例。此套件使用 Auto Range（自動量程）、<code>20</code> Hz AC 濾波器、<code>0.1</code> 秒閘門時間（gate time）、自動頻率逾時（automatic Frequency timeout）、無週期逾時指令，以及每個量測各一個樣本。<br>在每個正式的 CLI 案例之前，一個診斷工作階段會根據選定的 target model 驗證識別資訊，傳送規劃的 SCPI 指令，並在每個指令後及 <code>READ?</code> 後檢查 <code>SYST:ERR?</code>。private 報告包含完整 IDN 與原始診斷路徑；shareable 報告保留安全的製造商/型號、韌體、命令、回應與錯誤結果欄位，同時遮罩完整 IDN、序號、資源與 private 路徑。探測錯誤會使該案例失敗並跳過其重複的正式執行，同時允許診斷另一個量測。請將報告的數值和 CSV 資料列與選定的儀器前面板進行對比。在韌體版本為 A.03.03 的 34461A 上，兩個探測皆在沒有 SCPI 錯誤的情況下完成，且在省略週期逾時指令後，每個正式案例都產生一個樣本和 CSV 資料列。<a href="https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf">Keysight Truevolt Series DMM Operating and Service Guide</a>，第 10 版，2024 年 5 月，包含模糊的逾時語法；對於不支援的 Period 標頭，應以觀察到的儀器行為為準。</p>
+        <p>如果 stdin 被重新導向且未設定 <code>-PlanOnly</code>，<code>live-cli-check.ps1</code> 將拒絕實機擷取並寫入 <code>confirmation_required</code> 報告。這是預期行為：實機儀器執行需要互動式確認。</p>
         <p>若要驗證選用的 PyVISA 後端，請向包裝器傳遞 <code>-VisaLibrary "@py"</code>。<code>-Backend "@py"</code> 可作為別名接受，而 <code>-visa-library "@py"</code> 則作為與 CLI 選項名稱相符的便利別名接受。包裝器會將此轉寄給 CLI <code>--visa-library</code> 並將後端記錄在產物中。省略時，包裝器使用系統 VISA，並將 <code>visa_library</code>/<code>backend</code> 記錄為 <code>system_visa</code>。若包裝器輸出顯示 <code>VISA library/backend: system_visa</code>，則該執行不是 <code>@py</code> 驗證產物。待定的 34460A LAN/TCPIP 驗證僅為證據收集，並不會使一般的 34460A LAN/TCPIP 產品啟動開啟。</p>
+        <p>待定支援意指尚未開放供產品使用，但非無法驗證。包裝器使用隱藏的 <code>--validation-allow-pending-live-support</code> Core 原則選擇器。它僅允許明確註冊的 <code>transport_pending</code> 和 <code>feature_pending</code> 項目；它不是一般的強制選項。缺少範圍/功能 metadata、未知型號、不支援的設定檔能力、無效請求以及硬性安全限制仍會被拒絕。34460A 基礎設定檔仍保持 external/external-custom 關閉，拒絕 10 A/電流端子請求，並保留 1000 筆讀值的緩衝區限制。其 USB/system-VISA DCV Ratio 項目為 <code>Product-open</code>，不需要此隱藏選擇器；LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py <code>@py</code> 仍為 <code>transport_pending</code>，且不會覆寫硬性限制或繼承 Ratio 的提升。<br>對於 34460A，LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py <code>@py</code> 是未來針對具備 LAN/LXI 能力之單元或貢獻者提供之經審核產物的驗證路徑。它們不是目前維護者針對現有 USB-only 34460A 單元的驗證債務，且非發佈阻擋因素。</p>
 
-        <p>待定支援意指尚未開放供產品使用，但非無法驗證。包裝器使用隱藏的 <code>--validation-allow-pending-live-support</code> Core 原則選擇器。它僅允許明確註冊的 <code>transport_pending</code> 和 <code>feature_pending</code> 項目；它不是一般的強制選項。缺少範圍/功能 metadata、未知型號、不支援的設定檔能力、無效請求以及硬性安全限制仍會被拒絕。34460A 基礎設定檔仍保持外接/外接自訂關閉，拒絕 10 A/電流端子請求，並保留 1000 筆讀數的緩衝區限制。其 USB/system-VISA DCV Ratio 項目是明確的 <code>feature_pending</code> 路徑，有界限的驗證可能會使用到它。LAN/TCPIP 或 pyvisa-py 驗證不會覆寫硬性限制。<br>
-        對於 34460A，LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py <code>@py</code> 是未來針對具備 LAN/LXI 能力之單元或貢獻者提供之經審核產物的驗證路徑。它們不是目前維護者針對現有 USB-only 34460A 單元的驗證債務，且非發布阻擋因素。</p>
-
-        <h2 id="cli-scripts">CLI 驗證指令腳本</h2>
+        <h2>CLI 驗證指令腳本</h2>
         <p>CLI 套件有三個包裝器腳本：</p>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>腳本</th>
-                        <th>硬體使用</th>
-                        <th>目的</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><code>scripts\preflight-cli.ps1</code></td>
-                        <td>無硬體</td>
-                        <td>執行 dry-run、模擬器、用戶端 dry-run、模擬的 <code>list-resources</code> 以及包裝器合約檢查。在實際工作前使用。</td>
-                    </tr>
-                    <tr>
-                        <td><code>scripts\live-cli-check.ps1</code></td>
-                        <td>實體硬體（除非設定了 <code>-PlanOnly</code>）</td>
-                        <td>執行實際包裝器規劃，並在互動確認後，針對明確的 <code>-Resource</code> 執行有界限的實際驗證案例。頻率/週期案例會先執行個別指令的 SCPI 錯誤診斷。套件包含 <code>minimal</code>、<code>basic</code>、<code>frequency-period</code>、<code>external</code> 與 <code>full</code>；34460A 拒絕 <code>external</code>，且其 <code>full</code> 套件排除外接案例。</td>
-                    </tr>
-                    <tr>
-                        <td><code>scripts\release-cli-check.ps1</code></td>
-                        <td>預設無硬體</td>
-                        <td>執行發布門檻檢查，包括完整 pytest、preflight 和 <code>live-cli-check.ps1 -PlanOnly</code>。其預設驗證模式為 <code>release_no_hardware</code>。</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-
+        <table>
+            <thead>
+                <tr>
+                    <th>腳本</th>
+                    <th>硬體使用</th>
+                    <th>目的</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>scripts\preflight-cli.ps1</code></td>
+                    <td>無硬體</td>
+                    <td>執行 dry-run、模擬器、用戶端 dry-run、模擬的 <code>list-resources</code> 以及包裝器合約檢查。在實機工作前使用。</td>
+                </tr>
+                <tr>
+                    <td><code>scripts\live-cli-check.ps1</code></td>
+                    <td>實機硬體（除非設定了 <code>-PlanOnly</code>）</td>
+                    <td>執行實機驗證包裝器規劃，並在互動確認後，針對明確的 <code>-Resource</code> 執行有界限的實機驗證案例。頻率/週期案例會先執行個別指令的 SCPI 錯誤診斷。套件包含 <code>minimal</code>、<code>basic</code>、<code>frequency-period</code>、<code>external</code> 與 <code>full</code>；34460A 拒絕 <code>external</code>，且其 <code>full</code> 套件排除外接案例。</td>
+                </tr>
+                <tr>
+                    <td><code>scripts\release-cli-check.ps1</code></td>
+                    <td>預設無硬體</td>
+                    <td>執行發佈門檻檢查，包括完整 pytest、preflight 和 <code>live-cli-check.ps1 -PlanOnly</code>。其預設驗證模式為 <code>release_no_hardware</code>。</td>
+                </tr>
+            </tbody>
+        </table>
         <p>從 <code>transport_pending</code> 或 <code>feature_pending</code> 提升為 <code>live_validated_full_suite</code> 需要經審核的產物以及明確的精確範圍支援 metadata/說明文件更新。除非已經提供並核准了經審核的產物，否則請勿在僅啟用驗證模式執行的同一次變更中，將待定的範圍或功能標記為公開實機支援。</p>
 
-        <h2 id="basic-workflow">基本工作流程</h2>
+        <h2>基本工作流程</h2>
         <p>對於包含常見設定說明的引導式操作人員路徑，請參閱 <a href="USER_GUIDE.zh-TW.html">CLI 使用者指南</a>。簡要參考流程如下：</p>
         <ol>
             <li>列出 VISA 資源。</li>
             <li>選擇資源字串。</li>
             <li>在一個終端機中啟動 <code>start-trigger-record</code>。</li>
-            <li>傳送觸發、等待外接觸發邊緣，或使用即時模式。</li>
+            <li>傳送觸發、等待外接觸發邊緣，或使用立即模式。</li>
             <li>透過 <code>stop</code>、Ctrl+C、Ctrl+Break、<code>q</code> 或 <code>--max-samples</code> 停止。</li>
             <li>檢查 CSV 輸出。</li>
         </ol>
 
-        <h2 id="command-reference">指令參考</h2>
+        <h3>34460A 設定檔範例</h3>
+        <p>以 34460A 進行實機啟動時，使用 34460A 預期型號防護。同一個 <code>--model</code> 值也會在 dry-run 與模擬規劃中選擇 34460A 設定檔：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
+  --model 34460A `
+  --resource "$env:METER_RESOURCE" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1</code></pre></div>
+        <p>對 34460A 自訂模式而言，若預期讀值超過其 1000 筆記憶體限制，需使用 <code>--allow-buffer-overflow-risk</code>：</p>
+        <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
+  --model 34460A `
+  --resource "$env:METER_RESOURCE" `
+  --trigger-mode immediate-custom `
+  --measurement voltage-dc `
+  --trigger-count 2 `
+  --sample-count 1000 `
+  --allow-buffer-overflow-risk</code></pre></div>
+        <p>此旗標只接受 <code>trigger_count * sample_count</code> 超過讀值記憶體的風險；不會允許 10 A 電流範圍、<code>current_terminal=10</code>、不支援的觸發模式，或超過選定設定檔讀值記憶體的 <code>--buffer-drain-size</code>。</p>
+
+        <h3>選用的 PyVISA 後端選擇</h3>
+        <p>預設情況下，<code>meters-tool</code> 使用 <code>pyvisa.ResourceManager()</code>，因此使用系統 VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。</p>
+        <p>若要使用 pyvisa-py 進行進階測試，請安裝選用的後端套件，並在會開啟 VISA 資源的 CLI 指令中傳入 <code>--visa-library "@py"</code>：</p>
+        <div class="code-wrapper"><pre><code>uv pip install pyvisa-py pyserial psutil zeroconf
+
+uv run meters-tool list-resources --visa-library "@py" --verify
+
+uv run meters-tool start-trigger-record `
+  --model 34461A `
+  --visa-library "@py" `
+  --resource "$env:METER_RESOURCE" `
+  --trigger-mode immediate `
+  --measurement voltage-dc `
+  --max-samples 1</code></pre></div>
+        <p><code>--backend "@py"</code> 可作為 <code>--visa-library "@py"</code> 的別名。此選項供 CLI 診斷與選用後端驗證使用。WebUI 使用預設的系統 VISA 執行階段，不公開後端選擇器。</p>
+        <p>LAN/TCPIP 是已驗證的 34461A pyvisa-py 路徑。Windows 上的 USBTMC 可能需要 WinUSB/libusb 設定，通常不比 Keysight IO Libraries Suite 或 NI-VISA 簡單。使用 pyvisa-py 與 pyserial 的 RS-232/ASRL 在支援序列 I/O 的儀器上通常直接，但目前 Meters 設定檔以 USB/LAN Truevolt DMM 為目標。<code>PYVISA_LIBRARY="@py"</code> 仍會直接影響 PyVISA，但本專案建議在 CLI 指令中明確使用 <code>--visa-library "@py"</code>，讓測試可重現。</p>
+
+        <h2>指令參考</h2>
         <p>使用已安裝的主控台指令：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe &lt;command&gt; [options]</code></pre></div>
-        <p>模組形式仍可作為明確的開發/後備替代方案：</p>
+        <p>模組形式仍可作為明確的開發／備援替代方案：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m meters_tool_cli &lt;command&gt; [options]</code></pre></div>
 
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr>
-                        <th>指令</th>
-                        <th>目的</th>
-                        <th>典型用法</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><code>list-resources</code></td>
-                        <td>列印由 PyVISA 偵測到的 VISA 資源。</td>
-                        <td>尋找 USB 或 LAN 資源字串。加入 <code>--verify</code> 以查詢 <code>*IDN?</code>；加入 <code>--live-only</code> 以隱藏過期的快取資源；加入 <code>--dry-run</code> 以預覽探測動作而不接觸 VISA。</td>
-                    </tr>
-                    <tr>
-                        <td><code>start-trigger-record</code></td>
-                        <td>連接到儀器並記錄樣本到 CSV。</td>
-                        <td>主要記錄指令。</td>
-                    </tr>
-                    <tr>
-                        <td><code>send-command</code></td>
-                        <td>將一個 <code>software_trigger</code> 指令 POST 到本機指令端點。</td>
-                        <td>與 <code>--trigger-mode software</code> 配合使用。</td>
-                    </tr>
-                    <tr>
-                        <td><code>stop</code></td>
-                        <td>將正常停止請求 POST 到本機停止端點。</td>
-                        <td>從另一個終端機停止執行中的記錄器。</td>
-                    </tr>
-                    <tr>
-                        <td><code>status</code></td>
-                        <td>GET 本機狀態端點並正規化工作器狀態。</td>
-                        <td>檢查工作器健康狀態並關聯 <code>run_id</code> 而不變更狀態。</td>
-                    </tr>
-                    <tr>
-                        <td><code>wait-ready</code></td>
-                        <td>輪詢本機狀態端點，直到工作器控制面可供連接。</td>
-                        <td>觸發/停止/狀態呼叫前的協調器準備就緒門檻。</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>指令</th>
+                    <th>目的</th>
+                    <th>典型用法</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>list-resources</code></td>
+                    <td>列印由 PyVISA 偵測到的 VISA 資源。</td>
+                    <td>尋找 USB 或 LAN 資源字串。加入 <code>--verify</code> 以查詢 <code>*IDN?</code>；加入 <code>--live-only</code> 以隱藏過期的快取資源；加入 <code>--dry-run</code> 以預覽探測動作而不接觸 VISA。</td>
+                </tr>
+                <tr>
+                    <td><code>start-trigger-record</code></td>
+                    <td>連接到儀器並記錄樣本到 CSV。</td>
+                    <td>主要記錄指令。</td>
+                </tr>
+                <tr>
+                    <td><code>send-command</code></td>
+                    <td>將一個 <code>software_trigger</code> 指令 POST 到本機指令端點。</td>
+                    <td>與 <code>--trigger-mode software</code> 配合使用。</td>
+                </tr>
+                <tr>
+                    <td><code>stop</code></td>
+                    <td>將正常停止請求 POST 到本機停止端點。</td>
+                    <td>從另一個終端機停止執行中的記錄器。</td>
+                </tr>
+                <tr>
+                    <td><code>status</code></td>
+                    <td>GET 本機狀態端點並正規化工作器狀態。</td>
+                    <td>檢查工作器健康狀態並關聯 <code>run_id</code> 而不變更狀態。</td>
+                </tr>
+                <tr>
+                    <td><code>wait-ready</code></td>
+                    <td>輪詢本機狀態端點，直到工作器控制面可供連接。</td>
+                    <td>觸發/停止/狀態呼叫前的協調器準備就緒門檻。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h3>根選項：</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--version</code></td><td>列印 <code>meters-tool &lt;package-version&gt;</code>並退出，不需要子指令。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p>根選項：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--version</code></td>
+                    <td>列印 <code>meters-tool &lt;package-version&gt;</code>並退出，不需要子指令。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h3><code>list-resources</code> 選項：</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>無</td><td>列印由 PyVISA 傳回的原始 VISA 資源。這可能包含過期的快取資源，且不會開啟資源或執行釋放回本機清除。</td></tr>
-                    <tr><td><code>--verify</code></td><td>開啟每個偵測到的資源並查詢 <code>*IDN?</code>。文字輸出將資料列標記為 <code>live</code>（作用中）或 <code>stale</code>（過期）；JSON 輸出包含 <code>live</code>、<code>status</code> 和 <code>detail</code>。成功的作用中檢查會在關閉前盡力執行釋放回本機狀態。</td></tr>
-                    <tr><td><code>--live-only</code></td><td>驗證資源並僅列印有回應的資料列。成功的作用中檢查會在關閉前盡力執行釋放回本機狀態。如果沒有連接或可連線的資源，文字輸出會列印 <code>no live VISA resources found</code>。</td></tr>
-                    <tr><td><code>--dry-run</code></td><td>列印資源探測合約並以 0 退出，而不建立 VISA 資源管理員、列出資源、開啟資源、查詢 <code>*IDN?</code> 或執行發布/本機清除。可與 <code>--verify</code>、<code>--live-only</code> 和 <code>--json</code> 結合使用。</td></tr>
-                    <tr><td><code>--format json</code></td><td>為腳本發出一個 JSON 物件。可與 <code>--verify</code> 或 <code>--live-only</code> 結合使用。</td></tr>
-                    <tr><td><code>--json</code></td><td><code>--format json</code> 的別名。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p><code>list-resources</code> 選項：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>無</td>
+                    <td>列印由 PyVISA 傳回的原始 VISA 資源。這可能包含過期的快取資源，且不會開啟資源或執行釋放回本機清除。</td>
+                </tr>
+                <tr>
+                    <td><code>--verify</code></td>
+                    <td>開啟每個偵測到的資源並查詢 <code>*IDN?</code>。文字輸出將資料列標記為 <code>live</code>（作用中）或 <code>stale</code>（過期）；JSON 輸出包含 <code>live</code>、<code>status</code> 和 <code>detail</code>。成功的作用中檢查會在關閉前盡力執行釋放回本機狀態。</td>
+                </tr>
+                <tr>
+                    <td><code>--live-only</code></td>
+                    <td>驗證資源並僅列印有回應的資料列。成功的作用中檢查會在關閉前盡力執行釋放回本機狀態。如果沒有連接或可連線的資源，文字輸出會列印 <code>no live VISA resources found</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--dry-run</code></td>
+                    <td>列印資源探測合約並以 0 退出，而不建立 VISA 資源管理員、列出資源、開啟資源、查詢 <code>*IDN?</code> 或執行釋放回本機控制／清理。可與 <code>--verify</code>、<code>--live-only</code> 和 <code>--json</code> 結合使用。</td>
+                </tr>
+                <tr>
+                    <td><code>--visa-library TEXT</code>、<code>--backend TEXT</code></td>
+                    <td>選用的 PyVISA library/backend 引數，例如 <code>@py</code>。省略時，透過 <code>pyvisa.ResourceManager()</code> 使用系統預設 VISA 執行階段。</td>
+                </tr>
+                <tr>
+                    <td><code>--serial-read-termination VALUE</code></td>
+                    <td>僅適用於 ASRL 資源的 CLI 探測/驗證相容性設定。接受 <code>CRLF</code>、<code>LF</code>、<code>CR</code> 與 <code>NONE</code>。查詢 <code>*IDN?</code> 前會將它映射到 PyVISA session 的 <code>read_termination</code>；不是擷取設定。</td>
+                </tr>
+                <tr>
+                    <td><code>--serial-write-termination VALUE</code></td>
+                    <td>僅適用於 ASRL 資源的 CLI 探測/驗證相容性設定。接受 <code>CRLF</code>、<code>LF</code>、<code>CR</code> 與 <code>NONE</code>。查詢 <code>*IDN?</code> 前會將它映射到 PyVISA session 的 <code>write_termination</code>；不是擷取設定。</td>
+                </tr>
+                <tr>
+                    <td><code>--format json</code></td>
+                    <td>為腳本發出一個 JSON 物件。可與 <code>--verify</code> 或 <code>--live-only</code> 結合使用。</td>
+                </tr>
+                <tr>
+                    <td><code>--json</code></td>
+                    <td><code>--format json</code> 的別名。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h3><code>send-command</code> 選項：</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機指令端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
-                    <tr><td><code>--timeout-ms N</code></td><td><code>3000</code></td><td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
-                    <tr><td><code>--command NAME</code></td><td><code>software_trigger</code></td><td>Meters 指令名稱。此版本僅支援 <code>software_trigger</code>。</td></tr>
-                    <tr><td><code>--arguments-json JSON</code></td><td><code>{}</code></td><td>完整的 JSON 指令引數物件。使用 <code>{"metadata":{...}}</code> 來附加寫入 CSV 中 <code>trigger_metadata</code> 欄位的觸發 metadata。無效的 JSON、非物件的 metadata 以及其他指令驗證失敗將在傳送請求前被拒絕。</td></tr>
-                    <tr><td><code>--job-id TEXT</code></td><td>未設置</td><td>選用的用戶端產生工作識別碼，僅由指令外殼回應。</td></tr>
-                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 為 Agent 呼叫端發出一個結構化物件。</td></tr>
-                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
-                    <tr><td><code>--dry-run</code></td><td>否</td><td>在本機預覽請求而不傳送 HTTP。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p><code>send-command</code> 選項：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>預設值</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--port N</code></td>
+                    <td><code>8765</code></td>
+                    <td>本機指令端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--timeout-ms N</code></td>
+                    <td><code>3000</code></td>
+                    <td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--command NAME</code></td>
+                    <td><code>software_trigger</code></td>
+                    <td>Meters 指令名稱。此版本僅支援 <code>software_trigger</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--arguments-json JSON</code></td>
+                    <td><code>{}</code></td>
+                    <td>完整的 JSON 指令引數物件。使用 <code>{"metadata":{...}}</code> 來附加寫入 CSV 中 <code>trigger_metadata</code> 欄位的觸發 metadata。無效的 JSON、非物件的 metadata 以及其他指令驗證失敗將在傳送請求前被拒絕。</td>
+                </tr>
+                <tr>
+                    <td><code>--job-id TEXT</code></td>
+                    <td>未設置</td>
+                    <td>選用的用戶端產生工作識別碼，僅由指令外殼回應。</td>
+                </tr>
+                <tr>
+                    <td><code>--format text\|json</code></td>
+                    <td><code>text</code></td>
+                    <td>回應輸出格式。<code>json</code> 為 Agent 呼叫端發出一個結構化物件。</td>
+                </tr>
+                <tr>
+                    <td><code>--json</code></td>
+                    <td>否</td>
+                    <td><code>--format json</code> 的別名。</td>
+                </tr>
+                <tr>
+                    <td><code>--dry-run</code></td>
+                    <td>否</td>
+                    <td>在本機預覽請求而不傳送 HTTP。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h3><code>stop</code> 選項：</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機停止端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
-                    <tr><td><code>--timeout-ms N</code></td><td><code>3000</code></td><td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
-                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 為 Agent 呼叫端發出一個結構化物件。</td></tr>
-                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
-                    <tr><td><code>--dry-run</code></td><td>否</td><td>在本機預覽請求而不傳送 HTTP。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p><code>stop</code> 選項：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>預設值</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--port N</code></td>
+                    <td><code>8765</code></td>
+                    <td>本機停止端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--timeout-ms N</code></td>
+                    <td><code>3000</code></td>
+                    <td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--format text\|json</code></td>
+                    <td><code>text</code></td>
+                    <td>回應輸出格式。<code>json</code> 為 Agent 呼叫端發出一個結構化物件。</td>
+                </tr>
+                <tr>
+                    <td><code>--json</code></td>
+                    <td>否</td>
+                    <td><code>--format json</code> 的別名。</td>
+                </tr>
+                <tr>
+                    <td><code>--dry-run</code></td>
+                    <td>否</td>
+                    <td>在本機預覽請求而不傳送 HTTP。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h3><code>status</code> 選項：</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機狀態端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
-                    <tr><td><code>--timeout-ms N</code></td><td><code>3000</code></td><td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
-                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 發出一個正規化的狀態物件。</td></tr>
-                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
-                    <tr><td><code>--dry-run</code></td><td>否</td><td>在本機預覽非變更性的 GET 請求而不傳送 HTTP。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p><code>status</code> 選項：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>預設值</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--port N</code></td>
+                    <td><code>8765</code></td>
+                    <td>本機狀態端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--timeout-ms N</code></td>
+                    <td><code>3000</code></td>
+                    <td>HTTP 用戶端逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--format text\|json</code></td>
+                    <td><code>text</code></td>
+                    <td>回應輸出格式。<code>json</code> 發出一個正規化的狀態物件。</td>
+                </tr>
+                <tr>
+                    <td><code>--json</code></td>
+                    <td>否</td>
+                    <td><code>--format json</code> 的別名。</td>
+                </tr>
+                <tr>
+                    <td><code>--dry-run</code></td>
+                    <td>否</td>
+                    <td>在本機預覽非變更性的 GET 請求而不傳送 HTTP。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h3><code>wait-ready</code> 選項：</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>預設值</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--port N</code></td><td><code>8765</code></td><td>本機狀態端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td></tr>
-                    <tr><td><code>--timeout-ms N</code></td><td><code>10000</code></td><td>整體準備就緒期限（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
-                    <tr><td><code>--format text|json</code></td><td><code>text</code></td><td>回應輸出格式。<code>json</code> 發出正規化狀態加上準備就緒計時欄位。</td></tr>
-                    <tr><td><code>--json</code></td><td>否</td><td><code>--format json</code> 的別名。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p><code>wait-ready</code> 選項：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>預設值</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--port N</code></td>
+                    <td><code>8765</code></td>
+                    <td>本機狀態端點連接埠。支援範圍：<code>1</code> 到 <code>65535</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--timeout-ms N</code></td>
+                    <td><code>10000</code></td>
+                    <td>整體準備就緒期限（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--format text\|json</code></td>
+                    <td><code>text</code></td>
+                    <td>回應輸出格式。<code>json</code> 發出正規化狀態加上準備就緒計時欄位。</td>
+                </tr>
+                <tr>
+                    <td><code>--json</code></td>
+                    <td>否</td>
+                    <td><code>--format json</code> 的別名。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h2 id="trigger-modes">觸發模式</h2>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>模式</th><th>擷取如何開始</th><th>讀取路徑</th><th>CSV <code>trigger_source</code></th><th>備註</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>software</code></td><td><code>send-command</code> 發送至本機 HTTP 端點，或 <code>--timer-interval-s</code> 建立自動計時器事件。</td><td><code>READ?</code></td><td><code>software</code> 或 <code>timer</code></td><td>省略 <code>--trigger-mode</code> 時的預設值。計時器模式在每次擷取嘗試後使用固定延遲間隔。</td></tr>
-                    <tr><td><code>external</code></td><td>儀器接收到外接硬體觸發邊緣。</td><td><code>FETC?</code></td><td><code>hardware</code></td><td>使用 <code>--trigger-mode external</code>。</td></tr>
-                    <tr><td><code>immediate</code></td><td>工作器直接擷取而不等待觸發事件。</td><td><code>READ?</code></td><td><code>immediate</code></td><td>使用 <code>--max-samples</code> 來限制執行樣本數。</td></tr>
-                    <tr><td><code>immediate-custom</code></td><td>儀器執行明確的即時觸發/樣本序列並將讀數儲存在記憶體中。</td><td><code>INIT</code> + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td><td><code>immediate-custom</code></td><td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 無效。</td></tr>
-                    <tr><td><code>software-custom</code></td><td>儀器準備接收匯流排觸發；每個接受的 <code>send-command</code> 會傳送 <code>*TRG</code>。</td><td><code>INIT</code> + <code>*TRG</code> + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td><td><code>software-custom</code></td><td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 和 <code>--timer-interval-s</code> 無效。</td></tr>
-                    <tr><td><code>external-custom</code></td><td>儀器準備接收外接觸發邊緣並將讀數儲存在記憶體中。</td><td><code>INIT</code> + 外接邊緣 + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td><td><code>external-custom</code></td><td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 和 <code>--timer-interval-s</code> 無效。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <h2>觸發模式</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>模式</th>
+                    <th>擷取如何開始</th>
+                    <th>讀取路徑</th>
+                    <th>CSV <code>trigger_source</code></th>
+                    <th>備註</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>software</code></td>
+                    <td><code>send-command</code> 發送至本機 HTTP 端點，或 <code>--timer-interval-s</code> 建立自動計時器事件。</td>
+                    <td><code>READ?</code></td>
+                    <td><code>software</code> 或 <code>timer</code></td>
+                    <td>省略 <code>--trigger-mode</code> 時的預設值。計時器模式在每次擷取嘗試後使用固定延遲間隔。</td>
+                </tr>
+                <tr>
+                    <td><code>external</code></td>
+                    <td>儀器接收到外接硬體觸發邊緣。</td>
+                    <td><code>FETC?</code></td>
+                    <td><code>hardware</code></td>
+                    <td>使用 <code>--trigger-mode external</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>immediate</code></td>
+                    <td>工作器直接擷取而不等待觸發事件。</td>
+                    <td><code>READ?</code></td>
+                    <td><code>immediate</code></td>
+                    <td>使用 <code>--max-samples</code> 來限制執行樣本數。</td>
+                </tr>
+                <tr>
+                    <td><code>immediate-custom</code></td>
+                    <td>儀器執行明確的立即觸發/取樣序列並將讀值儲存在記憶體中。</td>
+                    <td><code>INIT</code> + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td>
+                    <td><code>immediate-custom</code></td>
+                    <td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 無效。</td>
+                </tr>
+                <tr>
+                    <td><code>software-custom</code></td>
+                    <td>儀器準備接收匯流排觸發；每個接受的 <code>send-command</code> 會傳送 <code>*TRG</code>。</td>
+                    <td><code>INIT</code> + <code>*TRG</code> + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td>
+                    <td><code>software-custom</code></td>
+                    <td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 和 <code>--timer-interval-s</code> 無效。</td>
+                </tr>
+                <tr>
+                    <td><code>external-custom</code></td>
+                    <td>儀器準備接收外接觸發邊緣並將讀值儲存在記憶體中。</td>
+                    <td><code>INIT</code> + 外接邊緣 + <code>DATA:POINts?</code> / <code>DATA:REMove?</code></td>
+                    <td><code>external-custom</code></td>
+                    <td>需要 <code>--trigger-count</code> 和 <code>--sample-count</code>；<code>--max-samples</code> 和 <code>--timer-interval-s</code> 無效。</td>
+                </tr>
+            </tbody>
+        </table>
         <p>在 <code>external</code> 模式下，意外的軟體觸發會被忽略，且不應中斷硬體觸發流程。在 <code>immediate</code> 模式下，軟體觸發同樣會被忽略。</p>
         <p>當 <code>--timer-interval-s</code> 作用中時，一般的 <code>send-command</code> 請求會被忽略，而 <code>stop</code> 仍可停止執行。當記錄開始時會擷取第一個計時器樣本；後續的每個計時器樣本會在前一次擷取嘗試完成後，至少等待設定的間隔時間。計時器模式是簡單的軟體模式擷取路徑，因此 <code>--max-samples</code> 有效，並會在達到該數量成功的計時器 CSV 資料列後停止執行。</p>
 
-        <h2 id="start-trigger-record-options"><code>start-trigger-record</code> 選項</h2>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>選項</th><th>是否必要</th><th>預設值</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--resource RESOURCE</code></td><td>是</td><td>無</td><td>VISA 資源字串，例如 USB 或 TCPIP HiSLIP。</td></tr>
-                    <tr><td><code>--csv PATH</code></td><td>否</td><td><code>data/YYYY-MM-DD-HH-MM-SS.csv</code></td><td>CSV 輸出路徑。若省略，則在 <code>data</code> 下建立帶有 UTC+8 時間戳記的檔案。父目錄會自動建立。</td></tr>
-                    <tr><td><code>--status-format text|jsonl</code></td><td>否</td><td><code>text</code></td><td>執行階段狀態輸出格式。<code>jsonl</code> 為 Agent 呼叫端每行發出一個 JSON 物件。</td></tr>
-                    <tr><td><code>--dry-run</code></td><td>否</td><td>關閉</td><td>驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。</td></tr>
-                    <tr><td><code>--simulate</code></td><td>否</td><td>關閉</td><td>針對確定的模擬儀器後端執行，而不開啟實際的 VISA 工作階段。簡單模式需要有界限的執行，例如 <code>--max-samples</code>。</td></tr>
-                    <tr><td><code>--json</code></td><td>否</td><td>關閉</td><td><code>--status-format jsonl</code> 的別名。</td></tr>
-                    <tr><td><code>--timeout-ms N</code></td><td>否</td><td><code>5000</code></td><td>VISA 工作階段逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td></tr>
-                    <tr><td><code>--trigger-timeout-ms N</code></td><td>否</td><td><code>10000</code></td><td>外接/自訂觸發等待逾時。支援範圍：<code>500</code> 到 <code>600000</code>。逾時會重新 arm 硬體模式，其本身並非擷取錯誤。對於預期的外接邊緣時間而言太短的值將會重複 arm 而不進行擷取。</td></tr>
-                    <tr><td><code>--sw-trigger-port N</code></td><td>否</td><td><code>8765</code></td><td>用於 <code>/command</code>、<code>/stop</code> 和 <code>/status</code> 的本機 HTTP 連接埠。使用 <code>0</code> 讓伺服器選擇連接埠，或使用 <code>1024</code> 到 <code>65535</code>。</td></tr>
-                    <tr><td><code>--sw-min-interval-ms N</code></td><td>否</td><td><code>0</code></td><td>接受的軟體觸發之間的最小間隔。使用 <code>0</code> 停用速率限制，或使用 <code>50</code> 到 <code>600000</code>。</td></tr>
-                    <tr><td><code>--sw-queue-max N</code></td><td>否</td><td><code>0</code></td><td>佇列軟體觸發的最大數量。支援範圍：<code>0</code> 到 <code>10000</code>；<code>0</code> 使用預設的安全限制。</td></tr>
-                    <tr><td><code>--trigger-mode software|external|immediate|immediate-custom|software-custom|external-custom</code></td><td>否</td><td><code>software</code></td><td>精確選擇一種擷取模式。</td></tr>
-                    <tr><td><code>--max-samples N</code></td><td>僅限簡單模式</td><td>無</td><td>在成功取得 N 個 CSV 樣本後自動停止簡單模式。支援範圍：<code>1</code> 到 <code>1000000</code>。與自訂模式不相容。</td></tr>
-                    <tr><td><code>--trigger-count N</code></td><td>僅限自訂模式</td><td>無</td><td>儀器觸發計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td></tr>
-                    <tr><td><code>--sample-count N</code></td><td>僅限自訂模式</td><td>無</td><td>每次觸發的儀器樣本計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td></tr>
-                    <tr><td><code>--timer-interval-s SECONDS</code></td><td>否</td><td>無</td><td>啟用固定延遲的軟體計時器擷取。支援範圍：<code>0.5</code> 到 <code>86400</code> 秒。僅在 <code>--trigger-mode software</code> 時有效；當省略 <code>--trigger-mode</code> 時也有效（因為預設為 software）。可與 <code>--max-samples</code> 結合以限制計時器執行次數。</td></tr>
-                    <tr><td><code>--buffer-drain-size N</code></td><td>僅限自訂模式</td><td>無</td><td>每次緩衝區排空移除的最大讀數。支援範圍：<code>1</code> 到 <code>10000</code>，受儀器設定檔讀取記憶體限制。進階選項，僅在自訂模式下有效；不會變更 <code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 或儀器讀取記憶體容量。</td></tr>
-                    <tr><td><code>--allow-buffer-overflow-risk</code></td><td>否</td><td>關閉</td><td>允許自訂模式請求超過設定檔讀取記憶體限制（如 34461A 的 10,000 筆或 34460A 的 1,000 筆）。這取決於排空讀數的速度是否夠快，可能會遺失數據或產生 SCPI 錯誤。</td></tr>
-                    <tr><td><code>--hw-trigger-slope pos|neg</code></td><td>否</td><td><code>neg</code></td><td>外接觸發邊緣極性。</td></tr>
-                    <tr><td><code>--hw-trigger-delay-s SECONDS</code></td><td>否</td><td><code>0.0</code></td><td>硬體觸發延遲，對應到 <code>TRIG:DEL</code>。支援範圍：<code>0</code> 到 <code>3600</code> 秒。</td></tr>
-                    <tr><td><code>--measurement current-dc|voltage-dc|voltage-dc-ratio|current-ac|voltage-ac|frequency|period|resistance-2w|resistance-4w</code></td><td>否</td><td><code>current-dc</code></td><td>量測類型。</td></tr>
-                    <tr><td><code>--nplc VALUE</code></td><td>否</td><td><code>1.0</code></td><td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>1.0</code>。</td></tr>
-                    <tr><td><code>--auto-zero on|off|once</code></td><td>否</td><td><code>on</code></td><td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻、AC 量測、頻率與週期則將 Auto Zero 交給儀器處理。</td></tr>
-                    <tr><td><code>--auto-range on|off</code></td><td>否</td><td><code>on</code></td><td>啟用或停用自動範圍（Auto Range）。</td></tr>
-                    <tr><td><code>--range VALUE</code></td><td>當 <code>--auto-range off</code> 時必要</td><td>無</td><td>所選量測的手動範圍。電流為安培；電壓、頻率與週期的輸入範圍為伏特；電阻為歐姆。</td></tr>
-                    <tr><td><code>--current-range VALUE</code></td><td>僅限 DC 電流</td><td>無</td><td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在 AC 電流、電壓和電阻量測下無效。</td></tr>
-                    <tr><td><code>--ac-bandwidth-hz 3|20|200</code></td><td>僅限 AC/頻率/週期</td><td>依量測而定</td><td>AC 頻寬/濾波器設定。AC 電流/電壓省略時保持目前設定；頻率和週期省略時預設為 <code>20</code> Hz。</td></tr>
-                    <tr><td><code>--gate-time-s 0.01|0.1|1</code></td><td>僅限頻率/週期</td><td><code>0.1</code></td><td>頻率/週期孔徑或閘門時間（gate time），單位為秒。</td></tr>
-                    <tr><td><code>--freq-period-timeout auto|1s</code></td><td>僅限頻率</td><td><code>auto</code></td><td>使用自動頻率逾時（timeout），或停用自動逾時以使用固定 1 秒行為。週期不支援此選項，也不會送出逾時 SCPI。</td></tr>
-                    <tr><td><code>--current-terminal 3|10</code></td><td>僅限電流</td><td><code>3</code></td><td>電流輸入端子。10 A 範圍需要 <code>--current-terminal 10</code>；<code>--current-terminal 10</code> 僅在 10 A 範圍下有效。</td></tr>
-                    <tr><td><code>--dcv-input-impedance default|10m|auto</code></td><td>僅限 DC 電壓或 DCV 比率</td><td><code>default</code></td><td>DC 電壓輸入阻抗。<code>default</code> 不寫入阻抗指令；<code>10m</code> 強制為 10 MOhm；<code>auto</code> 啟用儀器自動（Auto）模式（在較低的 DC 電壓範圍下可能會顯示 HighZ）。</td></tr>
-                    <tr><td><code>--vm-comp-slope pos|neg</code></td><td>否</td><td>無</td><td>設定後面板 VM Comp 輸出脈衝斜率。省略以保持 VM Comp 不變。</td></tr>
-                    <tr><td><code>--model MODEL</code></td><td>否</td><td>無</td><td>強制要求預期的型號行為（例如 <code>34460A</code> 或 <code>34461A</code>）。在實機操作中作為防護，而在無硬體（dry-run/模擬）情況下決定設定檔限制。</td></tr>
-                </tbody>
-            </table>
-        </div>
-        <p><code>--measurement</code> 預設為 <code>current-dc</code>，因此現有的電流量測記錄指令不需要特別指定。新指令應偏好使用 <code>--range</code>；<code>--current-range</code> 繼續適用於現有的 DC 電流腳本。對於 <code>current-ac</code>、<code>voltage-dc</code>、<code>voltage-dc-ratio</code>、<code>voltage-ac</code>、<code>frequency</code>、<code>period</code>、<code>resistance-2w</code> 和 <code>resistance-4w</code> 請使用 <code>--range</code>；<code>--current-range</code> 在這些量測下會被拒絕。
-        <code>--dcv-input-impedance</code> 僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 時有效。使用 <code>default</code> 以保持儀器目前的 Input Z 設定不變，<code>10m</code> 強制為 10 MOhm，或 <code>auto</code> 啟用 34461A 的 Auto Input Z 行為。當 Auto 作用於較低 DC 電壓範圍時，儀器可能會顯示 HighZ。</p>
+        <h2><code>start-trigger-record</code> 選項</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>選項</th>
+                    <th>是否必要</th>
+                    <th>預設值</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--resource RESOURCE</code></td>
+                    <td>是</td>
+                    <td>無</td>
+                    <td>VISA 資源字串，例如 USB 或 TCPIP HiSLIP。</td>
+                </tr>
+                <tr>
+                    <td><code>--model MODEL</code>、<code>--instrument-model MODEL</code></td>
+                    <td>否</td>
+                    <td>live 為 auto；非確定性 dry-run/simulate 必要</td>
+                    <td>live 執行的預期型號防護；dry-run/simulate 的型號設定檔選擇器。Core 設定檔邏輯會標準化並驗證型號名稱，例如 <code>34460A</code> 或 <code>34461A</code>，並在不支援時列出支援的型號。</td>
+                </tr>
+                <tr>
+                    <td><code>--visa-library TEXT</code>、<code>--backend TEXT</code></td>
+                    <td>否</td>
+                    <td>系統預設</td>
+                    <td>選用的 PyVISA library/backend 引數，例如 <code>@py</code>。Dry-run 與 simulator 執行會接受此選項，但不會開啟 VISA。</td>
+                </tr>
+                <tr>
+                    <td><code>--csv PATH</code></td>
+                    <td>否</td>
+                    <td><code>data/YYYY-MM-DD-HH-MM-SS.csv</code></td>
+                    <td>CSV 輸出路徑。若省略，則在 <code>data</code> 下建立帶有 UTC+8 時間戳記的檔案。父目錄會自動建立。</td>
+                </tr>
+                <tr>
+                    <td><code>--status-format text\|jsonl</code></td>
+                    <td>否</td>
+                    <td><code>text</code></td>
+                    <td>執行階段狀態輸出格式。<code>jsonl</code> 為 Agent 呼叫端每行發出一個 JSON 物件。</td>
+                </tr>
+                <tr>
+                    <td><code>--dry-run</code></td>
+                    <td>否</td>
+                    <td>關閉</td>
+                    <td>驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。</td>
+                </tr>
+                <tr>
+                    <td><code>--simulate</code></td>
+                    <td>否</td>
+                    <td>關閉</td>
+                    <td>針對確定的模擬儀器後端執行，而不開啟實機 VISA 工作階段。簡單模式需要有界限的執行，例如 <code>--max-samples</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--json</code></td>
+                    <td>否</td>
+                    <td>關閉</td>
+                    <td><code>--status-format jsonl</code> 的別名。</td>
+                </tr>
+                <tr>
+                    <td><code>--timeout-ms N</code></td>
+                    <td>否</td>
+                    <td><code>5000</code></td>
+                    <td>VISA 工作階段逾時（毫秒）。支援範圍：<code>100</code> 到 <code>600000</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--trigger-timeout-ms N</code></td>
+                    <td>否</td>
+                    <td><code>10000</code></td>
+                    <td>外接/自訂觸發等待逾時。支援範圍：<code>500</code> 到 <code>600000</code>。逾時會重新 arm 硬體模式，其本身並非擷取錯誤。對於預期的外接邊緣時間而言太短的值將會重複 arm 而不進行擷取。</td>
+                </tr>
+                <tr>
+                    <td><code>--sw-trigger-port N</code></td>
+                    <td>否</td>
+                    <td><code>8765</code></td>
+                    <td>用於 <code>/command</code>、<code>/stop</code> 和 <code>/status</code> 的本機 HTTP 連接埠。使用 <code>0</code> 讓伺服器選擇連接埠，或使用 <code>1024</code> 到 <code>65535</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--sw-min-interval-ms N</code></td>
+                    <td>否</td>
+                    <td><code>0</code></td>
+                    <td>接受的軟體觸發之間的最小間隔。使用 <code>0</code> 停用速率限制，或使用 <code>50</code> 到 <code>600000</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--sw-queue-max N</code></td>
+                    <td>否</td>
+                    <td><code>0</code></td>
+                    <td>佇列軟體觸發的最大數量。支援範圍：<code>0</code> 到 <code>10000</code>；<code>0</code> 使用預設的安全限制。</td>
+                </tr>
+                <tr>
+                    <td><code>--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom</code></td>
+                    <td>否</td>
+                    <td><code>software</code></td>
+                    <td>精確選擇一種擷取模式。支援選項依設定檔而定；34460A 基礎設定檔排除 <code>external</code> 與 <code>external-custom</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--max-samples N</code></td>
+                    <td>僅限簡單模式</td>
+                    <td>無</td>
+                    <td>在成功取得 N 個 CSV 樣本後自動停止簡單模式。支援範圍：<code>1</code> 到 <code>1000000</code>。與自訂模式不相容。</td>
+                </tr>
+                <tr>
+                    <td><code>--trigger-count N</code></td>
+                    <td>僅限自訂模式</td>
+                    <td>無</td>
+                    <td>儀器觸發計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td>
+                </tr>
+                <tr>
+                    <td><code>--sample-count N</code></td>
+                    <td>僅限自訂模式</td>
+                    <td>無</td>
+                    <td>每次觸發的儀器樣本計數。支援範圍：<code>1</code> 到 <code>1000000</code>。自訂模式下必要；與簡單模式不相容。</td>
+                </tr>
+                <tr>
+                    <td><code>--timer-interval-s SECONDS</code></td>
+                    <td>否</td>
+                    <td>無</td>
+                    <td>啟用固定延遲的軟體計時器擷取。支援範圍：<code>0.5</code> 到 <code>86400</code> 秒。僅在 <code>--trigger-mode software</code> 時有效；當省略 <code>--trigger-mode</code> 時也有效（因為預設為 software）。可與 <code>--max-samples</code> 結合以限制計時器執行次數。</td>
+                </tr>
+                <tr>
+                    <td><code>--buffer-drain-size N</code></td>
+                    <td>僅限自訂模式</td>
+                    <td>無</td>
+                    <td>每次緩衝區排空移除的最大讀值。支援範圍：<code>1</code> 到 <code>10000</code>，受儀器設定檔讀值記憶體限制。進階選項，僅在自訂模式下有效；不會變更 <code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 或儀器讀值記憶體容量。</td>
+                </tr>
+                <tr>
+                    <td><code>--allow-buffer-overflow-risk</code></td>
+                    <td>否</td>
+                    <td>關閉</td>
+                    <td>允許自訂模式請求超過選定設定檔的讀值記憶體。這取決於排空讀值的速度是否夠快，可能會遺失資料或產生 SCPI 錯誤；不會允許不支援的範圍、端子、觸發模式，或超過讀值記憶體的 <code>--buffer-drain-size</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--hw-trigger-slope pos\|neg</code></td>
+                    <td>否</td>
+                    <td><code>neg</code></td>
+                    <td>外接觸發邊緣極性。</td>
+                </tr>
+                <tr>
+                    <td><code>--hw-trigger-delay-s SECONDS</code></td>
+                    <td>否</td>
+                    <td><code>0.0</code></td>
+                    <td>硬體觸發延遲，對應到 <code>TRIG:DEL</code>。支援範圍：<code>0</code> 到 <code>3600</code> 秒。</td>
+                </tr>
+                <tr>
+                    <td><code>--measurement current-dc\|voltage-dc\|voltage-dc-ratio\|current-ac\|voltage-ac\|frequency\|period\|resistance-2w\|resistance-4w</code></td>
+                    <td>否</td>
+                    <td><code>current-dc</code></td>
+                    <td>量測類型。</td>
+                </tr>
+                <tr>
+                    <td><code>--nplc VALUE</code></td>
+                    <td>否</td>
+                    <td><code>1.0</code></td>
+                    <td>用於 DC 電流、DC 電壓、DCV 比率和電阻的電源線週期積分時間。DC/電阻/比率的允許值：<code>0.02</code>、<code>0.2</code>、<code>1</code>、<code>10</code>、<code>100</code>。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 <code>1.0</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>--auto-zero on\|off\|once</code></td>
+                    <td>否</td>
+                    <td><code>on</code></td>
+                    <td>支援量測的自動歸零（Auto Zero）。<code>once</code> 在 DC 電流、DC 電壓和 2 線電阻下有效。DCV 比率僅接受預設/啟用（on）行為且不寫入 Auto Zero SCPI；4 線電阻、AC 量測、頻率與週期則將 Auto Zero 交給儀器處理。</td>
+                </tr>
+                <tr>
+                    <td><code>--auto-range on\|off</code></td>
+                    <td>否</td>
+                    <td><code>on</code></td>
+                    <td>啟用或停用自動量程（Auto Range）。</td>
+                </tr>
+                <tr>
+                    <td><code>--range VALUE</code></td>
+                    <td>當 <code>--auto-range off</code> 時必要</td>
+                    <td>無</td>
+                    <td>所選量測的手動量程。電流為安培；電壓、頻率與週期的輸入量程為伏特；電阻為歐姆。</td>
+                </tr>
+                <tr>
+                    <td><code>--current-range VALUE</code></td>
+                    <td>僅限 DC 電流</td>
+                    <td>無</td>
+                    <td>與 <code>current-dc</code> 的 <code>--range</code> 相容的別名。不可與 <code>--range</code> 同時使用；在 AC 電流、電壓和電阻量測下無效。</td>
+                </tr>
+                <tr>
+                    <td><code>--ac-bandwidth-hz 3\|20\|200</code></td>
+                    <td>僅限 AC/頻率/週期</td>
+                    <td>依量測而定</td>
+                    <td>AC 頻寬/濾波器設定。AC 電流/電壓省略時保持目前設定；頻率和週期省略時預設為 <code>20</code> Hz。</td>
+                </tr>
+                <tr>
+                    <td><code>--gate-time-s 0.01\|0.1\|1</code></td>
+                    <td>僅限頻率/週期</td>
+                    <td><code>0.1</code></td>
+                    <td>頻率/週期孔徑或閘門時間（gate time），單位為秒。</td>
+                </tr>
+                <tr>
+                    <td><code>--freq-period-timeout auto\|1s</code></td>
+                    <td>僅限頻率</td>
+                    <td><code>auto</code></td>
+                    <td>使用自動頻率逾時（timeout），或停用自動逾時以使用固定 1 秒行為。週期不支援此選項，也不會送出逾時 SCPI。</td>
+                </tr>
+                <tr>
+                    <td><code>--current-terminal 3\|10</code></td>
+                    <td>僅限電流</td>
+                    <td>無</td>
+                    <td>對公開端子選擇的設定檔而言的電流輸入端子。34461A 的 10 A 範圍需要 <code>--current-terminal 10</code>；<code>--current-terminal 10</code> 僅在 10 A 範圍下有效。34460A 設定檔拒絕電流端子選擇。</td>
+                </tr>
+                <tr>
+                    <td><code>--dcv-input-impedance default\|10m\|auto</code></td>
+                    <td>僅限 DC 電壓或 DCV 比率</td>
+                    <td><code>default</code></td>
+                    <td>DC 電壓輸入阻抗。<code>default</code> 不寫入阻抗指令；<code>10m</code> 強制為 10 MOhm；<code>auto</code> 啟用儀器自動（Auto）模式（在較低的 DC 電壓範圍下可能會顯示 HighZ）。</td>
+                </tr>
+                <tr>
+                    <td><code>--vm-comp-slope pos\|neg</code></td>
+                    <td>否</td>
+                    <td>無</td>
+                    <td>設定後面板 VM Comp 輸出脈衝斜率。省略以保持 VM Comp 不變。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h2 id="agent-friendly-workflow">友善 Agent 的 CLI 工作流程</h2>
+        <p><code>--measurement</code> 預設為 <code>current-dc</code>，因此現有的電流量測記錄指令不需要特別指定。新指令應偏好使用 <code>--range</code>；<code>--current-range</code> 繼續適用於現有的 DC 電流腳本。對於 <code>current-ac</code>、<code>voltage-dc</code>、<code>voltage-dc-ratio</code>、<code>voltage-ac</code>、<code>frequency</code>、<code>period</code>、<code>resistance-2w</code> 和 <code>resistance-4w</code> 請使用 <code>--range</code>；<code>--current-range</code> 在這些量測下會被拒絕。<br><code>--dcv-input-impedance</code> 僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 時有效。使用 <code>default</code> 以保持儀器目前的 Input Z 設定不變，<code>10m</code> 強制為 10 MOhm，或 <code>auto</code> 啟用 34461A 的 Auto Input Z 行為。當 Auto 作用於較低 DC 電壓範圍時，儀器可能會顯示 HighZ。</p>
+
+        <h2>友善 Agent 的 CLI 工作流程</h2>
         <p>使用 <code>--dry-run</code> 來驗證命令並檢查規劃的 SCPI/讀取路徑，而不接觸實體儀器：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -656,7 +1042,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
   --max-samples 1 `
   --dry-run `
   --status-format jsonl</code></pre></div>
-        <p>使用 <code>--simulate</code> 進行工作流程檢查，而不需要實際的 VISA 工作階段：</p>
+        <p>使用 <code>--simulate</code> 進行工作流程檢查，而不需要實機 VISA 工作階段：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
   --csv ".\data\simulate.csv" `
@@ -667,26 +1053,26 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
   --status-format jsonl</code></pre></div>
         <p>JSONL 輸出是每行一個 JSON 物件。這是專為 Agent 和腳本設計的；預設的文字輸出仍然是面向人類的介面。模擬器數值是確定的工作流程資料，並非真實的 34461A 量測驗證。</p>
         <p>自動化呼叫端應解析 JSONL、單一回應 JSON、CSV 檔案以及包裝器 <code>report.json</code> 產物來做出決策。人類文字訊息僅用於診斷，且可能會因可讀性而有所變更。</p>
-        <p>有關目前的 schema 和別名規則，請參閱 <a href="../../docs/contracts/meters-cli-jsonl-contract.md">Meters CLI JSON / JSONL 合約</a>。</p>
-        <p>有關 Meters 工作器模式、本機控制端點、狀態 payload 以及包裝器產物/報告 schema，請參閱 <a href="../../docs/contracts/meters-worker-contract.md">Meters Worker 合約</a>。</p>
+        <p>有關目前的 schema 和別名規則，請參閱 <a href="../contracts/meters-cli-jsonl-contract.html">Meters CLI JSON / JSONL 合約</a>。</p>
+        <p>有關 Meters 工作器模式、本機控制端點、狀態 payload 以及包裝器產物/報告 schema，請參閱 <a href="../contracts/meters-worker-contract.html">Meters Worker 合約</a>。</p>
         <p>當工作器執行中，<code>status</code> 會包裝非變更性的 <code>GET /status</code> 並傳回正規化 JSON 以供協調器健康檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe status --port 8765 --json</code></pre></div>
         <p>推薦的協調器流程：</p>
         <ol>
             <li>執行 <code>start-trigger-record --dry-run --status-format jsonl</code> 並驗證規劃（plan）物件。</li>
             <li>以相同的命令搭配 <code>--simulate --status-format jsonl</code> 與有限範圍（如 <code>--max-samples</code>）執行。</li>
-            <li>對於實際擷取，使用明確的 <code>--resource</code> 啟動工作器；在無人值守的實際執行中，絕不可掃描、推斷或猜測 VISA 資源。</li>
+            <li>對於實機擷取，使用明確的 <code>--resource</code> 啟動工作器；在無人值守的實機執行中，絕不可掃描、推斷或猜測 VISA 資源。</li>
             <li>等待 JSONL 的 <code>ready</code> 事件，或執行 <code>wait-ready --port 8765 --json</code>，然後呼叫 <code>status --port 8765 --json</code> 來驗證 <code>run_id</code>。</li>
             <li>僅在軟體觸發模式下使用 <code>POST /command</code>，並使用 <code>POST /stop</code> 進行正常停止。</li>
             <li>讀取 stdout 的 JSONL、CSV 以及例如 <code>report.json</code> 的包裝器產物以做出成功/失敗的決策。</li>
         </ol>
-        <p>請參閱 <a href="../../docs/contracts/meters-orchestrator-workflows.md">Meters 協調器工作流程</a> 了解完整的 Python 子程序工作流程。</p>
+        <p>請參閱 <a href="../contracts/meters-orchestrator-workflows.html">Meters 協調器工作流程</a> 了解完整的 Python 子程序工作流程。</p>
         <p><code>ready</code> 事件與 <code>wait-ready</code> 代表本機控制面可以接受 <code>/command</code>、<code>/stop</code> 與 <code>/status</code> 請求。它們並不代表第一個樣本已經擷取。使用 JSONL <code>run_id</code> 作為同一次執行的 stdout 執行階段事件、<code>status</code> 或直接 <code>GET /status</code> 以及包裝器產物之間的關聯鍵。</p>
 
         <h3>send-command --format json</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe send-command --port 8765 --format json</code></pre></div>
         <p>輸出：</p>
-        <div class="code-wrapper"><pre><code>{"command": "software_trigger", "event": "send-command", "http_status": 202,
+        <div class="code-wrapper"><pre><code class="language-json">{"command": "software_trigger", "event": "send-command", "http_status": 202,
  "job_id": null, "message": "command accepted", "schema_version": 1,
  "status": "accepted", "timestamp_utc": "2026-05-18T..."}</code></pre></div>
         <p>本機驗證和工作器 HTTP <code>400</code> 回應會以代碼 2 退出。HTTP <code>409</code>、<code>429</code>、連線/請求失敗，以及無效或空的成功回應主體會以代碼 3 退出。結構化 JSON 診斷會合併工作器的 <code>command</code>、<code>job_id</code>、<code>reason</code>、<code>error</code> 和 <code>message</code> 欄位（如果可用）。</p>
@@ -694,7 +1080,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <h3>stop --format json</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe stop --port 8765 --format json</code></pre></div>
         <p>輸出：</p>
-        <div class="code-wrapper"><pre><code>{"event": "stop", "http_status": 202, "message": "stop accepted",
+        <div class="code-wrapper"><pre><code class="language-json">{"event": "stop", "http_status": 202, "message": "stop accepted",
  "schema_version": 1, "status": "accepted", "timestamp_utc": "2026-05-18T..."}</code></pre></div>
         <p>如果端點未在監聽（程序已停止），則以代碼 0 退出，並發出 <code>{"status": "already_stopped", ...}</code>。</p>
 
@@ -707,78 +1093,180 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p><code>wait-ready</code> 在收到來自 <code>/status</code> 的任何有效 <code>200</code> JSON 回應時成功，並將 <code>attempts</code>、<code>elapsed_ms</code> 和 <code>timeout_ms</code> 加入正規化的狀態物件中。逾時或無效狀態 JSON 將以代碼 3 退出。</p>
 
         <h3>結束代碼 (Exit Codes)</h3>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>代碼</th><th>意義</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>0</code></td><td>成功，包括含有 <code>fatal_error</code> 的可連線 <code>status</code>，以及當端點已停止時的 <code>stop</code>。</td></tr>
-                    <tr><td><code>2</code></td><td>在請求的操作執行前的驗證或使用錯誤。</td></tr>
-                    <tr><td><code>3</code></td><td>執行階段、連線、HTTP 請求失敗、無效的 <code>/status</code> JSON，或 <code>wait-ready</code> 逾時。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>代碼</th>
+                    <th>意義</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>0</code></td>
+                    <td>成功，包括含有 <code>fatal_error</code> 的可連線 <code>status</code>，以及當端點已停止時的 <code>stop</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>2</code></td>
+                    <td>在請求的操作執行前的驗證或使用錯誤。</td>
+                </tr>
+                <tr>
+                    <td><code>3</code></td>
+                    <td>執行階段、連線、HTTP 請求失敗、無效的 <code>/status</code> JSON，或 <code>wait-ready</code> 逾時。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h2 id="validated-argument-limits">已驗證引數限制</h2>
+        <h2>已驗證引數限制</h2>
         <p>CLI 在開啟儀器前會驗證使用者輸入。超出這些範圍的值將快速失敗並顯示明確的錯誤。</p>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>引數</th><th>接受值</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>--measurement</code></td><td><code>current-dc</code>, <code>voltage-dc</code>, <code>voltage-dc-ratio</code>, <code>current-ac</code>, <code>voltage-ac</code>, <code>frequency</code>, <code>period</code>, <code>resistance-2w</code>, <code>resistance-4w</code></td></tr>
-                    <tr><td><code>--auto-zero</code></td><td><code>on</code>, <code>off</code> 或 <code>once</code>（依量測而有不同限制）</td></tr>
-                    <tr><td><code>--auto-range</code></td><td><code>on</code> 或 <code>off</code></td></tr>
-                    <tr><td><code>--ac-bandwidth-hz</code></td><td><code>3</code>, <code>20</code> 或 <code>200</code>（僅限 AC 電流/電壓、頻率、週期）</td></tr>
-                    <tr><td><code>--gate-time-s</code></td><td><code>0.01</code>, <code>0.1</code> 或 <code>1</code>（僅限頻率/週期）</td></tr>
-                    <tr><td><code>--freq-period-timeout</code></td><td><code>auto</code> 或 <code>1s</code>（僅限頻率）</td></tr>
-                    <tr><td><code>--current-terminal</code></td><td><code>3</code> 或 <code>10</code>（僅限電流量測，且 34460A 拒絕此選項）</td></tr>
-                    <tr><td><code>--status-format</code></td><td><code>text</code> 或 <code>jsonl</code></td></tr>
-                    <tr><td><code>--timeout-ms</code></td><td><code>100</code> 到 <code>600000</code></td></tr>
-                    <tr><td><code>--trigger-timeout-ms</code></td><td><code>500</code> 到 <code>600000</code></td></tr>
-                    <tr><td><code>--sw-trigger-port</code></td><td><code>0</code> 或 <code>1024</code> 到 <code>65535</code>；<code>0</code> 讓伺服器自行選擇</td></tr>
-                    <tr><td><code>--sw-min-interval-ms</code></td><td><code>0</code> 或 <code>50</code> 到 <code>600000</code>；<code>0</code> 停用節流</td></tr>
-                    <tr><td><code>--sw-queue-max</code></td><td><code>0</code> 到 <code>10000</code>；<code>0</code> 使用預設安全限制</td></tr>
-                    <tr><td><code>--max-samples</code></td><td><code>1</code> 到 <code>1000000</code>（僅限簡單模式）</td></tr>
-                    <tr><td><code>--trigger-count</code>, <code>--sample-count</code></td><td><code>1</code> 到 <code>1000000</code>（僅限自訂模式）</td></tr>
-                    <tr><td><code>--timer-interval-s</code></td><td><code>0.5</code> 到 <code>86400</code> 秒（僅限軟體模式）</td></tr>
-                    <tr><td><code>--buffer-drain-size</code></td><td><code>1</code> 到 <code>10000</code>（僅限自訂模式且受讀取記憶體限制）</td></tr>
-                    <tr><td><code>--hw-trigger-delay-s</code></td><td><code>0</code> 到 <code>3600</code> 秒</td></tr>
-                    <tr><td><code>send-command --port</code>, <code>stop --port</code>, <code>status --port</code>, <code>wait-ready --port</code></td><td><code>1</code> 到 <code>65535</code></td></tr>
-                    <tr><td><code>send-command --timeout-ms</code>, <code>stop --timeout-ms</code>, <code>status --timeout-ms</code>, <code>wait-ready --timeout-ms</code></td><td><code>100</code> 到 <code>600000</code></td></tr>
-                    <tr><td><code>send-command --format</code>, <code>stop --format</code>, <code>status --format</code>, <code>wait-ready --format</code></td><td><code>text</code> 或 <code>json</code></td></tr>
-                </tbody>
-            </table>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>引數</th>
+                    <th>接受值</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>--measurement</code></td>
+                    <td><code>current-dc</code>, <code>voltage-dc</code>, <code>voltage-dc-ratio</code>, <code>current-ac</code>, <code>voltage-ac</code>, <code>frequency</code>, <code>period</code>, <code>resistance-2w</code>, <code>resistance-4w</code></td>
+                </tr>
+                <tr>
+                    <td><code>--auto-zero</code></td>
+                    <td><code>on</code>, <code>off</code> 或 <code>once</code>（依量測而有不同限制）</td>
+                </tr>
+                <tr>
+                    <td><code>--auto-range</code></td>
+                    <td><code>on</code> 或 <code>off</code></td>
+                </tr>
+                <tr>
+                    <td><code>--ac-bandwidth-hz</code></td>
+                    <td><code>3</code>, <code>20</code> 或 <code>200</code>（僅限 AC 電流/電壓與頻率/週期）</td>
+                </tr>
+                <tr>
+                    <td><code>--gate-time-s</code></td>
+                    <td><code>0.01</code>, <code>0.1</code> 或 <code>1</code>（僅限頻率/週期）</td>
+                </tr>
+                <tr>
+                    <td><code>--freq-period-timeout</code></td>
+                    <td><code>auto</code> 或 <code>1s</code>（僅限頻率）</td>
+                </tr>
+                <tr>
+                    <td><code>--current-terminal</code></td>
+                    <td><code>3</code> 或 <code>10</code>（僅限電流量測）</td>
+                </tr>
+                <tr>
+                    <td><code>--status-format</code></td>
+                    <td><code>text</code> 或 <code>jsonl</code></td>
+                </tr>
+                <tr>
+                    <td><code>--timeout-ms</code></td>
+                    <td><code>100</code> 到 <code>600000</code></td>
+                </tr>
+                <tr>
+                    <td><code>--trigger-timeout-ms</code></td>
+                    <td><code>500</code> 到 <code>600000</code></td>
+                </tr>
+                <tr>
+                    <td><code>--sw-trigger-port</code></td>
+                    <td><code>0</code> 或 <code>1024</code> 到 <code>65535</code>；<code>0</code> 讓伺服器自行選擇</td>
+                </tr>
+                <tr>
+                    <td><code>--sw-min-interval-ms</code></td>
+                    <td><code>0</code> 或 <code>50</code> 到 <code>600000</code>；<code>0</code> 停用節流</td>
+                </tr>
+                <tr>
+                    <td><code>--sw-queue-max</code></td>
+                    <td><code>0</code> 到 <code>10000</code>；<code>0</code> 使用預設安全限制</td>
+                </tr>
+                <tr>
+                    <td><code>--max-samples</code></td>
+                    <td><code>1</code> 到 <code>1000000</code>（僅限簡單模式）</td>
+                </tr>
+                <tr>
+                    <td><code>--trigger-count</code>, <code>--sample-count</code></td>
+                    <td><code>1</code> 到 <code>1000000</code>（僅限自訂模式）</td>
+                </tr>
+                <tr>
+                    <td><code>--timer-interval-s</code></td>
+                    <td><code>0.5</code> 到 <code>86400</code> 秒（僅限軟體模式）</td>
+                </tr>
+                <tr>
+                    <td><code>--buffer-drain-size</code></td>
+                    <td><code>1</code> 到 <code>10000</code>（僅限自訂模式且受讀取記憶體限制）</td>
+                </tr>
+                <tr>
+                    <td><code>--hw-trigger-delay-s</code></td>
+                    <td><code>0</code> 到 <code>3600</code> 秒</td>
+                </tr>
+                <tr>
+                    <td><code>send-command --port</code>, <code>stop --port</code>, <code>status --port</code>, <code>wait-ready --port</code></td>
+                    <td><code>1</code> 到 <code>65535</code></td>
+                </tr>
+                <tr>
+                    <td><code>send-command --timeout-ms</code>, <code>stop --timeout-ms</code>, <code>status --timeout-ms</code>, <code>wait-ready --timeout-ms</code></td>
+                    <td><code>100</code> 到 <code>600000</code></td>
+                </tr>
+                <tr>
+                    <td><code>send-command --format</code>, <code>stop --format</code>, <code>status --format</code>, <code>wait-ready --format</code></td>
+                    <td><code>text</code> 或 <code>json</code></td>
+                </tr>
+            </tbody>
+        </table>
+
         <p>對於 Agent 或自動化使用，<code>start-trigger-record --status-format jsonl</code> 和 <code>--json</code> 別名會在控制面啟動後發出一個 <code>ready</code> 事件。該事件包含 <code>command_url</code>、<code>stop_url</code> 和 <code>status_url</code>。請將其視為可以傳送 <code>/command</code>、<code>/stop</code> 和非變更性 <code>/status</code> 請求的訊號；這不是第一個樣本或量測完成的訊號。</p>
         <p><code>--trigger-timeout-ms</code> 對於外接硬體觸發模式最為重要。如果它短於外接邊緣之間的預期時間，主控台將會一直列印硬體觸發逾時/重新 arm 狀態，且在逾時視窗內有新的邊緣到達前不會進行任何擷取。在軟體模式下，此值僅用於工作器輪詢步調，並在內部限制為每次等待最多 200 ms；這不是量測完成的逾時。</p>
         <p>對於 Agent 或自動化使用，請保守分類觸發等待結果：尚未到達的外接觸發邊緣是正常等待狀態，而非錯誤。在簡單的外接模式中，重複的 PyVISA 狀態位元組輪詢逾時只會發出診斷，不會成為致命的擷取失敗：第 5 次連續逾時會發出警告，第 25 次連續逾時會增加 <code>errors</code> 數並發出降級狀態，之後每增加 25 次連續逾時會再次增加 <code>errors</code> 數。成功讀取狀態位元組會重設連續逾時次數。實際的 <code>READ?</code>、<code>FETC?</code>、連線、識別或 SCPI 指令失敗則是擷取錯誤且可能是致命的。</p>
-
-        <p>手動範圍值針對每種量測類型進行白名單管理：</p>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>量測類型</th><th>允許的 <code>--range</code> 值</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>current-dc</code></td><td><code>0.0001</code>, <code>0.001</code>, <code>0.01</code>, <code>0.1</code>, <code>1</code>, <code>3</code>, <code>10</code> A</td></tr>
-                    <tr><td><code>current-ac</code></td><td><code>0.0001</code>, <code>0.001</code>, <code>0.01</code>, <code>0.1</code>, <code>1</code>, <code>3</code>, <code>10</code> A</td></tr>
-                    <tr><td><code>voltage-dc</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td></tr>
-                    <tr><td><code>voltage-dc-ratio</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td></tr>
-                    <tr><td><code>voltage-ac</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V</td></tr>
-                    <tr><td><code>frequency</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V 輸入範圍</td></tr>
-                    <tr><td><code>period</code></td><td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V 輸入範圍</td></tr>
-                    <tr><td><code>resistance-2w</code></td><td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td></tr>
-                    <tr><td><code>resistance-4w</code></td><td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <p>手動量程值針對每種量測類型進行白名單管理：</p>
+        <table>
+            <thead>
+                <tr>
+                    <th>量測類型</th>
+                    <th>允許的 <code>--range</code> 值</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>current-dc</code></td>
+                    <td>34461A：<code>0.0001</code>, <code>0.001</code>, <code>0.01</code>, <code>0.1</code>, <code>1</code>, <code>3</code>, <code>10</code> A；34460A：最高 <code>3</code> A</td>
+                </tr>
+                <tr>
+                    <td><code>current-ac</code></td>
+                    <td>34461A：<code>0.0001</code>, <code>0.001</code>, <code>0.01</code>, <code>0.1</code>, <code>1</code>, <code>3</code>, <code>10</code> A；34460A：最高 <code>3</code> A</td>
+                </tr>
+                <tr>
+                    <td><code>voltage-dc</code></td>
+                    <td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td>
+                </tr>
+                <tr>
+                    <td><code>voltage-dc-ratio</code></td>
+                    <td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>1000</code> V</td>
+                </tr>
+                <tr>
+                    <td><code>voltage-ac</code></td>
+                    <td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V</td>
+                </tr>
+                <tr>
+                    <td><code>frequency</code></td>
+                    <td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V 輸入範圍</td>
+                </tr>
+                <tr>
+                    <td><code>period</code></td>
+                    <td><code>0.1</code>, <code>1</code>, <code>10</code>, <code>100</code>, <code>750</code> V 輸入範圍</td>
+                </tr>
+                <tr>
+                    <td><code>resistance-2w</code></td>
+                    <td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td>
+                </tr>
+                <tr>
+                    <td><code>resistance-4w</code></td>
+                    <td><code>100</code>, <code>1000</code>, <code>10000</code>, <code>100000</code>, <code>1000000</code>, <code>10000000</code>, <code>100000000</code> Ohm</td>
+                </tr>
+            </tbody>
+        </table>
 
         <p>額外驗證規則：</p>
         <ul>
-            <li><code>--auto-range off</code> 需要手動範圍。對於 <code>current-dc</code>，接受 <code>--range</code> 或相容別名 <code>--current-range</code>。對於所有其他量測，請使用 <code>--range</code>。</li>
+            <li><code>--auto-range off</code> 需要手動量程。對於 <code>current-dc</code>，接受 <code>--range</code> 或相容別名 <code>--current-range</code>。對於所有其他量測，請使用 <code>--range</code>。</li>
             <li><code>--range</code> 和 <code>--current-range</code> 不能同時使用。</li>
             <li><code>--current-range</code> 僅在 <code>--measurement current-dc</code> 下有效。</li>
             <li>除了 <code>default</code> 之外的 <code>--dcv-input-impedance</code> 值僅在 <code>--measurement voltage-dc</code> 或 <code>--measurement voltage-dc-ratio</code> 下有效。</li>
@@ -788,20 +1276,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
             <li><code>voltage-dc-ratio</code> 僅接受預設/啟用（on）的 Auto Zero 行為。</li>
             <li><code>--ac-bandwidth-hz</code> 僅在 <code>current-ac</code>、<code>voltage-ac</code>、<code>frequency</code> 或 <code>period</code> 下有效。</li>
             <li><code>--gate-time-s</code> 僅在 <code>frequency</code> 或 <code>period</code> 下有效。</li>
-            <li><code>--freq-period-timeout</code> 僅在 <code>frequency</code> 下有效；週期明確指定此選項時會在開啟 VISA 前被拒絕。</li>
-            <li><code>--current-terminal</code> 僅在電流量測下有效。10 A 範圍需要 <code>--current-terminal 10</code>，而 <code>--current-terminal 10</code> 需要 10 A 範圍。</li>
+            <li><code>--freq-period-timeout</code> 僅在 <code>frequency</code> 下有效。</li>
+            <li><code>--current-terminal</code> 僅在公開端子選擇的設定檔之電流量測下有效。34461A 的 10 A 範圍需要 <code>--current-terminal 10</code>，而 <code>--current-terminal 10</code> 需要 10 A 範圍。34460A 設定檔拒絕電流端子選擇。</li>
+            <li>34460A 基礎設定檔拒絕 <code>external</code> 與 <code>external-custom</code> 觸發模式。</li>
             <li>自訂模式需要同時提供 <code>--trigger-count</code> 和 <code>--sample-count</code>；簡單模式會拒絕這兩個選項。</li>
             <li>自訂模式拒絕 <code>--max-samples</code>；簡單模式使用 <code>--max-samples</code> 進行有限的執行。</li>
             <li><code>--buffer-drain-size</code> 和 <code>--allow-buffer-overflow-risk</code> 僅在自訂模式下有效。</li>
-            <li>除非設定了 <code>--allow-buffer-overflow-risk</code>，否則自訂模式拒絕 <code>trigger_count * sample_count > 10000</code>（34460A 則為 1000）。</li>
-            <li><code>--timer-interval-s</code> 需要軟體模式。它在預設觸發模式下有效（因為省略 <code>--trigger-mode</code> 會解析為 <code>software</code>）。可與 <code>--max-samples</code> 結合使用。</li>
+            <li>除非設定了 <code>--allow-buffer-overflow-risk</code>，否則自訂模式拒絕超過選定設定檔讀值記憶體的 <code>trigger_count * sample_count</code>；34461A 的限制為 10000，34460A 的限制為 1000。</li>
+            <li><code>--timer-interval-s</code> 需要軟體模式。它在預設觸發模式下有效（因為省略 <code>--trigger-mode</code> 會解析為 <code>software</code>），也可與 <code>--max-samples</code> 結合，在固定數量的計時器資料列後停止。</li>
         </ul>
 
-        <h2 id="examples">範例</h2>
+        <h2>範例</h2>
         <p>這些範例依照實用驗證路徑排序：先確認作用中資源，然後執行單一樣本快速功能健檢，最後使用符合實驗設計的觸發模式。下方的資源字串皆為示意遮蔽值。請使用 VISA discovery 回傳的確切資源，並使用適合您的儀器與測試執行的 CSV 路徑。</p>
         <p>在執行下方的實機範例前，從 <code>list-resources --live-only</code> 的輸出複製一個確切的資源字串，並在目前的 PowerShell 工作階段中設定一次：</p>
         <div class="code-wrapper"><pre><code>$env:METER_RESOURCE = "USB0::...::INSTR"</code></pre></div>
-        <p><code>METER_RESOURCE</code> 只是 PowerShell 文件範例。CLI 不會自動讀取或搜尋這個環境變數；請透過 <code>--resource "$env:METER_RESOURCE"</code> 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼真實儀器資源。</p>
+        <p><code>METER_RESOURCE</code> 只是 PowerShell 文件範例。CLI 不會自動讀取或搜尋這個環境變數；請透過 <code>--resource "$env:METER_RESOURCE"</code> 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼實機硬體資源。</p>
 
         <h3>列出 VISA 資源</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources</code></pre></div>
@@ -815,12 +1304,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\preflight-cli.
         <p>預覽探測合約而不接觸 VISA：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe list-resources --dry-run --live-only --json</code></pre></div>
         <p>驗證後的文字輸出以 tab 分隔：</p>
-        <div class="code-wrapper"><pre><code>live    USB0::...::INSTR    Keysight Technologies,34461A,...
+        <div class="code-wrapper"><pre><code class="language-text">live    USB0::...::INSTR    Keysight Technologies,34461A,...
 stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></pre></div>
         <p><code>--live-only</code> 仍會驗證每個資源，但會隱藏過期（stale）的資料列。如果沒有資源回應，文字輸出會列印：</p>
-        <div class="code-wrapper"><pre><code>no live VISA resources found</code></pre></div>
+        <div class="code-wrapper"><pre><code class="language-text">no live VISA resources found</code></pre></div>
         <p>驗證後的 JSON 輸出為單一物件：</p>
-        <div class="code-wrapper"><pre><code>{
+        <div class="code-wrapper"><pre><code class="language-json">{
   "resources": [
     {
       "detail": "Keysight Technologies,34461A,...",
@@ -832,7 +1321,7 @@ stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></
   "verify": true
 }</code></pre></div>
         <p><code>--live-only --format json</code> 保留相同的資源記錄格式，篩選掉過期的項目，並加入 <code>live_only</code>：</p>
-        <div class="code-wrapper"><pre><code>{
+        <div class="code-wrapper"><pre><code class="language-json">{
   "live_only": true,
   "resources": [
     {
@@ -845,23 +1334,23 @@ stale   USB0::OLD::RESOURCE::INSTR                     VisaIOError: ...</code></
   "verify": true
 }</code></pre></div>
         <p>資源字串範例：</p>
-        <div class="code-wrapper"><pre><code>USB0::...::INSTR
+        <div class="code-wrapper"><pre><code class="language-text">USB0::...::INSTR
 TCPIP0::...::hislip0::INSTR</code></pre></div>
         <p>請直接從 VISA discovery 輸出複製實際值，不要手動拼接資源字串。</p>
 
-        <h3>真實儀器驗證路徑</h3>
+        <h3>實機驗證路徑</h3>
         <p>在檢查環境設定時，請使用此順序：</p>
         <ol>
             <li>執行 <code>list-resources --live-only</code> 並選擇作用中的資源。當需要診斷過期的 VISA 快取項目時，請改用 <code>list-resources --verify</code>。</li>
             <li>以 <code>--trigger-mode immediate</code> 與 <code>--max-samples 1</code> 執行單一樣本的電流、電壓、頻率、週期或電阻快速功能健檢。</li>
-            <li>執行實驗所需的特定觸發模式：軟體、計時器、外接、即時或自訂/緩衝。</li>
+            <li>執行實驗所需的特定觸發模式：軟體、計時器、外接、立即或自訂/緩衝。</li>
             <li>確認 CSV 中的 <code>measurement_type</code>、<code>unit</code>、<code>trigger_source</code> 與列數。</li>
             <li>在信賴長期無人值守執行前，先用 <code>stop</code>、Ctrl+C、Ctrl+Break 或 <code>q</code> 確認正常停止行為。</li>
         </ol>
-        <p>在進行無人值守擷取前，請使用操作者提供的 Keysight 34461A VISA 資源來驗證工作流程。從即時模式、自動範圍開啟以及 <code>--max-samples 1</code> 開始，然後擴展至預期的量測、觸發模式與緩衝模式。對於 AC 電流、AC 電壓、頻率與週期，請在快速功能健檢期間將 CLI CSV 資料列與 34461A 前面板讀數進行對比。</p>
+        <p>在進行無人值守擷取前，請使用操作者提供的 Keysight 34461A VISA 資源來驗證工作流程。從立即模式、自動量程開啟以及 <code>--max-samples 1</code> 開始，然後擴展至預期的量測、觸發模式與緩衝模式。對於 AC 電流、AC 電壓、頻率與週期，請在快速功能健檢期間將 CLI CSV 資料列與 34461A 前面板讀值進行對比。</p>
 
         <h3>DC 電流快速功能健檢</h3>
-        <p>單一即時電流樣本：</p>
+        <p>單一立即電流取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_smoke.csv" `
@@ -873,7 +1362,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --nplc 1.0 `
   --max-samples 1</code></pre></div>
         <p>對於電流列，預期 CSV 中的 <code>measurement_type=current_dc</code> 且 <code>unit=A</code>。</p>
-
         <p>Dry-run 10 A 端子檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -885,7 +1373,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --dry-run `
   --status-format jsonl</code></pre></div>
-
         <p>模擬 10 A 端子工作流程檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
@@ -898,8 +1385,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --simulate `
   --status-format jsonl</code></pre></div>
-
-        <p>實際 10 A 端子快速功能健檢。僅在操作者確認電流路徑對 10 A 輸入端子和預期電流安全後才可執行：</p>
+        <p>實機 10 A 端子快速功能健檢。僅在操作者確認電流路徑對 10 A 輸入端子和預期電流安全後才可執行：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_10a_terminal_smoke.csv" `
@@ -930,9 +1416,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
         <p>執行 <code>send-command</code> 指令五次。記錄器會因為 <code>--max-samples 5</code> 而在成功取得五個樣本後自動停止。</p>
 
         <h3>驗證過的 DC 電壓基本功能健檢</h3>
-        <p>這兩個電壓指令在真實的 34461A 上回報正常：自動範圍、手動 10 V 範圍，且 CSV 欄位/數值看起來都很正常。</p>
-        <p>在相同的儀器上，額外的電壓觸發檢查也回報正常：軟體觸發 (1-2 列)、軟體計時器 (2-3 列) 以及外接觸發 (單一外接邊緣)。搭配 <code>voltage-dc</code> 的 <code>immediate-custom</code>、<code>software-custom</code> 和 <code>external-custom</code> 粗略檢查也正常。</p>
-
+        <p>這兩個電壓指令在實機 34461A 上回報正常：自動量程、手動 10 V 量程，且 CSV 欄位/數值看起來都很正常。<br>在相同的儀器上，額外的電壓觸發檢查也回報正常：軟體觸發 (1-2 列)、軟體計時器 (2-3 列) 以及外接觸發 (單一外接邊緣)。搭配 <code>voltage-dc</code> 的 <code>immediate-custom</code>、<code>software-custom</code> 和 <code>external-custom</code> 粗略檢查也正常。</p>
         <p>Dry-run Auto Zero once 檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -942,7 +1426,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --dry-run `
   --status-format jsonl</code></pre></div>
-
         <p>模擬 Auto Zero once 工作流程檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
@@ -953,8 +1436,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --simulate `
   --status-format jsonl</code></pre></div>
-
-        <p>自動範圍，單一即時電壓樣本：</p>
+        <p>自動量程，單一立即電壓取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_auto_smoke.csv" `
@@ -964,8 +1446,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --auto-zero off `
   --nplc 1.0 `
   --max-samples 1</code></pre></div>
-
-        <p>手動 10 V 範圍，單一即時電壓樣本：</p>
+        <p>手動 10 V 量程，單一立即電壓取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_range10_smoke.csv" `
@@ -976,8 +1457,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --auto-zero off `
   --nplc 1.0 `
   --max-samples 1</code></pre></div>
-
-        <p>實際 Auto Zero once 快速功能健檢：</p>
+        <p>實機 Auto Zero once 快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_auto_zero_once_smoke.csv" `
@@ -988,9 +1468,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --nplc 1.0 `
   --max-samples 1 `
   --status-format jsonl</code></pre></div>
-        
         <p>對於電壓列，預期 CSV 中的 <code>measurement_type=voltage_dc</code> 且 <code>unit=V</code>。電壓也可以透過 <code>--measurement voltage-dc</code> 來配合自訂/緩衝模式使用；這些路徑使用相同的量測設定以及現有的自訂模式觸發/讀取流程。在信賴電壓緩衝擷取以進行生產前，請先使用操作者提供的 VISA 資源執行較長期的緩衝驗證。</p>
-
         <p>DCV Input Z 快速功能健檢，自動模式：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -1002,7 +1480,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --auto-zero off `
   --nplc 1.0 `
   --max-samples 1</code></pre></div>
-
         <p>DCV Input Z 快速功能健檢，固定 10 MOhm：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -1017,8 +1494,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
         <p>對於這些檢查，請確認前面板 Input Z 狀態是否符合預期變更：<code>auto</code> 應選擇自動並在較低的 DC 電壓範圍顯示 HighZ，而 <code>10m</code> 應選擇固定的 10 MOhm。這兩個 DCV Input Z 快速功能健檢在 <code>v1.0.0-cli</code> 基準前於真實 34461A 上回報正常。</p>
 
         <h3>DCV 比率 (Ratio) 快速功能驗證</h3>
-        <p>DCV 比率 (Ratio) 使用現有的 <code>VOLT:DC:RAT</code> 實作。它已對驗證過的 34461A 範圍產品開放。34460A 設定檔公開了用於 dry-run/模擬器使用的已實作路徑，但其實機 USB/system-VISA 量測狀態為 <code>feature_pending</code>：一般的 CLI 與 WebUI 啟動會拒絕它，而經審核的隱藏驗證模式使用則可收集有界限的候選證據。在進行實機操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。</p>
-
+        <p>DCV 比率 (Ratio) 使用現有的 <code>VOLT:DC:RAT</code> 實作。它已對驗證過的 34461A 範圍產品開放，且 34460A 僅在 USB/system-VISA 上為 <code>Product-open</code>。34460A 的此 scope 是在維護者審查並明確提升分開的有界限證據後開放；既有的 12-case wrapper full suite 不包含 Ratio。一般 CLI 與 WebUI 啟動不需要隱藏的驗證模式選擇器。34460A LAN/TCPIP system-VISA 與 LAN/TCPIP pyvisa-py <code>@py</code> 仍為 <code>transport_pending</code>，因此 Ratio 的提升不延伸至這些 scope。進行實機操作前，請依照儀器手冊連接信號和參考導線；錯誤連接的比率量測可能數值看起來合理，但量測的卻是錯誤的關係。</p>
         <p>Dry-run DCV Ratio 檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -1027,7 +1503,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --dry-run `
   --status-format jsonl</code></pre></div>
-
         <p>模擬 DCV Ratio 工作流程檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
@@ -1037,7 +1512,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --simulate `
   --status-format jsonl</code></pre></div>
-
         <p>產品開放的 34461A 實機 DCV Ratio 快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -1051,8 +1525,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
         <p>對於 DCV 比率資料列，預期 <code>measurement_type=voltage_dc_ratio</code> 且 <code>unit=ratio</code>，若後端支援 <code>DATA2?</code>，則 CSV/JSONL <code>measurement_metadata</code> 會包含信號/參考電壓欄位。</p>
 
         <h3>AC 電流與電壓快速功能驗證</h3>
-        <p>AC 電流與 AC 電壓使用與其他純量（scalar）量測相同的觸發/讀取流程。它們設定 34461A 的 AC 功能、自動/手動範圍與選用的 AC 頻寬。對於 AC 量測，CLI 不會寫入 NPLC 或 Auto Zero SCPI。在實際驗證時，請從即時模式、自動範圍開啟與 <code>--max-samples 1</code> 開始，然後對照 CLI CSV 欄位與 34461A 前面板讀數。</p>
-
+        <p>AC 電流與 AC 電壓使用與其他純量（scalar）量測相同的觸發/讀取流程。它們設定 34461A 的 AC 功能、自動/手動量程與選用的 AC 頻寬。對於 AC 量測，CLI 不會寫入 NPLC 或 Auto Zero SCPI。在實機驗證時，請從立即模式、自動量程開啟與 <code>--max-samples 1</code> 開始，然後對照 CLI CSV 欄位與 34461A 前面板讀值。</p>
         <p>Dry-run AC 頻寬檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -1062,7 +1535,6 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --dry-run `
   --status-format jsonl</code></pre></div>
-
         <p>模擬 AC 頻寬工作流程檢查：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "SIM::34461A" `
@@ -1073,8 +1545,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --simulate `
   --status-format jsonl</code></pre></div>
-
-        <p>建議的自動範圍 AC 電壓快速功能健檢：</p>
+        <p>建議的自動量程 AC 電壓快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\voltage_ac_auto_smoke.csv" `
@@ -1083,8 +1554,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --ac-bandwidth-hz 20 `
   --auto-range on `
   --max-samples 1</code></pre></div>
-
-        <p>建議的手動範圍 AC 電流快速功能健檢：</p>
+        <p>建議的手動量程 AC 電流快速功能健檢：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\current_ac_range100ma_smoke.csv" `
@@ -1093,11 +1563,10 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --auto-range off `
   --range 0.1 `
   --max-samples 1</code></pre></div>
-        <p>對於 AC 資料列，預期 <code>measurement_type=voltage_ac</code> 且 <code>unit=V</code>，或 <code>measurement_type=current_ac</code> 且 <code>unit=A</code>。在實機快速功能驗證期間，請對照 CLI CSV 資料列與 34461A 前面板讀數，確認無誤後再依賴較長期的擷取。</p>
+        <p>對於 AC 資料列，預期 <code>measurement_type=voltage_ac</code> 且 <code>unit=V</code>，或 <code>measurement_type=current_ac</code> 且 <code>unit=A</code>。在實機快速功能驗證期間，請對照 CLI CSV 資料列與 34461A 前面板讀值，確認無誤後再依賴較長期的擷取。</p>
 
         <h3>頻率與週期快速功能驗證</h3>
-        <p>頻率（Frequency）與週期（Period）共用純量（scalar）<code>READ?</code>、硬體觸發 <code>FETC?</code> 以及緩衝擷取路徑。它們的有效預設值為自動範圍（Auto Range）、<code>20</code> Hz AC 濾波器與 <code>0.1</code> 秒閘門時間（gate time）。頻率預設為自動逾時。週期不會傳送逾時 SCPI，並保持儀器現有的週期逾時狀態不變。</p>
-
+        <p>頻率（Frequency）與週期（Period）共用純量（scalar）<code>READ?</code>、硬體觸發 <code>FETC?</code> 以及緩衝擷取路徑。它們的有效預設值為自動量程（Auto Range）、<code>20</code> Hz AC 濾波器與 <code>0.1</code> 秒閘門時間（gate time）。頻率預設為自動逾時。週期不會傳送逾時 SCPI，並保持儀器現有的週期逾時狀態不變。</p>
         <p>在實機 I/O 前預覽各個設定：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
@@ -1114,15 +1583,12 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 1 `
   --dry-run `
   --status-format jsonl</code></pre></div>
-
-        <p>檢閱規劃後，一個有界限的自動範圍實機快速功能健檢將使用相同的指令，但不加上 <code>--dry-run</code>，並提供明確的 <code>--csv</code> 路徑。請分別執行頻率與週期，各擷取一個樣本，並將 CSV 數值與前面板進行對比。頻率的資料列使用 <code>measurement_type=frequency</code>, <code>unit=Hz</code>；週期的資料列使用 <code>measurement_type=period</code>, <code>unit=s</code>。</p>
-
+        <p>檢閱規劃後，一個有界限的自動量程實機快速功能健檢將使用相同的指令，但不加上 <code>--dry-run</code>，並提供明確的 <code>--csv</code> 路徑。請分別執行頻率與週期，各擷取一個取樣，並將 CSV 數值與前面板進行對比。頻率的資料列使用 <code>measurement_type=frequency</code>, <code>unit=Hz</code>；週期的資料列使用 <code>measurement_type=period</code>, <code>unit=s</code>。</p>
         <p>透過 <code>scripts\live-cli-check.ps1 -Suite frequency-period</code> 可執行相同的一對檢查。包裝器會先執行行前檢查（preflight）與 dry-run 規劃，在實機 I/O 前需要互動式確認，在每個規劃的頻率/週期指令後檢查 SCPI 錯誤佇列，並將診斷結果及每個量測值和單位記錄在 <code>report.json</code> 與 <code>summary.md</code> 中。<code>-PlanOnly</code> 保持為無硬體模式且不會執行 SCPI 探測。</p>
 
         <h3>驗證過的 2 線式電阻快速功能健檢</h3>
-        <p>這兩個電阻指令在真實 34461A 上回報正常：自動範圍、手動 1000 Ohm 範圍，且 CSV 欄位/數值看起來都很正常。</p>
-
-        <p>自動範圍，單一即時電阻樣本：</p>
+        <p>這兩個電阻指令在實機 34461A 上回報正常：自動量程、手動 1000 Ohm 量程，且 CSV 欄位/數值看起來都很正常。</p>
+        <p>自動量程，單一立即電阻取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_2w_auto_smoke.csv" `
@@ -1132,8 +1598,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --auto-zero off `
   --nplc 1.0 `
   --max-samples 1</code></pre></div>
-
-        <p>手動 1000 Ohm 範圍，單一即時電阻樣本：</p>
+        <p>手動 1000 Ohm 量程，單一立即電阻取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_2w_range1000_smoke.csv" `
@@ -1148,8 +1613,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
 
         <h3>4 線式電阻快速功能健檢</h3>
         <p>這些指令使用與其他純量（scalar）量測相同的觸發/讀取流程，但 4 線式 SCPI 功能為 <code>FRES</code>。CLI 不會寫入 <code>FRES:ZERO:AUTO</code>，因為 34461A 在內部處理 4 線電阻的 Auto Zero。移除 <code>FRES:ZERO:AUTO</code> 後，這些快速功能健檢在真實的 34461A 上回報正常。</p>
-
-        <p>自動範圍，單一即時 4 線電阻樣本：</p>
+        <p>自動量程，單一立即 4 線電阻取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_4w_auto_smoke.csv" `
@@ -1158,8 +1622,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --auto-range on `
   --nplc 1.0 `
   --max-samples 1</code></pre></div>
-
-        <p>手動 1000 Ohm 範圍，單一即時 4 線電阻樣本：</p>
+        <p>手動 1000 Ohm 量程，單一立即 4 線電阻取樣：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\resistance_4w_range1000_smoke.csv" `
@@ -1214,7 +1677,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --nplc 1.0</code></pre></div>
         <p>每個被接受的外接觸發邊緣都會產生一列 <code>trigger_source=hardware</code> 的 CSV。硬體觸發逾時被視為正常的保護性重新 arm 條件；它本身不會被計為錯誤。</p>
 
-        <h3>即時模式，限制樣本執行</h3>
+        <h3>立即模式，限制取樣執行</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\immediate_100.csv" `
@@ -1224,9 +1687,9 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --range 0.1 `
   --auto-zero off `
   --nplc 1.0</code></pre></div>
-        <p>即時模式不等待 <code>send-command</code> 或外接觸發邊緣。請使用 <code>--max-samples</code> 以避免意外的長時間連續執行。</p>
+        <p>立即模式不等待 <code>send-command</code> 或外接觸發邊緣。請使用 <code>--max-samples</code> 以避免意外的長時間連續執行。</p>
 
-        <h3>即時自訂（Immediate Custom）模式</h3>
+        <h3>立即自訂（Immediate Custom）模式</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
   --resource "$env:METER_RESOURCE" `
   --csv ".\data\immediate_custom_1000.csv" `
@@ -1237,7 +1700,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --range 0.1 `
   --auto-zero off `
   --nplc 1.0</code></pre></div>
-        <p>此模式使用 34461A 讀取記憶體來減少每個樣本 <code>READ?</code> 通訊的開銷。這不是儀器的內部定時模式：樣本步調仍由量測速度、DC/電阻的 NPLC 與 Auto Zero、自動範圍、範圍安定（range settling）以及儀器觸發/樣本行為決定。CSV 的 <code>trigger_metadata</code> 會將自訂列標記為 <code>time_basis=pc_data_remove_time_not_instrument_sample_time</code>。預期列數為 <code>trigger_count * sample_count</code>。除非設定了 <code>--allow-buffer-overflow-risk</code>，否則超過 34461A 的 10,000 筆記憶體限制的請求將會被拒絕。</p>
+        <p>此模式使用 34461A 讀值記憶體來減少每個取樣 <code>READ?</code> 通訊的開銷。這不是儀器的內部定時模式：取樣步調仍由量測速度、DC/電阻的 NPLC 與 Auto Zero、自動量程、量程安定（range settling）以及儀器觸發/取樣行為決定。CSV 的 <code>trigger_metadata</code> 會將自訂列標記為 <code>time_basis=pc_data_remove_time_not_instrument_sample_time</code>。預期列數為 <code>trigger_count * sample_count</code>。除非設定了 <code>--allow-buffer-overflow-risk</code>，否則超過 34461A 的 10,000 筆記憶體限制的請求將會被拒絕。</p>
 
         <h3>軟體自訂（Software Custom）模式</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
@@ -1268,7 +1731,7 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --range 0.1 `
   --auto-zero off `
   --nplc 1.0</code></pre></div>
-        <p>此模式以 <code>TRIG:SOUR EXT</code>、<code>TRIG:SLOP</code>、<code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 與 <code>TRIG:DEL</code> 來 arm 萬用電表，然後以 <code>DATA:POINts?</code> / <code>DATA:REMove?</code> 從記憶體中排空已完成的讀數。每個外接觸發邊緣都會推進萬用電表的觸發序列。預期列數為 <code>trigger_count * sample_count</code>；在一次外接邊緣後，<code>trigger_count=1</code> 且 <code>sample_count=10</code> 應產生 10 列 CSV。</p>
+        <p>此模式以 <code>TRIG:SOUR EXT</code>、<code>TRIG:SLOP</code>、<code>TRIG:COUNT</code>、<code>SAMP:COUNT</code> 與 <code>TRIG:DEL</code> 來 arm 萬用電表，然後以 <code>DATA:POINts?</code> / <code>DATA:REMove?</code> 從記憶體中排空已完成的讀值。每個外接觸發邊緣都會推進萬用電表的觸發序列。預期列數為 <code>trigger_count * sample_count</code>；在一次外接邊緣後，<code>trigger_count=1</code> 且 <code>sample_count=10</code> 應產生 10 列 CSV。</p>
 
         <h3>LAN 資源範例</h3>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\meters-tool.exe start-trigger-record `
@@ -1300,9 +1763,9 @@ TCPIP0::...::hislip0::INSTR</code></pre></div>
   --max-samples 5 `
   --vm-comp-slope pos</code></pre></div>
 
-        <h2 id="stop-execution">停止執行</h2>
+        <h2>停止執行</h2>
         <p>記錄器啟動時會印出本機控制端點：</p>
-        <div class="code-wrapper"><pre><code>command endpoint: http://127.0.0.1:8765/command
+        <div class="code-wrapper"><pre><code class="language-text">command endpoint: http://127.0.0.1:8765/command
 software stop endpoint: http://127.0.0.1:8765/stop
 software status endpoint: http://127.0.0.1:8765/status
 local stop keys: Ctrl+C, Ctrl+Break, q</code></pre></div>
@@ -1316,47 +1779,78 @@ local stop keys: Ctrl+C, Ctrl+Break, q</code></pre></div>
             <li>使用 <code>--max-samples N</code> 讓工作器在取得 N 次成功擷取後自動停止。</li>
         </ul>
         <p>預期的清除輸出包含：</p>
-        <div class="code-wrapper"><pre><code>stop request received
+        <div class="code-wrapper"><pre><code class="language-text">stop request received
 recording stopped
 release_to_local: ...
 cleanup_release_to_local: ...
 software trigger server stopped</code></pre></div>
         <p>如果在記錄器已經退出後傳送 <code>stop</code>，可能會印出：</p>
-        <div class="code-wrapper"><pre><code>already stopped (endpoint not listening)</code></pre></div>
+        <div class="code-wrapper"><pre><code class="language-text">already stopped (endpoint not listening)</code></pre></div>
         <p>這會被視為成功。</p>
 
-        <h2 id="console-output">主控台狀態輸出</h2>
+        <h2>主控台狀態輸出</h2>
         <p>在軟體觸發的執行期間，對於每個連續的等待期間僅會印出一次 <code>waiting trigger</code>，而不會在每次短時間輪詢逾時都重複列印。<code>software-custom</code> 模式也會對 <code>waiting software custom trigger</code> 執行相同的規則。</p>
         <p>對於 Agent 自動化，人類易讀的狀態列可以幫助診斷等待和輪詢行為，但穩定的成功/失敗決策仍應依賴程序結束代碼、CSV 列數、<code>captured=X errors=Y</code> 以及明確的致命錯誤文字。</p>
         <p>成功擷取會列印計數與最新顯示數值，例如：</p>
-        <div class="code-wrapper"><pre><code>[status] captured=1 value=12.3 mA
+        <div class="code-wrapper"><pre><code class="language-text">[status] captured=1 value=12.3 mA
 [status] captured=2 value=1.23 kOhm</code></pre></div>
-        <p>像是 <code>mA</code>, <code>mV</code>, <code>kOhm</code>, <code>MOhm</code> 的顯示字首僅用於主控台。CSV 資料列會繼續以量測的基本單位（<code>A</code>, <code>V</code>, <code>ratio</code>, <code>Hz</code>, <code>s</code>, 或 <code>Ohm</code>）儲存原始數值。自訂/緩衝模式可能會一次排空多個讀數；主控台狀態會顯示該次排空批次中的最後一個樣本。</p>
+        <p>像是 <code>mA</code>, <code>mV</code>, <code>kOhm</code>, <code>MOhm</code> 的顯示字首僅用於主控台。CSV 資料列會繼續以量測的基本單位（<code>A</code>, <code>V</code>, <code>ratio</code>, <code>Hz</code>, <code>s</code>, 或 <code>Ohm</code>）儲存原始數值。自訂/緩衝模式可能會一次排空多個讀值；主控台狀態會顯示該次排空批次中的最後一個取樣。</p>
 
-        <h2 id="csv-output">CSV 輸出</h2>
+        <h2>CSV 輸出</h2>
         <p>如果省略 <code>--csv</code>，記錄器會寫入 <code>data</code> 下的 UTC+8 時間戳記檔案，例如 <code>data/2026-05-11-14-30-05.csv</code>。傳送 <code>--csv PATH</code> 會繼續寫入該確切路徑。</p>
         <p>CSV 欄位：</p>
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr><th>欄位</th><th>說明</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td><code>timestamp_utc_plus_8</code></td><td>讀取樣本時的 UTC+8 時間戳記，序列化為 ISO 8601，帶有 <code>+08:00</code> 偏移量。</td></tr>
-                    <tr><td><code>measurement_type</code></td><td>選取的量測類型，例如 <code>current_dc</code>、<code>voltage_dc</code>、<code>voltage_dc_ratio</code>、<code>current_ac</code>、<code>voltage_ac</code>、<code>frequency</code>、<code>period</code>、<code>resistance_2w</code> 或 <code>resistance_4w</code>。</td></tr>
-                    <tr><td><code>value</code></td><td>量測數值。</td></tr>
-                    <tr><td><code>unit</code></td><td>單位，電流為 <code>A</code>，電壓為 <code>V</code>，DCV 比率為 <code>ratio</code>，頻率為 <code>Hz</code>，週期為 <code>s</code>，電阻為 <code>Ohm</code>。</td></tr>
-                    <tr><td><code>trigger_id</code></td><td>指派給觸發事件的 UUID。</td></tr>
-                    <tr><td><code>trigger_source</code></td><td><code>software</code>, <code>timer</code>, <code>hardware</code>, <code>immediate</code>, <code>immediate-custom</code>, <code>software-custom</code>, 或 <code>external-custom</code>。</td></tr>
-                    <tr><td><code>trigger_metadata</code></td><td>來自 <code>send-command --arguments-json</code> 的 JSON 物件字串，或 <code>{}</code>。</td></tr>
-                    <tr><td><code>measurement_metadata</code></td><td>量測特定內容的 JSON 物件字串，或 <code>{}</code>。DCV Ratio 可包含來自 <code>DATA2?</code> 的信號/參考電壓欄位。</td></tr>
-                    <tr><td><code>resource_id</code></td><td>此執行所使用的 VISA 資源。</td></tr>
-                    <tr><td><code>status</code></td><td>樣本狀態，成功擷取目前為 <code>ok</code>。</td></tr>
-                </tbody>
-            </table>
-        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>欄位</th>
+                    <th>說明</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>timestamp_utc_plus_8</code></td>
+                    <td>讀取樣本時的 UTC+8 時間戳記，序列化為 ISO 8601，帶有 <code>+08:00</code> 偏移量。</td>
+                </tr>
+                <tr>
+                    <td><code>measurement_type</code></td>
+                    <td>選取的量測類型，例如 <code>current_dc</code>、<code>voltage_dc</code>、<code>voltage_dc_ratio</code>、<code>current_ac</code>、<code>voltage_ac</code>、<code>frequency</code>、<code>period</code>、<code>resistance_2w</code> 或 <code>resistance_4w</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>value</code></td>
+                    <td>量測數值。</td>
+                </tr>
+                <tr>
+                    <td><code>unit</code></td>
+                    <td>單位，電流為 <code>A</code>，電壓為 <code>V</code>，DCV 比率為 <code>ratio</code>，頻率為 <code>Hz</code>，週期為 <code>s</code>，電阻為 <code>Ohm</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>trigger_id</code></td>
+                    <td>指派給觸發事件的 UUID。</td>
+                </tr>
+                <tr>
+                    <td><code>trigger_source</code></td>
+                    <td><code>software</code>, <code>timer</code>, <code>hardware</code>, <code>immediate</code>, <code>immediate-custom</code>, <code>software-custom</code>, 或 <code>external-custom</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>trigger_metadata</code></td>
+                    <td>來自 <code>send-command --arguments-json</code> 的 JSON 物件字串，或 <code>{}</code>。</td>
+                </tr>
+                <tr>
+                    <td><code>measurement_metadata</code></td>
+                    <td>量測特定內容的 JSON 物件字串，或 <code>{}</code>。DCV Ratio 可包含來自 <code>DATA2?</code> 的信號/參考電壓欄位。</td>
+                </tr>
+                <tr>
+                    <td><code>resource_id</code></td>
+                    <td>此執行所使用的 VISA 資源。</td>
+                </tr>
+                <tr>
+                    <td><code>status</code></td>
+                    <td>樣本狀態，成功擷取目前為 <code>ok</code>。</td>
+                </tr>
+            </tbody>
+        </table>
 
-        <h2 id="troubleshooting">疑難排解</h2>
+        <h2>疑難排解</h2>
         <ul>
             <li>如果 <code>uv</code> 警告硬連結失敗並降級為複製檔案，安裝通常仍已成功。對於跨磁碟或受硬連結限制的環境，請使用 <code>uv pip install -e ".[all,dev]" --link-mode=copy</code> 重新執行安裝。</li>
             <li>如果缺少 <code>.\.venv\Scripts\meters-tool.exe</code>，請重新執行 <code>uv pip install -e ".[all,dev]"</code>。主控台指令是安裝產物，而非版本控制下的專案檔案。</li>
@@ -1370,7 +1864,7 @@ software trigger server stopped</code></pre></div>
             <li>如果長時間執行的 Windows 主控台看起來像凍結了，請確認 QuickEdit/文字選擇沒有暫停終端機執行。</li>
         </ul>
 
-        <h2 id="testing">測試</h2>
+        <h2>測試</h2>
         <p>在執行測試前，請依「開發」段落所示，使用 <code>uv pip install -e ".[all,dev]"</code> 安裝開發相依套件。</p>
         <p>預設 pytest 執行：</p>
         <div class="code-wrapper"><pre><code>.\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider</code></pre></div>
@@ -1384,7 +1878,7 @@ software trigger server stopped</code></pre></div>
             // 自動產生 TOC 側邊導航欄
             const toc = document.getElementById("toc");
             const headers = document.querySelectorAll("h2");
-            
+
             headers.forEach(h2 => {
                 if (!h2.id) {
                     h2.id = h2.innerText.replace(/\s+/g, '-').toLowerCase();
@@ -1401,10 +1895,10 @@ software trigger server stopped</code></pre></div>
                 const btn = document.createElement("button");
                 btn.innerText = "複製";
                 btn.className = "copy-btn";
-                
+
                 // 將按鈕加入 code-wrapper，而非 pre 內，避免排版問題
                 pre.parentElement.appendChild(btn);
-                
+
                 btn.onclick = () => {
                     const code = pre.querySelector("code").innerText;
                     navigator.clipboard.writeText(code).then(() => {

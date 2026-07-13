@@ -25,6 +25,38 @@ TEXT_FILE_SUFFIXES = {
     ".yaml",
     ".yml",
 }
+TRADITIONAL_MARKDOWN_PATHS = (
+    "README.zh-TW.md",
+    "docs/cli/README.zh-TW.md",
+    "docs/cli/USER_GUIDE.zh-TW.md",
+    "docs/core/README.zh-TW.md",
+    "docs/skill/EXAMPLES.zh-TW.md",
+    "docs/skill/README.zh-TW.md",
+    "docs/webui/README.zh-TW.md",
+    "docs/webui/USER_GUIDE.zh-TW.md",
+)
+TRADITIONAL_MARKDOWN_TOKEN_REQUIREMENTS = {
+    "docs/cli/README.zh-TW.md": (
+        "keysight-34460a",
+        "keysight-34461a",
+        "USB/system-VISA",
+        "LAN/TCPIP",
+        "live_validated_full_suite",
+        "transport_pending",
+        "--visa-library",
+        "--validation-allow-pending-live-support",
+        "private/",
+        "shareable/",
+    ),
+    "docs/webui/README.zh-TW.md": (
+        "keysight-34460a",
+        "keysight-34461a",
+        "USB/system-VISA",
+        "LAN/TCPIP",
+        "live_validated_full_suite",
+        "transport_pending",
+    ),
+}
 
 
 def read_project_version() -> str:
@@ -231,14 +263,6 @@ def test_changelog_release_direction_matches_package_metadata():
     target_version = target_match.group(1)
     assert parse_semver_tuple(target_version) > parse_semver_tuple(current_version)
 
-    migration_path = REPO_ROOT / "docs" / "migration-v2.md"
-    assert migration_path.exists()
-    migration_text = migration_path.read_text(encoding="utf-8")
-    assert f"`v{target_version}`" in migration_text
-    assert f"`{current_version}`" in migration_text
-    assert "pre-v2" in migration_text
-    assert "development baseline" in migration_text
-
 
 def test_readme_markdown_links_point_to_existing_local_targets():
     readmes = (
@@ -276,6 +300,124 @@ def test_readme_markdown_links_point_to_existing_local_targets():
                 missing.append(f"{readme.relative_to(REPO_ROOT).as_posix()}: missing {target}")
 
     assert not missing, "\n".join(missing)
+
+
+def test_expected_traditional_chinese_markdown_inventory_has_english_pairs():
+    tracked = set(
+        subprocess.run(
+            ["git", "ls-files", "*.zh-TW.md"],
+            cwd=REPO_ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+    )
+
+    assert tracked == set(TRADITIONAL_MARKDOWN_PATHS)
+    for relative in TRADITIONAL_MARKDOWN_PATHS:
+        translated = REPO_ROOT / relative
+        source = REPO_ROOT / relative.replace(".zh-TW.md", ".md")
+        assert translated.exists()
+        assert source.exists()
+
+
+def _markdown_heading_slugs(text: str) -> set[str]:
+    slugs = set()
+    for line in text.splitlines():
+        match = re.match(r"^#{1,6}\s+(.+?)\s*#*\s*$", line)
+        if match is None:
+            continue
+        heading = re.sub(r"[`*_]", "", match.group(1)).lower()
+        heading = re.sub(r"[^\w\-\u4e00-\u9fff ]", "", heading)
+        slugs.add(re.sub(r"\s+", "-", heading))
+    return slugs
+
+
+def test_traditional_chinese_markdown_links_and_anchors_are_valid():
+    link_pattern = re.compile(r"\[[^\]]+\]\(([^)]+)\)")
+    missing = []
+
+    for relative in TRADITIONAL_MARKDOWN_PATHS:
+        path = REPO_ROOT / relative
+        text = path.read_text(encoding="utf-8")
+        for match in link_pattern.finditer(text):
+            target = match.group(1).strip()
+            if not target or re.match(r"^[a-z][a-z0-9+.-]*:", target, re.IGNORECASE):
+                continue
+
+            path_part, separator, fragment = target.partition("#")
+            candidate = (
+                path
+                if not path_part
+                else (path.parent / unquote(path_part)).resolve()
+            )
+            try:
+                candidate.relative_to(REPO_ROOT)
+            except ValueError:
+                missing.append(f"{relative}: escapes repo: {target}")
+                continue
+            if not candidate.exists():
+                missing.append(f"{relative}: missing {target}")
+                continue
+            if separator and candidate.suffix.lower() == ".md":
+                headings = _markdown_heading_slugs(candidate.read_text(encoding="utf-8"))
+                if unquote(fragment).lower() not in headings:
+                    missing.append(f"{relative}: missing heading anchor {target}")
+
+    assert not missing, "\n".join(missing)
+
+
+def test_traditional_chinese_docs_preserve_high_risk_canonical_tokens():
+    for translated_relative, tokens in TRADITIONAL_MARKDOWN_TOKEN_REQUIREMENTS.items():
+        translated = (REPO_ROOT / translated_relative).read_text(encoding="utf-8")
+        source_relative = translated_relative.replace(".zh-TW.md", ".md")
+        source = (REPO_ROOT / source_relative).read_text(encoding="utf-8")
+        for token in tokens:
+            assert token in source, f"English source lost required token {token}: {source_relative}"
+            assert token in translated, (
+                f"Traditional Chinese translation lost required token {token}: "
+                f"{translated_relative}"
+            )
+
+
+def test_traditional_chinese_docs_preserve_current_support_and_runtime_boundaries():
+    webui_readme = (REPO_ROOT / "docs" / "webui" / "README.zh-TW.md").read_text(
+        encoding="utf-8"
+    )
+    assert "34460A，DCV Ratio 在 USB/system-VISA 上為 `Product-open`" in webui_readme
+    assert "34460A LAN/TCPIP system-VISA" in webui_readme
+    assert "LAN/TCPIP pyvisa-py `@py`" in webui_readme
+    assert "`transport_pending`" in webui_readme
+    assert "12-case wrapper full suite" in webui_readme
+    assert "不延伸至 LAN 或 pyvisa-py" in webui_readme
+    assert not re.search(r"34460A[^\n。]*DCV Ratio[^\n。]*feature_pending", webui_readme)
+
+    cli_user_guide = (REPO_ROOT / "docs" / "cli" / "USER_GUIDE.zh-TW.md").read_text(
+        encoding="utf-8"
+    )
+    assert "連接儀器的 `*IDN?` 決定 runtime profile" in cli_user_guide
+    assert "只是 expected-model guard" in cli_user_guide
+    assert "selected model 絕不會覆寫 IDN-selected profile" in cli_user_guide
+    assert "live mismatch 會在 setup SCPI 前失敗" in cli_user_guide
+    assert "dry-run 或 simulator" in cli_user_guide
+    assert "selected model 選擇 profile" in cli_user_guide
+
+    webui_user_guide = (REPO_ROOT / "docs" / "webui" / "USER_GUIDE.zh-TW.md").read_text(
+        encoding="utf-8"
+    )
+    assert "baseline +/- span` 的值會被裁切到圖表邊界" in webui_user_guide
+    assert "不會另外顯示 `clipped indicator`" in webui_user_guide
+    assert "baseline +/- selected Range` 的值可能會被裁切到圖表邊界" in webui_user_guide
+
+
+def test_traditional_chinese_markdown_has_no_bom():
+    violations = []
+    for relative in TRADITIONAL_MARKDOWN_PATHS:
+        if (REPO_ROOT / relative).read_bytes().startswith(b"\xef\xbb\xbf"):
+            violations.append(relative)
+    assert not violations, "UTF-8 BOM found in Traditional Chinese Markdown:\n" + "\n".join(
+        violations
+    )
 
 
 def test_root_readme_links_to_the_contributor_guide():

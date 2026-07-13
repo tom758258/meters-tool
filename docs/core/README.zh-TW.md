@@ -2,9 +2,11 @@
 
 Core 包含供 CLI 與 WebUI 元件在支援的數位萬用電表整合中所使用的公開 API 與擷取執行階段合約。
 
-Core 負責共享的請求模型、驗證、dry-run 規劃、執行階段工作階段協調、事件/結果類型、控制面介面、設定檔 metadata，以及 Meters Tool 擷取執行階段的安全規則。它會隨單一的 `meters-tool` 發行套件一起發布，同時保留 `meters_tool_core` 的 import 邊界。
+Core 負責共享的請求模型、驗證、dry-run 規劃、執行階段工作階段協調、事件/結果類型、控制面介面、設定檔 metadata，以及 Meters Tool 擷取執行階段的安全規則。它會隨單一的 `meters-tool` 發行套件一同提供，同時保留 `meters_tool_core` 的 import 邊界。
 
 Core 可以透過 `StartRequest` 與 `InstrumentConfig` 傳遞選用的 `visa_library` 值。當未設定時，live VISA 工作階段會使用 `pyvisa.ResourceManager()`，也就是系統預設的 VISA 執行階段。CLI 診斷可以傳入像 `@py` 這類值；WebUI 執行則會保持未設定。
+
+目前已驗證的 34461A 傳輸/後端範圍包括 USB/system-VISA、使用系統 VISA 的 LAN/TCPIP，以及使用 CLI 專用選用 pyvisa-py `@py` 的 LAN/TCPIP。目前可用的儀器尚未開放 34460A LAN/TCPIP 範圍。
 
 對 CLI/WebUI 啟動來說，`StartRequest.instrument_model = None` 代表對 live 資源進行自動偵測。配接器會先以只查 IDN 的 preflight 找出連接中的設定檔，然後才進行驗證與規劃。除非 simulator 資源已可確定地命名型號，例如 `SIM::34460A` 或 `SIM::34461A`，否則 dry-run 與 simulator 啟動都必須使用明確的型號。
 

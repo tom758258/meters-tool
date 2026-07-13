@@ -2,7 +2,7 @@
 
 # Meters Tool
 
-Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀錄工具。目前版本支援 Keysight 34460A 與 34461A；確切的驗證範圍請參閱[支援型號文件](docs/core/supported-models.md)。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
+Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀錄工具。目前版本支援 Keysight 34460A 與 34461A；確切的驗證範圍請參閱 [支援型號文件](docs/core/supported-models.md)。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
 
 本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。每筆擷取的樣本都會寫入 CSV 的一行，包含時間戳記、量測類型、單位、觸發來源與相關 metadata。
 
@@ -105,6 +105,14 @@ Windows 會建立 virtualenv console wrappers，例如
 `.\.venv\Scripts\meters-tool-webui-launcher.exe`。
 
 ## 建置
+
+準備發布時，請在建置發布產物之前先執行無硬體發布門檻檢查：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-cli-check.ps1 -Target keysight-34461a
+```
+
+預設 target 為 `keysight-34461a`。只有在發布變更明確與 34460A 型號相關時，才改用 `keysight-34460a`。此包裝器負責驗證發布就緒狀態，但不會建置發布產物。
 
 建置 wheel 與 source distribution。這會使用上面安裝的 `dev` extra 中的 `build` 套件：
 
