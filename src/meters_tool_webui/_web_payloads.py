@@ -236,12 +236,10 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
                 "support.limit.no_base_profile_external_trigger",
             ],
             "pending": [
-                "34460A DCV Ratio live validation",
                 "LAN/TCPIP system-VISA validation",
                 "LAN/TCPIP pyvisa-py @py validation",
             ],
             "pending_keys": [
-                "support.pending.keysight_34460a_dcv_ratio_live_validation",
                 "support.pending.lan_tcpip_system_visa_validation",
                 "support.pending.lan_tcpip_pyvisa_py_validation",
             ],

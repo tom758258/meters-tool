@@ -23,8 +23,11 @@ occurred.
   validation-only execution of registered pending scopes. The live wrapper
   accepts `-VisaLibrary`, `-visa-library`, and `-Backend`.
 - Recorded reviewed 34461A USB/system-VISA, LAN/system-VISA, and optional
-  LAN/pyvisa-py support plus reviewed 34460A USB/system-VISA support; 34460A
-  LAN scopes and DCV Ratio remain pending and product-closed.
+  LAN/pyvisa-py support plus reviewed 34460A USB/system-VISA support. Normal CLI
+  Product mode now accepts 34460A USB/system-VISA DCV Ratio after an explicit
+  promotion based on separate bounded evidence; the existing 12-case wrapper
+  full suite did not include Ratio. 34460A LAN scopes remain pending and
+  product-closed.
 - Refreshed English CLI documentation to describe `--model` as an expected IDN
   match for live starts and to keep dry-run/simulator examples tied to explicit
   deterministic simulator resources.

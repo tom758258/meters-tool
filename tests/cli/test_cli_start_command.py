@@ -20,7 +20,10 @@ from meters_tool_cli.cli import (
 )
 from meters_tool_core.models import KEYSIGHT_34461A_PROFILE, StartRequest
 from meters_tool_core.session import StartRunResult
-from meters_tool_core.support_policy import SUPPORT_POLICY_MODE_VALIDATION
+from meters_tool_core.support_policy import (
+    SUPPORT_POLICY_MODE_PRODUCT,
+    SUPPORT_POLICY_MODE_VALIDATION,
+)
 
 from cli_command_helpers import (
     CliCommandHarnessMixin,
@@ -474,21 +477,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         cases = [
             (
                 [
-                    "--measurement",
-                    "voltage-dc-ratio",
-                    "--trigger-mode",
-                    "immediate",
-                    "--max-samples",
-                    "1",
-                ],
-                "measurement=voltage-dc-ratio is pending validation",
-            ),
-            (
-                [
                     "--visa-library",
                     "@py",
                     "--measurement",
-                    "voltage-dc",
+                    "voltage-dc-ratio",
                     "--trigger-mode",
                     "immediate",
                     "--max-samples",
@@ -501,7 +493,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "--resource",
                     "TCPIP0::host::inst0::INSTR",
                     "--measurement",
-                    "voltage-dc",
+                    "voltage-dc-ratio",
                     "--trigger-mode",
                     "immediate",
                     "--max-samples",
@@ -516,7 +508,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                     "--backend",
                     "@py",
                     "--measurement",
-                    "voltage-dc",
+                    "voltage-dc-ratio",
                     "--trigger-mode",
                     "immediate",
                     "--max-samples",
@@ -601,7 +593,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             runner.call_args.kwargs["support_policy_mode"],
         )
 
-    def test_hidden_validation_flag_allows_34460a_ratio_feature_pending(self):
+    def test_product_mode_allows_promoted_34460a_ratio_without_hidden_validation_flag(self):
         parser = build_parser()
         fake_result = StartRunResult(
             run_id="run-ratio",
@@ -615,7 +607,6 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         args = parser.parse_args(
             [
                 "start-trigger-record",
-                "--validation-allow-pending-live-support",
                 "--resource",
                 "USB0::FAKE::INSTR",
                 "--model",
@@ -644,7 +635,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         request_model = runner.call_args.args[0]
         self.assertEqual("voltage-dc-ratio", request_model.measurement)
         self.assertEqual(
-            SUPPORT_POLICY_MODE_VALIDATION,
+            SUPPORT_POLICY_MODE_PRODUCT,
             runner.call_args.kwargs["support_policy_mode"],
         )
 
@@ -754,11 +745,11 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             [
                 "start-trigger-record",
                 "--resource",
-                "USB0::FAKE::INSTR",
+                "TCPIP0::host::inst0::INSTR",
                 "--csv",
                 "data\\delegate_live.csv",
                 "--measurement",
-                "voltage-dc-ratio",
+                "voltage-dc",
                 "--trigger-mode",
                 "immediate",
                 "--max-samples",
@@ -784,7 +775,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         self.assertEqual(2, rc)
         self.assertIn(
-            "measurement=voltage-dc-ratio is pending validation",
+            "start-trigger-record is pending for transport=tcpip, backend=system_visa",
             stderr.getvalue(),
         )
 

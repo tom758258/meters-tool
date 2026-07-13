@@ -307,10 +307,12 @@ and evidence boundary.
 
 Current validated 34461A live scopes include USB/system-VISA, LAN/TCPIP with
 system VISA, and LAN/TCPIP with optional CLI-only pyvisa-py `@py`. Current
-34460A LAN/TCPIP scopes remain `transport_pending`; their profile-supported
-features are explicitly `feature_pending`. WebUI `/api/capabilities` exposes
-these facts along with display-oriented model support summaries so the browser
-can show connection and feature status without changing the Core runtime gate.
+34460A USB/system-VISA support includes the explicitly promoted DCV Ratio
+measurement, while 34460A LAN/TCPIP scopes remain `transport_pending`; their
+profile-supported features are explicitly `feature_pending`. WebUI
+`/api/capabilities` exposes these facts along with display-oriented model
+support summaries so the browser can show connection and feature status without
+changing the Core runtime gate.
 
 `ValueError` from validation is a normal adapter-facing input error. Buffer
 warnings are warnings, not errors, unless an adapter requires explicit user
@@ -330,9 +332,11 @@ It does not promote public support, treat missing metadata as pending, or
 bypass unsupported-by-model workflows and hard profile limits. The 34460A base
 profile still rejects external/external-custom workflows, the 10 A/current-
 terminal path, and buffer drain sizes above the profile reading-memory limit.
-34460A DCV Ratio is implemented and profile-known but is `feature_pending` for
-USB/system-VISA: product mode rejects it while validation mode can run a
-bounded evidence-collection request.
+34460A DCV Ratio is Product-open on USB/system-VISA after maintainer review and
+explicit promotion of separate bounded evidence. The existing 12-case wrapper
+full suite did not include Ratio. Its measurement status combines with the
+Product-open immediate, software, immediate-custom, and software-custom trigger
+modes; this does not open either 34460A LAN scope.
 
 The runner has the same final gate:
 

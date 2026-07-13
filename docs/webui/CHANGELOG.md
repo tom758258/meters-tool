@@ -20,9 +20,12 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
 - Added capability-driven support UX showing the auto-detect fallback view,
   validation status, transport/backend scope, open workflows, model limits,
   and pending features.
-- Reflected reviewed 34461A USB and LAN support and reviewed 34460A USB support
-  while keeping 34460A LAN scopes, DCV Ratio, and model-unsupported features
-  visibly closed. The WebUI continues to use the system VISA runtime.
+- Reflected reviewed 34461A USB and LAN support and reviewed 34460A USB support.
+  Capability metadata now enables 34460A USB/system-VISA DCV Ratio after an
+  explicit promotion based on separate bounded evidence; the existing 12-case
+  wrapper full suite did not include Ratio. 34460A LAN scopes and model-
+  unsupported features remain visibly closed, and the WebUI continues to use
+  the system VISA runtime.
 - Refreshed English WebUI documentation and maintainer change rules so
   `Expected model`, `Auto-detect`, `Require 34460A`, and `Require 34461A`
   consistently describe Start-time IDN matching.

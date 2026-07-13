@@ -86,10 +86,11 @@ Important limitations:
   `live_validated_full_suite` for the detected model and exact transport/VISA
   backend. Missing feature metadata fails closed rather than inheriting
   support from another scope.
-- 34460A DCV Ratio is implemented and profile-known but is
-  `feature_pending` on USB/system-VISA. Normal CLI starts reject it. The hidden
-  contributor validation mode may run a bounded evidence request, but does not
-  promote product support.
+- 34460A DCV Ratio is Product-open only on USB/system-VISA after maintainer
+  review and explicit promotion of separate bounded evidence. Normal CLI starts
+  do not need the hidden contributor validation selector. The existing 12-case
+  wrapper full suite did not include Ratio, and the promotion does not extend to
+  34460A LAN or pyvisa-py scopes.
 - The 34460A has a lower maximum reading rate than the 34461A, but the CLI does
   not actively control high-speed reading rate in this release.
 - AC, Frequency, and Period modes expose the 34461A `3`, `20`, and `200` Hz
@@ -380,9 +381,9 @@ not a general force option. Missing scope/feature metadata, unknown models,
 unsupported profile capabilities, invalid requests, and hard safety limits
 remain rejected. The 34460A base profile still keeps external/external-custom
 closed, rejects 10 A/current-terminal requests, and preserves the 1000-reading
-buffer limits. Its USB/system-VISA DCV Ratio entry is the explicit
-`feature_pending` path that bounded validation may exercise. LAN/TCPIP or
-pyvisa-py validation does not override hard limits.
+buffer limits. Its USB/system-VISA DCV Ratio entry is Product-open and does not
+need this hidden selector; LAN/TCPIP or pyvisa-py validation remains pending and
+does not override hard limits or inherit the Ratio promotion.
 For 34460A, LAN/TCPIP system-VISA and LAN/TCPIP pyvisa-py `@py` are future
 validation paths for a LAN/LXI-capable unit or contributor-provided reviewed
 artifact. They are not current maintainer validation debt for the available
@@ -1286,14 +1287,14 @@ reported OK on a real 34461A before the `v1.0.0-cli` baseline.
 
 ### DCV Ratio Smoke Tests
 
-DCV Ratio uses the existing `VOLT:DC:RAT` implementation. It is product-open
-for the validated 34461A scopes. The 34460A profile exposes the implemented
-path for dry-run/simulator use, but its live USB/system-VISA measurement status
-is `feature_pending`: normal CLI and WebUI starts reject it, while reviewed
-hidden validation-mode use can collect bounded candidate evidence. Connect the
-signal and reference leads according to the instrument manual before running
-live; a miswired ratio measurement can look numerically plausible while
-measuring the wrong relationship.
+DCV Ratio uses the existing `VOLT:DC:RAT` implementation. It is Product-open
+for validated 34461A scopes and for 34460A only on USB/system-VISA. The 34460A
+scope was explicitly promoted after maintainer review of separate bounded
+evidence; the existing 12-case wrapper full suite did not include Ratio. Normal
+CLI use in that exact scope does not need the hidden validation selector.
+Connect the signal and reference leads according to the instrument manual
+before running live; a miswired ratio measurement can look numerically
+plausible while measuring the wrong relationship.
 
 Dry-run DCV Ratio check:
 
@@ -1320,7 +1321,8 @@ Simulated DCV Ratio workflow check:
   --status-format jsonl
 ```
 
-Product-open 34461A live DCV Ratio smoke check:
+Product-open 34461A validated-scope or 34460A USB/system-VISA live DCV Ratio
+smoke check:
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `

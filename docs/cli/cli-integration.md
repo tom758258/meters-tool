@@ -96,9 +96,10 @@ output says `VISA library/backend: system_visa`, that run is not an `@py`
 validation artifact.
 
 Normal CLI starts remain in product support-policy mode. Pending scopes such as
-34460A LAN/TCPIP system-VISA and 34460A LAN/TCPIP pyvisa-py `@py`, plus pending
-features such as 34460A DCV Ratio on USB/system-VISA, continue to reject when
-users call `meters-tool start-trigger-record` directly.
+34460A LAN/TCPIP system-VISA and 34460A LAN/TCPIP pyvisa-py `@py` continue to
+reject when users call `meters-tool start-trigger-record` directly. 34460A DCV
+Ratio is Product-open only on USB/system-VISA and does not require the hidden
+validation selector there.
 
 For 34460A, LAN/TCPIP validation remains a future path for a LAN/LXI-capable
 unit or contributor-provided reviewed artifact. The currently validated 34460A
@@ -106,14 +107,14 @@ product scope remains USB/system-VISA. Do not treat 34460A LAN/TCPIP pending
 scopes as current maintainer validation debt when the available 34460A unit
 does not support LAN/LXI.
 
-Validation mode is still bounded by Core model/profile limits. It may exercise
-34460A DCV Ratio because that exact USB/system-VISA measurement entry is
-explicitly `feature_pending`. It must not enable 34460A external or external-
-custom workflows, 10 A or current-terminal paths, buffer drain sizes above the
-selected profile reading memory, unknown profiles, missing registrations, or
-invalid requests. Promotion from pending to `live_validated_full_suite`
-requires reviewed artifacts and a separate exact-scope support metadata/docs
-update.
+Validation mode is still bounded by Core model/profile limits. It must not
+enable 34460A external or external-custom workflows, 10 A or current-terminal
+paths, buffer drain sizes above the selected profile reading memory, unknown
+profiles, missing registrations, or invalid requests. The USB/system-VISA DCV
+Ratio promotion followed maintainer review of separate bounded evidence and an
+explicit exact-scope metadata/docs update; the existing 12-case wrapper full
+suite did not include Ratio. Promotion from pending to
+`live_validated_full_suite` is never automatic.
 
 ## Dry-Run Formatting
 

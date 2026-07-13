@@ -120,6 +120,7 @@ const featureStatus = {
   measurement: {
     "current-dc": { validation_status: "live_validated_full_suite" },
     "voltage-dc": { validation_status: "feature_pending" },
+    "voltage-dc-ratio": { validation_status: "live_validated_full_suite" },
     frequency: { validation_status: "live_validated_full_suite" },
     "voltage-ac": { validation_status: "live_validated_full_suite" },
     "future-measure": { validation_status: "live_validated_full_suite" },
@@ -170,12 +171,10 @@ const supportSummary = {
     "support.limit.no_base_profile_external_trigger",
   ],
   pending: [
-    "34460A DCV Ratio live validation",
     "LAN/TCPIP system-VISA validation",
     "LAN/TCPIP pyvisa-py @py validation",
   ],
   pending_keys: [
-    "support.pending.keysight_34460a_dcv_ratio_live_validation",
     "support.pending.lan_tcpip_system_visa_validation",
     "support.pending.lan_tcpip_pyvisa_py_validation",
   ],
@@ -205,6 +204,7 @@ const capabilities = {
       supports_current_terminal: true, current_terminal_options: [3], defaults: {},
     },
     { name: "voltage-dc", unit: "V", nplc_options: [1], range_options: [], defaults: {} },
+    { name: "voltage-dc-ratio", unit: "ratio", nplc_options: [1], range_options: [], defaults: {} },
     {
       name: "frequency", unit: "Hz", nplc_options: [], range_options: [],
       supports_ac_bandwidth: true, ac_bandwidth_hz_options: [20],
@@ -274,10 +274,7 @@ assert.equal(
 );
 assert.equal(
   supportPending.textContent,
-  (
-    "34460A DCV Ratio live validation, LAN/TCPIP system-VISA validation, " +
-    "LAN/TCPIP pyvisa-py @py validation"
-  )
+  "LAN/TCPIP system-VISA validation, LAN/TCPIP pyvisa-py @py validation"
 );
 
 supportSummary.is_fallback_capability_view = false;
@@ -323,7 +320,6 @@ assert.equal(
 );
 assert.match(supportLimits.textContent, /無 10 A 電流路徑/);
 assert.match(supportLimits.textContent, /1000 筆讀值記憶體限制/);
-assert.match(supportPending.textContent, /34460A DCV Ratio 實機驗證/);
 assert.match(supportPending.textContent, /LAN\/TCPIP system-VISA 驗證/);
 assert.equal(fetchCount, refreshFetchCount);
 assert.deepEqual(
@@ -462,6 +458,10 @@ assert.match(pendingMeasurement.textContent, /Pending live validation/);
 assert.equal(pendingMeasurement.title, "Pending live validation");
 assert.equal(pendingMeasurement.getAttribute("data-i18n"), "support.unavailable_option");
 assert.equal(pendingMeasurement.getAttribute("data-i18n-title"), "support.reason.pending_live_validation");
+
+const promotedRatioMeasurement = optionByValue(measurementSelect, "voltage-dc-ratio");
+assert.equal(promotedRatioMeasurement.disabled, false);
+assert.equal(promotedRatioMeasurement.dataset.validationStatus, "live_validated_full_suite");
 
 const unsupportedTrigger = optionByValue(triggerSelect, "external");
 assert.equal(unsupportedTrigger.disabled, true);

@@ -596,15 +596,6 @@ class CoreRunnerTests(unittest.TestCase):
                 StartRequest(
                     resource="USB0::FAKE::INSTR",
                     trigger_mode="immediate",
-                    measurement="voltage-dc-ratio",
-                    max_samples=1,
-                ),
-                "measurement=voltage-dc-ratio is pending validation",
-            ),
-            (
-                StartRequest(
-                    resource="USB0::FAKE::INSTR",
-                    trigger_mode="immediate",
                     measurement="current-dc",
                     max_samples=1,
                     auto_range=False,
@@ -726,7 +717,7 @@ class CoreRunnerTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertIn("factory:34460A", operations)
 
-    def test_live_runner_validation_mode_allows_34460a_ratio_feature_pending(self):
+    def test_live_runner_product_mode_allows_promoted_34460a_ratio(self):
         operations: list[str] = []
         sink = RecordingEventSink()
         request = StartRequest(
@@ -746,20 +737,26 @@ class CoreRunnerTests(unittest.TestCase):
                 KEYSIGHT_34461A_PROFILE,
                 sink,
                 RecordingControls(operations),
-                control_plane=NoOpControlPlane(),
                 run_id="run-live-ratio",
                 dependencies=self._live_dependencies(
                     operations,
                     expected_model="34460A",
                     expected_measurement_type="voltage_dc_ratio",
                 ),
-                support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
             )
 
         self.assertTrue(result.ok)
         self.assertIn("factory:34460A", operations)
         self.assertIn("engine_run:immediate:neg", operations)
         self.assertNotIn("engine_run:external:neg", operations)
+        cleanup_order = [
+            "release_to_local",
+            "close",
+            "cleanup_release_to_local",
+            "server_stop",
+        ]
+        positions = [operations.index(step) for step in cleanup_order]
+        self.assertEqual(sorted(positions), positions)
 
     def test_live_runner_missing_feature_metadata_rejects_before_backend_factory(self):
         operations: list[str] = []

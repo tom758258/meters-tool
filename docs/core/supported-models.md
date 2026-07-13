@@ -106,7 +106,7 @@ do not query live hardware.
 | Frequency | Open | Open for USB/system-VISA suite-covered scope |
 | Period | Open, no Period timeout SCPI | Open, no Period timeout SCPI |
 | External simple/custom | Open | Not open in base 34460A profile |
-| DCV Ratio | Open for validated 34461A scope | `feature_pending` on USB/system-VISA; product closed, validation mode available |
+| DCV Ratio | Open for validated 34461A scope | Open only on USB/system-VISA |
 | 10 A / current-terminal | Open with operator-confirmed wiring | Not supported |
 | Buffer drain above profile memory | Up to 10000 readings | Not supported above 1000 |
 | LAN/TCPIP with system VISA | Open for validated 34461A scope | Not open for the currently available unit |
@@ -128,8 +128,8 @@ do not query live hardware.
 34460A live support:
 
 - Status: `live_validated_full_suite` for USB/system-VISA scope.
-- Open only for 34460A profile-supported workflows covered by the 2026-07-08
-  USB full live CLI suite: immediate DC current, immediate DC voltage,
+- Open for 34460A profile-supported workflows covered by the 2026-07-08 USB
+  full live CLI suite: immediate DC current, immediate DC voltage,
   immediate AC current, immediate AC voltage, immediate 2-wire resistance,
   immediate 4-wire resistance, software trigger, software timer, immediate
   custom buffered workflow, software custom buffered workflow, Frequency, and
@@ -138,12 +138,13 @@ do not query live hardware.
   selection, 1000-reading memory limit, no buffer drain size above 1000, no
   base-profile external simple trigger, and no base-profile external custom
   trigger.
-- DCV Ratio is already implemented and profile-known, including no-hardware
-  plan/simulator coverage, but its USB/system-VISA measurement feature is
-  `feature_pending`. Product CLI, WebUI, and direct Core product starts reject
-  it. The hidden validation support-policy mode can run a bounded request to
-  collect candidate evidence; promotion requires later review and an explicit
-  metadata/documentation decision.
+- DCV Ratio is Product-open only on USB/system-VISA after maintainer review and
+  explicit promotion of a separate bounded validation. That Ratio evidence was
+  not part of the existing 12-case wrapper full suite. The promoted measurement
+  dimension combines with the Product-open `immediate`, `software`,
+  `immediate-custom`, and `software-custom` trigger modes in this exact scope.
+  Normal CLI, WebUI, and direct Core Product starts do not need the hidden
+  validation selector for these combinations.
 - LAN/TCPIP with system VISA and LAN/TCPIP with pyvisa-py `@py` are not open
   for the currently available 34460A unit. Open those scopes only after a
   LAN/LXI-enabled 34460A TCPIP resource and operator-approved validation
@@ -158,9 +159,9 @@ do not query live hardware.
 - Hard limits remain closed during validation: base-profile 34460A external
   and external-custom workflows remain closed, the 10 A/current-terminal path
   remains unsupported, and buffer drain size remains capped by the 1000-
-  reading profile limit. DCV Ratio is the explicitly registered
-  `feature_pending` exception that validation mode may exercise; LAN/TCPIP or
-  pyvisa-py validation does not override any hard limit.
+  reading profile limit. LAN/TCPIP or pyvisa-py validation does not override
+  any hard limit or extend the USB/system-VISA Ratio promotion to another
+  connection scope.
 
 Transport/backend scope status:
 

@@ -21,9 +21,11 @@ the validated `1.6.0` pre-v2 baseline; the final `2.0.0` bump has not occurred.
 - Registered reviewed 34461A USB/system-VISA, LAN/system-VISA, and CLI-only
   LAN/pyvisa-py support, and reviewed 34460A USB/system-VISA support, without
   carrying evidence across connection scopes.
-- Preserved 34460A profile limits: DCV Ratio remains feature-pending, LAN
-  scopes remain transport-pending, and external triggers, the 10 A terminal,
-  and buffer sizes above 1000 remain closed.
+- Explicitly promoted 34460A DCV Ratio for USB/system-VISA after maintainer
+  review of separate bounded evidence. The existing 12-case wrapper full suite
+  did not include Ratio; 34460A LAN scopes remain transport-pending, and
+  external triggers, the 10 A terminal, and buffer sizes above 1000 remain
+  closed.
 - Consolidated live-start resolution on the detected profile and recomputed
   trigger routing after profile resolution so final support validation and
   execution use the same live identity.

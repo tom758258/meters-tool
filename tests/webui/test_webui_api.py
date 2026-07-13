@@ -381,7 +381,7 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("1000-reading memory limit", summary["limits"])
         self.assertIn("no base-profile external trigger support", summary["limits"])
         self.assertNotIn("no 34460A DCV Ratio live support", summary["limits"])
-        self.assertIn("34460A DCV Ratio live validation", summary["pending"])
+        self.assertNotIn("34460A DCV Ratio live validation", summary["pending"])
         self.assertIn("LAN/TCPIP system-VISA validation", summary["pending"])
         self.assertIn("LAN/TCPIP pyvisa-py @py validation", summary["pending"])
         self.assertEqual(
@@ -395,7 +395,6 @@ class WebUiApiTests(unittest.TestCase):
         )
         self.assertEqual(
             [
-                "support.pending.keysight_34460a_dcv_ratio_live_validation",
                 "support.pending.lan_tcpip_system_visa_validation",
                 "support.pending.lan_tcpip_pyvisa_py_validation",
             ],
@@ -421,7 +420,7 @@ class WebUiApiTests(unittest.TestCase):
         )
         usb_features = summary_scopes[("usb", "system_visa")]["features"]
         self.assertEqual(
-            "feature_pending",
+            "live_validated_full_suite",
             usb_features["measurement"]["voltage-dc-ratio"]["validation_status"],
         )
         self.assertEqual(
@@ -1659,7 +1658,7 @@ class WebUiApiTests(unittest.TestCase):
                     "instrument_model": "34460A",
                     "csv": str(csv_path),
                     "simulate": False,
-                    "measurement": "frequency",
+                    "measurement": "voltage-dc-ratio",
                     "trigger_mode": "immediate",
                     "max_samples": 1,
                 },
@@ -1669,6 +1668,7 @@ class WebUiApiTests(unittest.TestCase):
         runner.assert_called_once()
         request_arg, trigger_mode, profile = runner.call_args.args[:3]
         self.assertEqual("34460A", request_arg.instrument_model)
+        self.assertEqual("voltage-dc-ratio", request_arg.measurement)
         self.assertEqual("immediate", trigger_mode)
         self.assertEqual("34460A", profile.model)
 
@@ -1680,23 +1680,11 @@ class WebUiApiTests(unittest.TestCase):
         cases = [
             (
                 {
-                    "resource": "USB0::FAKE::INSTR",
-                    "instrument_model": "34460A",
-                    "csv": str(csv_path),
-                    "simulate": False,
-                    "measurement": "voltage-dc-ratio",
-                    "trigger_mode": "immediate",
-                    "max_samples": 1,
-                },
-                "measurement=voltage-dc-ratio is pending validation",
-            ),
-            (
-                {
                     "resource": "TCPIP0::host::inst0::INSTR",
                     "instrument_model": "34460A",
                     "csv": str(csv_path),
                     "simulate": False,
-                    "measurement": "voltage-dc",
+                    "measurement": "voltage-dc-ratio",
                     "trigger_mode": "immediate",
                     "max_samples": 1,
                 },
@@ -1786,10 +1774,10 @@ class WebUiApiTests(unittest.TestCase):
             response = client.post(
                 "/api/runs",
                 json={
-                    "resource": "USB0::FAKE::INSTR",
+                    "resource": "TCPIP0::host::inst0::INSTR",
                     "csv": str(csv_path),
                     "simulate": False,
-                    "measurement": "voltage-dc-ratio",
+                    "measurement": "voltage-dc",
                     "trigger_mode": "immediate",
                     "max_samples": 1,
                 },
@@ -1797,7 +1785,7 @@ class WebUiApiTests(unittest.TestCase):
 
         self.assertEqual(422, response.status_code)
         self.assertIn(
-            "measurement=voltage-dc-ratio is pending validation",
+            "start-trigger-record is pending for transport=tcpip, backend=system_visa",
             response.json()["detail"],
         )
 

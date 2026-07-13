@@ -185,13 +185,28 @@ class StartSupportPolicyTests(unittest.TestCase):
             for feature in scopes[(TRANSPORT_USB, BACKEND_SYSTEM_VISA)].feature_scopes
         }
         self.assertEqual(
-            VALIDATION_STATUS_FEATURE_PENDING,
+            VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
             usb_features[(FEATURE_KIND_MEASUREMENT, "voltage_dc_ratio")].validation_status,
         )
         self.assertEqual(
             VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
             usb_features[(FEATURE_KIND_TRIGGER_MODE, "software-custom")].validation_status,
         )
+        for scope_key in (
+            (TRANSPORT_TCPIP, BACKEND_SYSTEM_VISA),
+            (TRANSPORT_TCPIP, BACKEND_PYVISA_PY),
+        ):
+            with self.subTest(scope=scope_key):
+                lan_features = {
+                    (feature.feature_kind, feature.feature_value): feature
+                    for feature in scopes[scope_key].feature_scopes
+                }
+                self.assertEqual(
+                    VALIDATION_STATUS_FEATURE_PENDING,
+                    lan_features[
+                        (FEATURE_KIND_MEASUREMENT, "voltage_dc_ratio")
+                    ].validation_status,
+                )
 
     def test_34461a_support_metadata_promotes_validated_lan_scopes(self):
         support = start_workflow_support(KEYSIGHT_34461A_PROFILE)["start-trigger-record"]["live"]
@@ -312,22 +327,51 @@ class StartSupportPolicyTests(unittest.TestCase):
             with self.subTest(measurement=request.measurement, trigger_mode=request.trigger_mode):
                 self.assert_policy_allows(request)
 
+    def test_34460a_live_usb_system_visa_ratio_combines_with_product_open_trigger_modes(self):
+        cases = [
+            make_request(measurement="voltage-dc-ratio", trigger_mode="immediate", max_samples=1),
+            make_request(measurement="voltage-dc-ratio", trigger_mode="software", max_samples=1),
+            make_request(
+                measurement="voltage-dc-ratio",
+                trigger_mode="immediate-custom",
+                max_samples=None,
+                trigger_count=1,
+                sample_count=1,
+                buffer_drain_size=1,
+            ),
+            make_request(
+                measurement="voltage-dc-ratio",
+                trigger_mode="software-custom",
+                max_samples=None,
+                trigger_count=1,
+                sample_count=1,
+                buffer_drain_size=1,
+            ),
+        ]
+
+        for request in cases:
+            with self.subTest(trigger_mode=request.trigger_mode):
+                self.assert_policy_allows(request)
+
     def test_34460a_live_rejects_policy_closed_workflows(self):
         self.assert_policy_rejects(
-            make_request(measurement="voltage-dc-ratio"),
-            "measurement=voltage-dc-ratio is pending validation",
+            make_request(
+                resource="TCPIP0::host::inst0::INSTR",
+                measurement="voltage-dc-ratio",
+            ),
+            "start-trigger-record is pending for transport=tcpip, backend=system_visa",
         )
         self.assert_policy_rejects(
-            make_request(resource="TCPIP0::host::inst0::INSTR"),
-            "start-trigger-record is pending",
-        )
-        self.assert_policy_rejects(
-            make_request(visa_library="@py"),
+            make_request(measurement="voltage-dc-ratio", visa_library="@py"),
             "not registered for transport=usb, backend=pyvisa_py",
         )
         self.assert_policy_rejects(
-            make_request(resource="TCPIP::host::INSTR", visa_library="@py"),
-            "start-trigger-record is pending",
+            make_request(
+                resource="TCPIP::host::INSTR",
+                visa_library="@py",
+                measurement="voltage-dc-ratio",
+            ),
+            "start-trigger-record is pending for transport=tcpip, backend=pyvisa_py",
         )
 
     def test_validation_mode_allows_known_34460a_pending_lan_scopes(self):
@@ -347,10 +391,9 @@ class StartSupportPolicyTests(unittest.TestCase):
                     support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
                 )
 
-    def test_validation_mode_allows_34460a_dcv_ratio_feature_pending(self):
+    def test_product_mode_allows_promoted_34460a_dcv_ratio_without_validation_mode(self):
         self.assert_policy_allows(
             make_request(measurement="voltage-dc-ratio"),
-            support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
         )
 
     def test_34460a_external_modes_remain_profile_rejected_in_both_policy_modes(self):
@@ -380,11 +423,27 @@ class StartSupportPolicyTests(unittest.TestCase):
                         )
 
     def test_validation_mode_does_not_allow_unknown_or_custom_backend_scope(self):
-        self.assert_policy_rejects(
-            make_request(resource="TCPIP0::host::inst0::INSTR", visa_library="custom"),
-            "not registered for transport=tcpip, backend=custom_visa",
-            support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
-        )
+        cases = [
+            (
+                make_request(visa_library="custom"),
+                "not registered for transport=usb, backend=custom_visa",
+            ),
+            (
+                make_request(
+                    resource="TCPIP0::host::inst0::INSTR",
+                    visa_library="custom",
+                ),
+                "not registered for transport=tcpip, backend=custom_visa",
+            ),
+        ]
+
+        for request, expected in cases:
+            with self.subTest(resource=request.resource):
+                self.assert_policy_rejects(
+                    request,
+                    expected,
+                    support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+                )
 
     def test_missing_connection_scope_rejects_both_modes(self):
         request = make_request(visa_library="@py")

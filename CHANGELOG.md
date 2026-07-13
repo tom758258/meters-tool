@@ -39,9 +39,11 @@ until final release preparation.
   CLI-only LAN/pyvisa-py scopes for their registered profile-supported
   workflows, including external trigger support where applicable.
 - Opened the reviewed 34460A USB/system-VISA scope for its suite-covered
-  profile-supported workflows. DCV Ratio remains feature-pending, external
-  triggers and 34461A-only limits remain unsupported, and the 34460A
-  LAN/system-VISA and LAN/pyvisa-py scopes remain pending future validation.
+  profile-supported workflows, then explicitly promoted DCV Ratio in that exact
+  scope after maintainer review of separate bounded evidence. The existing
+  12-case wrapper full suite did not include Ratio. External triggers and
+  34461A-only limits remain unsupported, and the 34460A LAN/system-VISA and
+  LAN/pyvisa-py scopes remain pending future validation.
 
 ### Adapters, validation, and maintenance
 

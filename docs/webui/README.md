@@ -341,9 +341,11 @@ known, Auto-detect keeps the existing fallback capability view and uses only
 the fallback profile's declared product scope; it never promotes a pending
 feature. For 34461A the metadata includes validated USB/system-VISA,
 LAN/system-VISA, and optional CLI-only LAN/pyvisa-py `@py` scopes. For 34460A,
-DCV Ratio is `feature_pending` on USB/system-VISA, while LAN/TCPIP scopes remain
-`transport_pending`. Existing measurement, trigger, range, and limit fields
-remain the source of truth for control definitions.
+DCV Ratio is Product-open on USB/system-VISA, while LAN/TCPIP scopes remain
+`transport_pending`. The Ratio promotion followed maintainer review of separate
+bounded evidence; the existing 12-case wrapper full suite did not include
+Ratio. Existing measurement, trigger, range, and limit fields remain the source
+of truth for control definitions.
 
 The Expected model check is optional. Core validates the connected instrument
 identity at Start. If an explicit expected model does not match the fresh IDN
@@ -390,11 +392,10 @@ Measurement-specific UI behavior:
 - With the 34460A profile selected, current ranges exclude 10 A and current
   terminal selection is hidden because the base 34460A profile has no 10 A
   terminal/path. Custom-mode reading memory is limited to 1000 readings.
-- With the 34460A USB/system-VISA scope, `voltage-dc-ratio` remains visible as
-  a known capability but is disabled because its live status is
-  `feature_pending`. Direct WebUI starts remain product-gated and reject a
-  forged Ratio request.
-- DCV Input Z appears only for `voltage-dc`.
+- With the 34460A USB/system-VISA scope, `voltage-dc-ratio` is enabled from
+  capability metadata and direct Product-mode WebUI starts accept it. This does
+  not open Ratio on 34460A LAN scopes or expose a pyvisa-py selector.
+- DCV Input Z appears only for `voltage-dc` and `voltage-dc-ratio`.
 - VM Comp remains a measurement option where supported by Core.
 - Auto Zero Once is available for supported DC/resistance measurements through
   Core capabilities.
