@@ -67,11 +67,11 @@ export function resolveInitialLocale({ storage, navigatorLike } = {}) {
 }
 
 export function persistLocale(storage, locale) {
-  if (!isSupportedLocale(locale)) {
+  if (!isSupportedLocale(locale) || !storage || typeof storage.setItem !== "function") {
     return false;
   }
   try {
-    storage?.setItem?.(LOCALE_STORAGE_KEY, locale);
+    storage.setItem(LOCALE_STORAGE_KEY, locale);
     return true;
   } catch (_error) {
     return false;

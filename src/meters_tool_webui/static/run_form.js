@@ -51,6 +51,7 @@ let supportedTriggerModes = [];
 let liveSupport = null;
 let inputLimits = {};
 let latestSupportSummary = null;
+let capabilitiesLoaded = false;
 
 const MEASUREMENT_MESSAGE_KEYS = Object.freeze({
   "current-dc": "measurement.option.current_dc",
@@ -984,10 +985,12 @@ export function refreshSupportSummaryPresentation() {
 }
 
 export function refreshRunFormPresentation() {
-  const previousMeasurement = measurementSelect.value;
-  const previousTriggerMode = triggerModeSelect.value;
-  populateFeatureOptions(previousMeasurement, previousTriggerMode, true);
-  refreshMeasurementOptionPresentation();
+  if (capabilitiesLoaded) {
+    const previousMeasurement = measurementSelect.value;
+    const previousTriggerMode = triggerModeSelect.value;
+    populateFeatureOptions(previousMeasurement, previousTriggerMode, true);
+    refreshMeasurementOptionPresentation();
+  }
   validateSwMinInterval();
   updatePanelSummaries();
   refreshSupportSummaryPresentation();
@@ -1025,6 +1028,7 @@ export async function loadCapabilities(model = null) {
     capabilities.measurements.map((item) => [item.name, item])
   );
   supportedTriggerModes = [...capabilities.trigger_modes];
+  capabilitiesLoaded = true;
   populateFeatureOptions(previousMeasurement, previousTriggerMode);
   updateMeasurementUi();
   updateTriggerModeUi();

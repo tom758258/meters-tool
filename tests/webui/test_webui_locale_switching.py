@@ -29,6 +29,141 @@ def run_node(script: str, *modules: Path) -> subprocess.CompletedProcess[str]:
     )
 
 
+APPLICATION_TEST_SETUP = r'''
+import assert from "node:assert/strict";
+
+const [appUrl] = process.argv.slice(1);
+
+class FakeClassList {
+  constructor() { this.values = new Set(); }
+  add(name) { this.values.add(name); }
+  remove(name) { this.values.delete(name); }
+  toggle(name, force) {
+    const enabled = force === undefined ? !this.values.has(name) : Boolean(force);
+    if (enabled) this.values.add(name);
+    else this.values.delete(name);
+  }
+  contains(name) { return this.values.has(name); }
+}
+
+class FakeElement {
+  constructor() {
+    this.value = "";
+    this.textContent = "";
+    this.checked = false;
+    this.disabled = false;
+    this.required = false;
+    this.children = [];
+    this.attributes = new Map();
+    this.listeners = new Map();
+    this.classList = new FakeClassList();
+    this.dataset = {};
+    this.clientWidth = 640;
+    this.clientHeight = 760;
+  }
+  get options() { return this.children; }
+  get selectedOptions() { return this.children.filter((child) => child.value === this.value); }
+  setAttribute(name, value) { this.attributes.set(name, String(value)); }
+  getAttribute(name) { return this.attributes.get(name) ?? null; }
+  removeAttribute(name) { this.attributes.delete(name); }
+  addEventListener(name, listener) { this.listeners.set(name, listener); }
+  appendChild(child) { this.children.push(child); return child; }
+  replaceChildren(...children) { this.children = children; }
+  querySelector() { return null; }
+  querySelectorAll() { return []; }
+  contains() { return false; }
+  closest() { return null; }
+  setCustomValidity(message) { this.validationMessage = message; }
+  click() { this.listeners.get("click")?.({ target: this }); }
+}
+
+const elements = new Map();
+function element(selector) {
+  if (!elements.has(selector)) elements.set(selector, new FakeElement());
+  return elements.get(selector);
+}
+function option(value, text, disabled = false) {
+  const item = new FakeElement();
+  item.value = value;
+  item.textContent = text;
+  item.disabled = disabled;
+  return item;
+}
+function response(payload, ok = true, statusText = "OK") {
+  return { ok, statusText, async text() { return JSON.stringify(payload); } };
+}
+function selectState(select) {
+  return {
+    count: select.options.length,
+    values: select.options.map((item) => item.value),
+    selected: select.value,
+    disabled: select.options.map((item) => item.disabled),
+  };
+}
+
+const documentElement = new FakeElement();
+const documentListeners = new Map();
+const windowListeners = new Map();
+let intervalCalls = 0;
+let eventSourceCalls = 0;
+let reloadCalls = 0;
+globalThis.document = {
+  documentElement,
+  querySelector: element,
+  querySelectorAll: () => [],
+  createElement: () => new FakeElement(),
+  createElementNS: () => new FakeElement(),
+  addEventListener(name, listener) { documentListeners.set(name, listener); },
+};
+globalThis.window = {
+  localStorage: null,
+  location: { reload() { reloadCalls += 1; } },
+  addEventListener(name, listener) { windowListeners.set(name, listener); },
+  setInterval() { intervalCalls += 1; return intervalCalls; },
+  clearInterval() {},
+};
+Object.defineProperty(globalThis, "navigator", {
+  configurable: true,
+  value: { languages: ["en-US"], language: "en-US" },
+});
+globalThis.EventSource = class {
+  constructor() { eventSourceCalls += 1; }
+  addEventListener() {}
+  close() {}
+};
+
+const measurementSelect = element("#measurement");
+measurementSelect.replaceChildren(
+  option("fallback-current", "Fallback current"),
+  option("fallback-voltage", "Fallback voltage", true),
+);
+measurementSelect.value = "fallback-voltage";
+const triggerSelect = element("#trigger-mode");
+triggerSelect.replaceChildren(
+  option("fallback-software", "Fallback software"),
+  option("fallback-external", "Fallback external", true),
+);
+triggerSelect.value = "fallback-external";
+element("#resource").value = "USB0::FALLBACK";
+element("#instrument-model").value = "34461A";
+element("[name='csv']").value = "C:\\meter\\fallback.csv";
+element("[name='max_samples']").value = "23";
+element("[name='timeout_ms']").value = "4321";
+element("[name='auto_range']").checked = true;
+
+const fallbackState = {
+  measurement: selectState(measurementSelect),
+  trigger: selectState(triggerSelect),
+  resource: element("#resource").value,
+  model: element("#instrument-model").value,
+  csv: element("[name='csv']").value,
+  maxSamples: element("[name='max_samples']").value,
+  timeout: element("[name='timeout_ms']").value,
+  autoRange: element("[name='auto_range']").checked,
+};
+'''
+
+
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for locale runtime tests")
 def test_locale_resolution_and_storage_contract():
     script = r'''
@@ -115,6 +250,8 @@ assert.equal(localeUi.persistLocale(keyOnlyStorage, "zh-TW"), true);
 assert.deepEqual(keyOnlyStorage.writes, [["meters-tool.webui.locale", "zh-TW"]]);
 assert.equal(localeUi.persistLocale(keyOnlyStorage, "ZH-tw"), false);
 assert.deepEqual(keyOnlyStorage.writes, [["meters-tool.webui.locale", "zh-TW"]]);
+assert.equal(localeUi.persistLocale(null, "zh-TW"), false);
+assert.equal(localeUi.persistLocale({}, "zh-TW"), false);
 assert.equal(localeUi.persistLocale(new Storage(null, false, true), "en"), false);
 
 class FakeElement {
@@ -202,6 +339,22 @@ writeFailButton.click();
 assert.equal(writeFailDocument.lang, "zh-TW");
 assert.equal(writeFailRefreshCount, 1);
 
+const noStorageButton = new FakeElement();
+const noStorageLabel = new FakeElement();
+const noStorageDocument = { lang: "en" };
+let noStorageRefreshCount = 0;
+localeUi.initializeLocaleUi({
+  button: noStorageButton,
+  label: noStorageLabel,
+  documentElement: noStorageDocument,
+  storage: null,
+  navigatorLike: { language: "en-US" },
+  onLocaleChange: () => { noStorageRefreshCount += 1; },
+});
+noStorageButton.click();
+assert.equal(noStorageDocument.lang, "zh-TW");
+assert.equal(noStorageRefreshCount, 1);
+
 const duplicateButton = new FakeElement();
 const duplicateLabel = new FakeElement();
 const duplicateDocument = { lang: "en" };
@@ -264,6 +417,25 @@ def test_locale_static_markup_and_refresh_source_contracts():
     assert "api(\"/api/resources?verify=true&live_only=true\")" in app
     assert "export function refreshRunFormPresentation()" in run_form
     assert "preserveUnavailableSelections = false" in run_form
+    refresh_start = run_form.index("export function refreshRunFormPresentation()")
+    refresh_end = run_form.index("export async function loadCapabilities", refresh_start)
+    run_form_refresh = run_form[refresh_start:refresh_end]
+    readiness_guard = run_form_refresh.index("if (capabilitiesLoaded)")
+    assert readiness_guard < run_form_refresh.index("populateFeatureOptions(")
+    assert readiness_guard < run_form_refresh.index("refreshMeasurementOptionPresentation();")
+    load_start = run_form.index("export async function loadCapabilities")
+    load_capabilities = run_form[load_start:]
+    ready_assignment = load_capabilities.index("capabilitiesLoaded = true;")
+    for required_assignment in (
+        "applyAppMetadata(capabilities.app);",
+        "applyInputLimits(capabilities.limits);",
+        "latestSupportSummary = capabilities.support_summary ?? null;",
+        'liveSupport = capabilities.support?.["start-trigger-record"]?.live || null;',
+        "capabilities.available_profiles || []",
+        "measurementsByName = new Map(",
+        "supportedTriggerModes = [...capabilities.trigger_modes];",
+    ):
+        assert load_capabilities.index(required_assignment) < ready_assignment
     assert "export function refreshStatusPresentation()" in status
     assert "export function refreshLiveDataPresentation()" in live_data
     refresh_start = app.index("function refreshLocalizedPresentation()")
@@ -450,6 +622,223 @@ process.stdout.write(JSON.stringify({ ok: true }));
     completed = run_node(script, STATIC_DIR / "app.js")
     assert completed.returncode == 0, (
         "Node application locale refresh contract failed\n"
+        f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+    )
+    assert completed.stdout == '{"ok":true}'
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required for application locale tests")
+def test_application_locale_switch_preserves_fallbacks_while_capabilities_are_pending():
+    script = APPLICATION_TEST_SETUP + r'''
+const capabilities = {
+  app: { version: "1.6.0" },
+  limits: {},
+  support_summary: {
+    model: "34461A",
+    validation_status: "live_validated_full_suite",
+    status_text: "Cached support status",
+    open_workflows: ["software"],
+    limits: [],
+    pending: [],
+  },
+  support: {
+    "start-trigger-record": {
+      live: {
+        scopes: [{
+          transport_scope: "usb",
+          backend_scope: "system_visa",
+          validation_status: "live_validated_full_suite",
+          features: {
+            measurement: {
+              "current-dc": { validation_status: "live_validated_full_suite" },
+              "voltage-dc": { validation_status: "feature_pending" },
+            },
+            trigger_mode: {
+              software: { validation_status: "live_validated_full_suite" },
+              external: { validation_status: "not_supported_by_model" },
+            },
+          },
+        }],
+      },
+    },
+  },
+  available_profiles: [{ model: "34461A" }],
+  measurements: [
+    { name: "current-dc", unit: "A", nplc_options: [], range_options: [], defaults: {} },
+    { name: "voltage-dc", unit: "V", nplc_options: [], range_options: [], defaults: {} },
+  ],
+  trigger_modes: ["software", "external"],
+};
+const currentStatus = {
+  state: "idle", active: false, captured: 0, errors: 0, csv_path: "",
+  latest_status: "idle", recent_samples: [], latest_sample: null, sample_capacity: 100,
+};
+let fetchCalls = 0;
+let resolveCapabilities;
+globalThis.fetch = (path) => {
+  fetchCalls += 1;
+  if (String(path).includes("/api/capabilities")) {
+    return new Promise((resolve) => { resolveCapabilities = resolve; });
+  }
+  return Promise.resolve(response(currentStatus));
+};
+
+await import(appUrl);
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(fetchCalls, 1);
+assert.deepEqual(selectState(measurementSelect), fallbackState.measurement);
+assert.deepEqual(selectState(triggerSelect), fallbackState.trigger);
+const beforeSwitchFetchCalls = fetchCalls;
+const beforeSwitchIntervalCalls = intervalCalls;
+const beforeSwitchEventSourceCalls = eventSourceCalls;
+
+element("#locale-toggle").click();
+assert.equal(documentElement.lang, "zh-TW");
+assert.equal(element("#locale-toggle-label").textContent, "English");
+assert.notEqual(element("#locale-toggle").getAttribute("aria-label"), null);
+assert.deepEqual(selectState(measurementSelect), fallbackState.measurement);
+assert.deepEqual(selectState(triggerSelect), fallbackState.trigger);
+assert.deepEqual(
+  {
+    resource: element("#resource").value,
+    model: element("#instrument-model").value,
+    csv: element("[name='csv']").value,
+    maxSamples: element("[name='max_samples']").value,
+    timeout: element("[name='timeout_ms']").value,
+    autoRange: element("[name='auto_range']").checked,
+  },
+  {
+    resource: fallbackState.resource,
+    model: fallbackState.model,
+    csv: fallbackState.csv,
+    maxSamples: fallbackState.maxSamples,
+    timeout: fallbackState.timeout,
+    autoRange: fallbackState.autoRange,
+  },
+);
+assert.equal(fetchCalls, beforeSwitchFetchCalls);
+assert.equal(intervalCalls, beforeSwitchIntervalCalls);
+assert.equal(eventSourceCalls, beforeSwitchEventSourceCalls);
+assert.equal(reloadCalls, 0);
+
+resolveCapabilities(response(capabilities));
+await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.deepEqual(measurementSelect.options.map((item) => item.value), ["current-dc", "voltage-dc"]);
+assert.deepEqual(triggerSelect.options.map((item) => item.value), ["software", "external"]);
+assert.equal(measurementSelect.value, "current-dc");
+assert.equal(triggerSelect.value, "software");
+assert.equal(measurementSelect.options[0].getAttribute("data-i18n"), "measurement.option_label");
+assert.equal(triggerSelect.options[0].getAttribute("data-i18n"), "trigger.option_label");
+assert.equal(measurementSelect.options[1].disabled, true);
+assert.equal(triggerSelect.options[1].disabled, true);
+assert.equal(intervalCalls, 1);
+assert.equal(eventSourceCalls, 1);
+
+measurementSelect.value = "voltage-dc";
+triggerSelect.value = "external";
+const readyFormState = {
+  measurement: selectState(measurementSelect),
+  trigger: selectState(triggerSelect),
+  resource: element("#resource").value,
+  model: element("#instrument-model").value,
+  csv: element("[name='csv']").value,
+  maxSamples: element("[name='max_samples']").value,
+  timeout: element("[name='timeout_ms']").value,
+  autoRange: element("[name='auto_range']").checked,
+};
+const readyFetchCalls = fetchCalls;
+const readyIntervalCalls = intervalCalls;
+const readyEventSourceCalls = eventSourceCalls;
+element("#locale-toggle").click();
+assert.equal(documentElement.lang, "en");
+assert.deepEqual(
+  {
+    measurement: selectState(measurementSelect),
+    trigger: selectState(triggerSelect),
+    resource: element("#resource").value,
+    model: element("#instrument-model").value,
+    csv: element("[name='csv']").value,
+    maxSamples: element("[name='max_samples']").value,
+    timeout: element("[name='timeout_ms']").value,
+    autoRange: element("[name='auto_range']").checked,
+  },
+  readyFormState,
+);
+assert.equal(measurementSelect.options[1].disabled, true);
+assert.equal(triggerSelect.options[1].disabled, true);
+assert.match(measurementSelect.options[1].textContent, /Pending live validation/);
+assert.match(triggerSelect.options[1].textContent, /Not supported by model/);
+assert.equal(element("#model-support-status").textContent.includes("Cached support status"), true);
+assert.equal(fetchCalls, readyFetchCalls);
+assert.equal(intervalCalls, readyIntervalCalls);
+assert.equal(eventSourceCalls, readyEventSourceCalls);
+assert.equal(reloadCalls, 0);
+process.stdout.write(JSON.stringify({ ok: true }));
+'''
+    completed = run_node(script, STATIC_DIR / "app.js")
+    assert completed.returncode == 0, (
+        "Deferred capabilities locale-switch contract failed\n"
+        f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
+    )
+    assert completed.stdout == '{"ok":true}'
+
+
+@pytest.mark.skipif(NODE is None, reason="Node.js is required for application locale tests")
+def test_application_locale_switch_preserves_fallbacks_after_capabilities_failure():
+    script = APPLICATION_TEST_SETUP + r'''
+let fetchCalls = 0;
+globalThis.fetch = async (path) => {
+  fetchCalls += 1;
+  assert.equal(String(path).includes("/api/capabilities"), true);
+  return response({ detail: "capabilities unavailable" }, false, "Service Unavailable");
+};
+
+await import(appUrl);
+await new Promise((resolve) => setTimeout(resolve, 0));
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(fetchCalls, 1);
+assert.deepEqual(selectState(measurementSelect), fallbackState.measurement);
+assert.deepEqual(selectState(triggerSelect), fallbackState.trigger);
+assert.equal(element("#latest-status").options.at(-1).textContent, "capabilities unavailable");
+assert.equal(intervalCalls, 1);
+assert.equal(eventSourceCalls, 1);
+const beforeSwitchFetchCalls = fetchCalls;
+const beforeSwitchIntervalCalls = intervalCalls;
+const beforeSwitchEventSourceCalls = eventSourceCalls;
+
+element("#locale-toggle").click();
+assert.equal(documentElement.lang, "zh-TW");
+assert.equal(element("#locale-toggle-label").textContent, "English");
+assert.deepEqual(selectState(measurementSelect), fallbackState.measurement);
+assert.deepEqual(selectState(triggerSelect), fallbackState.trigger);
+assert.deepEqual(
+  {
+    resource: element("#resource").value,
+    model: element("#instrument-model").value,
+    csv: element("[name='csv']").value,
+    maxSamples: element("[name='max_samples']").value,
+    timeout: element("[name='timeout_ms']").value,
+    autoRange: element("[name='auto_range']").checked,
+  },
+  {
+    resource: fallbackState.resource,
+    model: fallbackState.model,
+    csv: fallbackState.csv,
+    maxSamples: fallbackState.maxSamples,
+    timeout: fallbackState.timeout,
+    autoRange: fallbackState.autoRange,
+  },
+);
+assert.equal(fetchCalls, beforeSwitchFetchCalls);
+assert.equal(intervalCalls, beforeSwitchIntervalCalls);
+assert.equal(eventSourceCalls, beforeSwitchEventSourceCalls);
+assert.equal(reloadCalls, 0);
+process.stdout.write(JSON.stringify({ ok: true }));
+'''
+    completed = run_node(script, STATIC_DIR / "app.js")
+    assert completed.returncode == 0, (
+        "Failed capabilities locale-switch contract failed\n"
         f"stdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
     )
     assert completed.stdout == '{"ok":true}'
