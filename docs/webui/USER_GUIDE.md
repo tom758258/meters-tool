@@ -65,6 +65,20 @@ The WebUI is a local acquisition console. The main areas are:
 - `Live data`: latest reading, trend chart, recent samples, and selected sample
   details.
 
+## Browser Language
+
+Use the permanent globe-and-text button at the top right to switch between
+English and Traditional Chinese. The button names the destination language:
+English shows `繁體中文`, and Traditional Chinese shows `English`.
+
+The first page load uses a valid saved locale when available, then the browser
+language, then English. Manual choices are saved under
+`meters-tool.webui.locale`; browser detection is not saved automatically.
+Switching is immediate and does not reload the page or contact a runtime API.
+The current form values, active run, panels, status log, Live data selection,
+chart settings, resource scan, and support summary remain in place. Unknown
+diagnostic text remains unchanged.
+
 ## First Run
 
 Use this flow for a basic immediate measurement:

@@ -177,6 +177,11 @@ function element(selector) {
   return elements.get(selector);
 }
 const windowListeners = new Map();
+let fetchCalls = 0;
+globalThis.fetch = async () => {
+  fetchCalls += 1;
+  throw new Error("unexpected fetch during presentation refresh");
+};
 globalThis.document = {
   querySelector: element,
   querySelectorAll() { return []; },
@@ -191,6 +196,7 @@ globalThis.window = {
 
 element("#trigger-mode").value = "software";
 const status = await import(statusUrl);
+const i18n = await import(new URL("./i18n.js", statusUrl));
 status.initializeStatusUi();
 
 const sample = {
@@ -260,6 +266,28 @@ assert.equal(
   }, null, 2)
 );
 assert.equal(element("#live-sample-details").getAttribute("data-i18n"), null);
+
+element("#toggle-status-details").click();
+const rawStatusBeforeLocaleRefresh = element("#raw-status").textContent;
+const rawSampleDetailsBeforeLocaleRefresh = element("#live-sample-details").textContent;
+const statusLogCountBeforeLocaleRefresh = latestLines().length;
+i18n.setLocale("zh-TW");
+status.refreshStatusPresentation();
+assert.equal(element("#status-state").textContent, "執行中");
+assert.equal(element("#status-state").getAttribute("data-i18n"), "status.running");
+assert.equal(element("#toggle-status-details").textContent, "隱藏詳細資料");
+assert.equal(element("#status-details").classList.contains("is-hidden"), false);
+assert.equal(element("#raw-status").textContent, rawStatusBeforeLocaleRefresh);
+assert.equal(element("#live-sample-details").textContent, rawSampleDetailsBeforeLocaleRefresh);
+assert.equal(element("#live-data-summary").textContent, "最近取樣：1/5000");
+assert.equal(element("#live-selected-sample").textContent, "取樣 #7");
+assert.equal(latestLines().length, statusLogCountBeforeLocaleRefresh);
+assert.equal(latestLines().at(-1).textContent, "已就緒");
+assert.equal(fetchCalls, 0);
+i18n.setLocale("en");
+status.refreshStatusPresentation();
+assert.equal(element("#toggle-status-details").textContent, "Hide Details");
+assert.equal(element("#status-details").classList.contains("is-hidden"), false);
 
 const unknown = {
   ...running,
@@ -337,7 +365,7 @@ process.stdout.write(JSON.stringify({ ok: true }));
     assert completed.stdout == '{"ok":true}'
 
 
-def test_p24_production_sources_do_not_activate_locale_selection():
+def test_p26_production_sources_keep_locale_out_of_runtime_contracts():
     sources = "\n".join(
         (STATIC_DIR / name).read_text(encoding="utf-8")
         for name in (
@@ -348,11 +376,6 @@ def test_p24_production_sources_do_not_activate_locale_selection():
         )
     )
     for forbidden in (
-        "setLocale(",
-        "navigator.language",
-        "navigator.languages",
-        "localStorage",
-        "LOCALE_STORAGE_KEY",
         "status_key",
         "runtime_driver_note_key",
         "open_workflow_keys",

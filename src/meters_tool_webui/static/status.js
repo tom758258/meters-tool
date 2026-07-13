@@ -16,7 +16,7 @@ import {
   toggleStatusDetailsButton,
   triggerModeSelect,
 } from "./dom.js";
-import { renderLiveData } from "./live_data.js";
+import { refreshLiveDataPresentation, renderLiveData } from "./live_data.js";
 import { t } from "./i18n.js";
 import {
   browserErrorPresentation,
@@ -226,6 +226,22 @@ export function renderStatus(status) {
   cleanupStatus.textContent = status.cleanup_status || "";
   rawStatus.textContent = JSON.stringify(status, null, 2);
   renderLiveData(status);
+}
+
+export function refreshStatusPresentation() {
+  renderStatusLog();
+  const detailsVisible = !statusDetails.classList.contains("is-hidden");
+  setStatusDetailsVisible(detailsVisible);
+  if (latestRenderedStatus) {
+    renderPresentation(
+      statusState,
+      runStatePresentation(latestRenderedStatus.state || "idle")
+    );
+    if (statusCsv && !latestRenderedStatus.csv_path) {
+      setTranslatedText(statusCsv, "common.default");
+    }
+  }
+  refreshLiveDataPresentation();
 }
 
 function updateRunControlButtons(status) {

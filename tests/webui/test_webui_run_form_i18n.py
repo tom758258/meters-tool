@@ -413,6 +413,39 @@ const triggerSelect = element("#trigger-mode");
 const modelSelect = element("#instrument-model");
 const optionByValue = (select, value) => select.options.find((option) => option.value === value);
 
+measurementSelect.value = "voltage-dc";
+triggerSelect.value = "external";
+const preservedPresentationValues = {
+  measurement: measurementSelect.value,
+  triggerMode: triggerSelect.value,
+  resource: element("#resource").value,
+  autoRange: element("[name='auto_range']").checked,
+  maxSamples: element("[name='max_samples']").value,
+};
+const beforePresentationRefreshFetchCount = fetchCount;
+i18n.setLocale("zh-TW");
+runForm.refreshRunFormPresentation();
+assert.deepEqual(
+  {
+    measurement: measurementSelect.value,
+    triggerMode: triggerSelect.value,
+    resource: element("#resource").value,
+    autoRange: element("[name='auto_range']").checked,
+    maxSamples: element("[name='max_samples']").value,
+  },
+  preservedPresentationValues,
+);
+assert.equal(optionByValue(measurementSelect, "voltage-dc").disabled, true);
+assert.match(optionByValue(measurementSelect, "voltage-dc").textContent, /等待實機驗證/);
+assert.equal(optionByValue(triggerSelect, "external").disabled, true);
+assert.match(optionByValue(triggerSelect, "external").textContent, /型號不支援/);
+assert.equal(fetchCount, beforePresentationRefreshFetchCount);
+i18n.setLocale("en");
+runForm.refreshRunFormPresentation();
+measurementSelect.value = "current-dc";
+triggerSelect.value = "software";
+runForm.updatePanelSummaries();
+
 assert.equal(measurementSelect.value, "current-dc");
 assert.equal(triggerSelect.value, "software");
 assert.equal(modelSelect.value, "34461A");

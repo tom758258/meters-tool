@@ -889,29 +889,25 @@ class WebUiStaticTests(unittest.TestCase):
                     ):
                         self.assertIn(imported_name, exported_names)
 
-    def test_static_i18n_applies_once_before_existing_initialization(self):
+    def test_static_i18n_initializes_locale_before_first_translation_pass(self):
         app_js = (STATIC_DIR / "app.js").read_text(encoding="utf-8")
 
         self.assertIn(
             'import { applyStaticTranslations } from "./dom_i18n.js";',
             app_js,
         )
-        self.assertEqual(app_js.count("applyStaticTranslations(document);"), 1)
-        apply_index = app_js.index("applyStaticTranslations(document);")
+        self.assertEqual(app_js.count("applyStaticTranslations(document);"), 2)
+        locale_init_index = app_js.index("initializeLocaleUi({")
+        apply_index = app_js.index("applyStaticTranslations(document);", locale_init_index)
+        self.assertLess(locale_init_index, apply_index)
         self.assertLess(apply_index, app_js.index("initializeStatusUi();"))
         self.assertLess(apply_index, app_js.index("initializeLiveDataUi();"))
         self.assertLess(apply_index, app_js.index("loadCapabilities()"))
 
-        for forbidden in [
-            "setLocale(",
-            "navigator.language",
-            "navigator.languages",
-            "localStorage",
-            "LOCALE_STORAGE_KEY",
-            "language-button",
-        ]:
-            with self.subTest(forbidden=forbidden):
-                self.assertNotIn(forbidden, app_js)
+        self.assertIn('import { initializeLocaleUi } from "./locale_ui.js";', app_js)
+        self.assertIn("onLocaleChange: refreshLocalizedPresentation", app_js)
+        self.assertNotIn("/api/capabilities?locale=", app_js)
+        self.assertNotIn("/api/resources?locale=", app_js)
 
         for migrated_key in [
             "resource.scanning",
@@ -979,10 +975,6 @@ class WebUiStaticTests(unittest.TestCase):
             )
         )
         for forbidden in (
-            "setLocale(",
-            "navigator.language",
-            "navigator.languages",
-            "localStorage",
             "status_key",
             "runtime_driver_note_key",
             "open_workflow_keys",

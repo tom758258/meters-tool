@@ -57,6 +57,13 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   unknown, or positionally mismatched. Language switching remains inactive;
   API behavior, Core authority, support policy, instrument runtime, and
   schemas are unchanged.
+- Activated P2.6 browser locale selection and English / Traditional Chinese
+  switching with the permanent top-right globe-and-text button. Valid saved
+  locale values use `meters-tool.webui.locale` and take precedence over
+  browser detection; switching updates `<html lang>` without reload or runtime
+  requests, preserves form/run/status/Live/chart/resource state, and keeps
+  unknown diagnostics raw. P2.7 owns final translation-quality and cross-Part
+  integration validation.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 

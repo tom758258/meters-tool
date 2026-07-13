@@ -7,19 +7,21 @@ locales are `en` and `zh-TW`. English is the complete source locale and the
 mandatory fallback locale.
 
 Phase 2 Part 0 (P2.0) completed this contract and the current-text inventory.
-Locale runtime, translation dictionaries, and language switching are not
-implemented in P2.0. P2.1 provides the dependency-free runtime foundation.
+P2.1 provides the dependency-free runtime foundation. P2.6 activates browser
+locale selection, persistence, and state-preserving runtime switching on top
+of the P2.1-P2.5 catalogs and presentation boundaries.
 P2.2 registers the static browser prose from `index.html` in English and
 Traditional Chinese catalogs, adds explicit text, placeholder, title, and
-ARIA-label bindings, then applies them once at startup using the singleton's
-default English locale.
-Nothing in this document claims that the current WebUI can switch languages.
+ARIA-label bindings, then P2.6 applies them once at startup after resolving the
+initial locale.
+P2.7 remains responsible for final translation-quality review and cross-Part
+integration validation.
 
 The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
 
-### P2.1-P2.5 Foundation And Current Status
+### P2.1-P2.6 Foundation And Current Status
 
 P2.1 adds three native ES modules at the static root:
 
@@ -41,8 +43,9 @@ JSON, sample metadata, and schemas are not translated. Browser HTTP errors keep
 FastAPI `detail` as first priority, then preserve structured command-response
 `message` and raw `reason` values before the HTTP status-text fallback. Exact
 known command messages may therefore use semantic browser translations, while
-unknown rejection reasons remain raw diagnostics. The singleton still starts
-in English, so the currently rendered UI remains English.
+unknown rejection reasons remain raw diagnostics. The singleton module starts
+in English, then `app.js` explicitly resolves the initial browser locale before
+the first translated render.
 
 P2.5 adds `status_key`, `runtime_driver_note_key`,
 `open_workflow_keys`, `limit_keys`, and `pending_keys` as additive
@@ -54,11 +57,15 @@ cannot add entries. Raw validation status, transport, backend, model, and
 profile values remain machine values. The latest raw support summary is cached
 so its presentation can be recomputed without another capability request.
 
-There is no active language selector, browser detection, saved-locale lookup,
-`<html lang>` update, or runtime locale-switch wiring; P2.6 owns locale
-selection and switching. API endpoints, Core, support policy, SCPI, VISA,
-trigger, acquisition, CSV, JSON, JSONL, SSE, and cleanup contracts are
-unchanged. The current inventory remains the authoritative ownership record.
+P2.6 adds `locale_ui.js` for explicit initial-locale resolution, safe storage
+access, `<html lang>` synchronization, destination-language button rendering,
+and one-time click wiring. `app.js` resolves and applies the locale before its
+first `applyStaticTranslations(document)` call. Manual switching re-renders
+static bindings and cached run-form, resource, support-summary, status/log, and
+Live data presentation without reload or runtime/API requests. API endpoints,
+Core, support policy, SCPI, VISA, trigger, acquisition, CSV, JSON, JSONL, SSE,
+and cleanup contracts are unchanged. The current inventory remains the
+authoritative ownership record.
 
 The runtime exports these constants:
 
@@ -69,9 +76,10 @@ SUPPORTED_LOCALES = ["en", "zh-TW"] (frozen)
 LOCALE_STORAGE_KEY = "meters-tool.webui.locale"
 ```
 
-`LOCALE_STORAGE_KEY` defines the future persistence contract only; P2.1 does
-not access storage. `isSupportedLocale(value)` accepts only the two exact
-maintained identifiers. It does not map browser language results.
+`LOCALE_STORAGE_KEY` defines the browser persistence contract. The pure i18n
+module itself does not access storage; `locale_ui.js` owns safe storage access.
+`isSupportedLocale(value)` accepts only the two exact maintained identifiers. It
+does not map browser language results.
 
 `createI18n({ catalogs, initialLocale, onMissingKey })` creates an isolated
 translator with `getLocale()`, `setLocale(locale)`, and `t(key, params)`.
@@ -117,7 +125,7 @@ The maintained locale identifiers are exactly:
 - `en`
 - `zh-TW`
 
-The future initial-locale precedence is:
+The initial-locale precedence is:
 
 1. A valid locale saved in `localStorage`.
 2. Browser language detection.
@@ -130,7 +138,7 @@ used only until the user makes a manual selection.
 
 ### Manual Language Control
 
-The future browser UI must permanently provide one language button in the main
+The browser UI permanently provides one language button in the main
 toolbar at the top right. It is independent from the Device options gear and
 must not be hidden in Settings, a hamburger menu, or another dialog. While
 there are only two maintained locales, it is a one-click toggle, not a
@@ -142,7 +150,7 @@ locale: the English UI shows `繁體中文`, and the Traditional Chinese UI show
 `English`. Its accessible name also describes the destination locale, and the
 destination-language label has its own `lang` attribute.
 
-Switching language must apply immediately without a page reload. It must not:
+Switching language applies immediately without a page reload. It must not:
 
 - stop an active run or issue a Start, Trigger, or Stop request;
 - clear the VISA resource, CSV path, or any form value;
@@ -150,8 +158,10 @@ Switching language must apply immediately without a page reload. It must not:
 - reset panel state, live samples, chart state, status, or other runtime UI state.
 
 The switch updates `<html lang>` to `en` or `zh-TW` and saves the manual choice
-under `meters-tool.webui.locale`. A third maintained locale may justify a
-language menu, but that is not part of v2.0.0.
+under `meters-tool.webui.locale`. Storage read/write failures are ignored for
+startup and persistence respectively, without surfacing a runtime error. A
+third maintained locale may justify a language menu, but that is not part of
+v2.0.0.
 
 ## Ownership And Architecture Boundary
 
@@ -496,7 +506,7 @@ measurement availability, trigger availability, or hard limits.
 
 ## Accessibility Requirements
 
-Future localization must:
+The active localization control must:
 
 - update `<html lang>`;
 - keep visible text beside the globe icon and mark the SVG `aria-hidden`;

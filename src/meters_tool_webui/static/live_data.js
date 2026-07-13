@@ -44,6 +44,7 @@ let liveChartManualSpan = null;
 let liveChartManualSpanInputInvalid = false;
 let liveChartScaleNoticeKey = "";
 let lastLiveChartSamples = [];
+let latestLiveStatus = null;
 
 function setTranslatedText(element, key, params = {}) {
   element.setAttribute("data-i18n", key);
@@ -180,9 +181,10 @@ export function refreshLiveChartScaleAvailability(notice = null) {
 }
 
 export function renderLiveData(status) {
-  const samples = Array.isArray(status.recent_samples) ? status.recent_samples : [];
-  const latest = status.latest_sample || samples[samples.length - 1] || null;
-  const capacity = Number(status.sample_capacity || 100);
+  latestLiveStatus = status || null;
+  const samples = Array.isArray(status?.recent_samples) ? status.recent_samples : [];
+  const latest = status?.latest_sample || samples[samples.length - 1] || null;
+  const capacity = Number(status?.sample_capacity || 100);
   updateLiveChartBaseline(status, samples);
 
   if (samples.length === 0) {
@@ -194,6 +196,18 @@ export function renderLiveData(status) {
     selectedLiveSampleSequence = latest.sequence;
   }
 
+  renderLiveDataPresentation(samples, latest, capacity);
+}
+
+export function refreshLiveDataPresentation() {
+  const status = latestLiveStatus || {};
+  const samples = Array.isArray(status.recent_samples) ? status.recent_samples : [];
+  const latest = status.latest_sample || samples[samples.length - 1] || null;
+  const capacity = Number(status.sample_capacity || 100);
+  renderLiveDataPresentation(samples, latest, capacity);
+}
+
+function renderLiveDataPresentation(samples, latest, capacity) {
   if (samples.length) {
     setTranslatedText(liveDataSummary, "live_data.recent_sample_summary", {
       count: samples.length,
@@ -220,7 +234,7 @@ export function renderLiveData(status) {
 }
 
 function updateLiveChartBaseline(status, samples) {
-  const runId = status.run_id || null;
+  const runId = status?.run_id || null;
   if (runId !== liveChartBaselineRunId) {
     liveChartBaselineRunId = runId;
     liveChartBaselineValue = null;

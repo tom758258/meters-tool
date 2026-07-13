@@ -80,6 +80,13 @@ until final release preparation.
   mismatched list keys. Language switching remains inactive; API behavior,
   Core authority, support policy, instrument runtime, and schemas are
   unchanged.
+- Activated P2.6 browser locale selection and English / Traditional Chinese
+  switching through the permanent top-right globe button. Saved locale values
+  take precedence over browser detection and use `meters-tool.webui.locale`;
+  switching is immediate, state-preserving, and performs no page reload or
+  runtime/API request. Unknown diagnostics remain raw, and Core, CLI, HTTP,
+  SSE, instrument, and schema behavior remain unchanged. P2.7 owns final
+  translation-quality and cross-Part integration validation.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

@@ -235,16 +235,34 @@ function selectAvailableOption(select, previousValue) {
   }
 }
 
-function populateFeatureOptions(previousMeasurement, previousTriggerMode) {
+function restoreSelectValue(select, previousValue) {
+  if ([...select.options].some((option) => option.value === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+function populateFeatureOptions(
+  previousMeasurement,
+  previousTriggerMode,
+  preserveUnavailableSelections = false
+) {
   measurementSelect.replaceChildren(
     ...[...measurementsByName.values()].map(measurementOptionElement)
   );
-  selectAvailableOption(measurementSelect, previousMeasurement);
+  if (preserveUnavailableSelections) {
+    restoreSelectValue(measurementSelect, previousMeasurement);
+  } else {
+    selectAvailableOption(measurementSelect, previousMeasurement);
+  }
 
   triggerModeSelect.replaceChildren(
     ...supportedTriggerModes.map(triggerOptionElement)
   );
-  selectAvailableOption(triggerModeSelect, previousTriggerMode);
+  if (preserveUnavailableSelections) {
+    restoreSelectValue(triggerModeSelect, previousTriggerMode);
+  } else {
+    selectAvailableOption(triggerModeSelect, previousTriggerMode);
+  }
 }
 
 export function updateFeatureAvailability() {
@@ -616,6 +634,99 @@ function optionElement(value, text) {
   return option;
 }
 
+function replaceOptionsPreservingValue(select, options) {
+  const previousValue = select.value;
+  select.replaceChildren(...options);
+  restoreSelectValue(select, previousValue);
+}
+
+function refreshMeasurementOptionPresentation() {
+  const measurement = measurementsByName.get(measurementSelect.value);
+  if (autoZeroSelect.options.length > 0) {
+    replaceOptionsPreservingValue(autoZeroSelect, [
+      translatedOptionElement("on", "common.on"),
+      translatedOptionElement("off", "common.off"),
+      translatedOptionElement("once", "measurement.auto_zero_once"),
+    ]);
+  }
+  if (acBandwidthSelect.options.length > 0) {
+    const includeKeepCurrent = [...acBandwidthSelect.options].some(
+      (option) => option.value === ""
+    );
+    const values = measurement?.ac_bandwidth_hz_options || [...acBandwidthSelect.options]
+      .map((option) => option.value)
+      .filter(Boolean);
+    const options = values.map((value) =>
+      translatedOptionElement(value, "measurement.value_hz", {
+        value: formatNumberLabel(value),
+      })
+    );
+    if (includeKeepCurrent) {
+      options.unshift(translatedOptionElement("", "measurement.keep_current_setting"));
+    }
+    replaceOptionsPreservingValue(acBandwidthSelect, options);
+  }
+  if (gateTimeSelect.options.length > 0) {
+    const values = measurement?.gate_time_s_options || [...gateTimeSelect.options]
+      .map((option) => option.value);
+    replaceOptionsPreservingValue(
+      gateTimeSelect,
+      values.map((value) =>
+        translatedOptionElement(value, "measurement.value_seconds", {
+          value: formatNumberLabel(value),
+        })
+      )
+    );
+  }
+  if (freqPeriodTimeoutSelect.options.length > 0) {
+    const values = measurement?.freq_period_timeout_options || [...freqPeriodTimeoutSelect.options]
+      .map((option) => option.value);
+    replaceOptionsPreservingValue(
+      freqPeriodTimeoutSelect,
+      values.map((value) =>
+        value === "auto"
+          ? translatedOptionElement(value, "common.auto")
+          : translatedOptionElement(value, "measurement.value_seconds", {
+            value: String(value).replace(/s$/, ""),
+          })
+      )
+    );
+  }
+  if (currentTerminalSelect.options.length > 0) {
+    const includeDefault = [...currentTerminalSelect.options].some(
+      (option) => option.value === ""
+    );
+    const values = measurement?.current_terminal_options || [...currentTerminalSelect.options]
+      .map((option) => option.value)
+      .filter(Boolean);
+    const options = values.map((value) =>
+      translatedOptionElement(value, "measurement.terminal_value", {
+        value: formatNumberLabel(value),
+      })
+    );
+    if (includeDefault) {
+      options.unshift(translatedOptionElement("", "common.default"));
+    }
+    replaceOptionsPreservingValue(currentTerminalSelect, options);
+  }
+  if (measurementRangeInput.options.length > 0) {
+    const options = [...measurementRangeInput.options].map((option) =>
+      option.value === ""
+        ? translatedOptionElement("", "measurement.select_range")
+        : optionElement(option.value, option.textContent)
+    );
+    replaceOptionsPreservingValue(measurementRangeInput, options);
+  }
+  if (nplcSelect.options.length > 0) {
+    replaceOptionsPreservingValue(
+      nplcSelect,
+      [...nplcSelect.options].map((option) =>
+        optionElement(option.value, formatNumberLabel(option.value))
+      )
+    );
+  }
+}
+
 function formatNumberLabel(value) {
   return Number(value).toLocaleString("en-US", { maximumSignificantDigits: 10 });
 }
@@ -870,6 +981,16 @@ function listSummary(items, keys) {
 
 export function refreshSupportSummaryPresentation() {
   renderSupportSummary(latestSupportSummary);
+}
+
+export function refreshRunFormPresentation() {
+  const previousMeasurement = measurementSelect.value;
+  const previousTriggerMode = triggerModeSelect.value;
+  populateFeatureOptions(previousMeasurement, previousTriggerMode, true);
+  refreshMeasurementOptionPresentation();
+  validateSwMinInterval();
+  updatePanelSummaries();
+  refreshSupportSummaryPresentation();
 }
 
 export async function loadCapabilities(model = null) {

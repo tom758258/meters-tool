@@ -1,6 +1,7 @@
 import { api } from "./api.js";
 import { applyStaticTranslations } from "./dom_i18n.js";
 import { t } from "./i18n.js";
+import { initializeLocaleUi } from "./locale_ui.js";
 import {
   acBandwidthSelect,
   autoRangeCheckbox,
@@ -16,6 +17,8 @@ import {
   freqPeriodTimeoutSelect,
   gateTimeSelect,
   instrumentModelSelect,
+  localeToggle,
+  localeToggleLabel,
   measurementRangeInput,
   measurementSelect,
   nplcSelect,
@@ -44,6 +47,7 @@ import {
   updateFeatureAvailability,
   updateMeasurementUi,
   updatePanelSummaries,
+  refreshRunFormPresentation,
   updateRangeVisibility,
   updateTriggerButtonUi,
   updateTriggerModeUi,
@@ -57,6 +61,7 @@ import {
   markSoftwareTriggerQueuedForLog,
   pollStatus,
   renderStatus,
+  refreshStatusPresentation,
   startStatusUpdates,
 } from "./status.js";
 import { resourceStatusPresentation } from "./presentation_i18n.js";
@@ -125,10 +130,13 @@ function updateRangeAndLiveChartScale(notice = "") {
 }
 
 let scanMetadataByResource = new Map();
+let resourceScanCompleted = false;
 
 function liveResourceSummary() {
   if (!resourceSelect.value) {
-    return t("resource.not_scanned");
+    return resourceScanCompleted
+      ? t("resource.no_live_resources")
+      : t("resource.not_scanned");
   }
   const model = scanMetadataByResource.get(resourceSelect.value)?.instrument_model;
   return model
@@ -175,21 +183,21 @@ async function applyScannedResource(resource) {
   updateDeviceResourceSummary();
 }
 
-async function refreshResources() {
-  appendTranslatedStatusLog("resource.scanning");
-  const result = await api("/api/resources?verify=true&live_only=true");
-  scanMetadataByResource = new Map(
-    result.resources.map((item) => [item.resource, item])
-  );
+function renderScannedResourceOptions() {
+  if (!resourceScanCompleted) {
+    return;
+  }
+  const previousResource = resourceSelect.value;
+  const resources = [...scanMetadataByResource.values()];
   const placeholder = document.createElement("option");
   placeholder.value = "";
   setTranslatedText(
     placeholder,
-    result.resources.length ? "resource.select_live" : "resource.no_live_resources"
+    resources.length ? "resource.select_live" : "resource.no_live_resources"
   );
   resourceSelect.replaceChildren(
     placeholder,
-    ...result.resources.map((item) => {
+    ...resources.map((item) => {
       const option = document.createElement("option");
       option.value = item.resource;
       if (!item.detail) {
@@ -209,6 +217,24 @@ async function refreshResources() {
       return option;
     })
   );
+  if (resources.some((item) => item.resource === previousResource)) {
+    resourceSelect.value = previousResource;
+  }
+}
+
+export function refreshResourcesPresentation() {
+  renderScannedResourceOptions();
+  updateDeviceResourceSummary();
+}
+
+async function refreshResources() {
+  appendTranslatedStatusLog("resource.scanning");
+  const result = await api("/api/resources?verify=true&live_only=true");
+  scanMetadataByResource = new Map(
+    result.resources.map((item) => [item.resource, item])
+  );
+  resourceScanCompleted = true;
+  renderScannedResourceOptions();
   if (!resourceInput.value && result.resources.length > 0) {
     await applyScannedResource(result.resources[0].resource);
   }
@@ -409,7 +435,40 @@ openCsvButton.addEventListener("click", async () => {
   }
 });
 
+function refreshLocalizedPresentation() {
+  applyStaticTranslations(document);
+  refreshRunFormPresentation();
+  refreshResourcesPresentation();
+  refreshStatusPresentation();
+}
+
+function browserStorage() {
+  try {
+    return window.localStorage;
+  } catch (_error) {
+    return null;
+  }
+}
+
+function browserNavigator() {
+  try {
+    return navigator;
+  } catch (_error) {
+    return null;
+  }
+}
+
+initializeLocaleUi({
+  button: localeToggle,
+  label: localeToggleLabel,
+  documentElement: document.documentElement,
+  storage: browserStorage(),
+  navigatorLike: browserNavigator(),
+  onLocaleChange: refreshLocalizedPresentation,
+});
+
 applyStaticTranslations(document);
+
 initializeStatusUi();
 initializeLiveDataUi();
 setDeviceResourceExpanded(true);

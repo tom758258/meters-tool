@@ -121,6 +121,14 @@ must never authorize a workflow or affect support policy. Raw
 machine values. Do not add a backend locale input or return locale-dependent
 support behavior.
 
+P2.6 owns the active browser locale control. Keep the permanent top-right
+globe-and-text button limited to `en` and `zh-TW`, with saved locale precedence,
+browser detection, English fallback, and the `meters-tool.webui.locale` key.
+Runtime switching must update presentation from cached browser state without a
+reload, API request, polling/SSE restart, form reset, or active-run reset.
+Preserve raw diagnostic text and all canonical form/runtime values. P2.7 owns
+final translation-quality and cross-Part integration validation.
+
 ## API Contract To Preserve
 
 Do not rename, remove, or repurpose these endpoints:
