@@ -132,10 +132,58 @@ const featureStatus = {
 };
 
 let appMetadata = { version: "1.6.0" };
+const supportSummary = {
+  model: "34461A",
+  capability_profile: "34461A",
+  is_fallback_capability_view: true,
+  validation_status: "live_validated_full_suite",
+  transport_scope: "usb",
+  backend_scope: "system_visa",
+  status_text: (
+    "Full-suite validated for profile-supported workflows on USB/system-VISA, " +
+    "LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
+  ),
+  status_key: "support.status.profile_workflows_validated",
+  runtime_driver_note: "Live runtime model is selected from detected *IDN?.",
+  runtime_driver_note_key: "support.runtime_driver.detected_idn",
+  open_workflows: [
+    "immediate", "software", "software timer", "custom buffered", "Frequency", "Period",
+  ],
+  open_workflow_keys: [
+    "support.workflow.immediate",
+    "support.workflow.software",
+    "support.workflow.software_timer",
+    "support.workflow.custom_buffered",
+    "support.workflow.frequency",
+    "support.workflow.period",
+  ],
+  limits: [
+    "no 10 A current path",
+    "no current-terminal selection",
+    "1000-reading memory limit",
+    "no base-profile external trigger support",
+  ],
+  limit_keys: [
+    "support.limit.no_10a_current_path",
+    "support.limit.no_current_terminal_selection",
+    "support.limit.reading_memory_1000",
+    "support.limit.no_base_profile_external_trigger",
+  ],
+  pending: [
+    "34460A DCV Ratio live validation",
+    "LAN/TCPIP system-VISA validation",
+    "LAN/TCPIP pyvisa-py @py validation",
+  ],
+  pending_keys: [
+    "support.pending.keysight_34460a_dcv_ratio_live_validation",
+    "support.pending.lan_tcpip_system_visa_validation",
+    "support.pending.lan_tcpip_pyvisa_py_validation",
+  ],
+};
 const capabilities = {
   app: appMetadata,
   limits: { sw_min_interval_ms: { nonzero_min: 50, max: 600000 } },
-  support_summary: {},
+  support_summary: supportSummary,
   support: {
     "start-trigger-record": {
       live: {
@@ -174,14 +222,18 @@ const capabilities = {
   trigger_modes: ["software", "external", "future-trigger"],
 };
 
-globalThis.fetch = async () => ({
+let fetchCount = 0;
+globalThis.fetch = async () => {
+  fetchCount += 1;
+  return ({
   ok: true,
   statusText: "OK",
   async text() {
     capabilities.app = appMetadata;
     return JSON.stringify(capabilities);
   },
-});
+  });
+};
 
 element("#resource").value = "USB0::SIM";
 element("#instrument-model").value = "34461A";
@@ -193,6 +245,167 @@ element("[name='max_samples']").value = "100";
 element("[name='timer_interval_s']").value = "1";
 
 const runForm = await import(runFormUrl);
+const i18n = await import(new URL("./i18n.js", runFormUrl));
+await runForm.loadCapabilities();
+assert.equal(fetchCount, 1);
+
+const supportStatus = element("#model-support-status");
+const supportOpen = element("#model-support-open");
+const supportLimits = element("#model-support-limits");
+const supportPending = element("#model-support-pending");
+assert.equal(
+  supportStatus.textContent,
+  (
+    "Auto-detect: showing 34461A fallback capability view until Start or Scan " +
+    "detects IDN. Live runtime model is selected from detected *IDN?. " +
+    "(live_validated_full_suite, usb/system_visa)"
+  )
+);
+assert.equal(
+  supportOpen.textContent,
+  "immediate, software, software timer, custom buffered, Frequency, Period"
+);
+assert.equal(
+  supportLimits.textContent,
+  (
+    "no 10 A current path, no current-terminal selection, " +
+    "1000-reading memory limit, no base-profile external trigger support"
+  )
+);
+assert.equal(
+  supportPending.textContent,
+  (
+    "34460A DCV Ratio live validation, LAN/TCPIP system-VISA validation, " +
+    "LAN/TCPIP pyvisa-py @py validation"
+  )
+);
+
+supportSummary.is_fallback_capability_view = false;
+supportSummary.model = "34460A";
+supportSummary.status_text = "USB/system-VISA full-suite validated.";
+supportSummary.status_key = "support.status.usb_system_visa_validated";
+await runForm.loadCapabilities();
+assert.equal(
+  supportStatus.textContent,
+  "34460A: USB/system-VISA full-suite validated. (live_validated_full_suite, usb/system_visa)"
+);
+assert.equal(fetchCount, 2);
+
+const preservedValues = {
+  measurement: element("#measurement").value,
+  triggerMode: element("#trigger-mode").value,
+  expectedModel: element("#instrument-model").value,
+  resource: element("#resource").value,
+};
+supportSummary.is_fallback_capability_view = true;
+supportSummary.model = "34461A";
+supportSummary.capability_profile = "34461A";
+supportSummary.status_text = (
+  "Full-suite validated for profile-supported workflows on USB/system-VISA, " +
+  "LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
+);
+supportSummary.status_key = "support.status.profile_workflows_validated";
+await runForm.loadCapabilities();
+const refreshFetchCount = fetchCount;
+i18n.setLocale("zh-TW");
+runForm.refreshSupportSummaryPresentation();
+assert.equal(
+  supportStatus.textContent,
+  (
+    "自動偵測：目前顯示 34461A 的備援功能檢視，直到開始或掃描時偵測到 IDN。" +
+    "實機執行型號由偵測到的 *IDN? 決定。" +
+    "（live_validated_full_suite，usb/system_visa）"
+  )
+);
+assert.equal(
+  supportOpen.textContent,
+  "立即觸發, 軟體觸發, 軟體定時觸發, 自訂緩衝, 頻率, 週期"
+);
+assert.match(supportLimits.textContent, /無 10 A 電流路徑/);
+assert.match(supportLimits.textContent, /1000 筆讀值記憶體限制/);
+assert.match(supportPending.textContent, /34460A DCV Ratio 實機驗證/);
+assert.match(supportPending.textContent, /LAN\/TCPIP system-VISA 驗證/);
+assert.equal(fetchCount, refreshFetchCount);
+assert.deepEqual(
+  {
+    measurement: element("#measurement").value,
+    triggerMode: element("#trigger-mode").value,
+    expectedModel: element("#instrument-model").value,
+    resource: element("#resource").value,
+  },
+  preservedValues
+);
+assert.equal(supportSummary.validation_status, "live_validated_full_suite");
+assert.equal(supportSummary.transport_scope, "usb");
+assert.equal(supportSummary.backend_scope, "system_visa");
+
+supportSummary.is_fallback_capability_view = false;
+supportSummary.model = "34460A";
+supportSummary.status_text = "USB/system-VISA full-suite validated.";
+delete supportSummary.status_key;
+await runForm.loadCapabilities();
+assert.match(supportStatus.textContent, /USB\/system-VISA full-suite validated\./);
+
+supportSummary.status_key = "support.future.unknown_key";
+await runForm.loadCapabilities();
+assert.match(supportStatus.textContent, /USB\/system-VISA full-suite validated\./);
+assert.doesNotMatch(supportStatus.textContent, /support\.future\.unknown_key/);
+
+delete supportSummary.open_workflow_keys;
+await runForm.loadCapabilities();
+assert.equal(
+  supportOpen.textContent,
+  "immediate, software, software timer, custom buffered, Frequency, Period"
+);
+
+supportSummary.open_workflow_keys = ["support.workflow.immediate"];
+await runForm.loadCapabilities();
+assert.equal(
+  supportOpen.textContent,
+  "立即觸發, software, software timer, custom buffered, Frequency, Period"
+);
+
+supportSummary.open_workflow_keys = [
+  "support.workflow.immediate",
+  "support.future.unknown_key",
+  "support.workflow.software_timer",
+  "support.workflow.custom_buffered",
+  "support.workflow.frequency",
+  "support.workflow.period",
+  "support.future.extra_key",
+];
+await runForm.loadCapabilities();
+assert.equal(
+  supportOpen.textContent,
+  "立即觸發, software, 軟體定時觸發, 自訂緩衝, 頻率, 週期"
+);
+assert.doesNotMatch(supportOpen.textContent, /support\.future/);
+
+supportSummary.open_workflow_keys = { malformed: true };
+await runForm.loadCapabilities();
+assert.equal(
+  supportOpen.textContent,
+  "immediate, software, software timer, custom buffered, Frequency, Period"
+);
+
+supportSummary.open_workflows = [];
+supportSummary.open_workflow_keys = ["support.workflow.immediate"];
+supportSummary.limits = [];
+supportSummary.limit_keys = ["support.limit.no_10a_current_path"];
+supportSummary.pending = [];
+supportSummary.pending_keys = null;
+await runForm.loadCapabilities();
+assert.equal(supportOpen.textContent, "無");
+assert.equal(supportLimits.textContent, "無");
+assert.equal(supportPending.textContent, "無");
+
+i18n.setLocale("en");
+const finalRefreshFetchCount = fetchCount;
+runForm.refreshSupportSummaryPresentation();
+assert.equal(supportOpen.textContent, "None");
+assert.equal(supportLimits.textContent, "None");
+assert.equal(supportPending.textContent, "None");
+assert.equal(fetchCount, finalRefreshFetchCount);
 await runForm.loadCapabilities();
 
 const measurementSelect = element("#measurement");
@@ -344,7 +557,7 @@ process.stdout.write(JSON.stringify({ ok: true }));
     assert completed.stdout == '{"ok":true}'
 
 
-def test_p23_source_boundaries_and_semantic_keys():
+def test_p23_and_p25_source_boundaries_and_semantic_keys():
     source = (STATIC_DIR / "run_form.js").read_text(encoding="utf-8")
 
     for key in (
@@ -373,6 +586,14 @@ def test_p23_source_boundaries_and_semantic_keys():
         "app.unofficial_tool_version",
         "device.auto_detect",
         "device.require_model",
+        "support.runtime_driver.detected_idn",
+        "support.summary.auto_detect_status",
+        "support.summary.profile_status",
+        "support.summary.status_unavailable",
+        "support.summary.selected_model",
+        "support.summary.unspecified_transport",
+        "support.summary.unspecified_backend",
+        "support.summary.none",
     ):
         assert f'"{key}"' in source
 
@@ -399,17 +620,31 @@ def test_p23_source_boundaries_and_semantic_keys():
     ):
         assert forbidden not in source
 
-    for deferred_support_text in (
+    for migrated_support_text in (
         "Support status unavailable.",
         "selected model",
-        "unknown",
         "unspecified transport",
         "unspecified backend",
         "Live runtime driver remains detected IDN.",
         "fallback capability view",
         'return values.length ? values.join(", ") : "None";',
     ):
-        assert deferred_support_text in source
+        assert migrated_support_text not in source
+
+    for support_metadata_field in (
+        "status_key",
+        "runtime_driver_note_key",
+        "open_workflow_keys",
+        "limit_keys",
+        "pending_keys",
+    ):
+        assert support_metadata_field in source
+
+    assert "export function refreshSupportSummaryPresentation()" in source
+    assert "translated === key ? safeFallback : translated" in source
+    assert "latestSupportSummary = capabilities.support_summary ?? null" in source
+    assert 'const validationStatus = summary?.validation_status || "unknown"' in source
+    assert "/api/capabilities?locale=" not in source
 
     assert 'scope.validation_status !== "live_validated_full_suite"' in source
     assert 'option.dataset.validationStatus = availability.validationStatus' in source

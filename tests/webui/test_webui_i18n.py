@@ -180,6 +180,53 @@ assert.equal(
   "量程步進需要關閉自動量程並選擇手動量程。"
 );
 
+const p25Keys = [
+  "support.limit.no_10a_current_path",
+  "support.limit.no_base_profile_external_trigger",
+  "support.limit.no_current_terminal_selection",
+  "support.limit.reading_memory_1000",
+  "support.pending.keysight_34460a_dcv_ratio_live_validation",
+  "support.pending.lan_tcpip_pyvisa_py_validation",
+  "support.pending.lan_tcpip_system_visa_validation",
+  "support.runtime_driver.detected_idn",
+  "support.status.not_open",
+  "support.status.profile_workflows_validated",
+  "support.status.usb_system_visa_validated",
+  "support.summary.auto_detect_status",
+  "support.summary.none",
+  "support.summary.profile_status",
+  "support.summary.selected_model",
+  "support.summary.status_unavailable",
+  "support.summary.unspecified_backend",
+  "support.summary.unspecified_transport",
+  "support.workflow.custom_buffered",
+  "support.workflow.external_trigger",
+  "support.workflow.frequency",
+  "support.workflow.immediate",
+  "support.workflow.period",
+  "support.workflow.software",
+  "support.workflow.software_timer",
+];
+for (const key of p25Keys) {
+  assert.equal(typeof EN_MESSAGES[key], "string", `missing en key ${key}`);
+  assert.equal(typeof ZH_TW_MESSAGES[key], "string", `missing zh-TW key ${key}`);
+  assert.notEqual(EN_MESSAGES[key], "");
+  assert.notEqual(ZH_TW_MESSAGES[key], "");
+}
+assert.equal(ZH_TW_MESSAGES["support.summary.none"], "無");
+assert.equal(
+  ZH_TW_MESSAGES["support.runtime_driver.detected_idn"],
+  "實機執行型號由偵測到的 *IDN? 決定。"
+);
+assert.equal(
+  ZH_TW_MESSAGES["support.workflow.external_trigger"],
+  "外部觸發工作流程"
+);
+assert.equal(
+  ZH_TW_MESSAGES["support.limit.no_current_terminal_selection"],
+  "無法選擇電流端子"
+);
+
 const productionZh = i18n.createI18n({
   catalogs: { en: EN_MESSAGES, "zh-TW": ZH_TW_MESSAGES },
   initialLocale: "zh-TW",
@@ -226,6 +273,30 @@ assert.equal(
     center: "1.2 V", span: "3 V", grid: "0.6 V",
   }),
   "量程步進：中心 1.2 V / 跨度 3 V / 格線 0.6 V"
+);
+assert.equal(
+  productionZh.t("support.summary.auto_detect_status", {
+    profile: "34461A",
+    runtime_note: productionZh.t("support.runtime_driver.detected_idn"),
+    validation_status: "live_validated_full_suite",
+    transport: "tcpip",
+    backend: "system_visa",
+  }),
+  (
+    "自動偵測：目前顯示 34461A 的備援功能檢視，直到開始或掃描時偵測到 IDN。" +
+    "實機執行型號由偵測到的 *IDN? 決定。" +
+    "（live_validated_full_suite，tcpip/system_visa）"
+  )
+);
+assert.equal(
+  productionZh.t("support.summary.profile_status", {
+    model: "34460A",
+    status: productionZh.t("support.status.usb_system_visa_validated"),
+    validation_status: "live_validated_full_suite",
+    transport: "usb",
+    backend: "system_visa",
+  }),
+  "34460A：USB/system-VISA 已完成完整測試套件驗證。（live_validated_full_suite，usb/system_visa）"
 );
 assert.equal(productionZh.t("p23.unknown_key"), "p23.unknown_key");
 

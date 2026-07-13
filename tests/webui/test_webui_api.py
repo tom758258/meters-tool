@@ -22,6 +22,7 @@ if TestClient is not None:
     from meters_tool_core.instrument import InstrumentError
     from meters_tool_core.models import KEYSIGHT_34461A_PROFILE
     from meters_tool_core.runner import StartRunnerDependencies
+    from meters_tool_webui._web_payloads import support_summary
     from meters_tool_webui.web_ui import (
         APP_JS_CACHEBUSTER_TOKEN,
         CsvFolderSelectionUnavailable,
@@ -201,13 +202,61 @@ class WebUiApiTests(unittest.TestCase):
             summary["capability_profile_id"],
         )
         self.assertTrue(summary["is_fallback_capability_view"])
-        self.assertIn("detected *IDN?", summary["runtime_driver_note"])
-        self.assertIn("runtime model", summary["runtime_driver_note"])
+        self.assertEqual(
+            "Live runtime model is selected from detected *IDN?.",
+            summary["runtime_driver_note"],
+        )
+        self.assertEqual(
+            "support.runtime_driver.detected_idn",
+            summary["runtime_driver_note_key"],
+        )
+        self.assertEqual(
+            (
+                "Full-suite validated for profile-supported workflows on "
+                "USB/system-VISA, LAN/system-VISA, and optional CLI-only "
+                "LAN/pyvisa-py @py."
+            ),
+            summary["status_text"],
+        )
+        self.assertEqual(
+            "support.status.profile_workflows_validated",
+            summary["status_key"],
+        )
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
-        self.assertIn("external trigger workflows", summary["open_workflows"])
+        self.assertEqual(
+            [
+                "immediate",
+                "software",
+                "software timer",
+                "custom buffered",
+                "Frequency",
+                "Period",
+                "external trigger workflows",
+            ],
+            summary["open_workflows"],
+        )
+        self.assertEqual(
+            [
+                "support.workflow.immediate",
+                "support.workflow.software",
+                "support.workflow.software_timer",
+                "support.workflow.custom_buffered",
+                "support.workflow.frequency",
+                "support.workflow.period",
+                "support.workflow.external_trigger",
+            ],
+            summary["open_workflow_keys"],
+        )
+        self.assertEqual(
+            len(summary["open_workflows"]),
+            len(summary["open_workflow_keys"]),
+        )
+        self.assertEqual([], summary["limits"])
+        self.assertEqual([], summary["limit_keys"])
         self.assertEqual([], summary["pending"])
+        self.assertEqual([], summary["pending_keys"])
         summary_scopes = {
             (scope["transport_scope"], scope["backend_scope"]): scope
             for scope in summary["scopes"]
@@ -286,6 +335,44 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
+        self.assertEqual(
+            "Live runtime model is selected from detected *IDN?.",
+            summary["runtime_driver_note"],
+        )
+        self.assertEqual(
+            "support.runtime_driver.detected_idn",
+            summary["runtime_driver_note_key"],
+        )
+        self.assertEqual(
+            "USB/system-VISA full-suite validated.",
+            summary["status_text"],
+        )
+        self.assertEqual(
+            "support.status.usb_system_visa_validated",
+            summary["status_key"],
+        )
+        self.assertEqual(
+            [
+                "immediate",
+                "software",
+                "software timer",
+                "custom buffered",
+                "Frequency",
+                "Period",
+            ],
+            summary["open_workflows"],
+        )
+        self.assertEqual(
+            [
+                "support.workflow.immediate",
+                "support.workflow.software",
+                "support.workflow.software_timer",
+                "support.workflow.custom_buffered",
+                "support.workflow.frequency",
+                "support.workflow.period",
+            ],
+            summary["open_workflow_keys"],
+        )
         self.assertIn("custom buffered", summary["open_workflows"])
         self.assertIn("Frequency", summary["open_workflows"])
         self.assertIn("Period", summary["open_workflows"])
@@ -297,6 +384,29 @@ class WebUiApiTests(unittest.TestCase):
         self.assertIn("34460A DCV Ratio live validation", summary["pending"])
         self.assertIn("LAN/TCPIP system-VISA validation", summary["pending"])
         self.assertIn("LAN/TCPIP pyvisa-py @py validation", summary["pending"])
+        self.assertEqual(
+            [
+                "support.limit.no_10a_current_path",
+                "support.limit.no_current_terminal_selection",
+                "support.limit.reading_memory_1000",
+                "support.limit.no_base_profile_external_trigger",
+            ],
+            summary["limit_keys"],
+        )
+        self.assertEqual(
+            [
+                "support.pending.keysight_34460a_dcv_ratio_live_validation",
+                "support.pending.lan_tcpip_system_visa_validation",
+                "support.pending.lan_tcpip_pyvisa_py_validation",
+            ],
+            summary["pending_keys"],
+        )
+        for prose_field, key_field in (
+            ("open_workflows", "open_workflow_keys"),
+            ("limits", "limit_keys"),
+            ("pending", "pending_keys"),
+        ):
+            self.assertEqual(len(summary[prose_field]), len(summary[key_field]))
         summary_scopes = {
             (scope["transport_scope"], scope["backend_scope"]): scope
             for scope in summary["scopes"]
@@ -374,8 +484,39 @@ class WebUiApiTests(unittest.TestCase):
             },
             payload["model_resolution"],
         )
-        self.assertIn("external trigger workflows", summary["open_workflows"])
+        self.assertEqual(
+            (
+                "Full-suite validated for profile-supported workflows on "
+                "USB/system-VISA, LAN/system-VISA, and optional CLI-only "
+                "LAN/pyvisa-py @py."
+            ),
+            summary["status_text"],
+        )
+        self.assertEqual(
+            "support.status.profile_workflows_validated",
+            summary["status_key"],
+        )
+        self.assertEqual(
+            "support.runtime_driver.detected_idn",
+            summary["runtime_driver_note_key"],
+        )
+        self.assertEqual(
+            [
+                "support.workflow.immediate",
+                "support.workflow.software",
+                "support.workflow.software_timer",
+                "support.workflow.custom_buffered",
+                "support.workflow.frequency",
+                "support.workflow.period",
+                "support.workflow.external_trigger",
+            ],
+            summary["open_workflow_keys"],
+        )
+        self.assertEqual(len(summary["open_workflows"]), len(summary["open_workflow_keys"]))
+        self.assertEqual([], summary["limits"])
+        self.assertEqual([], summary["limit_keys"])
         self.assertEqual([], summary["pending"])
+        self.assertEqual([], summary["pending_keys"])
         summary_scopes = {
             (scope["transport_scope"], scope["backend_scope"]): scope
             for scope in summary["scopes"]
@@ -391,6 +532,41 @@ class WebUiApiTests(unittest.TestCase):
         measurements = {item["name"]: item for item in payload["measurements"]}
         self.assertIn(10.0, [item["value"] for item in measurements["current-dc"]["range_options"]])
         self.assertEqual([3, 10], measurements["current-dc"]["current_terminal_options"])
+
+    def test_support_summary_unknown_profile_keeps_prose_and_adds_empty_key_lists(self):
+        fake_profile = SimpleNamespace(model="FutureModel", model_id="future-model")
+        fake_live_support = SimpleNamespace(
+            validation_status="not_supported_by_model",
+            transport_scope="unknown",
+            backend_scope="unknown",
+            scopes=(),
+        )
+
+        with patch(
+            "meters_tool_webui._web_payloads.start_workflow_support",
+            return_value={"start-trigger-record": {"live": fake_live_support}},
+        ):
+            summary = support_summary(fake_profile)
+
+        self.assertEqual(
+            "Live support is not open for this profile.",
+            summary["status_text"],
+        )
+        self.assertEqual("support.status.not_open", summary["status_key"])
+        self.assertEqual(
+            "Live runtime model is selected from detected *IDN?.",
+            summary["runtime_driver_note"],
+        )
+        self.assertEqual(
+            "support.runtime_driver.detected_idn",
+            summary["runtime_driver_note_key"],
+        )
+        self.assertEqual([], summary["open_workflows"])
+        self.assertEqual([], summary["open_workflow_keys"])
+        self.assertEqual([], summary["limits"])
+        self.assertEqual([], summary["limit_keys"])
+        self.assertEqual([], summary["pending"])
+        self.assertEqual([], summary["pending_keys"])
 
     def test_capabilities_model_id_query_returns_canonical_profile_metadata(self):
         client, _csv_path = self.make_client()

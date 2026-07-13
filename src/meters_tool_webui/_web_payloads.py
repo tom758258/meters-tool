@@ -195,6 +195,7 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
         "model_id": profile.model_id,
         "is_fallback_capability_view": auto_unresolved,
         "runtime_driver_note": "Live runtime model is selected from detected *IDN?.",
+        "runtime_driver_note_key": "support.runtime_driver.detected_idn",
         "scopes": [support_scope_payload(scope) for scope in live_support.scopes],
     }
     if profile.model == "34460A":
@@ -205,6 +206,7 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
             "transport_scope": live_support.transport_scope,
             "backend_scope": live_support.backend_scope,
             "status_text": "USB/system-VISA full-suite validated.",
+            "status_key": "support.status.usb_system_visa_validated",
             "open_workflows": [
                 "immediate",
                 "software",
@@ -213,16 +215,35 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
                 "Frequency",
                 "Period",
             ],
+            "open_workflow_keys": [
+                "support.workflow.immediate",
+                "support.workflow.software",
+                "support.workflow.software_timer",
+                "support.workflow.custom_buffered",
+                "support.workflow.frequency",
+                "support.workflow.period",
+            ],
             "limits": [
                 "no 10 A current path",
                 "no current-terminal selection",
                 "1000-reading memory limit",
                 "no base-profile external trigger support",
             ],
+            "limit_keys": [
+                "support.limit.no_10a_current_path",
+                "support.limit.no_current_terminal_selection",
+                "support.limit.reading_memory_1000",
+                "support.limit.no_base_profile_external_trigger",
+            ],
             "pending": [
                 "34460A DCV Ratio live validation",
                 "LAN/TCPIP system-VISA validation",
                 "LAN/TCPIP pyvisa-py @py validation",
+            ],
+            "pending_keys": [
+                "support.pending.keysight_34460a_dcv_ratio_live_validation",
+                "support.pending.lan_tcpip_system_visa_validation",
+                "support.pending.lan_tcpip_pyvisa_py_validation",
             ],
         }
     if profile.model == "34461A":
@@ -236,6 +257,7 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
                 "Full-suite validated for profile-supported workflows on "
                 "USB/system-VISA, LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
             ),
+            "status_key": "support.status.profile_workflows_validated",
             "open_workflows": [
                 "immediate",
                 "software",
@@ -245,8 +267,19 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
                 "Period",
                 "external trigger workflows",
             ],
+            "open_workflow_keys": [
+                "support.workflow.immediate",
+                "support.workflow.software",
+                "support.workflow.software_timer",
+                "support.workflow.custom_buffered",
+                "support.workflow.frequency",
+                "support.workflow.period",
+                "support.workflow.external_trigger",
+            ],
             "limits": [],
+            "limit_keys": [],
             "pending": [],
+            "pending_keys": [],
         }
     return {
         **common,
@@ -255,9 +288,13 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
         "transport_scope": live_support.transport_scope,
         "backend_scope": live_support.backend_scope,
         "status_text": "Live support is not open for this profile.",
+        "status_key": "support.status.not_open",
         "open_workflows": [],
+        "open_workflow_keys": [],
         "limits": [],
+        "limit_keys": [],
         "pending": [],
+        "pending_keys": [],
     }
 
 

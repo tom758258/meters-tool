@@ -50,6 +50,7 @@ let measurementsByName = new Map();
 let supportedTriggerModes = [];
 let liveSupport = null;
 let inputLimits = {};
+let latestSupportSummary = null;
 
 const MEASUREMENT_MESSAGE_KEYS = Object.freeze({
   "current-dc": "measurement.option.current_dc",
@@ -792,34 +793,83 @@ function applyAppMetadata(app) {
   }
 }
 
+function translateSemanticKeyOrFallback(key, fallback) {
+  const safeFallback = String(fallback || "");
+  if (typeof key !== "string" || !key.trim()) {
+    return safeFallback;
+  }
+  const translated = t(key);
+  return translated === key ? safeFallback : translated;
+}
+
 function renderSupportSummary(summary) {
   if (!modelSupportStatus) {
     return;
   }
-  const model = summary?.model || "selected model";
-  const statusText = summary?.status_text || "Support status unavailable.";
+  const model = summary?.model || t("support.summary.selected_model");
+  const statusFallback =
+    summary?.status_text || t("support.summary.status_unavailable");
+  const statusText = translateSemanticKeyOrFallback(
+    summary?.status_key,
+    statusFallback
+  );
   const validationStatus = summary?.validation_status || "unknown";
-  const transport = summary?.transport_scope || "unspecified transport";
-  const backend = summary?.backend_scope || "unspecified backend";
+  const transport =
+    summary?.transport_scope || t("support.summary.unspecified_transport");
+  const backend =
+    summary?.backend_scope || t("support.summary.unspecified_backend");
   if (summary?.is_fallback_capability_view) {
     const capabilityProfile = summary?.capability_profile || model;
-    const runtimeNote =
-      summary?.runtime_driver_note || "Live runtime driver remains detected IDN.";
-    modelSupportStatus.textContent =
-      `Auto-detect: showing ${capabilityProfile} fallback capability view ` +
-      `until Start or Scan detects IDN. ${runtimeNote} ` +
-      `(${validationStatus}, ${transport}/${backend})`;
+    const runtimeNoteFallback =
+      summary?.runtime_driver_note || t("support.runtime_driver.detected_idn");
+    const runtimeNote = translateSemanticKeyOrFallback(
+      summary?.runtime_driver_note_key,
+      runtimeNoteFallback
+    );
+    setTranslatedText(modelSupportStatus, "support.summary.auto_detect_status", {
+      profile: capabilityProfile,
+      runtime_note: runtimeNote,
+      validation_status: validationStatus,
+      transport,
+      backend,
+    });
   } else {
-    modelSupportStatus.textContent = `${model}: ${statusText} (${validationStatus}, ${transport}/${backend})`;
+    setTranslatedText(modelSupportStatus, "support.summary.profile_status", {
+      model,
+      status: statusText,
+      validation_status: validationStatus,
+      transport,
+      backend,
+    });
   }
-  modelSupportOpen.textContent = listSummary(summary?.open_workflows);
-  modelSupportLimits.textContent = listSummary(summary?.limits);
-  modelSupportPending.textContent = listSummary(summary?.pending);
+  modelSupportOpen.textContent = listSummary(
+    summary?.open_workflows,
+    summary?.open_workflow_keys
+  );
+  modelSupportLimits.textContent = listSummary(
+    summary?.limits,
+    summary?.limit_keys
+  );
+  modelSupportPending.textContent = listSummary(
+    summary?.pending,
+    summary?.pending_keys
+  );
 }
 
-function listSummary(items) {
-  const values = Array.isArray(items) ? items.filter(Boolean) : [];
-  return values.length ? values.join(", ") : "None";
+function listSummary(items, keys) {
+  const proseValues = Array.isArray(items) ? items : [];
+  const semanticKeys = Array.isArray(keys) ? keys : [];
+  const values = proseValues.flatMap((item, index) => {
+    const fallback = String(item || "");
+    return fallback
+      ? [translateSemanticKeyOrFallback(semanticKeys[index], fallback)]
+      : [];
+  });
+  return values.length ? values.join(", ") : t("support.summary.none");
+}
+
+export function refreshSupportSummaryPresentation() {
+  renderSupportSummary(latestSupportSummary);
 }
 
 export async function loadCapabilities(model = null) {
@@ -832,7 +882,8 @@ export async function loadCapabilities(model = null) {
   const capabilities = await api(url);
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
-  renderSupportSummary(capabilities.support_summary);
+  latestSupportSummary = capabilities.support_summary ?? null;
+  refreshSupportSummaryPresentation();
   liveSupport = capabilities.support?.["start-trigger-record"]?.live || null;
   if (instrumentModelSelect) {
     const forcedModel = textOrNull(instrumentModelSelect.value);

@@ -74,6 +74,12 @@ until final release preparation.
   priority. Language switching is still inactive, and API endpoints, status
   codes, response schemas, Core, support policy, SCPI, VISA, trigger,
   acquisition, CSV/JSON/JSONL schemas, and cleanup behavior are unchanged.
+- Added P2.5 support-summary semantic localization metadata while preserving
+  every existing English prose field as the browser fallback. The browser now
+  prefers recognized semantic keys and safely ignores missing, unknown, or
+  mismatched list keys. Language switching remains inactive; API behavior,
+  Core authority, support policy, instrument runtime, and schemas are
+  unchanged.
 - Extended the no-hardware and live validation harnesses for both model
   targets, explicit backend forwarding, plan-only gates, and validation-only
   execution of registered pending scopes without promoting product support.

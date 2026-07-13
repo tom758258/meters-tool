@@ -20,11 +20,15 @@ logic continue to use raw machine values; unknown Core/backend/status
 diagnostics, raw status JSON, and sample metadata remain untranslated. The
 browser preserves structured command-response `message` values for exact known
 error presentation and preserves unknown `reason` values as raw diagnostics,
-after the existing first-priority FastAPI `detail` handling. The UI still
-initializes and renders in English, and no language selector, browser detection,
-persistence, or runtime locale switching is active. Core, HTTP API endpoints,
-status codes and response schemas, form values, support policy, instrument
-runtime, and CSV/JSON/JSONL schemas remain unchanged.
+after the existing first-priority FastAPI `detail` handling. P2.5 adds
+support-summary semantic localization metadata while preserving the existing
+English prose fields as backward-compatible fallbacks. The browser prefers
+recognized semantic keys and falls back safely to the corresponding prose.
+The UI still initializes and renders in English, and no language selector,
+browser detection, persistence, or runtime locale switching is active. Core,
+HTTP API endpoints and status codes, existing response fields, form values,
+support policy, instrument runtime, and CSV/JSON/JSONL schemas remain
+unchanged.
 
 ## Purpose
 
@@ -277,6 +281,29 @@ capability profile: `display_model` remains `Auto-detect`,
 unresolved while adding `fallback_profile_id: "keysight-34461a"`. This fallback
 ID does not mean that a live instrument has been detected. Explicit profile
 queries keep both fallback fields null.
+
+`support_summary` preserves its existing English presentation fields and adds
+the following sibling semantic-key metadata:
+
+```text
+status_key
+runtime_driver_note_key
+open_workflow_keys
+limit_keys
+pending_keys
+```
+
+The scalar keys correspond to `status_text` and `runtime_driver_note`; the key
+lists correspond positionally to `open_workflows`, `limits`, and `pending`.
+The browser uses recognized keys when available. Missing, malformed, unknown,
+shorter, or longer key lists cannot remove, reorder, or add prose entries: the
+existing prose list remains the authoritative display inventory and fallback.
+These keys are presentation metadata only and do not affect support-policy
+enforcement. Raw `validation_status`, transport, backend, model, and profile
+identity values remain machine values. The latest raw summary can be
+re-rendered from memory without another capability request, but production
+still starts in English and P2.6 has not yet wired a language selector or
+runtime locale switching.
 
 Canonical model names remain valid for normal use, and stable model IDs are
 also accepted profile lookup inputs. A selected model remains an expected-model

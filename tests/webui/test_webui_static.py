@@ -107,20 +107,31 @@ class WebUiStaticTests(unittest.TestCase):
                 self.assertIn(expected, index)
 
         for expected in [
-            "renderSupportSummary(capabilities.support_summary)",
+            "latestSupportSummary = capabilities.support_summary ?? null",
+            "refreshSupportSummaryPresentation()",
+            "translateSemanticKeyOrFallback",
+            "status_key",
+            "runtime_driver_note_key",
+            "open_workflow_keys",
+            "limit_keys",
+            "pending_keys",
             "validation_status",
             "transport_scope",
             "backend_scope",
             "open_workflows",
             "is_fallback_capability_view",
-            "fallback capability view",
             "runtime_driver_note",
-            "Live runtime driver remains detected IDN.",
+            '"support.summary.auto_detect_status"',
+            '"support.summary.profile_status"',
+            '"support.summary.none"',
             "modelSupportLimits",
             "modelSupportPending",
         ]:
             with self.subTest(expected=expected):
                 self.assertIn(expected, app_js)
+
+        self.assertNotIn("/api/capabilities?locale=", app_js)
+        self.assertNotIn("locale=", app_js)
 
     def test_static_ui_device_resource_section_has_collapse_and_summary(self):
         index, app_js = load_static_ui()

@@ -113,6 +113,14 @@ external translation service, a CDN dependency, a frontend framework or build
 system, or backend locale coupling. Browser locale state must not alter Core or
 API behavior.
 
+Support-summary semantic keys are additive presentation metadata. Preserve the
+existing English `status_text`, `runtime_driver_note`, `open_workflows`,
+`limits`, and `pending` fields as backward-compatible fallbacks. Semantic keys
+must never authorize a workflow or affect support policy. Raw
+`validation_status`, transport, backend, model, and profile identity remain
+machine values. Do not add a backend locale input or return locale-dependent
+support behavior.
+
 ## API Contract To Preserve
 
 Do not rename, remove, or repurpose these endpoints:

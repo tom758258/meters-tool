@@ -19,7 +19,7 @@ The Windows launcher GUI is outside this browser-localization scope unless a
 separate change is approved. CLI output, Core messages, CSV, JSON, and JSONL
 are not localized by this phase.
 
-### P2.1-P2.4 Foundation And Current Status
+### P2.1-P2.5 Foundation And Current Status
 
 P2.1 adds three native ES modules at the static root:
 
@@ -44,12 +44,21 @@ known command messages may therefore use semantic browser translations, while
 unknown rejection reasons remain raw diagnostics. The singleton still starts
 in English, so the currently rendered UI remains English.
 
-P2.5 still owns support-summary semantic keys and fallback presentation. There
-is no active language selector, browser detection, saved-locale lookup,
-`<html lang>` update, or runtime locale switch; P2.6 owns locale selection and
-switching. API, Core, support policy, SCPI, VISA, trigger, acquisition, CSV,
-JSON, JSONL, SSE, and cleanup contracts are unchanged. The current inventory
-remains the authoritative ownership record.
+P2.5 adds `status_key`, `runtime_driver_note_key`,
+`open_workflow_keys`, `limit_keys`, and `pending_keys` as additive
+support-summary presentation metadata. The existing English prose fields
+remain unchanged API fallbacks. The browser prefers recognized semantic keys,
+but the prose lists remain the authoritative inventory: missing, malformed,
+unknown, short, or long key lists safely fall back positionally to prose and
+cannot add entries. Raw validation status, transport, backend, model, and
+profile values remain machine values. The latest raw support summary is cached
+so its presentation can be recomputed without another capability request.
+
+There is no active language selector, browser detection, saved-locale lookup,
+`<html lang>` update, or runtime locale-switch wiring; P2.6 owns locale
+selection and switching. API endpoints, Core, support policy, SCPI, VISA,
+trigger, acquisition, CSV, JSON, JSONL, SSE, and cleanup contracts are
+unchanged. The current inventory remains the authoritative ownership record.
 
 The runtime exports these constants:
 
@@ -337,10 +346,10 @@ IDs, `name`, `value`, and `data-*` attributes are not translation prose.
 | `run_form.js` | Measurement summary | `Auto range`; `Manual range`; `Auto zero {value}`; `NPLC {value}`; `AC Filter >{value} Hz`; `AC Band {value} Hz`; `Gate {value} s`; `Timeout {value}`; `Terminal {value} A` | dynamic summary fragments | `translate_with_canonical_token` | `measurement.summary.*` | P2.3 |
 | `run_form.js` | Trigger summary | `Timer {value|unset} s`; `{Mode} trigger`; `unset` | dynamic summary | `translate_with_canonical_token` | `trigger.summary_timer`, `trigger.summary_mode`, `common.unset` | P2.3 |
 | `run_form.js` | App subtitle | `Unofficial Tool v{version}` / `Unofficial Tool` | dynamic title | `translate_with_canonical_token` | `app.unofficial_tool_version`, `app.unofficial_tool` | P2.3 |
-| `run_form.js` | Support fallback | `selected model`; `Support status unavailable.`; `unknown`; `unspecified transport`; `unspecified backend`; `Live runtime driver remains detected IDN.` | fallback prose/tokens | prose `translate`; unknown machine tokens `preserve_raw` | `support.fallback.*` | P2.5 |
-| `run_form.js` | Auto-detect support | `Auto-detect: showing {profile} fallback capability view until Start or Scan detects IDN. {note} ({validation}, {transport}/{backend})` | dynamic support template | `translate_with_canonical_token`; raw fields preserved | `support.auto_detect_summary` | P2.5 |
-| `run_form.js` | Explicit support | `{model}: {status_text} ({validation}, {transport}/{backend})` | dynamic support template | wrapper `translate`; existing prose fallback/raw tokens preserved | `support.model_summary` | P2.5 |
-| `run_form.js` | Support lists | comma-joined `open_workflows`, `limits`, `pending`; empty `None` | server prose/fallback | semantic keys later; existing prose `preserve_raw`; `None` `translate` | `support.none`, `support.*` | P2.5 |
+| `run_form.js` | Support fallback | `selected model`; `Support status unavailable.`; `unknown`; `unspecified transport`; `unspecified backend` | fallback prose/tokens | prose `translate`; unknown machine tokens `preserve_raw` | `support.summary.*` | P2.5 |
+| `run_form.js` | Auto-detect support | `Auto-detect: showing {profile} fallback capability view until Start or Scan detects IDN. {note} ({validation}, {transport}/{backend})` | dynamic support template | `translate_with_canonical_token`; raw fields preserved | `support.summary.auto_detect_status` | P2.5 |
+| `run_form.js` | Explicit support | `{model}: {status_text} ({validation}, {transport}/{backend})` | dynamic support template | wrapper `translate`; existing prose fallback/raw tokens preserved | `support.summary.profile_status` | P2.5 |
+| `run_form.js` | Support lists | comma-joined `open_workflows`, `limits`, `pending`; empty `None` | server prose/fallback | semantic keys preferred; positionally matched prose remains authoritative fallback; `None` `translate` | `support.summary.none`, `support.*` | P2.5 |
 | `run_form.js` | Model selector | `Auto-detect`; `Require {model}` | dynamic options | `translate_with_canonical_token` | `device.auto_detect`, `device.require_model` | P2.3 |
 | `run_form.js` | Canonical logic | measurement/trigger/model/status/backend values, payload keys, scope comparisons, `en-US` numeric formatting | machine/runtime logic | `machine_value` | none | P2.1/P2.3 (preserve) |
 
@@ -402,14 +411,14 @@ form.
 
 | Source | Surface/function | Current literal or pattern | Content type | Future treatment | Proposed key or namespace | Planned Part |
 | --- | --- | --- | --- | --- | --- | --- |
-| `_web_payloads.py` | Common support note | `Live runtime model is selected from detected *IDN?.` | API presentation prose | existing text `preserve_raw`; additive key later | `support.runtime_driver.detected_idn` | P2.5 |
-| `_web_payloads.py` | 34460A status | `USB/system-VISA full-suite validated.` | API presentation prose | existing text fallback; semantic key later | `support.status.usb_system_visa_validated` | P2.5 |
-| `_web_payloads.py` | 34460A open workflows | `immediate`; `software`; `software timer`; `custom buffered`; `Frequency`; `Period` | API presentation list | existing prose fallback; semantic keys later | `support.workflow.*` | P2.5 |
-| `_web_payloads.py` | 34460A limits | `no 10 A current path`; `no current-terminal selection`; `1000-reading memory limit`; `no base-profile external trigger support` | API presentation list | existing prose fallback; semantic keys later | `support.limit.*` | P2.5 |
-| `_web_payloads.py` | 34460A pending | `34460A DCV Ratio live validation`; `LAN/TCPIP system-VISA validation`; `LAN/TCPIP pyvisa-py @py validation` | API presentation list | existing prose fallback; semantic keys later | `support.pending.*` | P2.5 |
-| `_web_payloads.py` | 34461A status | `Full-suite validated ... optional CLI-only LAN/pyvisa-py @py.` | API presentation prose | existing text fallback; semantic key later | `support.status.profile_workflows_validated` | P2.5 |
-| `_web_payloads.py` | 34461A open workflow | preceding common items plus `external trigger workflows` | API presentation list | existing prose fallback; semantic keys later | `support.workflow.external_trigger` | P2.5 |
-| `_web_payloads.py` | Unknown profile | `Live support is not open for this profile.` | API presentation prose | existing text fallback; semantic key later | `support.status.not_open` | P2.5 |
+| `_web_payloads.py` | Common support note | `Live runtime model is selected from detected *IDN?.` | API presentation prose | existing text `preserve_raw`; additive semantic key | `support.runtime_driver.detected_idn` | P2.5 |
+| `_web_payloads.py` | 34460A status | `USB/system-VISA full-suite validated.` | API presentation prose | existing text fallback plus semantic key | `support.status.usb_system_visa_validated` | P2.5 |
+| `_web_payloads.py` | 34460A open workflows | `immediate`; `software`; `software timer`; `custom buffered`; `Frequency`; `Period` | API presentation list | existing prose fallback plus positional semantic keys | `support.workflow.*` | P2.5 |
+| `_web_payloads.py` | 34460A limits | `no 10 A current path`; `no current-terminal selection`; `1000-reading memory limit`; `no base-profile external trigger support` | API presentation list | existing prose fallback plus positional semantic keys | `support.limit.*` | P2.5 |
+| `_web_payloads.py` | 34460A pending | `34460A DCV Ratio live validation`; `LAN/TCPIP system-VISA validation`; `LAN/TCPIP pyvisa-py @py validation` | API presentation list | existing prose fallback plus positional semantic keys | `support.pending.*` | P2.5 |
+| `_web_payloads.py` | 34461A status | `Full-suite validated ... optional CLI-only LAN/pyvisa-py @py.` | API presentation prose | existing text fallback plus semantic key | `support.status.profile_workflows_validated` | P2.5 |
+| `_web_payloads.py` | 34461A open workflow | preceding common items plus `external trigger workflows` | API presentation list | existing prose fallback plus positional semantic keys | `support.workflow.external_trigger` | P2.5 |
+| `_web_payloads.py` | Unknown profile | `Live support is not open for this profile.` | API presentation prose | existing text fallback plus semantic key | `support.status.not_open` | P2.5 |
 | `_web_payloads.py` | Display identity | `Auto-detect`, model tokens, `display_model`; range labels from Core | display/canonical mix | wrapper `translate`; tokens `machine_value` | `device.auto_detect`, `measurement.range_value` | P2.3/P2.5 |
 | `_web_payloads.py` | Support metadata | `status_text`, `runtime_driver_note`, `open_workflows`, `limits`, `pending`; validation/transport/backend/feature fields | API fields | field names and policy values `machine_value`; prose remains fallback | none | P2.5 |
 | `_web_payloads.py` | Sample payload | sample status, unit, resource, metadata and all JSON keys | runtime schema/data | keys `machine_value`; data `preserve_raw` | none | P2.4 (preserve) |
@@ -456,10 +465,10 @@ contract does not define a localized Core status schema.
 
 ## Capabilities And Support-Summary Strategy
 
-Existing English API fields remain for backward compatibility. P2.5 may add
-semantic translation-key metadata, but must not accept a locale parameter just
-to translate prose. The server must not return different support-policy
-behavior by locale. The frontend uses semantic keys when available and keeps
+Existing English API fields remain for backward compatibility. P2.5 adds
+semantic translation-key metadata without accepting a locale parameter just to
+translate prose. The server does not return different support-policy behavior
+by locale. The frontend uses recognized semantic keys when available and keeps
 existing English prose as fallback.
 
 The smallest additive shape is to add siblings inside `support_summary`:
@@ -477,7 +486,9 @@ These names map cleanly to the existing scalar `status_text` and
 and `pending`. `support_summary.limit_keys` must not be confused with the
 top-level numeric `limits` object. Key-list entries are semantic keys, never
 array-index-derived key names; existing prose at the corresponding position is
-the fallback. P2.5 must define safe handling if list lengths differ.
+the fallback. Existing prose controls list length and ordering; missing,
+malformed, shorter, longer, or unknown key entries cannot hide prose or add
+display entries.
 
 Semantic keys are presentation metadata only. They cannot affect Product-open
 support, pending status, exact-scope enforcement, model/profile selection,
@@ -567,8 +578,8 @@ collapsed into one term when their meanings differ.
 | P2.2 — static HTML text migration | `index.html` visible text, placeholders, titles, ARIA, and initial states. Depends on P2.1. |
 | P2.3 — form, measurement and trigger dynamic text | Capability-driven labels, options, custom validity, and panel summaries. Depends on P2.1/P2.2. |
 | P2.4 — status, log and error presentation | Browser logs, known status mapping, raw fallback, Live data, API error wrappers, and dynamic ARIA. Depends on P2.1. |
-| P2.5 — additive support-summary semantic keys | Additive backend presentation metadata and frontend semantic-key preference. Depends on P2.1 and preserves existing prose. |
-| P2.6 — language toggle, detection and persistence | Toolbar button, detection, saved-locale precedence, `<html lang>`, and state-preserving switch. Depends on P2.1-P2.4. |
+| P2.5 — additive support-summary semantic keys | Completed additive backend presentation metadata, prose-authoritative fallback, and cached frontend re-render boundary. Depends on P2.1 and preserves existing prose. |
+| P2.6 — language toggle, detection and persistence | Toolbar button, detection, saved-locale precedence, `<html lang>`, runtime switch wiring, and state-preserving switch. Depends on P2.1-P2.5. |
 | P2.7 — complete zh-TW translation, integration tests and final docs | Key completion, terminology QA, cross-Part integration, and operator documentation after the feature exists. |
 
 Rows with two Parts identify a dependency rather than duplicate ownership. In

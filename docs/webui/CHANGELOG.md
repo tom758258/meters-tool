@@ -51,6 +51,12 @@ temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
   inactive, and API endpoints, status codes, response schemas, Core, support
   policy, SCPI, VISA, trigger, acquisition, CSV/JSON/JSONL schemas, and cleanup
   behavior are unchanged.
+- Added P2.5 support-summary semantic localization metadata alongside the
+  existing English prose fields. The browser prefers recognized semantic keys
+  and safely falls back to the corresponding prose when keys are missing,
+  unknown, or positionally mismatched. Language switching remains inactive;
+  API behavior, Core authority, support policy, instrument runtime, and
+  schemas are unchanged.
 - The final release-preparation change updates release notes only and does not
   change WebUI runtime behavior.
 
