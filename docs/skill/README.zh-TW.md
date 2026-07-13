@@ -86,6 +86,7 @@ cp docs/contracts/common-cli-jsonl-contract.md "$skill/references/"
 cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
 cp docs/contracts/meters-worker-contract.md "$skill/references/"
 cp docs/contracts/meters-cli-jsonl-contract.md "$skill/references/"
+cp docs/contracts/common-orchestrator-workflows.md "$skill/references/"
 cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 ```
 
@@ -149,7 +150,7 @@ cp docs/contracts/meters-orchestrator-workflows.md "$skill/references/"
 
 ## 內建模擬器 helper (Bundled simulator helper)
 
-此 Skill 也提供 `scripts/run_meter_sim_workflow.mjs`，可在有 Node.js 的環境中進行不需硬體的模擬器 smoke validation。此 helper 會執行一次 dry-run，並另外啟動一次模擬器 `start-trigger-record` 軟體觸發流程，接著輸出可由機器判讀的 artifacts；若證據不符合合約，會以非零結束代碼失敗。請勿將此 helper 用於 live resources；把 `--resource` 改成 `USB0::...` 這類 live VISA address，並不會讓它成為 live validation path。
+此 Skill 也提供 `scripts/run_meter_sim_workflow.mjs`，可在有 Node.js 的環境中進行不需硬體的模擬器快速檢查。此 helper 會執行一次 dry-run，並另外啟動一次模擬器 `start-trigger-record` 軟體觸發流程，接著輸出可由機器判讀的 artifacts；若證據不符合合約，會以非零結束代碼失敗。請勿將此 helper 用於 live resources；把 `--resource` 改成 `USB0::...` 這類 live VISA address，並不會讓它成為 live validation path。
 
 以下範例適用於包含 `meters-tool*.exe` 執行檔的工作區：
 
