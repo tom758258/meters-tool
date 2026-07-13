@@ -48,6 +48,7 @@ Python 整合應自 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 - 當啟動必須符合 34460A IDN 時，請選擇 `--model 34460A`。在實體模式中，這只作為預期模型防護；絕不會覆寫依 IDN 選取的設定檔。在預演（乾跑）或模擬模式中，它會選擇 34460A 的設定檔限制：不提供 10 A 電流量程或電流端子選擇、1000 點讀數記憶體，且不支援基礎設定檔外部觸發模式。
 - 當啟動必須符合 34461A IDN 時，請選擇 `--model 34461A`。若實體模型明確不符，程式會在設定 SCPI 前拒絕啟動。模型名稱由 Core 設定檔邏輯標準化與驗證，未知的模型會驗證失敗並顯示支援的模型。
 - 實體產品支援會依功能與精確範圍判定：連線、測量與有效觸發模式都必須處於 `live_validated_full_suite`，否則實體工作流程會顯示不支援，並依 fail-closed（失敗即關閉）原則安全拒絕執行。
+- 34460A 的 DC 電壓比例（DCV Ratio）僅在 **USB／系統 VISA** 精確範圍內開放為 Product-open。一般 CLI 啟動不需要使用僅供貢獻者驗證的隱藏選擇器。既有 12 案例包裝器完整測試套件未包含 Ratio；本次開放也不延伸至 34460A LAN/TCPIP 或 pyvisa-py 範圍。
 - 預演、模擬與不建立實體 VISA 連線的 dry-run 規劃不受此限。
 
 ## 環境需求
@@ -90,7 +91,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_cli_exe.
 .\.venv\Scripts\python.exe -m pytest tests/cli -q -p no:cacheprovider
 ```
 
-或者使用模擬器對特定工作流程進行快速測試：
+或者使用模擬器對特定工作流程進行快速檢查：
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
@@ -286,7 +287,7 @@ Meters Tool 提供六個主要 CLI 子命令：
   --measurement voltage-dc
 ```
 
-### DC 電流煙霧測試（Current DC Smoke Test）
+### DC 電流快速檢查（Current DC Quick Check）
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
   --simulate `
@@ -310,7 +311,7 @@ Meters Tool 提供六個主要 CLI 子命令：
 .\.venv\Scripts\meters-tool.exe send-command
 ```
 
-### 電壓比例煙霧測試（DCV Ratio Smoke Tests）
+### 電壓比例快速檢查（DCV Ratio Quick Check）
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
   --simulate `
