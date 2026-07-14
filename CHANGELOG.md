@@ -6,14 +6,12 @@ Component release notes:
 - [CLI](docs/cli/CHANGELOG.md)
 - [WebUI](docs/webui/CHANGELOG.md)
 
-## Unreleased — target v2.0.0
+## v2.0.0
 
-This work has not been released or tagged as `v1.6.0`. The next public release
-target is `v2.0.0` because the distribution, import packages, and console
-commands were renamed without compatibility shims for the old names. Package
-metadata temporarily remains at `1.6.0`, the validated pre-v2 development
-baseline; the formal package version bump to `2.0.0` is intentionally deferred
-until final release preparation.
+This is the first public Meters Tool release after the breaking project
+identity, distribution, import-package, and console-command rename. The old
+names have no compatibility shims; Keysight profile names and runtime
+contracts remain unchanged.
 
 ### Breaking changes
 
@@ -107,17 +105,16 @@ until final release preparation.
 
 ### Release preparation
 
-- Prepared the current development and package metadata at `1.6.0` across
-  package metadata, fallback version plumbing, lock metadata, and version
-  tests. This remains the accepted pre-v2 baseline; the final public `2.0.0`
-  package version bump is intentionally deferred to final release preparation.
+- Bumped the single `meters-tool` distribution version to `2.0.0` across
+  package metadata, fallback version plumbing, lock metadata, version tests,
+  and release-facing fixtures.
 - Refreshed English Core, CLI, and WebUI documentation to describe expected
   model / IDN-match behavior consistently for live starts and deterministic
   simulator resources.
 - Updated the bundled Codex skill simulator helper and examples so no-hardware
   workflows stay tied to explicit `SIM::34460A` or `SIM::34461A` resources.
-- This release-direction update changes documentation only; it does not change
-  Core, CLI, WebUI, SCPI, VISA, trigger, or cleanup runtime behavior.
+- Finalized release metadata and notes without changing Core, CLI, WebUI,
+  SCPI, VISA, trigger, or cleanup runtime behavior.
 
 ## v1.5.0
 

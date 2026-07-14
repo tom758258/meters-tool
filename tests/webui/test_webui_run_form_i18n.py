@@ -132,7 +132,7 @@ const featureStatus = {
   },
 };
 
-let appMetadata = { version: "1.6.0" };
+let appMetadata = { version: "2.0.0" };
 const supportSummary = {
   model: "34461A",
   capability_profile: "34461A",
@@ -479,7 +479,7 @@ const autoZero = element("[name='auto_zero']");
 assert.deepEqual(autoZero.options.map((option) => option.value), ["on", "off", "once"]);
 assert.deepEqual(autoZero.options.map((option) => option.textContent), ["On", "Off", "Once"]);
 assert.equal(autoZero.value, "on");
-assert.equal(element(".subtitle").textContent, "Unofficial Tool v1.6.0");
+assert.equal(element(".subtitle").textContent, "Unofficial Tool v2.0.0");
 assert.equal(element(".subtitle").getAttribute("data-i18n"), "app.unofficial_tool_version");
 
 const runSummary = element("[data-summary-for='run-setup']");

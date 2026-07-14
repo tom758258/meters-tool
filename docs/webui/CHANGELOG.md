@@ -1,19 +1,17 @@
 # Changelog
 
-## Unreleased — target v2.0.0
+## v2.0.0
 
-These WebUI changes were not released as `v1.6.0`. The breaking WebUI import
-and command renames are planned for `v2.0.0`. Shared package metadata
-temporarily remains at the validated `1.6.0` pre-v2 baseline; the final
-`2.0.0` bump has not occurred.
+v2.0.0 ships the breaking WebUI command and import renames as part of the first
+public Meters Tool release. Shared package metadata is now `2.0.0`, without
+compatibility shims for the old names.
 
 - Renamed the WebUI commands from `keysight-logger-webui` /
   `keysight-logger-webui-launcher` to `meters-tool-webui` /
   `meters-tool-webui-launcher`, and renamed the WebUI import package from
   `keysight_logger_webui` to `meters_tool_webui`.
-- Prepared WebUI-visible metadata at the accepted `1.6.0` pre-v2 development
-  baseline through the shared distribution version plumbing. The final public
-  `2.0.0` version bump is intentionally deferred.
+- Bumped WebUI-visible metadata to `2.0.0` through the shared distribution
+  version plumbing.
 - Applied Core's live `*IDN?` profile selection and exact fail-closed support
   policy to WebUI starts. `Expected model` is an identity guard and does not
   override the detected instrument profile.

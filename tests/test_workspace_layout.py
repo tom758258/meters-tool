@@ -97,7 +97,7 @@ def test_root_pyproject_defines_single_distribution():
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'name = "meters-tool"' in text
-    assert 'version = "1.6.0"' in text
+    assert 'version = "2.0.0"' in text
     assert 'meters-tool = "meters_tool_cli.cli:main"' in text
     assert 'meters-tool-webui = "meters_tool_webui.web_ui:main"' in text
     assert "[tool.pytest.ini_options]" in text

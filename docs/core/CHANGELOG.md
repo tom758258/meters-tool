@@ -1,16 +1,15 @@
 # Changelog
 
-## Unreleased — target v2.0.0
+## v2.0.0
 
-These Core changes were not released as `v1.6.0`. The breaking Core import
-rename is planned for `v2.0.0`. Shared package metadata temporarily remains at
-the validated `1.6.0` pre-v2 baseline; the final `2.0.0` bump has not occurred.
+v2.0.0 ships the breaking Core import rename as part of the first public Meters
+Tool release. The shared distribution and Core fallback version are now
+`2.0.0`, without a compatibility shim for the old import.
 
 - Renamed the Core import package from `keysight_logger_core` to
   `meters_tool_core` as part of the breaking Meters Tool rename.
-- Prepared shared package metadata and the Core fallback version at the
-  accepted `1.6.0` pre-v2 development baseline. The final public `2.0.0`
-  version bump is intentionally deferred.
+- Bumped shared package metadata and the Core fallback version to `2.0.0` for
+  the v2 release.
 - Added distinct 34460A and 34461A profiles, normalized model selection, and
   live `*IDN?` profile detection. Explicit live model selection is an
   expected-model guard, and mismatches fail before setup SCPI.
@@ -31,8 +30,7 @@ the validated `1.6.0` pre-v2 baseline; the final `2.0.0` bump has not occurred.
   execution use the same live identity.
 - Refreshed English Core-facing documentation for expected-model auto-detect
   and deterministic simulator resources.
-- The final release-preparation change updates release notes only and does not
-  change Core runtime behavior.
+- Finalized release metadata and notes without changing Core runtime behavior.
 
 ## v1.5.0
 

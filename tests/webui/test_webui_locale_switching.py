@@ -532,7 +532,7 @@ globalThis.EventSource = class {
 };
 
 const capabilities = {
-  app: { version: "1.6.0" },
+  app: { version: "2.0.0" },
   limits: {},
   support_summary: null,
   support: { "start-trigger-record": { live: null } },
@@ -631,7 +631,7 @@ process.stdout.write(JSON.stringify({ ok: true }));
 def test_application_locale_switch_preserves_fallbacks_while_capabilities_are_pending():
     script = APPLICATION_TEST_SETUP + r'''
 const capabilities = {
-  app: { version: "1.6.0" },
+  app: { version: "2.0.0" },
   limits: {},
   support_summary: {
     model: "34461A",

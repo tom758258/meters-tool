@@ -205,7 +205,7 @@ def test_release_check_rejects_mismatched_package_version():
     )
 
     assert result.returncode != 0
-    assert "Release 1.4.0 does not match package version 1.6.0" in (
+    assert "Release 1.4.0 does not match package version 2.0.0" in (
         result.stdout + result.stderr
     )
 
