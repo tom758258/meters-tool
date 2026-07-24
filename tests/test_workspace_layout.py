@@ -243,15 +243,18 @@ def test_changelog_release_direction_matches_package_metadata():
         REPO_ROOT / "docs" / "webui" / "CHANGELOG.md",
     )
 
-    first_headings = []
+    release_headings = []
     for changelog in changelogs:
         text = changelog.read_text(encoding="utf-8")
         headings = re.findall(r"^## (.+)$", text, re.MULTILINE)
         assert headings, changelog
-        first_headings.append(headings[0])
+        if headings[0] == "Unreleased":
+            headings = headings[1:]
+            assert headings, changelog
+        release_headings.append(headings[0])
 
-    assert len(set(first_headings)) == 1
-    first_heading = first_headings[0]
+    assert len(set(release_headings)) == 1
+    first_heading = release_headings[0]
 
     released_match = RELEASE_HEADING_PATTERN.fullmatch(first_heading)
     if released_match:
