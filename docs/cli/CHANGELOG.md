@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Limited live resource verification to opening the resource, querying `*IDN?`,
+  and closing the session without acquisition cleanup commands.
+
 ## v2.0.0
 
 v2.0.0 ships the breaking CLI command and import renames as part of the first
@@ -16,8 +21,6 @@ compatibility shims for the old names.
 - Applied the Core-owned exact connection, measurement, and trigger-mode
   support gate to live CLI starts, including product rejection of pending or
   unsupported scopes.
-- Limited live resource verification to opening the resource, querying `*IDN?`,
-  and closing the session without acquisition cleanup commands.
 - Extended the preflight, live, and release wrappers for both 34460A and
   34461A targets, explicit backend forwarding, plan-only release gates, and
   validation-only execution of registered pending scopes. The live wrapper
