@@ -122,13 +122,6 @@ class VisaInstrument:
                 inst = rm.open_resource(resource)
             inst.timeout = effective_timeout_ms
             idn_detail = str(inst.query("*IDN?")).strip()
-            if not is_asrl:
-                try:
-                    VisaInstrument(
-                        InstrumentConfig(resource_string=resource)
-                    )._release_session_to_local(inst)
-                except Exception:
-                    pass
             return True, idn_detail
         except InstrumentError:
             raise

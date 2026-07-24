@@ -219,6 +219,8 @@ The JSON dry-run object includes:
 `release_to_local_after_successful_verify`, `close_each_resource`, and
 `filter_live_only`. `--live-only` still sets `effective_verify: true` in the
 contract because a real live-only run would verify and filter resources.
+The existing release-to-local fields remain in the schema with value `false`;
+resource verification closes the session immediately after its `*IDN?` query.
 
 `list-resources --json` real-run output keeps `resources`, `verify`, and
 `live_only` semantics and adds `event: list-resources`, `schema_version`,

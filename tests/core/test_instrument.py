@@ -191,26 +191,24 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertTrue(is_asrl_resource("asrl6::instr"))
         self.assertFalse(is_asrl_resource("USB0::FAKE"))
 
-    def test_verify_resource_queries_idn_and_cleans_up(self):
+    def test_verify_resource_queries_only_idn_and_closes(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)
         fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
 
         with (
             patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
-            patch("meters_tool_core.instrument.time.sleep", return_value=None),
+            patch.object(VisaInstrument, "_release_session_to_local") as mock_release,
         ):
             ok, detail = VisaInstrument.verify_resource("USB::FAKE", timeout_ms=1234)
 
         self.assertTrue(ok)
         self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
-        self.assertEqual(500, session.timeout)
-        self.assertTrue(session.cleared)
-        self.assertEqual(
-            ["query:*IDN?", "*CLS", "*WAI", "ABOR", "SYST:LOC"],
-            session.writes,
-        )
-        self.assertEqual([0], session.control_ren_calls)
+        self.assertEqual(1234, session.timeout)
+        self.assertEqual(["query:*IDN?"], session.writes)
+        self.assertFalse(session.cleared)
+        self.assertEqual([], session.control_ren_calls)
+        mock_release.assert_not_called()
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
 
@@ -329,30 +327,9 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         self.assertTrue(ok)
         self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
-        self.assertIn("query:*IDN?", session.writes)
-        self.assertIn("SYST:LOC", session.writes)
-        self.assertEqual([0], session.control_ren_calls)
-        self.assertTrue(session.closed)
-        self.assertTrue(rm.closed)
-
-    def test_verify_resource_release_failure_still_returns_live(self):
-        session = FakeVisaSession()
-        rm = FakeResourceManager(session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
-
-        with (
-            patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
-            patch.object(
-                VisaInstrument,
-                "_release_session_to_local",
-                side_effect=RuntimeError("release failed"),
-            ),
-        ):
-            ok, detail = VisaInstrument.verify_resource("USB::FAKE")
-
-        self.assertTrue(ok)
-        self.assertEqual("Keysight Technologies,34461A,MY123,1.0", detail)
         self.assertEqual(["query:*IDN?"], session.writes)
+        self.assertFalse(session.cleared)
+        self.assertEqual([], session.control_ren_calls)
         self.assertTrue(session.closed)
         self.assertTrue(rm.closed)
 

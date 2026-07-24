@@ -93,6 +93,10 @@ class CliListResourcesCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertTrue(payload["effective_verify"])
         self.assertTrue(payload["planned_real_run"]["open_each_resource"])
         self.assertTrue(payload["planned_real_run"]["query_idn"])
+        self.assertFalse(
+            payload["planned_real_run"]["release_to_local_after_successful_non_asrl_verify"]
+        )
+        self.assertFalse(payload["planned_real_run"]["release_to_local_after_successful_verify"])
 
     def test_list_resources_dry_run_live_only_json_sets_effective_verify_and_filter(self):
         lines = []
