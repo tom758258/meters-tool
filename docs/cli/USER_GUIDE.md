@@ -104,6 +104,34 @@ IO Libraries Suite or NI-VISA. Backend selection does not change or expand
 Product support. The bundled Windows CLI executable supports only the fixed
 System VISA path and does not bundle optional backends.
 
+## Check Settings Without Hardware
+
+Before a first live run, you can check the same request without controlling a
+physical instrument.
+
+Use `--dry-run` to validate the request and print the execution plan without
+starting acquisition or performing live VISA I/O. Supply `--model 34460A` or
+`--model 34461A` when the resource does not identify a simulator model.
+
+Use `--simulate` with a deterministic simulator resource such as
+`SIM::34461A` to exercise the acquisition workflow without real hardware. Keep
+simulator runs bounded just as you would a first live run.
+
+For example:
+
+```powershell
+.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+```
+
+Dry-run and simulation are useful setup checks, but neither is evidence that a
+real instrument and connection scope have been validated.
+
 ## Choosing A Measurement
 
 Choose the measurement type that matches the instrument wiring and the signal
@@ -126,22 +154,70 @@ captures.
 
 ## Choosing A Trigger Mode
 
-Use `--trigger-mode immediate` for the simplest workflow. The instrument starts
-capturing when the run starts. Add `--max-samples` unless you intentionally want
-a continuous run.
+Choose the trigger mode by deciding **what starts a capture** and whether you
+need a simple reading workflow or a buffered custom acquisition.
 
-Use `--trigger-mode software` when the run should wait for software trigger
-commands. Start the logger in one terminal, then send triggers from another:
+| Mode | Use it when | Capture behavior |
+| --- | --- | --- |
+| `immediate` | The run should begin taking readings as soon as it starts. | Simple readings; bound the run with `--max-samples` unless continuous capture is intentional. |
+| `software` | An operator or another process should decide when each reading is taken. | Waits for accepted software trigger commands. |
+| `external` | A fixture, DUT, PLC, or other hardware signal should synchronize readings. | Waits for physical external trigger edges. |
+| `immediate-custom` | The run should immediately acquire a defined batch into instrument reading memory. | Buffered custom acquisition. |
+| `software-custom` | Each accepted software trigger should start a defined buffered acquisition. | Buffered custom acquisition controlled by software triggers. |
+| `external-custom` | Each physical trigger event should drive a defined buffered acquisition. | Buffered custom acquisition controlled by external trigger edges. |
+
+For the simplest workflow, use `--trigger-mode immediate` and add
+`--max-samples`.
+
+For manual software triggering, start a `software` or `software-custom` run
+in one terminal and send triggers from another:
 
 ```powershell
 .\meters-tool.exe send-command
 ```
 
-Use timer capture when the run should take software-triggered readings on a
-schedule. Set the timer interval explicitly and keep the run bounded while
-validating the setup.
+Software mode can also trigger automatically on a timer. Timer capture is not a
+separate `--trigger-mode timer` value: use `--trigger-mode software` together
+with `--timer-interval-s`. For example, this takes one software-triggered
+reading every second and stops after 60 readings:
 
-Use external or hardware trigger modes only when the physical trigger signal is
+```powershell
+.\meters-tool.exe start-trigger-record `
+  --resource "$env:METER_RESOURCE" `
+  --measurement voltage-dc `
+  --trigger-mode software `
+  --timer-interval-s 1 `
+  --max-samples 60
+```
+
+### Custom / Buffered Trigger Modes
+
+The three `*-custom` modes are for buffered acquisition rather than the simple
+`--max-samples` workflow. They require both `--trigger-count` and
+`--sample-count`.
+
+The planned number of readings is:
+
+```text
+trigger count x sample count
+```
+
+For example, `--trigger-count 10 --sample-count 100` plans 1000 readings.
+`--max-samples` is not used with custom modes.
+
+`--buffer-drain-size` controls how many buffered readings are requested from
+instrument reading memory at a time. Leave it unset unless the test procedure
+needs a specific drain size.
+
+If `trigger count x sample count` exceeds the model reading-memory size, Core
+requires explicit `--allow-buffer-overflow-risk` acknowledgement before the
+custom run can start. That acknowledgement does **not** increase instrument
+memory or remove the buffer-drain hard limit. The current reading-memory limits
+are 10000 readings for 34461A and 1000 readings for 34460A; see
+[Supported Models](../core/supported-models.md) for exact current limits and
+support scope.
+
+Use `external` or `external-custom` only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.
 Hardware trigger timeout is a protective re-arm condition, not automatically a
 failed measurement.
@@ -198,6 +274,26 @@ send a timeout command; specifying this option with Period is rejected.
 
 `--current-terminal` applies to current measurements. Match it to the physical
 current terminal used on the instrument.
+
+`--dcv-input-impedance` applies to DC voltage and DC voltage ratio. `default`
+leaves the current instrument setting unchanged, `10m` selects 10 MOhm, and
+`auto` enables the instrument automatic/high-impedance behavior. Keep
+`default` unless the measurement procedure requires another input impedance.
+
+`--vm-comp-slope` controls the rear-panel VM Comp output pulse slope. Omit it to
+leave VM Comp unchanged; use `pos` or `neg` only when the test setup explicitly
+uses that output.
+
+For external trigger modes, `--hw-trigger-delay-s` sets the delay after the
+trigger and `--hw-trigger-slope` selects the physical trigger edge. Match both
+to the connected trigger source.
+
+For manual software-triggered runs, `--sw-min-interval-ms` can limit how quickly
+software triggers are accepted and `--sw-queue-max` limits queued trigger work.
+Leave them at their defaults unless the trigger producer or test procedure needs
+explicit throttling or queue control. A software trigger can also carry
+metadata; metadata is recorded with the trigger/sample output and is useful for
+labels such as DUT, batch, or step identifiers.
 
 `--trigger-timeout-ms` controls how long trigger workflows wait before the
 protective timeout path is used. Increase it only when the measurement setup
