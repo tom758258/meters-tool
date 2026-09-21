@@ -72,6 +72,33 @@ live 啟動省略 `--model` 時，連接儀器的 `*IDN?` 決定 runtime profile
 
 CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。backend 選擇不會改變或擴充 Product 支援。Windows 發佈版 CLI 執行檔只支援固定的 System VISA 路徑，不會 bundle 選用 backend。
 
+## 不連接硬體先檢查設定
+
+第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。
+
+使用 `--dry-run` 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
+VISA I/O。若資源本身沒有指定 simulator 型號，請提供
+`--model 34460A` 或 `--model 34461A`。
+
+使用 `--simulate` 搭配 `SIM::34461A` 這類 deterministic simulator resource，
+可在沒有真實硬體的情況下執行 acquisition workflow。模擬作業也應像第一次實機
+作業一樣保持有界限。
+
+例如：
+
+```powershell
+.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+```
+
+Dry-run 與 simulation 適合在操作前檢查設定，但兩者都不能當作真實儀器與連線範圍
+已完成實機驗證的證據。
+
 ## 選擇量測類型
 
 請選擇與儀器接線及待測訊號相符的量測類型：
@@ -91,17 +118,69 @@ CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Sui
 
 ## 選擇觸發模式
 
-`--trigger-mode immediate` 適用於最簡單的工作流程。作業一啟動，儀器就會開始擷取讀值。除非您刻意要進行連續執行，否則請加上 `--max-samples`。
+選擇觸發模式時，先判斷**由什麼事件開始擷取**，再判斷需要一般讀值流程，還是
+buffered custom acquisition。
 
-當作業需要等待軟體觸發指令時，請使用 `--trigger-mode software`。在一個終端機啟動記錄器 (logger)，然後從另一個終端機發送觸發訊號：
+| 模式 | 適用情境 | 擷取行為 |
+| --- | --- | --- |
+| `immediate` | 作業啟動後立即開始取得讀值。 | 一般讀值；除非刻意要連續擷取，否則使用 `--max-samples` 設定上限。 |
+| `software` | 由操作人員或其他程式決定每次何時取樣。 | 等待接受到的軟體觸發指令。 |
+| `external` | 由治具、DUT、PLC 或其他硬體訊號同步量測。 | 等待實體外部觸發邊緣。 |
+| `immediate-custom` | 作業開始後立即依指定數量將一批讀值擷取到儀器讀值記憶體。 | Buffered custom acquisition。 |
+| `software-custom` | 每次接受到軟體觸發時，啟動一組指定的 buffered acquisition。 | 由軟體觸發控制的 buffered custom acquisition。 |
+| `external-custom` | 每個實體觸發事件都驅動一組指定的 buffered acquisition。 | 由外部觸發控制的 buffered custom acquisition。 |
+
+最簡單的工作流程請使用 `--trigger-mode immediate`，並加上
+`--max-samples`。
+
+若要手動軟體觸發，請在一個終端機啟動 `software` 或
+`software-custom` 作業，再從另一個終端機發送觸發：
 
 ```powershell
 .\meters-tool.exe send-command
 ```
 
-當作業需要按排程進行軟體觸發讀取時，請使用計時器擷取 (timer capture)。請明確設定計時器間隔，並在驗證設定時保持作業具備有界限 (bounded) 的特性。
+Software mode 也可以依計時器自動觸發。Timer capture 並不是另一個
+`--trigger-mode timer` 值；請使用 `--trigger-mode software` 搭配
+`--timer-interval-s`。例如，下列設定每 1 秒取得一次軟體觸發讀值，並在
+60 筆後停止：
 
-只有在實體觸發訊號已連接，且操作人員了解觸發邊緣 (trigger edge) 與延遲 (delay) 設定的情況下，才使用外部或硬體觸發模式。硬體觸發逾時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並非自動代表量測失敗。
+```powershell
+.\meters-tool.exe start-trigger-record `
+  --resource "$env:METER_RESOURCE" `
+  --measurement voltage-dc `
+  --trigger-mode software `
+  --timer-interval-s 1 `
+  --max-samples 60
+```
+
+### Custom / Buffered 觸發模式
+
+三種 `*-custom` 模式使用 buffered acquisition，而不是一般
+`--max-samples` 工作流程。它們都需要 `--trigger-count` 與
+`--sample-count`。
+
+預期讀值總數為：
+
+```text
+trigger count x sample count
+```
+
+例如，`--trigger-count 10 --sample-count 100` 代表預期 1000 筆讀值。
+Custom mode 不使用 `--max-samples`。
+
+`--buffer-drain-size` 控制每次從儀器讀值記憶體取回多少筆 buffered readings。
+除非測試程序需要特定 drain size，否則保持未指定即可。
+
+如果 `trigger count x sample count` 超過該型號的 reading memory，Core 會要求
+明確加入 `--allow-buffer-overflow-risk` 後才允許 custom run 啟動。這項確認
+**不會**增加儀器記憶體，也不會解除 buffer drain 的硬限制。目前 34461A 的
+reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支援範圍請參閱
+[支援型號](../core/supported-models.zh-TW.md)。
+
+只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
+`external` 或 `external-custom`。硬體觸發逾時是一種保護性的重新準備
+(re-arm) 條件，並非自動代表量測失敗。
 
 ## 常見設定
 
@@ -130,6 +209,14 @@ CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Sui
 `--freq-period-timeout` 僅適用於頻率。除非量測程序要求 `1s` 行為，否則請保持預設的 `auto`。週期不會傳送逾時指令；搭配週期明確指定此選項將被拒絕。
 
 `--current-terminal` (電流端子) 適用於電流量測。請與儀器上實際使用的電流端子保持一致。
+
+`--dcv-input-impedance` 適用於直流電壓與直流電壓比。`default` 會保留儀器目前設定，`10m` 選擇 10 MOhm，`auto` 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 `default`。
+
+`--vm-comp-slope` 控制後面板 VM Comp 輸出脈衝的斜率。省略此選項會保持 VM Comp 不變；只有測試設定明確使用該輸出時，才選擇 `pos` 或 `neg`。
+
+對外部觸發模式而言，`--hw-trigger-delay-s` 設定觸發後的延遲，`--hw-trigger-slope` 選擇實體觸發邊緣。請與實際連接的觸發訊號源保持一致。
+
+對手動軟體觸發作業而言，`--sw-min-interval-ms` 可限制軟體觸發被接受的最快間隔，`--sw-queue-max` 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確的節流或 queue 控制，否則保持預設值。軟體觸發也可以攜帶 metadata；這些 metadata 會隨觸發／sample 輸出記錄，適合標示 DUT、batch 或 step 等識別資訊。
 
 `--trigger-timeout-ms` (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。
 
