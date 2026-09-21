@@ -84,6 +84,25 @@
 <p>某個 VISA resource 能回應 <code>*IDN?</code> 或出現在 <code>list-resources</code> 中，本身不代表所有型號與 transport/backend 組合都已 Product-open。型號、transport、backend、量測與觸發支援都是精確範圍，且必須符合 Core policy。未列出的組合會 fail closed，而不是透過 <code>--model</code> 或掃描結果被解鎖。</p>
 <p>精確的目前支援矩陣，請參閱 <a href="supported-models.zh-TW.html">支援型號</a>。</p>
 <p>CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。backend 選擇不會改變或擴充 Product 支援。Windows 發佈版 CLI 執行檔只支援固定的 System VISA 路徑，不會 bundle 選用 backend。</p>
+<h2 id="不連接硬體先檢查設定">不連接硬體先檢查設定</h2>
+<p>第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。</p>
+<p>使用 <code>--dry-run</code> 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
+VISA I/O。若資源本身沒有指定 simulator 型號，請提供
+<code>--model 34460A</code> 或 <code>--model 34461A</code>。</p>
+<p>使用 <code>--simulate</code> 搭配 <code>SIM::34461A</code> 這類 deterministic simulator resource，
+可在沒有真實硬體的情況下執行 acquisition workflow。模擬作業也應像第一次實機
+作業一樣保持有界限。</p>
+<p>例如：</p>
+<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+</code></pre>
+<p>Dry-run 與 simulation 適合在操作前檢查設定，但兩者都不能當作真實儀器與連線範圍
+已完成實機驗證的證據。</p>
 <h2 id="選擇量測類型">選擇量測類型</h2>
 <p>請選擇與儀器接線及待測訊號相符的量測類型：</p>
 <ul>
@@ -100,12 +119,85 @@
 <p>測量電流或 4 線式電阻前，請先確認輸入端子是否正確。
 對於 AC、頻率與週期模式，請先執行低風險的快速功能健檢 (smoke test)，並將 CSV 數值與前面板讀值進行對比，確認無誤後再將該設定用於較長期的擷取。</p>
 <h2 id="選擇觸發模式">選擇觸發模式</h2>
-<p><code>--trigger-mode immediate</code> 適用於最簡單的工作流程。作業一啟動，儀器就會開始擷取讀值。除非您刻意要進行連續執行，否則請加上 <code>--max-samples</code>。</p>
-<p>當作業需要等待軟體觸發指令時，請使用 <code>--trigger-mode software</code>。在一個終端機啟動記錄器 (logger)，然後從另一個終端機發送觸發訊號：</p>
+<p>選擇觸發模式時，先判斷<strong>由什麼事件開始擷取</strong>，再判斷需要一般讀值流程，還是
+buffered custom acquisition。</p>
+<table>
+<thead>
+<tr>
+<th>模式</th>
+<th>適用情境</th>
+<th>擷取行為</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>immediate</code></td>
+<td>作業啟動後立即開始取得讀值。</td>
+<td>一般讀值；除非刻意要連續擷取，否則使用 <code>--max-samples</code> 設定上限。</td>
+</tr>
+<tr>
+<td><code>software</code></td>
+<td>由操作人員或其他程式決定每次何時取樣。</td>
+<td>等待接受到的軟體觸發指令。</td>
+</tr>
+<tr>
+<td><code>external</code></td>
+<td>由治具、DUT、PLC 或其他硬體訊號同步量測。</td>
+<td>等待實體外部觸發邊緣。</td>
+</tr>
+<tr>
+<td><code>immediate-custom</code></td>
+<td>作業開始後立即依指定數量將一批讀值擷取到儀器讀值記憶體。</td>
+<td>Buffered custom acquisition。</td>
+</tr>
+<tr>
+<td><code>software-custom</code></td>
+<td>每次接受到軟體觸發時，啟動一組指定的 buffered acquisition。</td>
+<td>由軟體觸發控制的 buffered custom acquisition。</td>
+</tr>
+<tr>
+<td><code>external-custom</code></td>
+<td>每個實體觸發事件都驅動一組指定的 buffered acquisition。</td>
+<td>由外部觸發控制的 buffered custom acquisition。</td>
+</tr>
+</tbody>
+</table>
+<p>最簡單的工作流程請使用 <code>--trigger-mode immediate</code>，並加上
+<code>--max-samples</code>。</p>
+<p>若要手動軟體觸發，請在一個終端機啟動 <code>software</code> 或
+<code>software-custom</code> 作業，再從另一個終端機發送觸發：</p>
 <pre><code class="language-powershell">.\meters-tool.exe send-command
 </code></pre>
-<p>當作業需要按排程進行軟體觸發讀取時，請使用計時器擷取 (timer capture)。請明確設定計時器間隔，並在驗證設定時保持作業具備有界限 (bounded) 的特性。</p>
-<p>只有在實體觸發訊號已連接，且操作人員了解觸發邊緣 (trigger edge) 與延遲 (delay) 設定的情況下，才使用外部或硬體觸發模式。硬體觸發逾時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並非自動代表量測失敗。</p>
+<p>Software mode 也可以依計時器自動觸發。Timer capture 並不是另一個
+<code>--trigger-mode timer</code> 值；請使用 <code>--trigger-mode software</code> 搭配
+<code>--timer-interval-s</code>。例如，下列設定每 1 秒取得一次軟體觸發讀值，並在
+60 筆後停止：</p>
+<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
+  --resource &quot;$env:METER_RESOURCE&quot; `
+  --measurement voltage-dc `
+  --trigger-mode software `
+  --timer-interval-s 1 `
+  --max-samples 60
+</code></pre>
+<h3 id="custom-buffered-觸發模式">Custom / Buffered 觸發模式</h3>
+<p>三種 <code>*-custom</code> 模式使用 buffered acquisition，而不是一般
+<code>--max-samples</code> 工作流程。它們都需要 <code>--trigger-count</code> 與
+<code>--sample-count</code>。</p>
+<p>預期讀值總數為：</p>
+<pre><code class="language-text">trigger count x sample count
+</code></pre>
+<p>例如，<code>--trigger-count 10 --sample-count 100</code> 代表預期 1000 筆讀值。
+Custom mode 不使用 <code>--max-samples</code>。</p>
+<p><code>--buffer-drain-size</code> 控制每次從儀器讀值記憶體取回多少筆 buffered readings。
+除非測試程序需要特定 drain size，否則保持未指定即可。</p>
+<p>如果 <code>trigger count x sample count</code> 超過該型號的 reading memory，Core 會要求
+明確加入 <code>--allow-buffer-overflow-risk</code> 後才允許 custom run 啟動。這項確認
+<strong>不會</strong>增加儀器記憶體，也不會解除 buffer drain 的硬限制。目前 34461A 的
+reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支援範圍請參閱
+<a href="supported-models.zh-TW.html">支援型號</a>。</p>
+<p>只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
+<code>external</code> 或 <code>external-custom</code>。硬體觸發逾時是一種保護性的重新準備
+(re-arm) 條件，並非自動代表量測失敗。</p>
 <h2 id="常見設定">常見設定</h2>
 <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
 <p><code>--visa-library</code> 是進階 CLI backend 選擇器。一般 Product 使用請省略它並使用 System VISA。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</p>
@@ -120,6 +212,10 @@
 <p><code>--gate-time-s</code> 僅適用於頻率與週期。可選 <code>0.01</code>、<code>0.1</code> 或 <code>1</code> 秒；預設為 <code>0.1</code> 秒。</p>
 <p><code>--freq-period-timeout</code> 僅適用於頻率。除非量測程序要求 <code>1s</code> 行為，否則請保持預設的 <code>auto</code>。週期不會傳送逾時指令；搭配週期明確指定此選項將被拒絕。</p>
 <p><code>--current-terminal</code> (電流端子) 適用於電流量測。請與儀器上實際使用的電流端子保持一致。</p>
+<p><code>--dcv-input-impedance</code> 適用於直流電壓與直流電壓比。<code>default</code> 會保留儀器目前設定，<code>10m</code> 選擇 10 MOhm，<code>auto</code> 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 <code>default</code>。</p>
+<p><code>--vm-comp-slope</code> 控制後面板 VM Comp 輸出脈衝的斜率。省略此選項會保持 VM Comp 不變；只有測試設定明確使用該輸出時，才選擇 <code>pos</code> 或 <code>neg</code>。</p>
+<p>對外部觸發模式而言，<code>--hw-trigger-delay-s</code> 設定觸發後的延遲，<code>--hw-trigger-slope</code> 選擇實體觸發邊緣。請與實際連接的觸發訊號源保持一致。</p>
+<p>對手動軟體觸發作業而言，<code>--sw-min-interval-ms</code> 可限制軟體觸發被接受的最快間隔，<code>--sw-queue-max</code> 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確的節流或 queue 控制，否則保持預設值。軟體觸發也可以攜帶 metadata；這些 metadata 會隨觸發／sample 輸出記錄，適合標示 DUT、batch 或 step 等識別資訊。</p>
 <p><code>--trigger-timeout-ms</code> (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</p>
 <p>若需要指令選項及 CLI 層級的可接受值、範圍與預設值，請執行 <code>meters-tool &lt;command&gt; --help</code>（例如 <code>.\meters-tool.exe start-trigger-record --help</code>）。型號特定的支援與限制仍以 Core 驗證及前述「支援型號」範圍為準。</p>
 <h2 id="csv-輸出">CSV 輸出</h2>

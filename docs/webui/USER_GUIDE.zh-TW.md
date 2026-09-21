@@ -134,13 +134,70 @@ Execution mode 僅存在於目前頁面，Start／Preview request pending 或 ac
 
 ## 選擇觸發模式
 
-最簡單的工作流程請使用**立即模式 (immediate mode)**。作業一啟動，儀器就會立即取得讀值。
+選擇觸發模式時，先判斷**由什麼事件開始擷取**，再判斷需要一般讀值，還是
+buffered custom acquisition。
 
-當作業需要等待操作人員從 WebUI 執行動作時，請使用**軟體觸發模式 (software trigger mode)**。作業啟動後，點擊 `Trigger` (觸發) 來發送每次的軟體觸發訊號。
+| 模式 | 適用情境 | 執行方式 |
+| --- | --- | --- |
+| `Immediate` | 按下 Start 後立即開始取得讀值。 | 一般讀值，由作業的 sample limit 控制。 |
+| `Software` | 由操作人員決定每次何時取樣，或由計時器發送軟體觸發。 | Timer trigger 關閉時使用 `Trigger` 按鈕；開啟時依設定間隔自動觸發。 |
+| `External` | 由治具、DUT、PLC 或其他硬體訊號同步量測。 | 等待實體外部觸發邊緣。 |
+| `Immediate Custom` | Start 後立即依指定數量將一批讀值擷取到儀器讀值記憶體。 | Buffered custom acquisition。 |
+| `Software Custom` | 每次 WebUI 軟體觸發都啟動一組指定的 buffered acquisition。 | 由 `Trigger` 按鈕控制的 buffered custom acquisition。 |
+| `External Custom` | 每個實體觸發事件都驅動一組指定的 buffered acquisition。 | 由外部觸發控制的 buffered custom acquisition。 |
 
-只有在實體觸發訊號已連接且儀器設定完成的情況下，才使用**外部 (external)** 或**硬體 (hardware)** 觸發模式。硬體觸發逾時 (timeout) 是一種保護性的重新準備 (re-arm) 條件，並非自動代表量測失敗。
+第一次操作時，Immediate mode 是最簡單的選擇。
 
-除非量測設定有此需求，且操作人員了解對儀器造成的影響，否則請勿更改觸發時序、觸發延遲、NPLC、自動量程 (Auto Range)、自動歸零 (Auto Zero)、VM Comp 或電流端子的設定。
+### 軟體觸發控制項
+
+在 `Software` mode 且未勾選 `Timer trigger` 時，作業啟動後點擊
+`Trigger` 即可送出每次軟體觸發。勾選 `Timer trigger` 後，工作流程會改成
+排程式軟體觸發；請用 `Timer interval s` 設定間隔。Timer 是 Software mode
+的一部分，不是另一個 trigger mode。
+
+在手動軟體觸發模式中，`SW min interval ms` 可限制軟體觸發被接受的最快間隔，
+`SW queue max` 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確
+節流或 queue 控制，否則保持預設值。
+
+`Trigger metadata JSON` 可為手動軟體觸發附加選用的 JSON object。例如：
+
+```json
+{"batch":"A1"}
+```
+
+可用 metadata 標示 DUT、batch 或測試 step。它是觸發的 metadata，不是儀器
+command，也不是可執行 script。
+
+### Custom / Buffered 觸發控制項
+
+選擇任何 `* Custom` 模式後，畫面會顯示 `Trigger count`、
+`Sample count`、`Buffer drain size` 與 `Allow buffer risk`。
+
+`Trigger count` 是 custom sequence 中的儀器 trigger event 數量；
+`Sample count` 是每次 trigger 取得的 readings 數量。因此預期讀值總數為：
+
+```text
+trigger count x sample count
+```
+
+例如，Trigger count 為 `10`、Sample count 為 `100` 時，預期為 1000 筆讀值。
+
+`Buffer drain size` 控制每次從儀器讀值記憶體取回多少筆 buffered readings。
+除非測試程序需要特定 drain size，否則保持預設值。
+
+如果預期讀值總數超過所選型號的 reading memory，`Allow buffer risk` 是繼續
+執行前所需的明確確認。它**不會**增加儀器記憶體，也不會解除 buffer drain 的
+硬限制。目前 34461A 的 reading memory 為 10000 筆，34460A 為 1000 筆。
+精確的目前支援與限制請參閱 [支援型號](../core/supported-models.zh-TW.md)。
+
+只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
+`External trigger slope` 選擇實體觸發邊緣，`Trigger delay` 設定觸發後到量測前
+的延遲，`Trigger timeout` 則控制保護性的等待／re-arm 路徑。硬體觸發逾時並不
+自動代表量測失敗。
+
+除非量測設定有此需求，且操作人員了解對儀器造成的影響，否則請勿更改觸發時序、
+觸發延遲、NPLC、自動量程 (Auto Range)、自動歸零 (Auto Zero)、VM Comp 或
+電流端子的設定。
 
 ## 設定參考
 
@@ -178,11 +235,15 @@ WebUI 使用電腦固定的預設 System VISA runtime。它不提供 PyVISA back
 
 `Current terminal` (電流端子) 適用於電流量測。啟動作業前，請確認實體導線已連接至相符的電流端子。
 
-**直流電壓比 (DC voltage ratio)** 與 **VM Comp** 設定是特殊的量測控制選項。只有當測試設定明確要求進行比值量測或電壓量測補償時才使用。
+`DCV input Z` 會出現在直流電壓與直流電壓比。`Default` 會保留儀器目前設定，`10M` 選擇 10 MOhm，`Auto` 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 `Default`。
 
-`Trigger mode` (觸發模式) 控制取樣的時間點。立即模式 (Immediate mode) 是最簡單的首選。軟體模式 (Software mode) 會等待 WebUI 的 `Trigger` 按鈕。外部或硬體觸發模式則需要實體的觸發訊號。
+**直流電壓比 (DC voltage ratio)** 是特殊的量測模式。只有當測試設定明確要求比值量測時才使用。
 
-`Trigger delay` (觸發延遲) 在觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。
+`VM Comp slope` 控制後面板 VM Comp 輸出脈衝的斜率。`Leave unchanged` 會保留目前設定；只有測試設定明確使用 VM Comp 輸出時，才選擇 `Pos` 或 `Neg`。
+
+`Trigger mode` (觸發模式) 控制取樣的時間點。前面的「選擇觸發模式」章節說明了一般與 Custom 工作流程，以及各模式會顯示的設定欄位。
+
+`Trigger delay` (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。
 
 `Trigger timeout` (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。
 

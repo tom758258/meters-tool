@@ -187,15 +187,73 @@ recent samples from the previous run.
 
 ## Choosing A Trigger Mode
 
-Use immediate mode for the simplest workflow. The instrument takes readings as
-soon as the run starts.
+Choose the trigger mode by deciding **what should start a capture** and whether
+you need simple readings or a buffered custom acquisition.
 
-Use software trigger mode when the run should wait for an operator action from
-the WebUI. After the run starts, click `Trigger` to send each software trigger.
+| Mode | Use it when | What happens |
+| --- | --- | --- |
+| `Immediate` | The run should start taking readings as soon as Start is pressed. | Simple readings controlled by the run sample limit. |
+| `Software` | An operator should decide when each reading is taken, or a timer should send software triggers. | Manual `Trigger` button when Timer trigger is off; scheduled software triggers when Timer trigger is on. |
+| `External` | A fixture, DUT, PLC, or other hardware signal should synchronize readings. | Waits for physical external trigger edges. |
+| `Immediate Custom` | Start should immediately acquire a defined batch into instrument reading memory. | Buffered custom acquisition. |
+| `Software Custom` | Each WebUI software trigger should start a defined buffered acquisition. | Buffered custom acquisition controlled by the `Trigger` button. |
+| `External Custom` | Each physical trigger event should drive a defined buffered acquisition. | Buffered custom acquisition controlled by external trigger edges. |
 
-Use external or hardware trigger modes only when a physical trigger signal is
-connected and configured for the instrument. Hardware trigger timeout is a
-protective re-arm condition, not automatically a failed measurement.
+Immediate mode is the simplest first-run choice.
+
+### Software Trigger Controls
+
+In `Software` mode with `Timer trigger` cleared, click `Trigger` after the run
+starts to send each software trigger. Turning on `Timer trigger` changes the
+workflow to scheduled software triggers; set `Timer interval s` to the desired
+interval. Timer is part of Software mode, not a separate trigger mode.
+
+For manual software-triggered modes, `SW min interval ms` can limit how quickly
+software triggers are accepted, and `SW queue max` limits queued trigger work.
+Leave these at their defaults unless the trigger producer or test procedure
+requires explicit throttling or queue control.
+
+`Trigger metadata JSON` attaches an optional JSON object to a manual software
+trigger. For example:
+
+```json
+{"batch":"A1"}
+```
+
+Use metadata for labels such as DUT, batch, or test step. It is trigger metadata,
+not an instrument command or script.
+
+### Custom / Buffered Trigger Controls
+
+Selecting any `* Custom` mode shows `Trigger count`, `Sample count`,
+`Buffer drain size`, and `Allow buffer risk`.
+
+`Trigger count` is the number of instrument trigger events in the custom
+sequence. `Sample count` is the number of readings taken for each trigger. The
+planned reading count is therefore:
+
+```text
+trigger count x sample count
+```
+
+For example, Trigger count `10` and Sample count `100` plan 1000 readings.
+
+`Buffer drain size` controls how many buffered readings are requested from
+instrument reading memory at a time. Leave it at the default unless the test
+procedure requires a specific drain size.
+
+If the planned reading count exceeds the selected model's reading memory,
+`Allow buffer risk` is the explicit acknowledgement required to proceed. It does
+**not** increase the instrument memory or remove the buffer-drain hard limit.
+The current reading-memory limits are 10000 readings for 34461A and 1000
+readings for 34460A. See [Supported Models](../core/supported-models.md) for
+exact current support and limits.
+
+Use External or External Custom only when a physical trigger signal is connected
+and configured for the instrument. `External trigger slope` selects the physical
+edge, `Trigger delay` waits after the edge before measurement, and `Trigger
+timeout` controls the protective wait/re-arm path. A hardware trigger timeout
+is not automatically a failed measurement.
 
 Do not change trigger timing, trigger delay, NPLC, Auto Range, Auto Zero, VM
 Comp, or current terminal settings unless the measurement setup requires it and
@@ -276,16 +334,24 @@ stored in `s`; the WebUI does not automatically rescale these units.
 `Current terminal` applies to current measurements. Confirm the physical lead is
 connected to the matching current terminal before starting the run.
 
-DC voltage ratio and VM Comp settings are specialized measurement controls. Use
-them only when the test setup explicitly requires ratio measurement or voltage
-measurement compensation.
+`DCV input Z` appears for DC voltage and DC voltage ratio. `Default` leaves the
+current instrument setting unchanged, `10M` selects 10 MOhm, and `Auto` enables
+the instrument automatic/high-impedance behavior. Keep `Default` unless the
+measurement procedure requires another input impedance.
 
-`Trigger mode` controls when samples are taken. Immediate mode is the simplest
-first-run choice. Software mode waits for the WebUI `Trigger` button. External
-or hardware trigger modes require a physical trigger signal.
+DC voltage ratio is a specialized measurement mode. Use it only when the test
+setup explicitly requires ratio measurement.
 
-`Trigger delay` waits after a trigger before measurement. Leave it unchanged
-unless the external setup requires a delay.
+`VM Comp slope` controls the rear-panel VM Comp output pulse slope. `Leave
+unchanged` preserves the current setting; choose `Pos` or `Neg` only when the
+test setup explicitly uses the VM Comp output.
+
+`Trigger mode` controls when samples are taken. The Choosing A Trigger Mode
+section above explains the simple and Custom workflows and the fields that
+appear for each mode.
+
+`Trigger delay` waits after an external trigger before measurement. Leave it
+unchanged unless the external setup requires a delay.
 
 `Trigger timeout` controls how long trigger workflows wait before the protective
 timeout path is used. Increase it only when the measurement setup intentionally
