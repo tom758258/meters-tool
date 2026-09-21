@@ -338,7 +338,7 @@ The UI may look different, but these behaviors must remain true:
 - Range choices are populated from the selected measurement definition.
 - NPLC choices are populated from the selected measurement definition.
 - NPLC is hidden/disabled when unsupported.
-- DCV Input Z appears only for `voltage-dc`.
+- DCV Input Z appears only for `voltage-dc` and `voltage-dc-ratio`.
 - AC, Frequency, and Period measurements do not show NPLC.
 - AC measurements show AC filter where supported.
 - Frequency and Period show AC Filter and Gate Time from `/api/capabilities`.
