@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v3.1.2
+
+- Expands English and Traditional Chinese CLI and WebUI operator guidance for
+  trigger workflows, custom and buffered acquisition, software trigger timing
+  and metadata, and related measurement settings.
+- Refreshes the bundled CLI and WebUI Help from the canonical operator guides
+  and corrects the documented WebUI scope for DC voltage input impedance.
+
 ## v3.1.1
 
 - Fixes piped JSONL event delivery by flushing CLI machine-output events to

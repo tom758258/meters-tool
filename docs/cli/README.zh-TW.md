@@ -478,7 +478,7 @@ pyvisa-py 的 Product-open 範圍記載於 [支援型號](../core/supported-mode
   "event": "tool_manifest",
   "schema_version": 2,
   "tool_id": "meters",
-  "tool_version": "3.1.1",
+  "tool_version": "3.1.2",
   "worker_protocol": {
     "compatibility_policy": "v2-only",
     "schema_versions": [2]

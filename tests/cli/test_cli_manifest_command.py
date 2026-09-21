@@ -35,7 +35,7 @@ class CliManifestCommandTests(unittest.TestCase):
         self.assertEqual("tool_manifest", payload["event"])
         self.assertEqual(2, payload["schema_version"])
         self.assertEqual("meters", payload["tool_id"])
-        self.assertEqual("3.1.1", payload["tool_version"])
+        self.assertEqual("3.1.2", payload["tool_version"])
         self.assertEqual(
             {
                 "compatibility_policy": "v2-only",

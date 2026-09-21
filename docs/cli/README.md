@@ -604,7 +604,7 @@ instrument capabilities; see `capabilities` for model/feature discovery.
   "event": "tool_manifest",
   "schema_version": 2,
   "tool_id": "meters",
-  "tool_version": "3.1.1",
+  "tool_version": "3.1.2",
   "worker_protocol": {
     "compatibility_policy": "v2-only",
     "schema_versions": [2]
