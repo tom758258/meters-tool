@@ -116,6 +116,26 @@ Core policy. Unsupported combinations fail closed instead of being unlocked by
 IO Libraries Suite or NI-VISA. Backend selection does not change or expand
 Product support. The bundled Windows CLI executable supports only the fixed
 System VISA path and does not bundle optional backends.</p>
+<h2 id="check-settings-without-hardware">Check Settings Without Hardware</h2>
+<p>Before a first live run, you can check the same request without controlling a
+physical instrument.</p>
+<p>Use <code>--dry-run</code> to validate the request and print the execution plan without
+starting acquisition or performing live VISA I/O. Supply <code>--model 34460A</code> or
+<code>--model 34461A</code> when the resource does not identify a simulator model.</p>
+<p>Use <code>--simulate</code> with a deterministic simulator resource such as
+<code>SIM::34461A</code> to exercise the acquisition workflow without real hardware. Keep
+simulator runs bounded just as you would a first live run.</p>
+<p>For example:</p>
+<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+</code></pre>
+<p>Dry-run and simulation are useful setup checks, but neither is evidence that a
+real instrument and connection scope have been validated.</p>
 <h2 id="choosing-a-measurement">Choosing A Measurement</h2>
 <p>Choose the measurement type that matches the instrument wiring and the signal
 being measured:</p>
@@ -135,17 +155,86 @@ For AC, Frequency, and Period modes, run a low-risk smoke test and compare the
 CSV value with the front-panel reading before using the setup for longer
 captures.</p>
 <h2 id="choosing-a-trigger-mode">Choosing A Trigger Mode</h2>
-<p>Use <code>--trigger-mode immediate</code> for the simplest workflow. The instrument starts
-capturing when the run starts. Add <code>--max-samples</code> unless you intentionally want
-a continuous run.</p>
-<p>Use <code>--trigger-mode software</code> when the run should wait for software trigger
-commands. Start the logger in one terminal, then send triggers from another:</p>
+<p>Choose the trigger mode by deciding <strong>what starts a capture</strong> and whether you
+need a simple reading workflow or a buffered custom acquisition.</p>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Use it when</th>
+<th>Capture behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>immediate</code></td>
+<td>The run should begin taking readings as soon as it starts.</td>
+<td>Simple readings; bound the run with <code>--max-samples</code> unless continuous capture is intentional.</td>
+</tr>
+<tr>
+<td><code>software</code></td>
+<td>An operator or another process should decide when each reading is taken.</td>
+<td>Waits for accepted software trigger commands.</td>
+</tr>
+<tr>
+<td><code>external</code></td>
+<td>A fixture, DUT, PLC, or other hardware signal should synchronize readings.</td>
+<td>Waits for physical external trigger edges.</td>
+</tr>
+<tr>
+<td><code>immediate-custom</code></td>
+<td>The run should immediately acquire a defined batch into instrument reading memory.</td>
+<td>Buffered custom acquisition.</td>
+</tr>
+<tr>
+<td><code>software-custom</code></td>
+<td>Each accepted software trigger should start a defined buffered acquisition.</td>
+<td>Buffered custom acquisition controlled by software triggers.</td>
+</tr>
+<tr>
+<td><code>external-custom</code></td>
+<td>Each physical trigger event should drive a defined buffered acquisition.</td>
+<td>Buffered custom acquisition controlled by external trigger edges.</td>
+</tr>
+</tbody>
+</table>
+<p>For the simplest workflow, use <code>--trigger-mode immediate</code> and add
+<code>--max-samples</code>.</p>
+<p>For manual software triggering, start a <code>software</code> or <code>software-custom</code> run
+in one terminal and send triggers from another:</p>
 <pre><code class="language-powershell">.\meters-tool.exe send-command
 </code></pre>
-<p>Use timer capture when the run should take software-triggered readings on a
-schedule. Set the timer interval explicitly and keep the run bounded while
-validating the setup.</p>
-<p>Use external or hardware trigger modes only when the physical trigger signal is
+<p>Software mode can also trigger automatically on a timer. Timer capture is not a
+separate <code>--trigger-mode timer</code> value: use <code>--trigger-mode software</code> together
+with <code>--timer-interval-s</code>. For example, this takes one software-triggered
+reading every second and stops after 60 readings:</p>
+<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
+  --resource &quot;$env:METER_RESOURCE&quot; `
+  --measurement voltage-dc `
+  --trigger-mode software `
+  --timer-interval-s 1 `
+  --max-samples 60
+</code></pre>
+<h3 id="custom-buffered-trigger-modes">Custom / Buffered Trigger Modes</h3>
+<p>The three <code>*-custom</code> modes are for buffered acquisition rather than the simple
+<code>--max-samples</code> workflow. They require both <code>--trigger-count</code> and
+<code>--sample-count</code>.</p>
+<p>The planned number of readings is:</p>
+<pre><code class="language-text">trigger count x sample count
+</code></pre>
+<p>For example, <code>--trigger-count 10 --sample-count 100</code> plans 1000 readings.
+<code>--max-samples</code> is not used with custom modes.</p>
+<p><code>--buffer-drain-size</code> controls how many buffered readings are requested from
+instrument reading memory at a time. Leave it unset unless the test procedure
+needs a specific drain size.</p>
+<p>If <code>trigger count x sample count</code> exceeds the model reading-memory size, Core
+requires explicit <code>--allow-buffer-overflow-risk</code> acknowledgement before the
+custom run can start. That acknowledgement does <strong>not</strong> increase instrument
+memory or remove the buffer-drain hard limit. The current reading-memory limits
+are 10000 readings for 34461A and 1000 readings for 34460A; see
+<a href="supported-models.html">Supported Models</a> for exact current limits and
+support scope.</p>
+<p>Use <code>external</code> or <code>external-custom</code> only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.
 Hardware trigger timeout is a protective re-arm condition, not automatically a
 failed measurement.</p>
@@ -188,6 +277,22 @@ unless the measurement procedure requires the <code>1s</code> behavior. Period d
 send a timeout command; specifying this option with Period is rejected.</p>
 <p><code>--current-terminal</code> applies to current measurements. Match it to the physical
 current terminal used on the instrument.</p>
+<p><code>--dcv-input-impedance</code> applies to DC voltage and DC voltage ratio. <code>default</code>
+leaves the current instrument setting unchanged, <code>10m</code> selects 10 MOhm, and
+<code>auto</code> enables the instrument automatic/high-impedance behavior. Keep
+<code>default</code> unless the measurement procedure requires another input impedance.</p>
+<p><code>--vm-comp-slope</code> controls the rear-panel VM Comp output pulse slope. Omit it to
+leave VM Comp unchanged; use <code>pos</code> or <code>neg</code> only when the test setup explicitly
+uses that output.</p>
+<p>For external trigger modes, <code>--hw-trigger-delay-s</code> sets the delay after the
+trigger and <code>--hw-trigger-slope</code> selects the physical trigger edge. Match both
+to the connected trigger source.</p>
+<p>For manual software-triggered runs, <code>--sw-min-interval-ms</code> can limit how quickly
+software triggers are accepted and <code>--sw-queue-max</code> limits queued trigger work.
+Leave them at their defaults unless the trigger producer or test procedure needs
+explicit throttling or queue control. A software trigger can also carry
+metadata; metadata is recorded with the trigger/sample output and is useful for
+labels such as DUT, batch, or step identifiers.</p>
 <p><code>--trigger-timeout-ms</code> controls how long trigger workflows wait before the
 protective timeout path is used. Increase it only when the measurement setup
 intentionally waits longer.</p>
