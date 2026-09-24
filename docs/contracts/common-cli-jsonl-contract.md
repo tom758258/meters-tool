@@ -2,12 +2,18 @@
 
 Schema version: `2`
 
+Contract revision: `2.1`
+
 Compatibility policy: `v2-only`
 
+The contract revision identifies this Common document-set revision. Runtime
+wire compatibility is determined by `schema_version`, not by the contract
+revision.
+
 This document defines shared JSON and JSONL envelope rules for command-line
-instrument Workers and their client commands. Instrument-specific commands,
-event payloads, aliases, execution context, identity fields, and artifact
-fields belong in instrument-specific contract documents.
+Tool Workers and their client commands. Tool-specific commands, event payloads,
+aliases, execution context, identity fields, and artifact fields belong in
+Worker-specific contract documents.
 
 ## Machine Output
 
@@ -52,7 +58,12 @@ Common event values:
 - `dry_run`: plan-only preview object that does not start a runtime session.
 - `message`: structured informational message.
 
-Instrument-specific contracts may define additional event values and fields.
+A runtime `ready` event must contain `event: "ready"`, exact integer
+`schema_version: 2`, a non-empty string `run_id`, and non-empty string
+`status_url`, `command_url`, and `stop_url` fields. Worker-specific
+contracts may add fields.
+
+Worker-specific contracts may define additional event values and fields.
 
 ## Parsing Guidance
 
