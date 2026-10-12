@@ -1,0 +1,185 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mode:
+        description: "Select the existing PowerShell build script"
+        type: choice
+        required: true
+        default: release
+        options:
+          - bundle
+          - desktop
+          - release
+      create_draft:
+        description: "Create GitHub Draft Release (release mode only)"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-build-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build ${{ inputs.build_mode }}
+    runs-on: windows-2025
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate options
+        shell: pwsh
+        run: |
+          if ('${{ inputs.create_draft }}' -eq 'true' -and '${{ inputs.build_mode }}' -ne 'release') {
+            throw "Draft Releases require build_mode=release."
+          }
+          if ('${{ inputs.create_draft }}' -eq 'true' -and '${{ github.ref }}' -ne 'refs/heads/main') {
+            throw "Draft Releases can only be created from main."
+          }
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          architecture: x64
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install uv
+        shell: pwsh
+        run: python -m pip install --upgrade uv
+
+      - name: Install locked Python dependencies into .venv
+        shell: pwsh
+        run: uv sync --python 3.13 --all-extras --locked --link-mode=copy
+
+      - name: Build with existing PowerShell script
+        shell: pwsh
+        run: |
+          $mode = '${{ inputs.build_mode }}'
+          $script = switch ($mode) {
+            'bundle' { 'scripts/build_windows_bundle.ps1' }
+            'desktop' { 'scripts/build_desktop.ps1' }
+            'release' { 'scripts/build_release.ps1' }
+            default { throw "Unknown build mode: $mode" }
+          }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
+          if ($LASTEXITCODE -ne 0) { throw "$script failed with exit code $LASTEXITCODE" }
+
+      - name: Package artifacts and extract version
+        id: meta
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $mode = '${{ inputs.build_mode }}'
+          $versionMatch = [regex]::Match((Get-Content -Raw pyproject.toml), '(?m)^version\s*=\s*"([^"]+)"')
+          if (-not $versionMatch.Success) { throw "Project version not found in pyproject.toml" }
+          $version = $versionMatch.Groups[1].Value
+          $shortSha = (git rev-parse --short=7 HEAD).Trim()
+          $artifactName = "meters-tool-windows-$mode-$shortSha"
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+          New-Item -ItemType Directory -Force -Path "action-artifacts" | Out-Null
+          switch ($mode) {
+            'bundle' {
+              $source = "dist/meters-tool"
+              if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Missing bundle directory: $source" }
+              Compress-Archive -LiteralPath $source -DestinationPath "action-artifacts/meters-tool-bundle-windows-x64.zip"
+            }
+            'desktop' {
+              $source = "dist/desktop/win-unpacked"
+              if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Missing Desktop directory: $source" }
+              $staging = "action-stage/meters-tool"
+              New-Item -ItemType Directory -Force -Path $staging | Out-Null
+              Copy-Item -Path "$source/*" -Destination $staging -Recurse -Force
+              Compress-Archive -LiteralPath $staging -DestinationPath "action-artifacts/meters-tool-desktop-windows-x64.zip"
+            }
+            'release' {
+              $source = "release/$version"
+              if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Missing release directory: $source" }
+              $expected = @(
+                "meters-tool-$version-windows-x64.zip",
+                "meters_tool-$version-py3-none-any.whl",
+                "meters_tool-$version.tar.gz",
+                "checksums.txt"
+              )
+              foreach ($name in $expected) {
+                if (-not (Test-Path -LiteralPath (Join-Path $source $name) -PathType Leaf)) {
+                  throw "Missing release file: $name"
+                }
+              }
+              Copy-Item -Path "$source/*" -Destination "action-artifacts" -Force
+            }
+          }
+          Get-ChildItem action-artifacts | Select-Object Name,Length
+
+      - name: Upload downloadable ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: action-artifacts/*
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+  draft-release:
+    name: Create Draft Release
+    needs: build
+    if: ${{ inputs.build_mode == 'release' && inputs.create_draft }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout same commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+
+      - name: Download verified build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: release-assets
+
+      - name: Check release tag is unused
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v${VERSION}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "::error::Release $tag already exists; refusing to overwrite."
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag $tag already exists; refusing to reuse it."
+            exit 1
+          fi
+
+      - name: Create Draft Release (never publish automatically)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release create "v${VERSION}" release-assets/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "v${VERSION}" \
+            --draft \
+            --notes "Windows x64 bundle and Python distribution artifacts. Check checksums.txt before publishing."
