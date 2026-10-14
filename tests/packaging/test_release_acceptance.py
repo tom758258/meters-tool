@@ -449,14 +449,18 @@ def test_desktop_help_theme_bridge_uses_query_override_in_external_browser():
     assert 'return { action: "deny" }' in main
 
 
-def test_windows_python_313_builds_desktop_directory_with_node_22():
+def test_conditional_windows_packaging_owns_real_build_and_not_formal_acceptance():
     workflow = TESTS_WORKFLOW.read_text(encoding="utf-8")
-
-    assert 'node-version: "22"' in workflow
-    assert "matrix.python-version == '3.13'" in workflow
-    assert ".\\scripts\\build_desktop.ps1" in workflow
-    assert ".\\scripts\\build_release.ps1" not in workflow
-    assert ".tmp_tests\\ci-release" not in workflow
+    assert "  windows-packaging-smoke:" in workflow
+    assert "  windows-validation:" in workflow
+    assert "needs: detect-validation-changes" in workflow
+    assert "node-version: '22'" in workflow
+    assert r".\scripts\build_desktop.ps1" in workflow
+    assert r".\scripts\build_release.ps1" in workflow
+    assert r".\scripts\release-acceptance.ps1" not in workflow
+    windows_matrix = workflow.split("  pytest-windows:", 1)[1].split("  windows-validation:", 1)[0]
+    assert "build_desktop.ps1" not in windows_matrix
+    assert "build_release.ps1" not in windows_matrix
 
 
 def test_desktop_build_validates_help_artifact_layout():

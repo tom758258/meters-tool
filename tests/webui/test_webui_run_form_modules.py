@@ -29,6 +29,7 @@ def run_node(script: str, *module_paths: Path) -> subprocess.CompletedProcess[st
     )
 
 
+@pytest.mark.frontend_node
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for run-form module tests")
 def test_run_form_support_module_contracts():
     script = r"""
@@ -137,6 +138,7 @@ process.stdout.write(JSON.stringify({ ok: true }));
     assert completed.stdout == '{"ok":true}'
 
 
+@pytest.mark.frontend_node
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for run-form module tests")
 def test_run_form_payload_builder_contracts():
     script = r"""

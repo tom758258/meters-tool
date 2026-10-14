@@ -62,6 +62,12 @@ meters_tool_webui = [
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+markers = [
+  "frontend_node: JavaScript runtime tests owned by quality-webui; Node is required",
+  "hardware: opt-in tests requiring a real instrument",
+  "windows_powershell: Windows PowerShell, wrapper, and validation script tests",
+  "windows_boundary_smoke: representative PowerShell-to-CLI boundary smoke",
+]
 
 [tool.ruff]
 line-length = 100
