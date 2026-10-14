@@ -10,157 +10,287 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Ruff and JavaScript syntax
+  detect-validation-changes:
+    name: Detect Windows validation and packaging changes
     runs-on: ubuntu-latest
-
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      validation: ${{ steps.filter.outputs.validation }}
+      packaging: ${{ steps.filter.outputs.packaging }}
+      release_layout: ${{ steps.filter.outputs.release_layout }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+      - name: Detect Windows validation inputs
+        id: filter
+        uses: dorny/paths-filter@v4
+        with:
+          base: ${{ github.event.repository.default_branch }}
+          filters: |
+            validation:
+              - 'src/meters_tool_core/**'
+              - 'src/meters_tool_cli/**'
+              - 'src/meters_tool_webui/**'
+              - 'desktop/**'
+              - 'scripts/*.ps1'
+              - 'scripts/*.py'
+              - 'scripts/meters-tool-windows.spec'
+              - 'tests/cli/test_cli_wrappers.py'
+              - 'tests/packaging/**'
+              - 'tests/tooling/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/tests.yml'
+              - '.github/workflows/build-windows.yml'
+            packaging:
+              - 'src/**'
+              - 'desktop/**'
+              - 'scripts/build*.ps1'
+              - 'scripts/meters-tool-windows.spec'
+              - 'scripts/generate_help.py'
+              - 'docs/help/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/tests.yml'
+              - '.github/workflows/build-windows.yml'
+            release_layout:
+              - 'scripts/build_release.ps1'
+              - 'desktop/package.json'
+              - 'desktop/package-lock.json'
+              - 'pyproject.toml'
+              - '.github/workflows/build-windows.yml'
 
+  quality-webui:
+    name: Code quality & WebUI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out PR head or push commit
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
-
+          node-version: '22'
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Install packages
+        run: uv sync --python 3.13 --all-extras --locked --link-mode=copy
+      - name: Check tracked text hygiene
+        run: python scripts/check_text_hygiene.py
+      - name: Check committed range whitespace
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_SHA: ${{ github.sha }}
+        run: python scripts/check_changed_whitespace.py
+      - name: Run Ruff
+        run: ./.venv/bin/python -m ruff check src tests
       - name: Check WebUI JavaScript syntax
         run: |
           set -euo pipefail
           mapfile -t files < <(git ls-files 'src/meters_tool_webui/static/*.js')
           if (( ${#files[@]} == 0 )); then
-            echo "::error::No tracked WebUI JavaScript files found."
+            echo '::error::No tracked WebUI JavaScript files found.'
             exit 1
           fi
           for file in "${files[@]}"; do
             node --check "$file"
           done
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.13"
-
-      - name: Install uv
-        run: python -m pip install --upgrade uv
-
-      - name: Install package
-        run: uv sync --python 3.13 --all-extras --locked --link-mode=copy
-
-      - name: Run Ruff
-        run: ./.venv/bin/python -m ruff check src tests
-
       - name: Run WebUI Node runtime tests
         run: |
-          ./.venv/bin/python -c "import shutil; assert shutil.which('node'), 'Node.js is required for WebUI runtime tests'"
-          ./.venv/bin/python -m pytest tests/webui/test_webui_api_js.py tests/webui/test_webui_run_form_modules.py -q -p no:cacheprovider -rs
+          ./.venv/bin/python -c "import shutil; assert shutil.which('node'), 'Node.js is required for frontend_node tests'"
+          ./.venv/bin/python -m pytest -q -rs -m frontend_node --basetemp .tmp_tests/ci-quality-webui tests/webui
 
   pytest-linux:
     name: Linux Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        python-version:
-          - "3.10"
-          - "3.11"
-          - "3.12"
-          - "3.13"
-
+        python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Install uv
         run: python -m pip install --upgrade uv
-
-      - name: Install package
+      - name: Install packages
         run: uv sync --python ${{ matrix.python-version }} --all-extras --locked --link-mode=copy
-
-      - name: Build package
+      - name: Build Python package
         run: ./.venv/bin/python -m build
-
-      - name: Smoke commands
+      - name: Smoke installed commands
         run: |
           ./.venv/bin/python -c "import meters_tool_core; import meters_tool_cli; import meters_tool_webui"
           ./.venv/bin/meters-tool --help
           ./.venv/bin/meters-tool-webui --help
-
-      - name: Run fast tests
-        run: ./.venv/bin/python -m pytest tests -q -p no:cacheprovider --ignore=tests/cli/test_cli_wrappers.py
+      - name: Run primary no-hardware suite
+        if: matrix.python-version == '3.13'
+        run: >-
+          ./.venv/bin/python -m pytest -q -rs
+          -m "not hardware and not windows_powershell and not frontend_node"
+          --basetemp .tmp_tests/ci-linux-py${{ matrix.python-version }} tests
+      - name: Run Python compatibility contracts
+        if: matrix.python-version != '3.13'
+        run: >-
+          ./.venv/bin/python -m pytest -q -rs
+          -m "not hardware and not windows_powershell and not frontend_node"
+          --basetemp .tmp_tests/ci-linux-py${{ matrix.python-version }}
+          tests/core/test_capabilities.py
+          tests/core/test_model_profile_validation.py
+          tests/core/test_start_resolution.py
+          tests/core/test_support_policy.py
+          tests/core/test_trigger_router.py
+          tests/core/test_acquisition_engine.py
+          tests/core/test_core_validation.py
+          tests/core/test_simulator.py
+          tests/cli/test_cli_parser.py
+          tests/cli/test_cli_start_runtime.py
+          tests/cli/test_cli_worker_subprocess.py
+          tests/cli/test_cli_client_contracts.py
+          tests/webui/test_webui_api.py
+          tests/webui/test_webui_run_lifecycle_api.py
+          tests/test_workspace_layout.py
 
   pytest-windows:
     name: Windows Python ${{ matrix.python-version }}
     runs-on: windows-latest
-
     strategy:
       fail-fast: false
       matrix:
-        python-version:
-          - "3.10"
-          - "3.12"
-          - "3.13"
-
+        python-version: ['3.10', '3.12', '3.13']
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
-
-      - name: Set up Node.js
-        if: matrix.python-version == '3.13'
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-
       - name: Install uv
         run: python -m pip install --upgrade uv
-
-      - name: Install package
+      - name: Install packages
         run: uv sync --python ${{ matrix.python-version }} --all-extras --locked --link-mode=copy
-
-      - name: Build package
+      - name: Build Python package
         run: .\.venv\Scripts\python.exe -m build
-
-      - name: Smoke commands
+      - name: Smoke installed commands
         run: |
           .\.venv\Scripts\python.exe -c "import meters_tool_core; import meters_tool_cli; import meters_tool_webui"
           .\.venv\Scripts\meters-tool.exe --help
           .\.venv\Scripts\meters-tool-webui.exe --help
+      - name: Run Windows contracts
+        run: >-
+          .\.venv\Scripts\python.exe -m pytest -q -rs
+          -m "not hardware and not windows_powershell and not frontend_node"
+          --basetemp .tmp_tests/ci-windows-py${{ matrix.python-version }}
+          tests/core/test_support_policy.py
+          tests/core/test_start_resolution.py
+          tests/cli/test_cli_client_contracts.py
+          tests/cli/test_cli_worker_subprocess.py
+          tests/webui/test_desktop_host.py
+          tests/webui/test_launcher.py
+          tests/webui/test_webui_run_lifecycle_api.py
+          tests/packaging/test_release_acceptance.py
+      - name: Run PowerShell CLI boundary smoke
+        if: matrix.python-version != '3.13'
+        run: >-
+          .\.venv\Scripts\python.exe -m pytest -q -rs
+          -m "not hardware and windows_boundary_smoke"
+          --basetemp .tmp_tests/ci-windows-boundary-py${{ matrix.python-version }}
+          tests/cli/test_cli_wrappers.py
 
-      - name: Build Desktop directory
-        if: matrix.python-version == '3.13'
-        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_desktop.ps1
-
-      - name: Run fast tests
-        run: .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --ignore=tests\cli\test_cli_wrappers.py
-
-  wrapper-contracts:
-    name: Windows wrapper contracts
+  windows-validation:
+    name: Windows PowerShell validation
+    needs: detect-validation-changes
+    if: needs.detect-validation-changes.outputs.validation == 'true'
     runs-on: windows-latest
-
+    timeout-minutes: 35
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v6
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
-          python-version: "3.13"
-
+          python-version: '3.13'
       - name: Install uv
         run: python -m pip install --upgrade uv
-
-      - name: Install package
+      - name: Install packages
         run: uv sync --python 3.13 --all-extras --locked --link-mode=copy
+      - name: Run PowerShell and wrapper contracts
+        run: >-
+          .\.venv\Scripts\python.exe -m pytest -q -rs
+          -m "not hardware and windows_powershell"
+          --basetemp .tmp_tests/ci-windows-validation
+          tests/cli/test_cli_wrappers.py
+          tests/packaging/test_validation_helpers.py
+      - name: Run release acceptance script contracts
+        run: >-
+          .\.venv\Scripts\python.exe -m pytest -q -rs
+          --basetemp .tmp_tests/ci-release-script-contracts
+          tests/packaging/test_release_acceptance.py
 
-      - name: Run wrapper contract tests
-        run: .\.venv\Scripts\python.exe -m pytest tests\cli\test_cli_wrappers.py -q -p no:cacheprovider
+  windows-packaging-smoke:
+    name: Windows packaging smoke
+    needs: detect-validation-changes
+    if: needs.detect-validation-changes.outputs.packaging == 'true' || needs.detect-validation-changes.outputs.release_layout == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Install packages
+        run: uv sync --python 3.13 --all-extras --locked --link-mode=copy
+      - name: Build Desktop directory
+        if: needs.detect-validation-changes.outputs.release_layout != 'true'
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_desktop.ps1
+      - name: Build full release layout
+        if: needs.detect-validation-changes.outputs.release_layout == 'true'
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.ps1 -ReleaseRoot .tmp_tests\ci-packaging-smoke\release
+      - name: Smoke packaged Windows executables
+        shell: pwsh
+        env:
+          RELEASE_LAYOUT: ${{ needs.detect-validation-changes.outputs.release_layout }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $bundle = 'dist/desktop/win-unpacked'
+          if ($env:RELEASE_LAYOUT -eq 'true') {
+            $versionMatch = [regex]::Match((Get-Content -Raw pyproject.toml), '(?m)^version\s*=\s*"([^"]+)"')
+            if (-not $versionMatch.Success) { throw 'Cannot determine package version.' }
+            $version = $versionMatch.Groups[1].Value
+            $releaseRoot = Join-Path '.tmp_tests/ci-packaging-smoke/release' $version
+            $zip = Join-Path $releaseRoot "meters-tool-$version-windows-x64.zip"
+            if (-not (Test-Path -LiteralPath $zip -PathType Leaf)) { throw 'Release Windows ZIP is missing.' }
+            foreach ($file in @("meters_tool-$version-py3-none-any.whl", "meters_tool-$version.tar.gz", 'checksums.txt')) {
+              if (-not (Test-Path -LiteralPath (Join-Path $releaseRoot $file) -PathType Leaf)) { throw "Missing release file: $file" }
+            }
+            $expanded = '.tmp_tests/ci-packaging-smoke/expanded'
+            New-Item -ItemType Directory -Path $expanded -Force | Out-Null
+            Expand-Archive -LiteralPath $zip -DestinationPath $expanded -Force
+            $bundle = Join-Path $expanded "meters-tool-$version"
+          }
+          foreach ($name in @('Meters Tool.exe', 'meters-tool.exe', 'meters-tool-webui-host.exe', 'meters-tool-webui-launcher.exe')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $bundle $name) -PathType Leaf)) { throw "Missing executable: $name" }
+          }
+          foreach ($path in @('_internal/meters_tool_cli/help/cli.html', '_internal/meters_tool_webui/static/help/webui.html', '_internal/meters_tool_webui/static/index.html')) {
+            if (-not (Test-Path -LiteralPath (Join-Path $bundle $path) -PathType Leaf)) { throw "Missing packaged asset: $path" }
+          }
+          if (Test-Path -LiteralPath (Join-Path $bundle 'resources/backend')) { throw 'Unexpected duplicate Python backend.' }
+          & (Join-Path (Resolve-Path $bundle).Path 'meters-tool.exe') --version
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI --version failed.' }
+          & (Join-Path (Resolve-Path $bundle).Path 'meters-tool.exe') --help | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI --help failed.' }
+          & (Join-Path (Resolve-Path $bundle).Path 'meters-tool-webui-launcher.exe') --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged Launcher --self-test failed.' }

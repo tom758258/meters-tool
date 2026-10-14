@@ -57,3 +57,46 @@ to users or automation.
 When adding a strict assertion, make the reason clear in the test name or nearby
 code. Strict tests are appropriate when the checked detail is a public contract,
 an instrument safety boundary, a privacy boundary, or a component ownership rule.
+
+## Continuous Integration Responsibilities
+
+The `Tests` GitHub Actions workflow runs for pull requests and pushes to
+`main`. It separates tests by the system boundary they protect:
+
+- **Code quality & WebUI** runs Ruff, tracked-text encoding hygiene, committed
+  change-range whitespace checks, JavaScript syntax checks, and every
+  `frontend_node` test. Node.js is required; Node-dependent tests must not
+  silently skip in this job.
+- **Linux Python 3.13** runs the main no-hardware suite. Python 3.10, 3.11,
+  and 3.12 run an explicit set of compatibility tests for model profiles,
+  exact-scope support, stop/cleanup, CLI/Worker, WebUI, and simulation contracts.
+- **Windows Python 3.10, 3.12, and 3.13** run cross-platform Windows-specific
+  behavioral contracts and source-level package/layout contracts. Python
+  3.10/3.12 additionally run a small PowerShell-to-Python boundary smoke suite.
+  All Python matrix jobs build the Python distribution and smoke CLI entry points.
+- **Windows PowerShell validation** runs conditionally when relevant source,
+  validation tooling, or workflow files change. It owns `windows_powershell`
+  tests, wrapper runtime behavior, preflight/live PlanOnly boundaries, and
+  contract tests for `release-acceptance.ps1`. These tests **do not execute**
+  a full formal release acceptance or contact real instruments.
+- **Windows packaging smoke** runs conditionally on package, Core/CLI/WebUI,
+  Desktop, or build-input changes. It performs a real PyInstaller/Electron
+  Desktop build and packaged CLI/Launcher smoke. When release-layout inputs
+  change, it builds the release layout once instead and checks the ZIP, wheel,
+  sdist, and packaged entry points. This smoke is **not** formal release
+  acceptance and produces no releasable artifacts.
+
+The path filter uses separate `validation`, `packaging`, and `release_layout`
+outputs. It controls only the two expensive Windows jobs. Invalid or
+inaccessible change-detection data must fail the workflow rather than report
+an accepted result without validation. No-hardware tests never open physical
+VISA resources; real-instrument validation is opt-in and operator-controlled.
+
+`release-acceptance.ps1` remains a separate, explicitly invoked formal release
+candidate gate. It must run on a clean, unchanged committed `HEAD`, test the
+entire no-hardware workspace, build its release artifacts from one source
+snapshot, validate installs and packaging, and verify SHA-256 digests. Passing
+CI packaging smoke does not authorize a GitHub Release or promote any live
+support scope. The existing manual `Build Windows` workflow provides build
+artifacts and optional draft release handling; its `release` mode invokes
+`build_release.ps1`, not formal `release-acceptance.ps1`.

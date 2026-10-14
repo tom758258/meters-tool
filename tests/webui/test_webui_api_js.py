@@ -13,6 +13,7 @@ STATIC_DIR = REPO_ROOT / "src" / "meters_tool_webui" / "static"
 NODE = shutil.which("node")
 
 
+@pytest.mark.frontend_node
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for api.js runtime tests")
 def test_api_preserves_structured_command_errors_and_http_contract():
     script = r"""

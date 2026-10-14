@@ -12,6 +12,8 @@ from meters_tool_cli.cli import FALLBACK_CLI_VERSION
 from meters_tool_core.models import INSTRUMENT_PROFILES, find_instrument_profile_by_model
 
 
+pytestmark = pytest.mark.windows_powershell
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POWERSHELL = shutil.which("powershell.exe")
 PYTHON = REPO_ROOT / ".venv" / "Scripts" / "python.exe"
@@ -210,6 +212,7 @@ def test_release_acceptance_rejects_mismatched_package_version():
     )
 
 
+@pytest.mark.windows_boundary_smoke
 def test_release_acceptance_rejects_unknown_target_before_running_commands():
     result = run_wrapper(
         "scripts/release-acceptance.ps1",
@@ -236,6 +239,7 @@ def test_release_acceptance_rejects_output_root_outside_tmp_tests():
     assert not bad_root.exists()
 
 
+@pytest.mark.windows_boundary_smoke
 def test_preflight_report_contract():
     output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"preflight_{uuid4().hex}"
     result = run_wrapper(
@@ -414,6 +418,7 @@ def test_preflight_rejects_output_root_outside_tmp_tests():
     assert not bad_root.exists()
 
 
+@pytest.mark.windows_boundary_smoke
 def test_live_plan_only_minimal_report_contract():
     raw_resource = "USB0::0x2A8D::0x1301::MY12345678::INSTR"
     result = run_wrapper(
