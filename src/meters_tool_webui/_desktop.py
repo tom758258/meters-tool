@@ -23,6 +23,7 @@ def select_directory_with_dialog() -> Path | None:
             check=False,
             capture_output=True,
             text=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
     except Exception as exc:  # pragma: no cover - platform/runtime dependent
         raise CsvFolderSelectionUnavailable("folder selection dialog is unavailable") from exc
