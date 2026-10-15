@@ -175,7 +175,12 @@ function ConvertTo-ShareableArtifactValue {
     if ($Value -is [System.Collections.IDictionary]) {
         $result = [ordered]@{}
         foreach ($entryKey in $Value.Keys) {
-            $result[[string]$entryKey] = ConvertTo-ShareableArtifactValue -Value $Value[$entryKey] -FieldName ([string]$entryKey) -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            $originalField = $Value[$entryKey]
+            if ($originalField -is [System.Array] -and $originalField.Length -eq 0) {
+                $result[[string]$entryKey] = @()
+            } else {
+                $result[[string]$entryKey] = ConvertTo-ShareableArtifactValue -Value $originalField -FieldName ([string]$entryKey) -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            }
         }
         if (
             $Value.Contains('command') -and
@@ -187,10 +192,14 @@ function ConvertTo-ShareableArtifactValue {
         }
         return $result
     }
-    if ($Value -is [pscustomobject]) {
+    if ($Value.GetType().FullName -eq 'System.Management.Automation.PSCustomObject') {
         $result = [ordered]@{}
         foreach ($property in $Value.PSObject.Properties) {
-            $result[$property.Name] = ConvertTo-ShareableArtifactValue -Value $property.Value -FieldName $property.Name -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            if ($property.Value -is [System.Array] -and $property.Value.Length -eq 0) {
+                $result[$property.Name] = @()
+            } else {
+                $result[$property.Name] = ConvertTo-ShareableArtifactValue -Value $property.Value -FieldName $property.Name -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            }
         }
         $commandProperty = $Value.PSObject.Properties['command']
         $responseProperty = $Value.PSObject.Properties['response']
@@ -201,8 +210,13 @@ function ConvertTo-ShareableArtifactValue {
         return $result
     }
     if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        $items = @($Value | ForEach-Object { ConvertTo-ShareableArtifactValue -Value $_ -FieldName $FieldName -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues })
-        return ,$items
+        $items = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $Value) {
+            $converted = ConvertTo-ShareableArtifactValue -Value $item -FieldName $FieldName -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            $items.Add($converted)
+        }
+        [object[]]$resultArray = $items.ToArray()
+        return ,$resultArray
     }
     return $Value
 }
@@ -272,7 +286,7 @@ function Convert-PrivateJsonLinesArtifact {
 function New-CsvEvidence {
     param(
         [Parameter(Mandatory = $true)][string]$SourcePath,
-        [Parameter(Mandatory = $true)][string]$DestinationPath,
+        [string]$DestinationPath = "",
         [AllowNull()]$Case
     )
 
@@ -300,8 +314,10 @@ function New-CsvEvidence {
         $evidence = New-SafeJsonPlaceholder -ArtifactKind 'acquisition_csv_evidence' -ParseStatus 'failed'
         $evidence.full_csv_private = $true
     }
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DestinationPath) | Out-Null
-    Write-Utf8NoBomText -LiteralPath $DestinationPath -Text ($evidence | ConvertTo-Json -Depth 10)
+    if (-not [string]::IsNullOrWhiteSpace($DestinationPath)) {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $DestinationPath) | Out-Null
+        Write-Utf8NoBomText -LiteralPath $DestinationPath -Text ($evidence | ConvertTo-Json -Depth 10)
+    }
     return $evidence
 }
 
@@ -373,10 +389,17 @@ function New-ShareableSummaryLines {
         '- Promotes product support: false', '',
         '## Cases'
     )
-    if (@($Report.cases).Count -eq 0) {
+    $caseEntries = @($Report.cases)
+    if (-not [bool]$Report.live_executed -or $caseEntries.Count -eq 0) {
         $lines += '- No live cases executed.'
     } else {
-        foreach ($case in @($Report.cases)) {
+        foreach ($case in $caseEntries) {
+            if ($null -eq $case) { throw 'Live case evidence contains a null record.' }
+            if ($case -is [System.Collections.IDictionary]) {
+                if (-not $case.Contains('name')) { throw 'Live case evidence is missing its name.' }
+            } elseif ($null -eq $case.PSObject.Properties['name']) {
+                throw 'Live case evidence is missing its name.'
+            }
             $lines += "- $($case.name): status=$($case.status) expected_captured=$($case.expected_captured) captured=$($case.captured) errors=$($case.errors) csv_rows=$($case.csv_rows) measurement_type=$($case.measurement_type) unit=$($case.unit)"
             foreach ($failure in @($case.failure_reasons)) { $lines += "  - Failure: $failure" }
         }
@@ -417,7 +440,8 @@ function New-ShareableArtifactSet {
         [Parameter(Mandatory = $true)][string]$ShareableRoot,
         [Parameter(Mandatory = $true)][string]$RepoRoot,
         [Parameter(Mandatory = $true)][string]$Resource,
-        [Parameter(Mandatory = $true)][string]$Connection
+        [Parameter(Mandatory = $true)][string]$Connection,
+        [switch]$MinimalArtifacts
     )
 
     $context = @{
@@ -429,20 +453,136 @@ function New-ShareableArtifactSet {
         Connection = $Connection
         SensitiveValues = @(Get-DistinctiveSensitiveTokens -Resource $Resource)
     }
-    Copy-ShareableArtifactTree -Context $context
-    $report = ConvertTo-ShareableArtifactValue -Value $PrivateReport -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $context.SensitiveValues
+    if (-not $MinimalArtifacts) { Copy-ShareableArtifactTree -Context $context }
+    $sourceReport = if ($MinimalArtifacts) { ConvertTo-MinimalEvidenceValue -Value $PrivateReport } else { $PrivateReport }
+    $report = ConvertTo-ShareableArtifactValue -Value $sourceReport -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $context.SensitiveValues
+    # Published report collections must remain arrays for zero, one, or many results.
+    foreach ($arrayField in @('cases', 'dry_runs', 'scpi_diagnostics', 'commands')) {
+        if ($null -eq $report[$arrayField]) {
+            $report[$arrayField] = @()
+        } else {
+            $report[$arrayField] = @($report[$arrayField])
+        }
+    }
+    if (-not [bool]$PrivateReport.live_executed) { $report.cases = @() }
     $report.schema_version = '1.1'
     $report.kind = 'meters_tool_live_validation'
     $report.artifact_visibility = 'shareable'
     $report.candidate_evidence_only = $true
     $report.promotes_live_support = $false
-    $report.private_raw_artifacts_retained = $true
+    $report.private_raw_artifacts_retained = -not [bool]$MinimalArtifacts
+    $report.artifact_mode = if ($MinimalArtifacts) { 'minimal' } else { 'debug' }
+    $report.debug_artifacts_retained = -not [bool]$MinimalArtifacts
     $report.redaction_applied = $true
     $report.redaction_version = 1
     $report.output_dir = 'shareable'
     $report.artifact_paths = [ordered]@{ output_dir = 'shareable'; report = 'shareable/report.json'; summary = 'shareable/summary.md' }
-    Add-ShareableCsvEvidence -ShareableReport $report -PrivateReport $PrivateReport -Context $context
+    if ($MinimalArtifacts) {
+        for ($index = 0; $index -lt @($report.cases).Count; $index++) {
+            $case = @($PrivateReport.cases)[$index]
+            if ($null -ne $case.csv -and (Test-Path -LiteralPath ([string]$case.csv))) {
+                $evidence = New-CsvEvidence -SourcePath ([string]$case.csv) -Case $case
+                $evidence.private_raw_artifact_retained = $false
+                $evidence.full_csv_private = $false
+                $report.cases[$index]['csv_validation'] = $evidence
+            }
+        }
+    } else {
+        Add-ShareableCsvEvidence -ShareableReport $report -PrivateReport $PrivateReport -Context $context
+    }
     Write-Utf8NoBomText -LiteralPath (Join-Path $ShareableRoot 'report.json') -Text ($report | ConvertTo-Json -Depth 20)
     Write-Utf8NoBomLines -LiteralPath (Join-Path $ShareableRoot 'summary.md') -Lines (New-ShareableSummaryLines -Report $report)
     return $report
+}
+
+# Minimal evidence keeps verified values; paths point to files that will not be retained.
+function ConvertTo-MinimalEvidenceValue {
+    param([AllowNull()]$Value)
+    if ($null -eq $Value) { return $null }
+    if ($Value -is [System.Collections.IDictionary] -or
+        $Value.GetType().FullName -eq 'System.Management.Automation.PSCustomObject') {
+        $entries = if ($Value -is [System.Collections.IDictionary]) { @($Value.Keys) } else { @($Value.PSObject.Properties | ForEach-Object { $_.Name }) }
+        $output = [ordered]@{}
+        foreach ($name in $entries) {
+            $key = [string]$name
+            $lower = $key.ToLowerInvariant()
+            if ($lower -in @('stdout_text', 'stderr_text')) { continue }
+            if ($lower -in @('stdout', 'stderr', 'jsonl', 'csv', 'path', 'case_dir',
+                'artifact_path', 'stderr_path', 'scpi_diagnostic_path', 'preflight_report',
+                'csv_evidence', 'output_dir') -or
+                ($lower -ne 'read_path' -and
+                    ($lower.EndsWith('_path') -or $lower.EndsWith('_dir')))) {
+                $output[$key] = '<artifact-not-retained>'
+                continue
+            }
+            if ($Value -is [System.Collections.IDictionary]) {
+                $child = $Value[$name]
+            } else {
+                $child = $Value.PSObject.Properties[$key].Value
+            }
+            if ($child -is [System.Array] -and $child.Length -eq 0) {
+                $output[$key] = @()
+            } else {
+                $output[$key] = ConvertTo-MinimalEvidenceValue -Value $child
+            }
+        }
+        return $output
+    }
+    if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
+        $values = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $Value) {
+            $converted = ConvertTo-MinimalEvidenceValue -Value $item
+            $values.Add($converted)
+        }
+        [object[]]$resultArray = $values.ToArray()
+        return ,$resultArray
+    }
+    return $Value
+}
+
+# Delete only files inside one verified .tmp_tests run, never other runs or symlink targets.
+function Remove-ValidationRunArtifacts {
+    param(
+        [Parameter(Mandatory = $true)][string]$RunDirectory,
+        [Parameter(Mandatory = $true)][string]$RepoRoot,
+        [switch]$ShareableFailed,
+        [string]$FailureDetail = '',
+        [string]$Resource = ''
+    )
+    $root = [System.IO.Path]::GetFullPath($RunDirectory)
+    $tmp = Join-Path $RepoRoot '.tmp_tests'
+    if (-not (Test-ArtifactPathUnderRoot -RootPath $tmp -Path $root)) {
+        throw 'Artifact cleanup must stay within an individual run under .tmp_tests.'
+    }
+    $items = @((Get-Item -LiteralPath $root -Force)) +
+        @(Get-ChildItem -LiteralPath $root -Force -Recurse)
+    foreach ($item in $items) {
+        if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'Artifact cleanup refuses symbolic links and reparse points.'
+        }
+        if ($item.FullName -ne $root -and
+            -not (Test-ArtifactPathUnderRoot -RootPath $root -Path $item.FullName)) {
+            throw 'Artifact cleanup cannot escape the current run.'
+        }
+    }
+    $private = Join-Path $root 'private'
+    $shareable = Join-Path $root 'shareable'
+    if ($ShareableFailed) {
+        $safe = Protect-ArtifactText -Text $FailureDetail -Resource $Resource -RepoRoot $RepoRoot -PrivateRoot $private
+        if ($safe.Length -gt 4000) { $safe = $safe.Substring(0, 4000) }
+        New-Item -ItemType Directory -Path $private -Force | Out-Null
+        Write-Utf8NoBomText -LiteralPath (Join-Path $private 'error-summary.md') -Text (
+            "# Validation artifact generation failed" + "`n`nResult: FAIL`nCause: " + $safe + "`n"
+        )
+        $keep = @($private, (Join-Path $private 'error-summary.md'))
+    } else {
+        $keep = @($shareable, (Join-Path $shareable 'report.json'),
+            (Join-Path $shareable 'summary.md'))
+    }
+    foreach ($item in @((Get-ChildItem -LiteralPath $root -Force -Recurse) |
+            Sort-Object { $_.FullName.Length } -Descending)) {
+        if ($item.FullName -notin $keep) {
+            Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
+        }
+    }
 }

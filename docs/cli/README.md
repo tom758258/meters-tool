@@ -312,6 +312,8 @@ keysight-34460a
 Preflight artifacts default to `.tmp_tests\cli_preflight`. A custom
 `-OutputRoot` may be supplied, but it must remain under `.tmp_tests`.
 
+Both validation wrappers accept `-DebugArtifacts`. By default, ordinary command stdout/stderr is parsed in memory, only files needed for validation are written temporarily, and each validation run retains only redacted `shareable/report.json` and `shareable/summary.md`. `preflight-cli.ps1 -Target all` retains these two reports separately for each model. `-DebugArtifacts` retains the original detailed local artifacts. If shareable report creation fails, the run fails closed and retains only a redacted `private/error-summary.md`. The release-acceptance workflow and hardware safety behavior are unchanged.
+
 Preflight does not require a physical instrument. It exercises CLI dry-run and
 simulator paths, software-trigger client dry-runs, `list-resources` dry-run
 contracts, and mocked CLI resource-discovery tests. Each target produces

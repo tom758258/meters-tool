@@ -90,23 +90,9 @@ Do not place a real VISA resource, complete serial number, private or
 link-local lab address, or personal filesystem path in a commit, issue, or
 public artifact.
 
-Every wrapper invocation that creates a run directory automatically creates
-`private/` and `shareable/` subdirectories. `private/` contains complete local
-raw evidence, including resources, paths, diagnostics, command output, and full
-acquisition CSV files. Never commit, attach, upload, or otherwise publish that
-directory. `shareable/` contains the automatically redacted report, summary,
-text, JSON, JSONL, diagnostics, and CSV evidence intended for review. Attach
-only `shareable/`; compressing that entire directory is the recommended way to
-add the evidence to a pull request.
+By default, the preflight and live CLI validation scripts retain only redacted `shareable/report.json` and `shareable/summary.md` for each run (per model for preflight). CLI command output is captured in memory when practical, while required CSV/JSONL files remain temporary until assertions and report generation complete. Run with `-DebugArtifacts` to keep the original private raw and detailed shareable artifacts for investigation. A shareable generation failure fails closed and retains only a redacted `private/error-summary.md`. Minimal shareable reports may support reviewed exact-scope promotion when they contain the required case, data-integrity, identity, error and cleanup evidence; a PASS alone never promotes support.
 
-The shareable report uses live-validation artifact schema `1.1`. A full CSV
-remains private; its shareable case directory contains `csv-evidence.json` with
-header validity, row counts, measurement type, and unit, but no measured value
-or trigger metadata. Missing, empty, malformed, or unsupported artifacts fail
-closed: the wrapper writes a safe placeholder or omits an unknown format and
-never falls back to copying raw content. If shareable generation fails, the
-wrapper fails even when the underlying validation succeeded, while retaining
-the private raw evidence locally.
+Debug runs keep full local raw evidence under `private/` and sanitized detailed artifacts under `shareable/`; never publish `private/`. In minimal mode the shareable report inlines validated CSV header, row count, measurement type and unit evidence (no measurement values or trigger metadata). Missing, empty, malformed or unsupported shareable evidence fails closed rather than exposing raw data.
 
 ### New Models and Capabilities
 
@@ -143,9 +129,9 @@ order is:
 4. Use the hidden validation mode or maintained wrapper with an explicit
    resource and bounded counts/timeouts. Extend the wrapper only when a small,
    repeatable case fits its current architecture.
-5. Preserve complete raw evidence locally under `private/`, and attach only the
-   automatically redacted `shareable/` directory with its report, summary,
-   JSON/JSONL, CSV evidence, errors, partial results, and cleanup outcome.
+5. Attach the automatically redacted `shareable/report.json` and `shareable/summary.md`
+   with sufficient exact-scope case, result, error, CSV validation and cleanup evidence.
+   Use `-DebugArtifacts` when complete raw evidence is needed for diagnosis.
 6. Obtain maintainer review of the implementation and exact-scope evidence.
 7. Promote the exact feature metadata and public documentation later, as an
    explicit reviewed decision. Passing evidence does not promote it
@@ -262,16 +248,15 @@ than only reporting success in prose. Include:
   backend, without private connection details;
 * exact wrapper invocation, target, connection, suite, selected cases, backend,
   and whether the result was plan-only or live;
-* the complete wrapper `shareable/` directory, including `report.json`,
-  `summary.md`, generated redacted JSON/JSONL logs, `csv-evidence.json` where
-  acquisition ran, safe SCPI diagnostics, and relevant redacted stdout/stderr;
+* the complete minimal `shareable/report.json` and `shareable/summary.md` with
+  inlined CSV verification evidence; include more detail only when using `-DebugArtifacts`;
   and
 * exit codes, captured row counts, errors or failures, skipped cases, partial
   output, and cleanup/release results.
 
 Report failures as evidence too. Preserve failed cases, non-zero exits, SCPI
-errors, timeouts, cleanup warnings, and partial raw CSV output under `private/`;
-share only the fail-closed evidence generated under `shareable/`.
+errors, timeouts, cleanup warnings, and partial results in the redacted report;
+use `-DebugArtifacts` when raw failure evidence is needed.
 
 Passing artifacts are candidate evidence only. They do not automatically
 promote product support, and the hidden validation mode does not update public
@@ -301,7 +286,7 @@ the pull-request process when review needs them.
 - [ ] Public contracts and safety behavior are unchanged, or the change is documented.
 - [ ] No real VISA resource, complete serial number, private lab address, or personal path was committed.
 - [ ] Live validation is attached when the change affects live behavior.
-- [ ] Only the wrapper `shareable/` directory was attached; `private/` raw evidence was kept local.
+- [ ] Only the wrapper `shareable/` reports were attached; any debug `private/` data stayed local.
 - [ ] Shareable evidence was checked for redacted resources, IDNs, serials, addresses, paths, values, and trigger metadata.
 - [ ] Existing wrapper targets and cases were used where available.
 - [ ] New model or workflow contributions extend the maintained wrapper when repeatable validation is appropriate.

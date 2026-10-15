@@ -1,6 +1,7 @@
 param(
     [string]$Target = "all",
     [switch]$ListTargets,
+    [switch]$DebugArtifacts,
     [string]$OutputRoot = ".tmp_tests\cli_preflight"
 )
 
@@ -10,6 +11,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $TmpRoot = Join-Path $RepoRoot ".tmp_tests"
 . (Join-Path $PSScriptRoot "_validation_helpers.ps1")
+. (Join-Path $PSScriptRoot "_artifact_privacy.ps1")
 
 if ($ListTargets) {
     Get-SupportedTargetModelIds
@@ -113,10 +115,11 @@ function Invoke-DryRunCase {
         -FilePath $Python `
         -Arguments $args `
         -StdOutPath $jsonl `
-        -StdErrPath $stderr
+        -StdErrPath $stderr `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $Commands.Add([pscustomobject]$result) | Out-Null
     Assert-Condition ($result.success) "$Name failed"
-    $events = @(Read-JsonLines -Path $jsonl)
+    $events = @(Read-JsonLines -Path $jsonl -Text $result.stdout_text -FromText:(-not $DebugArtifacts))
     Assert-Condition ($events.Count -eq 1) "$Name should emit one JSONL event"
     Assert-Condition ($events[0].event -eq "dry_run") "$Name event type mismatch"
     Assert-Condition ($events[0].measurement_cli_name -eq $ExpectedMeasurement) "$Name measurement mismatch"
@@ -180,17 +183,20 @@ function Invoke-SimulateCase {
         -SoftTriggerRetryCount 40 `
         -SoftTriggerRetryDelayMs 250 `
         -InterTriggerDelayMs 150 `
-        -StopGracePeriodMs 5000
+        -StopGracePeriodMs 5000 `
+        -CaptureInMemory:(-not $DebugArtifacts) `
+        -CaptureClientCommandsInMemory:(-not $DebugArtifacts)
     $Commands.Add([pscustomobject]$result) | Out-Null
     Assert-Condition ($result.success) "$Name failed"
-    $events = @(Read-JsonLines -Path $jsonl)
+    $events = @(Read-JsonLines -Path $jsonl -Text $result.stdout_text -FromText:(-not $DebugArtifacts))
     $ready = @(Select-LastJsonEvent -Events $events -EventName "ready")
     $summary = @(Select-LastJsonEvent -Events $events -EventName "summary")
     if ($SoftTriggerCount -gt 0) {
         Assert-Condition ($ready.Count -eq 1) "$Name ready event missing"
         $statusCommand = @($result.client_commands | Where-Object { $_.name -eq "$Name`_soft_status" } | Select-Object -Last 1)
         Assert-Condition ($statusCommand.Count -eq 1) "$Name status client command missing"
-        $statusPayload = Get-Content -LiteralPath $statusCommand[0].stdout -Raw | ConvertFrom-Json -ErrorAction Stop
+        $statusText = if ($DebugArtifacts) { Get-Content -LiteralPath $statusCommand[0].stdout -Raw } else { $statusCommand[0].stdout_text }
+        $statusPayload = $statusText | ConvertFrom-Json -ErrorAction Stop
         Assert-Condition ($statusPayload.run_id -eq $ready[0].run_id) "$Name status run_id mismatch"
     }
     Assert-Condition ($summary.Count -eq 1) "$Name summary event missing"
@@ -211,10 +217,62 @@ function Invoke-SimulateCase {
         captured = [int]$summary[0].captured
         errors = [int]$summary[0].errors
         ready_events = $ready.Count
+        csv_rows = $rowCount
+        measurement_type = if ($rows.Count -gt 0) { $rows[0].measurement_type } else { $null }
+        unit = if ($rows.Count -gt 0) { $rows[0].unit } else { $null }
         jsonl = $jsonl
         csv = $csv
         stderr = $stderr
     }) | Out-Null
+}
+
+function Complete-PreflightArtifacts {
+    param(
+        [Parameter(Mandatory = $true)][string]$OutDir,
+        [Parameter(Mandatory = $true)]$Report,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$SummaryLines,
+        [Parameter(Mandatory = $true)][string]$SimulatorResource
+    )
+    $shareable = Join-Path $OutDir "shareable"
+    try {
+        if ($DebugArtifacts) {
+            Write-JsonReport -LiteralPath (Join-Path $OutDir "report.json") -Report $Report -Depth 10
+            Write-Utf8NoBomLines -LiteralPath (Join-Path $OutDir "summary.md") -Lines $SummaryLines
+        }
+        $filtered = ConvertTo-MinimalEvidenceValue -Value $Report
+        $safe = ConvertTo-ShareableArtifactValue -Value $filtered -RunRoot $OutDir -PrivateRoot $OutDir `
+            -RepoRoot $RepoRoot -Resource $SimulatorResource -Connection "simulator"
+        $safe.output_dir = "shareable"
+        $safe.artifact_paths = [ordered]@{ output_dir = "shareable"; report = "shareable/report.json"; summary = "shareable/summary.md" }
+        $safe.artifact_mode = if ($DebugArtifacts) { "debug" } else { "minimal" }
+        $safe.debug_artifacts_retained = [bool]$DebugArtifacts
+        $safe.private_raw_artifacts_retained = [bool]$DebugArtifacts
+        $safe.redaction_applied = $true
+        New-Item -ItemType Directory -Path $shareable -Force | Out-Null
+        Write-JsonReport -LiteralPath (Join-Path $shareable "report.json") -Report $safe -Depth 12
+        $safeLines = @($SummaryLines | ForEach-Object {
+            if ($_ -like "- Report:*") { "- Report: shareable/report.json" }
+            elseif ($_ -like "- Output directory:*") { "- Output directory: shareable" }
+            else { Protect-ArtifactText -Text $_ -Resource $SimulatorResource -RepoRoot $RepoRoot -PrivateRoot $OutDir }
+        })
+        $safeLines += "- Artifact mode: $($safe.artifact_mode)"
+        $safeLines += "- Report: shareable/report.json"
+        Write-Utf8NoBomLines -LiteralPath (Join-Path $shareable "summary.md") -Lines $safeLines
+        foreach ($name in @("report.json", "summary.md")) {
+            $file = Join-Path $shareable $name
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or
+                [string]::IsNullOrWhiteSpace([System.IO.File]::ReadAllText($file))) {
+                throw "Missing or empty shareable file: $name"
+            }
+        }
+        $null = Get-Content -LiteralPath (Join-Path $shareable "report.json") -Raw | ConvertFrom-Json -ErrorAction Stop
+        if (-not $DebugArtifacts) { Remove-ValidationRunArtifacts -RunDirectory $OutDir -RepoRoot $RepoRoot }
+    } catch {
+        $script:PreflightArtifactFailed = $true
+        Remove-ValidationRunArtifacts -RunDirectory $OutDir -RepoRoot $RepoRoot -ShareableFailed `
+            -FailureDetail $_.Exception.Message -Resource $SimulatorResource
+        throw
+    }
 }
 
 function Invoke-TargetPreflight {
@@ -225,6 +283,9 @@ function Invoke-TargetPreflight {
 
     $checks = [System.Collections.Generic.List[object]]::new()
     $commands = [System.Collections.Generic.List[object]]::new()
+    $script:PreflightArtifactFailed = $false
+    $simulatorResource = ""
+    try {
     $cliModel = Get-TargetCliModel -ResolvedTarget $ResolvedTarget
     $simulatorResource = Get-TargetSimulatorResource -ResolvedTarget $ResolvedTarget
     $supportsExternalTriggers = Test-TargetSupportsExternalTriggers -ResolvedTarget $ResolvedTarget
@@ -391,10 +452,12 @@ function Invoke-TargetPreflight {
         -FilePath $Python `
         -Arguments @("-m", "meters_tool_cli", "send-command", "--dry-run", "--format", "json", "--port", "8765", "--arguments-json", '{"source":"preflight"}') `
         -StdOutPath $softTriggerJson `
-        -StdErrPath (Join-Path $outDir "soft_trigger_dry_run.stderr.txt")
+        -StdErrPath (Join-Path $outDir "soft_trigger_dry_run.stderr.txt") `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $commands.Add([pscustomobject]$softTriggerResult) | Out-Null
     Assert-Condition ($softTriggerResult.success) "send-command dry-run command failed"
-    $softTrigger = Get-Content -LiteralPath $softTriggerJson -Raw | ConvertFrom-Json -ErrorAction Stop
+    $softTriggerText = if ($DebugArtifacts) { Get-Content -LiteralPath $softTriggerJson -Raw } else { $softTriggerResult.stdout_text }
+    $softTrigger = $softTriggerText | ConvertFrom-Json -ErrorAction Stop
     Assert-Condition ($softTrigger.event -eq "dry_run") "send-command dry-run event mismatch"
     Assert-Condition ($softTrigger.send_request -eq $false) "send-command dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_trigger_dry_run_json"; success = $true; path = $softTriggerJson }) | Out-Null
@@ -405,10 +468,12 @@ function Invoke-TargetPreflight {
         -FilePath $Python `
         -Arguments @("-m", "meters_tool_cli", "stop", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStopJson `
-        -StdErrPath (Join-Path $outDir "soft_stop_dry_run.stderr.txt")
+        -StdErrPath (Join-Path $outDir "soft_stop_dry_run.stderr.txt") `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $commands.Add([pscustomobject]$softStopResult) | Out-Null
     Assert-Condition ($softStopResult.success) "stop dry-run command failed"
-    $softStop = Get-Content -LiteralPath $softStopJson -Raw | ConvertFrom-Json -ErrorAction Stop
+    $softStopText = if ($DebugArtifacts) { Get-Content -LiteralPath $softStopJson -Raw } else { $softStopResult.stdout_text }
+    $softStop = $softStopText | ConvertFrom-Json -ErrorAction Stop
     Assert-Condition ($softStop.event -eq "dry_run") "stop dry-run event mismatch"
     Assert-Condition ($softStop.send_request -eq $false) "stop dry-run should not send HTTP"
     $checks.Add([pscustomobject]@{ name = "soft_stop_dry_run_json"; success = $true; path = $softStopJson }) | Out-Null
@@ -419,10 +484,12 @@ function Invoke-TargetPreflight {
         -FilePath $Python `
         -Arguments @("-m", "meters_tool_cli", "status", "--dry-run", "--format", "json", "--port", "8765") `
         -StdOutPath $softStatusJson `
-        -StdErrPath (Join-Path $outDir "soft_status_dry_run.stderr.txt")
+        -StdErrPath (Join-Path $outDir "soft_status_dry_run.stderr.txt") `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $commands.Add([pscustomobject]$softStatusResult) | Out-Null
     Assert-Condition ($softStatusResult.success) "status dry-run command failed"
-    $softStatus = Get-Content -LiteralPath $softStatusJson -Raw | ConvertFrom-Json -ErrorAction Stop
+    $softStatusText = if ($DebugArtifacts) { Get-Content -LiteralPath $softStatusJson -Raw } else { $softStatusResult.stdout_text }
+    $softStatus = $softStatusText | ConvertFrom-Json -ErrorAction Stop
     Assert-Condition ($softStatus.event -eq "dry_run") "status dry-run event mismatch"
     Assert-Condition ($softStatus.send_request -eq $false) "status dry-run should not send HTTP"
     Assert-Condition ($softStatus.method -eq "GET") "status dry-run method mismatch"
@@ -435,10 +502,12 @@ function Invoke-TargetPreflight {
         -FilePath $Python `
         -Arguments @("-m", "meters_tool_cli", "list-resources", "--dry-run", "--live-only", "--json") `
         -StdOutPath $listResourcesJson `
-        -StdErrPath $listResourcesErr
+        -StdErrPath $listResourcesErr `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $commands.Add([pscustomobject]$listResourcesResult) | Out-Null
     Assert-Condition ($listResourcesResult.success) "list-resources dry-run command failed"
-    $listResources = Get-Content -LiteralPath $listResourcesJson -Raw | ConvertFrom-Json -ErrorAction Stop
+    $listResourcesText = if ($DebugArtifacts) { Get-Content -LiteralPath $listResourcesJson -Raw } else { $listResourcesResult.stdout_text }
+    $listResources = $listResourcesText | ConvertFrom-Json -ErrorAction Stop
     Assert-Condition ($listResources.event -eq "dry_run") "list-resources dry-run event mismatch"
     Assert-Condition ($listResources.command -eq "list-resources") "list-resources dry-run command mismatch"
     Assert-Condition ($listResources.status -eq "dry_run") "list-resources dry-run status mismatch"
@@ -462,7 +531,8 @@ function Invoke-TargetPreflight {
             "-k", "list_resources"
         ) `
         -StdOutPath $pytestOut `
-        -StdErrPath $pytestErr
+        -StdErrPath $pytestErr `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $commands.Add([pscustomobject]$pytestResult) | Out-Null
     Assert-Condition ($pytestResult.success) "mocked list-resources pytest coverage failed"
     $checks.Add([pscustomobject]@{ name = "list_resources_mocked_pytest"; success = $true; stdout = $pytestOut; stderr = $pytestErr }) | Out-Null
@@ -504,8 +574,6 @@ function Invoke-TargetPreflight {
         commands = $commandItems
         checks = $checkItems
     }
-    Write-JsonReport -LiteralPath $reportPath -Report $report -Depth 10
-
     $summaryLines = @(
         "# CLI Preflight Summary",
         "",
@@ -530,16 +598,41 @@ function Invoke-TargetPreflight {
         "- Mocked list-resources coverage: passed",
         "- Report: $reportPath"
     )
-    Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines
+    Complete-PreflightArtifacts -OutDir $outDir -Report $report -SummaryLines $summaryLines -SimulatorResource $simulatorResource
 
     Write-Host "preflight passed: $ResolvedTarget"
-    Write-Host "summary: $summaryPath"
+    Write-Host "summary: $(Join-Path (Join-Path $outDir 'shareable') 'summary.md')"
     return [pscustomobject]@{
         target = $ResolvedTarget
         status = "passed"
         output_dir = $outDir
-        report = $reportPath
-        summary = $summaryPath
+        report = Join-Path (Join-Path $outDir 'shareable') 'report.json'
+        summary = Join-Path (Join-Path $outDir 'shareable') 'summary.md'
+    }
+    } catch {
+        if (-not $script:PreflightArtifactFailed) {
+            $safeFailure = Protect-ArtifactText -Text $_.Exception.Message -Resource $simulatorResource -RepoRoot $RepoRoot -PrivateRoot $outDir
+            $failedReport = [ordered]@{
+                schema_version = 1
+                target = $ResolvedTarget
+                generated_at = (Get-Date).ToUniversalTime().ToString("o")
+                package_version = Get-PackageVersion
+                git_head = Get-GitHead
+                validation_mode = "preflight"
+                status = "failed"
+                failure = $safeFailure
+                summary_counts = [ordered]@{ commands_total = $commands.Count; checks_total = $checks.Count }
+                commands = @($commands.ToArray())
+                checks = @($checks.ToArray())
+            }
+            try {
+                Complete-PreflightArtifacts -OutDir $outDir -Report $failedReport -SummaryLines @(
+                    "# CLI Preflight Summary", "", "- Target: $ResolvedTarget", "- Status: failed",
+                    "- Failure: $safeFailure"
+                ) -SimulatorResource $simulatorResource
+            } catch { }
+        }
+        throw
     }
 }
 

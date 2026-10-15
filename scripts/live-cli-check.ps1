@@ -14,6 +14,7 @@ param(
     [string]$Suite = "minimal",
 
     [switch]$PlanOnly,
+    [switch]$DebugArtifacts,
 
     [switch]$SkipPreflight
 )
@@ -221,9 +222,10 @@ function Invoke-LiveDryRun {
         -FilePath $Python `
         -Arguments $args `
         -StdOutPath $jsonl `
-        -StdErrPath $stderr
+        -StdErrPath $stderr `
+        -CaptureInMemory:(-not $DebugArtifacts)
     Assert-Condition ($result.success) "$($Case.name) dry-run failed"
-    $events = @(Read-JsonLines -Path $jsonl)
+    $events = @(Read-JsonLines -Path $jsonl -Text $result.stdout_text -FromText:(-not $DebugArtifacts))
     Assert-Condition ($events.Count -eq 1) "$($Case.name) dry-run should emit one plan"
     Assert-Condition ($events[0].event -eq "dry_run") "$($Case.name) dry-run event mismatch"
     if (-not [string]::IsNullOrWhiteSpace($Case.expected_unit)) {
@@ -298,10 +300,12 @@ function Invoke-FrequencyPeriodScpiProbe {
         -FilePath $Python `
         -Arguments $args `
         -StdOutPath $json `
-        -StdErrPath $stderr
+        -StdErrPath $stderr `
+        -CaptureInMemory:(-not $DebugArtifacts)
 
     try {
-        $diagnostic = Get-Content -LiteralPath $json -Raw | ConvertFrom-Json -ErrorAction Stop
+        $probeText = if ($DebugArtifacts) { Get-Content -LiteralPath $json -Raw } else { $commandResult.stdout_text }
+        $diagnostic = $probeText | ConvertFrom-Json -ErrorAction Stop
     } catch {
         $diagnostic = [pscustomobject]@{
             schema_version = 1
@@ -400,7 +404,8 @@ function Invoke-LiveCase {
         -SoftTriggerRetryCount 60 `
         -SoftTriggerRetryDelayMs 250 `
         -InterTriggerDelayMs 250 `
-        -StopGracePeriodMs 10000
+        -StopGracePeriodMs 10000 `
+        -CaptureClientCommandsInMemory:(-not $DebugArtifacts)
 
     $failureReasons = [System.Collections.Generic.List[string]]::new()
     if (-not $result.success) {
@@ -428,7 +433,8 @@ function Invoke-LiveCase {
         if ($statusCommand.Count -ne 1) {
             $failureReasons.Add("status client command missing") | Out-Null
         } elseif ($ready.Count -eq 1) {
-            $statusPayload = Get-Content -LiteralPath $statusCommand[0].stdout -Raw | ConvertFrom-Json -ErrorAction Stop
+            $statusText = if ($DebugArtifacts) { Get-Content -LiteralPath $statusCommand[0].stdout -Raw } else { $statusCommand[0].stdout_text }
+            $statusPayload = $statusText | ConvertFrom-Json -ErrorAction Stop
             if ($statusPayload.run_id -ne $ready[0].run_id) {
                 $failureReasons.Add("status run_id mismatch") | Out-Null
             }
@@ -552,7 +558,7 @@ function Write-LiveArtifacts {
         scpi_diagnostics = @($ScpiDiagnosticItems)
         commands = @($CommandItems)
     }
-    Write-JsonReport -LiteralPath $reportPath -Report $report -Depth 12
+    if ($DebugArtifacts) { Write-JsonReport -LiteralPath $reportPath -Report $report -Depth 12 }
 
     $summaryLines = @(
         "# Live CLI Check Summary",
@@ -635,7 +641,7 @@ function Write-LiveArtifacts {
             $summaryLines += $line
         }
     }
-    Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines
+    if ($DebugArtifacts) { Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines }
 
     try {
         [void](New-ShareableArtifactSet `
@@ -645,10 +651,29 @@ function Write-LiveArtifacts {
             -ShareableRoot $shareableRoot `
             -RepoRoot $RepoRoot `
             -Resource $Resource `
-            -Connection $resolvedConnection)
+            -Connection $resolvedConnection `
+            -MinimalArtifacts:(-not $DebugArtifacts))
+        foreach ($name in @("report.json", "summary.md")) {
+            $file = Join-Path $shareableRoot $name
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or
+                [string]::IsNullOrWhiteSpace([System.IO.File]::ReadAllText($file))) {
+                throw "Missing or empty shareable artifact: $name"
+            }
+        }
+        $null = Get-Content -LiteralPath (Join-Path $shareableRoot "report.json") -Raw | ConvertFrom-Json -ErrorAction Stop
+        if (-not $DebugArtifacts) {
+            Remove-ValidationRunArtifacts -RunDirectory $runDir -RepoRoot $RepoRoot
+        }
+        $script:artifactsFinalized = $true
         return $true
     } catch {
-        Write-MinimalShareableFailure -ShareableRoot $shareableRoot -Status "artifact_generation_failed"
+        $script:artifactGenerationFailed = $true
+        $location = ($_.ScriptStackTrace -split "`r?`n" | Select-Object -First 2) -join " | "
+        $failureDetail = Protect-ArtifactText -Text "$($_.Exception.Message) [$location]" -Resource $Resource `
+            -RepoRoot $RepoRoot -PrivateRoot $privateRoot
+        Write-Host "Shareable artifact generation failed: $failureDetail"
+        Remove-ValidationRunArtifacts -RunDirectory $runDir -RepoRoot $RepoRoot `
+            -ShareableFailed -FailureDetail $failureDetail -Resource $Resource
         return $false
     }
 }
@@ -686,22 +711,25 @@ $scpiDiagnostics = [System.Collections.Generic.List[object]]::new()
 $reportPath = Join-Path $privateRoot "report.json"
 $summaryPath = Join-Path $privateRoot "summary.md"
 $canonicalSummaryPath = ((Get-PortableRelativePath -BasePath $RepoRoot -Path (Join-Path $shareableRoot "summary.md")).Replace('\', '/'))
+$canonicalErrorPath = ((Get-PortableRelativePath -BasePath $RepoRoot -Path (Join-Path $privateRoot "error-summary.md")).Replace('\', '/'))
 $stdinRedirected = [Console]::IsInputRedirected
-$handlingArtifactFailure = $false
+$script:handlingArtifactFailure = $false
+$artifactsFinalized = $false
+$artifactGenerationFailed = $false
 $liveExecuted = $false
 
 trap {
-    if (-not $handlingArtifactFailure -and -not (Test-Path -LiteralPath $reportPath)) {
-        $handlingArtifactFailure = $true
-        [void](Write-LiveArtifacts `
+    if (-not $script:handlingArtifactFailure -and -not $script:artifactsFinalized -and -not $script:artifactGenerationFailed) {
+        $script:handlingArtifactFailure = $true
+        $written = Write-LiveArtifacts `
             -Status "wrapper_failed" `
             -PlanOnlyRun ([bool]$PlanOnly) `
             -LiveExecuted ([bool]$liveExecuted) `
             -CaseItems @($caseResults.ToArray()) `
             -DryRunItems @($dryRunResults.ToArray()) `
             -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
-            -CommandItems @($commands.ToArray()))
-        Write-Host "summary: $canonicalSummaryPath"
+            -CommandItems @($commands.ToArray())
+        if ($written) { Write-Host "summary: $canonicalSummaryPath" } else { Write-Host "artifact error: $canonicalErrorPath" }
     }
     $safeFailure = Protect-ArtifactText `
         -Text $_.Exception.Message `
@@ -717,22 +745,18 @@ if ((-not $SkipPreflight) -and (-not ($stdinRedirected -and (-not $PlanOnly)))) 
     $preflightOut = Join-Path $privateRoot "preflight.stdout.txt"
     $preflightErr = Join-Path $privateRoot "preflight.stderr.txt"
     $preflightRoot = Join-Path $privateRoot "preflight"
+    $preflightArgs = @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $PreflightScript,
+        "-Target", $resolvedTarget, "-OutputRoot", $preflightRoot
+    )
+    if ($DebugArtifacts) { $preflightArgs += "-DebugArtifacts" }
     $preflightResult = Invoke-CapturedCommand `
         -Name "preflight" `
         -FilePath "powershell.exe" `
-        -Arguments @(
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            $PreflightScript,
-            "-Target",
-            $resolvedTarget,
-            "-OutputRoot",
-            $preflightRoot
-        ) `
+        -Arguments $preflightArgs `
         -StdOutPath $preflightOut `
-        -StdErrPath $preflightErr
+        -StdErrPath $preflightErr `
+        -CaptureInMemory:(-not $DebugArtifacts)
     $commands.Add([pscustomobject]$preflightResult) | Out-Null
 
     if (-not $preflightResult.success) {
@@ -744,9 +768,9 @@ if ((-not $SkipPreflight) -and (-not ($stdinRedirected -and (-not $PlanOnly)))) 
             -DryRunItems @() `
             -ScpiDiagnosticItems @() `
             -CommandItems @($commands.ToArray())
+        if (-not $artifactsWritten) { Write-Host "artifact error: $canonicalErrorPath"; throw "Shareable artifact generation failed." }
         Write-Host "summary: $canonicalSummaryPath"
-        if (-not $artifactsWritten) { throw "Shareable artifact generation failed." }
-        throw "Preflight failed. Review the private artifacts locally."
+        throw "Preflight failed. Review the shareable summary."
     }
 }
 
@@ -799,8 +823,8 @@ if ($PlanOnly) {
         -ScpiDiagnosticItems @() `
         -CommandItems @($commands.ToArray())
     Write-Host "live CLI plan generated: $Suite"
+    if (-not $artifactsWritten) { Write-Host "artifact error: $canonicalErrorPath"; throw "Shareable artifact generation failed." }
     Write-Host "summary: $canonicalSummaryPath"
-    if (-not $artifactsWritten) { throw "Shareable artifact generation failed." }
     exit 0
 }
 
@@ -813,8 +837,8 @@ if ($stdinRedirected) {
         -DryRunItems @($dryRunResults.ToArray()) `
         -ScpiDiagnosticItems @() `
         -CommandItems @($commands.ToArray())
+    if (-not $artifactsWritten) { Write-Host "artifact error: $canonicalErrorPath"; throw "Shareable artifact generation failed." }
     Write-Host "summary: $canonicalSummaryPath"
-    if (-not $artifactsWritten) { throw "Shareable artifact generation failed." }
     throw "Live suite requires interactive Enter confirmation; stdin is redirected."
 }
 
@@ -888,8 +912,8 @@ $artifactsWritten = Write-LiveArtifacts `
     -CommandItems @($commands.ToArray())
 
 if (-not $artifactsWritten) {
-    Write-Host "summary: $canonicalSummaryPath"
-    throw "Shareable artifact generation failed. Private raw artifacts were retained."
+    Write-Host "artifact error: $canonicalErrorPath"
+    throw "Shareable artifact generation failed. Only a redacted private/error-summary.md was retained."
 }
 
 if ($suiteStatus -ne "passed") {

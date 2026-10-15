@@ -244,6 +244,7 @@ def test_preflight_report_contract():
     output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"preflight_{uuid4().hex}"
     result = run_wrapper(
         "scripts/preflight-cli.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-OutputRoot",
@@ -370,6 +371,7 @@ def test_preflight_34460a_is_target_aware_without_external_positive_cases():
     output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"preflight_34460a_{uuid4().hex}"
     result = run_wrapper(
         "scripts/preflight-cli.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34460a",
         "-OutputRoot",
@@ -423,6 +425,7 @@ def test_live_plan_only_minimal_report_contract():
     raw_resource = "USB0::0x2A8D::0x1301::MY12345678::INSTR"
     result = run_wrapper(
         "scripts/live-cli-check.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -517,6 +520,7 @@ def test_live_plan_only_minimal_report_contract():
 def test_live_plan_only_can_skip_duplicate_preflight():
     result = run_wrapper(
         "scripts/live-cli-check.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -538,6 +542,7 @@ def test_live_plan_only_can_skip_duplicate_preflight():
 def test_live_plan_only_full_report_contract():
     result = run_wrapper(
         "scripts/live-cli-check.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -942,6 +947,7 @@ def test_live_plan_only_frequency_period_report_contract():
 def test_live_redirected_stdin_writes_confirmation_required_report():
     result = run_wrapper(
         "scripts/live-cli-check.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -1025,6 +1031,7 @@ def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path):
 
     result = run_wrapper_path(
         synthetic_wrapper,
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -1149,6 +1156,7 @@ def test_normal_scpi_probe_failure_console_is_sanitized(tmp_path: Path):
 
     result = run_wrapper_path(
         synthetic_wrapper,
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -1214,6 +1222,7 @@ def test_normal_live_case_failure_console_is_sanitized(tmp_path: Path):
 
     result = run_wrapper_path(
         synthetic_wrapper,
+        "-DebugArtifacts",
         "-Target",
         "keysight-34461a",
         "-Connection",
@@ -1225,3 +1234,63 @@ def test_normal_live_case_failure_console_is_sanitized(tmp_path: Path):
     )
     assert_normal_failure_artifact_privacy(result, run_root, raw_reasons)
     assert "live case failed:" in result.stdout
+
+
+@pytest.mark.windows_boundary_smoke
+def test_preflight_minimal_retains_only_shareable_reports():
+    output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"minimal_{uuid4().hex}"
+    result = run_wrapper(
+        "scripts/preflight-cli.ps1", "-Target", "all",
+        "-OutputRoot", str(output_root.relative_to(REPO_ROOT)),
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    for model in ("keysight-34461a", "keysight-34460a"):
+        target_root = output_root / model
+        files = {p.relative_to(target_root).as_posix() for p in target_root.rglob("*") if p.is_file()}
+        assert files == {"shareable/report.json", "shareable/summary.md"}
+        report = load_json(target_root / "shareable" / "report.json")
+        assert report["target"] == model
+        assert report["status"] == "passed"
+        assert report["artifact_mode"] == "minimal"
+        assert report["private_raw_artifacts_retained"] is False
+        assert report["commands"] and report["checks"]
+
+
+@pytest.mark.windows_boundary_smoke
+def test_live_plan_only_minimal_retains_only_shareable_reports():
+    resource = "USB0::0x2A8D::0x1301::MY12345678::INSTR"
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1", "-Target", "keysight-34461a",
+        "-Connection", "usb", "-Resource", resource,
+        "-Suite", "minimal", "-PlanOnly", "-SkipPreflight",
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    report_path = report_from_summary_output(result.stdout)
+    run_root = report_path.parents[1]
+    files = {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()}
+    assert files == {"shareable/report.json", "shareable/summary.md"}
+    report = load_json(report_path)
+    assert report["artifact_mode"] == "minimal"
+    assert report["private_raw_artifacts_retained"] is False
+    assert report["status"] == "planned"
+    assert report["plan_only"] is True and report["live_executed"] is False
+    assert report["dry_runs"][0]["plan"]["read_path"] == "READ?"
+    assert resource not in report_path.read_text(encoding="utf-8")
+
+
+
+def test_live_minimal_confirmation_required_retains_two_reports():
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1", "-Target", "keysight-34461a",
+        "-Connection", "usb", "-Resource", "SIM::34461A",
+        "-Suite", "minimal", stdin="",
+    )
+    assert result.returncode != 0
+    report_path = report_from_summary_output(result.stdout + result.stderr)
+    run_root = report_path.parents[1]
+    files = {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()}
+    assert files == {"shareable/report.json", "shareable/summary.md"}
+    report = load_json(report_path)
+    assert report["status"] == "confirmation_required"
+    assert report["live_executed"] is False
+    assert report["artifact_mode"] == "minimal"
