@@ -386,9 +386,12 @@ function New-ShareableSummaryLines {
         "- Live executed: $($Report.live_executed)",
         "- Resource: $($Report.resource)",
         '- Candidate evidence only: true',
-        '- Promotes product support: false', '',
-        '## Cases'
+        '- Promotes product support: false'
     )
+    if ($Report.Contains('failure_reason')) {
+        $lines += "- Failure: $($Report.failure_reason)"
+    }
+    $lines += @('', '## Cases')
     $caseEntries = @($Report.cases)
     if (-not [bool]$Report.live_executed -or $caseEntries.Count -eq 0) {
         $lines += '- No live cases executed.'

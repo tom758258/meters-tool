@@ -979,86 +979,63 @@ def test_live_redirected_stdin_writes_confirmation_required_report():
     assert not (run_root / "report.json").exists()
 
 
-def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path):
+@pytest.mark.parametrize("mode", ["minimal", "debug", "artifact_failure", "report_failure"])
+def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path, mode: str):
     raw_resource = "TCPIP0::meter-lab.local::inst0::INSTR"
     timestamp = f"synthetic-{uuid4().hex}"
     run_root = (
-        REPO_ROOT
-        / ".tmp_tests"
-        / "cli_live"
-        / "keysight-34461a"
-        / "lan"
-        / "frequency-period"
-        / timestamp
+        REPO_ROOT / ".tmp_tests" / "cli_live" / "keysight-34461a"
+        / "lan" / "frequency-period" / timestamp
     )
     private_path = run_root / "private" / "synthetic-private.json"
-    wrapper_text = (REPO_ROOT / "scripts" / "live-cli-check.ps1").read_text(
-        encoding="utf-8-sig"
-    )
-    timestamp_line = '$timestamp = Get-Date -Format "yyyyMMdd-HHmmss"'
-    stdin_line = "$stdinRedirected = [Console]::IsInputRedirected"
-    confirmation_line = (
-        "[void](Read-Host \"Press Enter to run suite '$Suite', or Ctrl+C to cancel\")"
-    )
-    probe_line = "$probe = Invoke-FrequencyPeriodScpiProbe -CaseInfo $caseInfo"
-    assert wrapper_text.count(timestamp_line) == 1
-    assert wrapper_text.count(stdin_line) == 1
-    assert wrapper_text.count(confirmation_line) == 1
-    assert wrapper_text.count(probe_line) == 1
-    scripts_root = ps_quote(REPO_ROOT / "scripts")
-    wrapper_text = wrapper_text.replace("$PSScriptRoot", scripts_root)
-    wrapper_text = wrapper_text.replace(
-        timestamp_line,
-        f"$timestamp = '{timestamp}'",
-    )
-    wrapper_text = wrapper_text.replace(
-        stdin_line,
-        "$stdinRedirected = $false",
-    )
-    wrapper_text = wrapper_text.replace(
-        confirmation_line,
-        "[void]$null",
-    )
-    wrapper_text = wrapper_text.replace(
-        probe_line,
-        "throw "
-        + ps_quote(
-            f"Synthetic live probe failure for {raw_resource} at {private_path}"
-        ),
-    )
+    reason = f"Synthetic live probe failure for {raw_resource} at {private_path}"
     synthetic_wrapper = tmp_path / "live-cli-check-synthetic-failure.ps1"
-    synthetic_wrapper.write_text(wrapper_text, encoding="utf-8")
-
-    result = run_wrapper_path(
-        synthetic_wrapper,
-        "-DebugArtifacts",
-        "-Target",
-        "keysight-34461a",
-        "-Connection",
-        "lan",
-        "-Resource",
-        raw_resource,
-        "-Suite",
-        "frequency-period",
+    synthetic_wrapper.write_text(synthetic_confirmed_live_wrapper(timestamp), encoding="utf-8")
+    setup = (
+        f"function Invoke-SyntheticProbe {{ throw {ps_quote(reason)} }}; "
+        "Set-Alias Invoke-FrequencyPeriodScpiProbe Invoke-SyntheticProbe; "
     )
-    assert result.returncode != 0
-    report_path = report_from_summary_output(result.stdout + result.stderr)
-    assert report_path == run_root / "shareable" / "report.json"
-    private_report = load_json(run_root / "private" / "report.json")
-    shareable_report = load_json(report_path)
-    for report in (private_report, shareable_report):
+    if mode in ("artifact_failure", "report_failure"):
+        failing_command = "New-ShareableArtifactSet" if mode == "artifact_failure" else "Get-PackageVersion"
+        setup += (
+            f"function Invoke-SyntheticArtifactFailure {{ throw {ps_quote('Synthetic artifact failure ' + raw_resource)} }}; "
+            f"Set-Alias {failing_command} Invoke-SyntheticArtifactFailure; "
+        )
+    result = run_powershell_command(
+        setup + f"& {ps_quote(synthetic_wrapper)} "
+        + ("-DebugArtifacts " if mode == "debug" else "")
+        + f"-Target keysight-34461a -Connection lan -Resource {ps_quote(raw_resource)} "
+        "-Suite frequency-period; exit $LASTEXITCODE"
+    )
+    assert result.returncode == 1, result.stderr + result.stdout
+    files = {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()}
+    if mode in ("artifact_failure", "report_failure"):
+        assert files == {"private/error-summary.md"}
+        safe_text = (run_root / "private" / "error-summary.md").read_text(encoding="utf-8")
+        assert "Synthetic artifact failure" in safe_text
+    else:
+        report_path = report_from_summary_output(result.stdout + result.stderr)
+        assert report_path == run_root / "shareable" / "report.json"
+        report = load_json(report_path)
         assert report["status"] == "wrapper_failed"
         assert report["live_executed"] is True
         assert report["validation_mode"] == "live"
-        assert report["private_raw_artifacts_retained"] is True
-    assert private_report["resource"] == raw_resource
-    assert shareable_report["resource"] == "lan:<redacted-resource>"
-    assert (run_root / "shareable" / "summary.md").exists()
-    console = result.stdout + result.stderr
-    assert raw_resource not in console
-    assert "meter-lab.local" not in console
-    assert str(private_path) not in console
-    assert str(REPO_ROOT) not in console
+        assert report["private_raw_artifacts_retained"] is (mode == "debug")
+        assert report["resource"] == "lan:<redacted-resource>"
+        assert "Synthetic live probe failure" in report["failure_reason"]
+        summary_text = report_path.with_name("summary.md").read_text(encoding="utf-8")
+        assert report["failure_reason"] in summary_text
+        safe_text = report_path.read_text(encoding="utf-8") + summary_text
+        if mode == "debug":
+            private_report = load_json(run_root / "private" / "report.json")
+            assert private_report["resource"] == raw_resource
+            assert private_report["failure_reason"] == report["failure_reason"]
+        else:
+            assert files == {"shareable/report.json", "shareable/summary.md"}
+    for forbidden in (raw_resource, "meter-lab.local", str(private_path), str(REPO_ROOT)):
+        assert forbidden not in safe_text
+        assert forbidden not in result.stdout + result.stderr
+
 
 
 def synthetic_confirmed_live_wrapper(timestamp: str) -> str:
@@ -1075,6 +1052,106 @@ def synthetic_confirmed_live_wrapper(timestamp: str) -> str:
         assert wrapper_text.count(source) == 1, source
         wrapper_text = wrapper_text.replace(source, replacement)
     return wrapper_text
+
+
+@pytest.mark.parametrize("outcome,debug", [("passed", False), ("failed", False), ("incomplete", False), ("passed", True)])
+def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, outcome: str, debug: bool):
+    resource = "USB0::1::2::SERIAL12345::INSTR"
+    value = "98765.4321"
+    failure = f"capture failure: VisaIOError at {tmp_path} for {resource}"
+    run_id = "synthetic-run"
+    events = [
+        {"event": "ready", "run_id": run_id},
+        {"event": "sample", "run_id": run_id, "value": value, "trigger_metadata": {"secret": "private"}},
+        {"event": "status", "message": f"captured=1 value={value} A"},
+        {"event": "message", "message": "KEYSIGHT,34461A,SERIAL12345,A.03.03"},
+    ]
+    cleanup = []
+    if outcome != "incomplete":
+        events += [{"event": "summary", "run_id": run_id, "captured": 1,
+                    "errors": int(outcome == "failed"), "ok": outcome == "passed"}]
+        cleanup = [
+            {"step": "release_to_local", "result": "SYST:LOC:failed:VisaIOError" if outcome == "failed" else "SYST:LOC:ok"},
+        ]
+        if outcome == "passed":
+            cleanup += [{"step": "cleanup_release_to_local", "result": "cleanup_open:ok, SYST:LOC:ok, cleanup_close:ok"}]
+        else:
+            events[-1]["fatal_error"] = failure
+            events += [
+                {"event": "status", "message": 'capture error count=1 scpi_error=-113,"Undefined header"'},
+                {"event": "error", "message": failure, "exit_code": 3},
+            ]
+        events += [{"event": "message", "message": f"{r['step']}: {r['result']}"} for r in cleanup]
+    events_path = tmp_path / "events.jsonl"
+    events_path.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
+    timestamp = f"synthetic-{uuid4().hex}"
+    wrapper = tmp_path / "synthetic-live.ps1"
+    wrapper.write_text(synthetic_confirmed_live_wrapper(timestamp), encoding="utf-8")
+    csv = (
+        "timestamp_utc_plus_8,measurement_type,value,unit,trigger_metadata,resource_id,status\n"
+        f"2026-01-01T00:00:00+08:00,current_dc,{value},A,private,{resource},ok\n"
+    )
+    setup = (
+        "function Invoke-SyntheticStartProcess { "
+        "param($Name,$Arguments,$StdOutPath,$StdErrPath,$TimeoutSeconds,$SoftTriggerCount,"
+        "$SoftTriggerPort,$OutDir,$SoftTriggerRetryCount,$SoftTriggerRetryDelayMs,"
+        "$InterTriggerDelayMs,$StopGracePeriodMs,[switch]$CaptureClientCommandsInMemory); "
+        f"Write-Utf8NoBomText -LiteralPath $StdOutPath -Text ([IO.File]::ReadAllText({ps_quote(events_path)})); "
+        "Write-Utf8NoBomText -LiteralPath $StdErrPath -Text 'private stderr'; "
+        + ("" if outcome == "incomplete" else
+           f"Write-Utf8NoBomText -LiteralPath $Arguments[[array]::IndexOf($Arguments,'--csv')+1] -Text {ps_quote(csv)}; ")
+        + "return [ordered]@{name=$Name;command=$Python;arguments=$Arguments;"
+        f"exit_code={0 if outcome == 'passed' else 3};success=${str(outcome == 'passed').lower()};"
+        "duration_seconds=0;stdout=$StdOutPath;stderr=$StdErrPath;client_commands=@();"
+        "timed_out=$false;client_failure=$null} }; "
+        "Set-Alias Invoke-CapturedStartProcess Invoke-SyntheticStartProcess; "
+    )
+    result = run_powershell_command(
+        setup + f"& {ps_quote(wrapper)} -Target keysight-34461a -Connection usb "
+        + f"-Resource {ps_quote(resource)} -Suite minimal "
+        + ("-DebugArtifacts; " if debug else "; ") + "exit $LASTEXITCODE"
+    )
+    assert result.returncode == (0 if outcome == "passed" else 1), result.stderr + result.stdout
+    report_path = report_from_summary_output(result.stdout + result.stderr)
+    report = load_json(report_path)
+    assert report["status"] == ("passed" if outcome == "passed" else "failed")
+    case = report["cases"][0]
+    assert case["status"] == report["status"]
+    assert case["run_id"] == run_id
+    evidence = case["runtime_evidence"]
+    assert evidence["identity"]["status"] == "not_available"
+    assert evidence["cleanup"] == {
+        "status": "observed" if cleanup else "not_observed", "results": cleanup, "close_status": "not_reported",
+    }
+    assert isinstance(evidence["error_events"], list)
+    assert isinstance(evidence["diagnostics"], list)
+    if outcome == "incomplete":
+        assert evidence["summary"] is None
+        assert case["captured"] is None
+    else:
+        assert evidence["summary"]["ok"] is (outcome == "passed")
+        assert case["captured"] == case["csv_rows"] == 1
+        if not debug:
+            assert case["csv_validation"]["header_valid"] is True
+    if outcome == "failed":
+        assert "VisaIOError" in evidence["summary"]["fatal_error"]
+        assert evidence["error_events"] == [{"message": evidence["summary"]["fatal_error"], "exit_code": 3}]
+        assert "Undefined header" in evidence["diagnostics"][0]["message"]
+    else:
+        assert evidence["error_events"] == evidence["diagnostics"] == []
+    # Debug keeps the existing detailed artifacts; the two reports stay value-free.
+    safe_paths = (report_path, report_path.with_name("summary.md")) if debug else report_path.parent.rglob("*")
+    safe_text = "\n".join(p.read_text(encoding="utf-8-sig") for p in safe_paths if p.is_file())
+    for forbidden in (resource, "SERIAL12345", "KEYSIGHT,34461A", str(tmp_path), value, "private stderr"):
+        assert forbidden not in safe_text
+    run_root = report_path.parents[1]
+    if debug:
+        assert (run_root / "private" / "minimal_current_dc_immediate" / "live.jsonl").exists()
+        assert (run_root / "private" / "minimal_current_dc_immediate" / "live.stderr.txt").exists()
+    else:
+        assert {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()} == {
+            "shareable/report.json", "shareable/summary.md",
+        }
 
 
 def assert_normal_failure_artifact_privacy(
@@ -1274,6 +1351,8 @@ def test_live_plan_only_minimal_retains_only_shareable_reports():
     assert report["private_raw_artifacts_retained"] is False
     assert report["status"] == "planned"
     assert report["plan_only"] is True and report["live_executed"] is False
+    assert report["cases"] == []
+    assert "runtime_evidence" not in report
     assert report["dry_runs"][0]["plan"]["read_path"] == "READ?"
     assert resource not in report_path.read_text(encoding="utf-8")
 

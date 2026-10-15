@@ -452,6 +452,46 @@ function Invoke-LiveCase {
     } else {
         $failureReasons.Add("summary event missing") | Out-Null
     }
+    # Keep only review evidence; status/sample events can contain measurement values.
+    $runtimeErrors = @(
+        foreach ($event in $events) {
+            if ($event.event -eq "error") {
+                [ordered]@{ message = $event.message; exit_code = $event.exit_code }
+            }
+        }
+    )
+    $diagnostics = @()
+    $cleanupResults = @()
+    foreach ($event in $events) {
+        if ($event.event -eq "message" -and
+            $event.message -match '^(release_to_local before close|release_to_local retry|release_to_local|cleanup_release_to_local): (.+)$') {
+            $cleanupResults += [ordered]@{ step = $Matches[1]; result = $Matches[2] }
+        } elseif ($event.event -eq "status" -and
+            $event.message -match '^(?:(?:buffered )?capture error count=|hardware status poll timeout warning |hardware status polling degraded )') {
+            $diagnostics += [ordered]@{ message = $event.message }
+        }
+    }
+    $runtimeEvidence = [ordered]@{
+        source = "cli_jsonl"
+        summary = if ($summary.Count -eq 1) {
+            [ordered]@{
+                ok = $summary[0].ok
+                fatal_error = if ($null -ne $summary[0].PSObject.Properties['fatal_error']) { $summary[0].fatal_error } else { $null }
+            }
+        } else { $null }
+        error_events = $runtimeErrors
+        diagnostics = $diagnostics
+        cleanup = [ordered]@{
+            status = if ($cleanupResults.Count -gt 0) { "observed" } else { "not_observed" }
+            results = $cleanupResults
+            # Runtime messages report release results, but do not confirm close success.
+            close_status = "not_reported"
+        }
+        identity = [ordered]@{
+            status = "not_available"
+            reason = "Runtime JSONL does not expose detected manufacturer, model or firmware."
+        }
+    }
     $rowCount = Test-CsvRowCount -Path $CsvPath
     if ($rowCount -lt $Case.expected_captured) {
         $failureReasons.Add("CSV row count mismatch: expected_at_least=$($Case.expected_captured) actual=$rowCount") | Out-Null
@@ -495,6 +535,7 @@ function Invoke-LiveCase {
         captured = $captured
         errors = $errors
         ready_events = $ready.Count
+        runtime_evidence = $runtimeEvidence
         csv_row_count = $rowCount
         csv_rows = $rowCount
         measurement_type = $measurementType
@@ -518,7 +559,8 @@ function Write-LiveArtifacts {
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CaseItems,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$DryRunItems,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$ScpiDiagnosticItems,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CommandItems
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CommandItems,
+        [string]$FailureReason
     )
 
     $report = [ordered]@{
@@ -558,6 +600,7 @@ function Write-LiveArtifacts {
         scpi_diagnostics = @($ScpiDiagnosticItems)
         commands = @($CommandItems)
     }
+    if (-not [string]::IsNullOrWhiteSpace($FailureReason)) { $report.failure_reason = $FailureReason }
     if ($DebugArtifacts) { Write-JsonReport -LiteralPath $reportPath -Report $report -Depth 12 }
 
     $summaryLines = @(
@@ -719,24 +762,39 @@ $artifactGenerationFailed = $false
 $liveExecuted = $false
 
 trap {
-    if (-not $script:handlingArtifactFailure -and -not $script:artifactsFinalized -and -not $script:artifactGenerationFailed) {
-        $script:handlingArtifactFailure = $true
-        $written = Write-LiveArtifacts `
-            -Status "wrapper_failed" `
-            -PlanOnlyRun ([bool]$PlanOnly) `
-            -LiveExecuted ([bool]$liveExecuted) `
-            -CaseItems @($caseResults.ToArray()) `
-            -DryRunItems @($dryRunResults.ToArray()) `
-            -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
-            -CommandItems @($commands.ToArray())
-        if ($written) { Write-Host "summary: $canonicalSummaryPath" } else { Write-Host "artifact error: $canonicalErrorPath" }
-    }
     $safeFailure = Protect-ArtifactText `
         -Text $_.Exception.Message `
         -Resource $Resource `
         -RepoRoot $RepoRoot `
         -PrivateRoot $privateRoot `
         -SensitiveValues @(Get-DistinctiveSensitiveTokens -Resource $Resource)
+    if (-not $script:handlingArtifactFailure -and -not $script:artifactsFinalized -and -not $script:artifactGenerationFailed) {
+        $script:handlingArtifactFailure = $true
+        $written = $false
+        try {
+            $written = Write-LiveArtifacts `
+                -Status "wrapper_failed" `
+                -FailureReason $safeFailure `
+                -PlanOnlyRun ([bool]$PlanOnly) `
+                -LiveExecuted ([bool]$liveExecuted) `
+                -CaseItems @($caseResults.ToArray()) `
+                -DryRunItems @($dryRunResults.ToArray()) `
+                -ScpiDiagnosticItems @($scpiDiagnostics.ToArray()) `
+                -CommandItems @($commands.ToArray())
+        } catch {
+            $script:artifactGenerationFailed = $true
+            $artifactFailure = Protect-ArtifactText -Text $_.Exception.Message -Resource $Resource `
+                -RepoRoot $RepoRoot -PrivateRoot $privateRoot `
+                -SensitiveValues @(Get-DistinctiveSensitiveTokens -Resource $Resource)
+            try {
+                Remove-ValidationRunArtifacts -RunDirectory $runDir -RepoRoot $RepoRoot `
+                    -ShareableFailed -FailureDetail $artifactFailure -Resource $Resource
+            } catch {
+                [Console]::Error.WriteLine("Artifact failure cleanup could not be completed.")
+            }
+        }
+        if ($written) { Write-Host "summary: $canonicalSummaryPath" } else { Write-Host "artifact error: $canonicalErrorPath" }
+    }
     [Console]::Error.WriteLine($safeFailure)
     exit 1
 }
