@@ -371,6 +371,7 @@ def test_preflight_34460a_is_target_aware_without_external_positive_cases():
     output_root = REPO_ROOT / ".tmp_tests" / "pytest_wrappers" / f"preflight_34460a_{uuid4().hex}"
     result = run_wrapper(
         "scripts/preflight-cli.ps1",
+        "-DebugArtifacts",
         "-Target",
         "keysight-34460a",
         "-OutputRoot",
