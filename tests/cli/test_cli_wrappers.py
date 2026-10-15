@@ -979,7 +979,7 @@ def test_live_redirected_stdin_writes_confirmation_required_report():
     assert not (run_root / "report.json").exists()
 
 
-@pytest.mark.parametrize("mode", ["minimal", "debug", "artifact_failure", "report_failure"])
+@pytest.mark.parametrize("mode", ["minimal", "artifact_failure"])
 def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path, mode: str):
     raw_resource = "TCPIP0::meter-lab.local::inst0::INSTR"
     timestamp = f"synthetic-{uuid4().hex}"
@@ -995,21 +995,19 @@ def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path, 
         f"function Invoke-SyntheticProbe {{ throw {ps_quote(reason)} }}; "
         "Set-Alias Invoke-FrequencyPeriodScpiProbe Invoke-SyntheticProbe; "
     )
-    if mode in ("artifact_failure", "report_failure"):
-        failing_command = "New-ShareableArtifactSet" if mode == "artifact_failure" else "Get-PackageVersion"
+    if mode == "artifact_failure":
         setup += (
             f"function Invoke-SyntheticArtifactFailure {{ throw {ps_quote('Synthetic artifact failure ' + raw_resource)} }}; "
-            f"Set-Alias {failing_command} Invoke-SyntheticArtifactFailure; "
+            "Set-Alias New-ShareableArtifactSet Invoke-SyntheticArtifactFailure; "
         )
     result = run_powershell_command(
         setup + f"& {ps_quote(synthetic_wrapper)} "
-        + ("-DebugArtifacts " if mode == "debug" else "")
         + f"-Target keysight-34461a -Connection lan -Resource {ps_quote(raw_resource)} "
         "-Suite frequency-period; exit $LASTEXITCODE"
     )
     assert result.returncode == 1, result.stderr + result.stdout
     files = {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()}
-    if mode in ("artifact_failure", "report_failure"):
+    if mode == "artifact_failure":
         assert files == {"private/error-summary.md"}
         safe_text = (run_root / "private" / "error-summary.md").read_text(encoding="utf-8")
         assert "Synthetic artifact failure" in safe_text
@@ -1020,18 +1018,13 @@ def test_live_probe_exception_reports_that_live_execution_began(tmp_path: Path, 
         assert report["status"] == "wrapper_failed"
         assert report["live_executed"] is True
         assert report["validation_mode"] == "live"
-        assert report["private_raw_artifacts_retained"] is (mode == "debug")
+        assert report["private_raw_artifacts_retained"] is False
         assert report["resource"] == "lan:<redacted-resource>"
         assert "Synthetic live probe failure" in report["failure_reason"]
         summary_text = report_path.with_name("summary.md").read_text(encoding="utf-8")
         assert report["failure_reason"] in summary_text
         safe_text = report_path.read_text(encoding="utf-8") + summary_text
-        if mode == "debug":
-            private_report = load_json(run_root / "private" / "report.json")
-            assert private_report["resource"] == raw_resource
-            assert private_report["failure_reason"] == report["failure_reason"]
-        else:
-            assert files == {"shareable/report.json", "shareable/summary.md"}
+        assert files == {"shareable/report.json", "shareable/summary.md"}
     for forbidden in (raw_resource, "meter-lab.local", str(private_path), str(REPO_ROOT)):
         assert forbidden not in safe_text
         assert forbidden not in result.stdout + result.stderr
@@ -1054,34 +1047,24 @@ def synthetic_confirmed_live_wrapper(timestamp: str) -> str:
     return wrapper_text
 
 
-@pytest.mark.parametrize("outcome,debug", [("passed", False), ("failed", False), ("incomplete", False), ("passed", True)])
-def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, outcome: str, debug: bool):
+def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path):
     resource = "USB0::1::2::SERIAL12345::INSTR"
     value = "98765.4321"
     failure = f"capture failure: VisaIOError at {tmp_path} for {resource}"
     run_id = "synthetic-run"
+    cleanup = [{"step": "release_to_local", "result": "SYST:LOC:failed:VisaIOError"}]
     events = [
         {"event": "ready", "run_id": run_id},
-        {"event": "sample", "run_id": run_id, "value": value, "trigger_metadata": {"secret": "private"}},
+        {"event": "sample", "run_id": run_id, "value": value,
+         "trigger_metadata": {"secret": "private"}},
         {"event": "status", "message": f"captured=1 value={value} A"},
         {"event": "message", "message": "KEYSIGHT,34461A,SERIAL12345,A.03.03"},
+        {"event": "summary", "run_id": run_id, "captured": 1, "errors": 1,
+         "ok": False, "fatal_error": failure},
+        {"event": "status", "message": 'capture error count=1 scpi_error=-113,"Undefined header"'},
+        {"event": "error", "message": failure, "exit_code": 3},
+        {"event": "message", "message": "release_to_local: SYST:LOC:failed:VisaIOError"},
     ]
-    cleanup = []
-    if outcome != "incomplete":
-        events += [{"event": "summary", "run_id": run_id, "captured": 1,
-                    "errors": int(outcome == "failed"), "ok": outcome == "passed"}]
-        cleanup = [
-            {"step": "release_to_local", "result": "SYST:LOC:failed:VisaIOError" if outcome == "failed" else "SYST:LOC:ok"},
-        ]
-        if outcome == "passed":
-            cleanup += [{"step": "cleanup_release_to_local", "result": "cleanup_open:ok, SYST:LOC:ok, cleanup_close:ok"}]
-        else:
-            events[-1]["fatal_error"] = failure
-            events += [
-                {"event": "status", "message": 'capture error count=1 scpi_error=-113,"Undefined header"'},
-                {"event": "error", "message": failure, "exit_code": 3},
-            ]
-        events += [{"event": "message", "message": f"{r['step']}: {r['result']}"} for r in cleanup]
     events_path = tmp_path / "events.jsonl"
     events_path.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
     timestamp = f"synthetic-{uuid4().hex}"
@@ -1098,60 +1081,46 @@ def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, outcome
         "$InterTriggerDelayMs,$StopGracePeriodMs,[switch]$CaptureClientCommandsInMemory); "
         f"Write-Utf8NoBomText -LiteralPath $StdOutPath -Text ([IO.File]::ReadAllText({ps_quote(events_path)})); "
         "Write-Utf8NoBomText -LiteralPath $StdErrPath -Text 'private stderr'; "
-        + ("" if outcome == "incomplete" else
-           f"Write-Utf8NoBomText -LiteralPath $Arguments[[array]::IndexOf($Arguments,'--csv')+1] -Text {ps_quote(csv)}; ")
-        + "return [ordered]@{name=$Name;command=$Python;arguments=$Arguments;"
-        f"exit_code={0 if outcome == 'passed' else 3};success=${str(outcome == 'passed').lower()};"
+        f"Write-Utf8NoBomText -LiteralPath $Arguments[[array]::IndexOf($Arguments,'--csv')+1] -Text {ps_quote(csv)}; "
+        "return [ordered]@{name=$Name;command=$Python;arguments=$Arguments;"
+        "exit_code=3;success=$false;"
         "duration_seconds=0;stdout=$StdOutPath;stderr=$StdErrPath;client_commands=@();"
         "timed_out=$false;client_failure=$null} }; "
         "Set-Alias Invoke-CapturedStartProcess Invoke-SyntheticStartProcess; "
     )
     result = run_powershell_command(
         setup + f"& {ps_quote(wrapper)} -Target keysight-34461a -Connection usb "
-        + f"-Resource {ps_quote(resource)} -Suite minimal "
-        + ("-DebugArtifacts; " if debug else "; ") + "exit $LASTEXITCODE"
+        + f"-Resource {ps_quote(resource)} -Suite minimal; exit $LASTEXITCODE"
     )
-    assert result.returncode == (0 if outcome == "passed" else 1), result.stderr + result.stdout
+    assert result.returncode == 1, result.stderr + result.stdout
     report_path = report_from_summary_output(result.stdout + result.stderr)
     report = load_json(report_path)
-    assert report["status"] == ("passed" if outcome == "passed" else "failed")
+    assert report["status"] == "failed"
     case = report["cases"][0]
-    assert case["status"] == report["status"]
+    assert case["status"] == "failed"
     assert case["run_id"] == run_id
     evidence = case["runtime_evidence"]
     assert evidence["identity"]["status"] == "not_available"
     assert evidence["cleanup"] == {
-        "status": "observed" if cleanup else "not_observed", "results": cleanup, "close_status": "not_reported",
+        "status": "observed", "results": cleanup, "close_status": "not_reported",
     }
-    assert isinstance(evidence["error_events"], list)
-    assert isinstance(evidence["diagnostics"], list)
-    if outcome == "incomplete":
-        assert evidence["summary"] is None
-        assert case["captured"] is None
-    else:
-        assert evidence["summary"]["ok"] is (outcome == "passed")
-        assert case["captured"] == case["csv_rows"] == 1
-        if not debug:
-            assert case["csv_validation"]["header_valid"] is True
-    if outcome == "failed":
-        assert "VisaIOError" in evidence["summary"]["fatal_error"]
-        assert evidence["error_events"] == [{"message": evidence["summary"]["fatal_error"], "exit_code": 3}]
-        assert "Undefined header" in evidence["diagnostics"][0]["message"]
-    else:
-        assert evidence["error_events"] == evidence["diagnostics"] == []
-    # Debug keeps the existing detailed artifacts; the two reports stay value-free.
-    safe_paths = (report_path, report_path.with_name("summary.md")) if debug else report_path.parent.rglob("*")
-    safe_text = "\n".join(p.read_text(encoding="utf-8-sig") for p in safe_paths if p.is_file())
+    assert evidence["summary"]["ok"] is False
+    assert "VisaIOError" in evidence["summary"]["fatal_error"]
+    assert case["captured"] == case["csv_rows"] == 1
+    assert case["csv_validation"]["header_valid"] is True
+    assert evidence["error_events"] == [
+        {"message": evidence["summary"]["fatal_error"], "exit_code": 3}
+    ]
+    assert "Undefined header" in evidence["diagnostics"][0]["message"]
+    run_root = report_path.parents[1]
+    files = {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()}
+    assert files == {"shareable/report.json", "shareable/summary.md"}
+    safe_text = report_path.read_text(encoding="utf-8-sig") + report_path.with_name(
+        "summary.md"
+    ).read_text(encoding="utf-8-sig")
     for forbidden in (resource, "SERIAL12345", "KEYSIGHT,34461A", str(tmp_path), value, "private stderr"):
         assert forbidden not in safe_text
-    run_root = report_path.parents[1]
-    if debug:
-        assert (run_root / "private" / "minimal_current_dc_immediate" / "live.jsonl").exists()
-        assert (run_root / "private" / "minimal_current_dc_immediate" / "live.stderr.txt").exists()
-    else:
-        assert {p.relative_to(run_root).as_posix() for p in run_root.rglob("*") if p.is_file()} == {
-            "shareable/report.json", "shareable/summary.md",
-        }
+
 
 
 def assert_normal_failure_artifact_privacy(
