@@ -206,7 +206,8 @@ function ConvertTo-ShareableArtifactValue {
             $converted = ConvertTo-ShareableArtifactValue -Value $item -FieldName $FieldName -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
             $items.Add($converted)
         }
-        return ,($items.ToArray())
+        [object[]]$resultArray = $items.ToArray()
+        return ,$resultArray
     }
     return $Value
 }
@@ -448,7 +449,11 @@ function New-ShareableArtifactSet {
     $report = ConvertTo-ShareableArtifactValue -Value $sourceReport -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $context.SensitiveValues
     # Published report collections must remain arrays for zero, one, or many results.
     foreach ($arrayField in @('cases', 'dry_runs', 'scpi_diagnostics', 'commands')) {
-        $report[$arrayField] = @($report[$arrayField])
+        if ($null -eq $report[$arrayField]) {
+            $report[$arrayField] = @()
+        } else {
+            $report[$arrayField] = @($report[$arrayField])
+        }
     }
     if (-not [bool]$PrivateReport.live_executed) { $report.cases = @() }
     $report.schema_version = '1.1'
@@ -512,7 +517,8 @@ function ConvertTo-MinimalEvidenceValue {
             $converted = ConvertTo-MinimalEvidenceValue -Value $item
             $values.Add($converted)
         }
-        return ,($values.ToArray())
+        [object[]]$resultArray = $values.ToArray()
+        return ,$resultArray
     }
     return $Value
 }
