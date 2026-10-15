@@ -470,7 +470,7 @@ function ConvertTo-MinimalEvidenceValue {
     param([AllowNull()]$Value)
     if ($null -eq $Value) { return $null }
     if ($Value -is [System.Collections.IDictionary] -or $Value -is [pscustomobject]) {
-        $entries = if ($Value -is [System.Collections.IDictionary]) { @($Value.Keys) } else { @($Value.PSObject.Properties.Name) }
+        $entries = if ($Value -is [System.Collections.IDictionary]) { @($Value.Keys) } else { @($Value.PSObject.Properties | ForEach-Object { $_.Name }) }
         $output = [ordered]@{}
         foreach ($name in $entries) {
             $key = [string]$name
