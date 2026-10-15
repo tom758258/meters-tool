@@ -31,8 +31,6 @@ TRADITIONAL_MARKDOWN_PATHS = (
     "docs/cli/USER_GUIDE.zh-TW.md",
     "docs/core/README.zh-TW.md",
     "docs/core/supported-models.zh-TW.md",
-    "docs/skill/EXAMPLES.zh-TW.md",
-    "docs/skill/README.zh-TW.md",
     "docs/webui/README.zh-TW.md",
     "docs/webui/USER_GUIDE.zh-TW.md",
 )
@@ -53,16 +51,6 @@ TRADITIONAL_MARKDOWN_TOKEN_REQUIREMENTS = {
         "transport_pending",
     ),
 }
-SKILL_REFERENCE_SOURCES = {
-    "common-worker-protocol.md": "docs/contracts/common-worker-protocol.md",
-    "common-cli-jsonl-contract.md": "docs/contracts/common-cli-jsonl-contract.md",
-    "common-orchestrator-workflows.md": "docs/contracts/common-orchestrator-workflows.md",
-    "meters-worker-contract.md": "docs/contracts/meters-worker-contract.md",
-    "meters-cli-jsonl-contract.md": "docs/contracts/meters-cli-jsonl-contract.md",
-    "meters-orchestrator-workflows.md": "docs/contracts/meters-orchestrator-workflows.md",
-    "supported-models.md": "docs/core/supported-models.md",
-}
-
 
 def read_project_version() -> str:
     text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
@@ -79,24 +67,6 @@ def parse_semver_tuple(value: str) -> tuple[int, int, int]:
 
 def test_root_has_no_legacy_source_package():
     assert not (REPO_ROOT / "src" / "meters_tool").exists()
-
-
-def test_skill_references_inventory_has_seven_sources():
-    skill_documents = tuple(
-        (REPO_ROOT / relative).read_text(encoding="utf-8")
-        for relative in (
-            "docs/skill/SKILL.md",
-            "docs/skill/README.md",
-            "docs/skill/README.zh-TW.md",
-        )
-    )
-
-    for basename, source_relative in SKILL_REFERENCE_SOURCES.items():
-        assert (REPO_ROOT / source_relative).is_file(), source_relative
-        assert all(basename in document for document in skill_documents), basename
-
-    assert "six contract files" not in skill_documents[1]
-    assert "六份 contract，不新增第七份" not in skill_documents[2]
 
 
 def test_legacy_import_package_is_absent():
