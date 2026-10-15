@@ -215,7 +215,8 @@ function Invoke-CapturedCommand {
         [Parameter(Mandatory = $true)][string[]]$Arguments,
         [Parameter(Mandatory = $true)][string]$StdOutPath,
         [Parameter(Mandatory = $true)][string]$StdErrPath,
-        [string]$WorkingDirectory = $RepoRoot
+        [string]$WorkingDirectory = $RepoRoot,
+        [switch]$CaptureInMemory
     )
 
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
@@ -235,8 +236,10 @@ function Invoke-CapturedCommand {
     $stderr = $stderrTask.GetAwaiter().GetResult()
     $finishedAt = Get-Date
 
-    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
-    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
+    if (-not $CaptureInMemory) {
+        Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
+        Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
+    }
 
     return [ordered]@{
         name = $Name
@@ -244,8 +247,10 @@ function Invoke-CapturedCommand {
         arguments = $Arguments
         exit_code = $process.ExitCode
         duration_seconds = [math]::Round(($finishedAt - $startedAt).TotalSeconds, 3)
-        stdout = $StdOutPath
-        stderr = $StdErrPath
+        stdout = if ($CaptureInMemory) { $null } else { $StdOutPath }
+        stderr = if ($CaptureInMemory) { $null } else { $StdErrPath }
+        stdout_text = if ($CaptureInMemory) { $stdout } else { $null }
+        stderr_text = if ($CaptureInMemory) { $stderr } else { $null }
         success = ($process.ExitCode -eq 0)
     }
 }
@@ -254,7 +259,8 @@ function Invoke-ReadinessClientChecks {
     param(
         [Parameter(Mandatory = $true)][string]$Name,
         [Parameter(Mandatory = $true)][int]$Port,
-        [Parameter(Mandatory = $true)][string]$OutDir
+        [Parameter(Mandatory = $true)][string]$OutDir,
+        [switch]$CaptureInMemory
     )
 
     $waitOut = Join-Path $OutDir "$Name`_wait_ready.json"
@@ -264,7 +270,8 @@ function Invoke-ReadinessClientChecks {
         -FilePath $Python `
         -Arguments @("-m", "meters_tool_cli", "wait-ready", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $waitOut `
-        -StdErrPath $waitErr
+        -StdErrPath $waitErr `
+        -CaptureInMemory:$CaptureInMemory
     if (-not $waitResult.success) {
         return [ordered]@{ success = $false; commands = @([pscustomobject]$waitResult) }
     }
@@ -276,7 +283,8 @@ function Invoke-ReadinessClientChecks {
         -FilePath $Python `
         -Arguments @("-m", "meters_tool_cli", "status", "--format", "json", "--port", [string]$Port) `
         -StdOutPath $statusOut `
-        -StdErrPath $statusErr
+        -StdErrPath $statusErr `
+        -CaptureInMemory:$CaptureInMemory
 
     return [ordered]@{
         success = $statusResult.success
@@ -297,7 +305,9 @@ function Invoke-CapturedStartProcess {
         [Parameter(Mandatory = $true)][int]$SoftTriggerRetryCount,
         [Parameter(Mandatory = $true)][int]$SoftTriggerRetryDelayMs,
         [Parameter(Mandatory = $true)][int]$InterTriggerDelayMs,
-        [Parameter(Mandatory = $true)][int]$StopGracePeriodMs
+        [Parameter(Mandatory = $true)][int]$StopGracePeriodMs,
+        [switch]$CaptureInMemory,
+        [switch]$CaptureClientCommandsInMemory
     )
 
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
@@ -320,7 +330,8 @@ function Invoke-CapturedStartProcess {
         $readinessResult = Invoke-ReadinessClientChecks `
             -Name $Name `
             -Port $SoftTriggerPort `
-            -OutDir $OutDir
+            -OutDir $OutDir `
+            -CaptureInMemory:$CaptureClientCommandsInMemory
         foreach ($clientCommand in $readinessResult.commands) {
             $clientResults.Add($clientCommand) | Out-Null
         }
@@ -338,7 +349,8 @@ function Invoke-CapturedStartProcess {
                 -Index $index `
                 -OutDir $OutDir `
                 -RetryCount $SoftTriggerRetryCount `
-                -RetryDelayMs $SoftTriggerRetryDelayMs
+                -RetryDelayMs $SoftTriggerRetryDelayMs `
+                -CaptureInMemory:$CaptureClientCommandsInMemory
             $clientResults.Add([pscustomobject]$triggerResult) | Out-Null
             if (-not $triggerResult.success) {
                 $clientFailure = "send-command $index failed"
@@ -359,7 +371,8 @@ function Invoke-CapturedStartProcess {
                 -FilePath $Python `
                 -Arguments @("-m", "meters_tool_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
                 -StdOutPath $stopOut `
-                -StdErrPath $stopErr
+                -StdErrPath $stopErr `
+                -CaptureInMemory:$CaptureClientCommandsInMemory
             $clientResults.Add([pscustomobject]$stopResult) | Out-Null
             $exited = $process.WaitForExit($StopGracePeriodMs)
         }
@@ -372,8 +385,10 @@ function Invoke-CapturedStartProcess {
     $finishedAt = Get-Date
     $stdout = $stdoutTask.GetAwaiter().GetResult()
     $stderr = $stderrTask.GetAwaiter().GetResult()
-    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
-    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
+    if (-not $CaptureInMemory) {
+        Write-Utf8NoBomText -LiteralPath $StdOutPath -Text $stdout
+        Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $stderr
+    }
 
     return [ordered]@{
         name = $Name
@@ -381,8 +396,10 @@ function Invoke-CapturedStartProcess {
         arguments = $Arguments
         exit_code = $process.ExitCode
         duration_seconds = [math]::Round(($finishedAt - $startedAt).TotalSeconds, 3)
-        stdout = $StdOutPath
-        stderr = $StdErrPath
+        stdout = if ($CaptureInMemory) { $null } else { $StdOutPath }
+        stderr = if ($CaptureInMemory) { $null } else { $StdErrPath }
+        stdout_text = if ($CaptureInMemory) { $stdout } else { $null }
+        stderr_text = if ($CaptureInMemory) { $stderr } else { $null }
         success = (($process.ExitCode -eq 0) -and (-not $timedOut) -and ($null -eq $clientFailure))
         timed_out = $timedOut
         client_failure = $clientFailure
@@ -398,7 +415,8 @@ function Invoke-SoftTriggerWithRetry {
         [Parameter(Mandatory = $true)][int]$Index,
         [Parameter(Mandatory = $true)][string]$OutDir,
         [Parameter(Mandatory = $true)][int]$RetryCount,
-        [Parameter(Mandatory = $true)][int]$RetryDelayMs
+        [Parameter(Mandatory = $true)][int]$RetryDelayMs,
+        [switch]$CaptureInMemory
     )
 
     $meta = [ordered]@{ case = $CaseName; index = "$Index" } | ConvertTo-Json -Compress
@@ -417,10 +435,12 @@ function Invoke-SoftTriggerWithRetry {
                 "--arguments-json", $meta
             ) `
             -StdOutPath $stdoutPath `
-            -StdErrPath $stderrPath
+            -StdErrPath $stderrPath `
+            -CaptureInMemory:$CaptureInMemory
         if ($lastResult.success) {
             try {
-                $event = Get-Content -LiteralPath $stdoutPath -Raw | ConvertFrom-Json -ErrorAction Stop
+                $responseText = if ($CaptureInMemory) { $lastResult.stdout_text } else { Get-Content -LiteralPath $stdoutPath -Raw }
+                $event = $responseText | ConvertFrom-Json -ErrorAction Stop
                 if ($event.event -eq "send-command" -and $event.status -eq "accepted") {
                     return $lastResult
                 }
@@ -434,9 +454,14 @@ function Invoke-SoftTriggerWithRetry {
 }
 
 function Read-JsonLines {
-    param([Parameter(Mandatory = $true)][string]$Path)
+    param(
+        [string]$Path,
+        [AllowEmptyString()][string]$Text = "",
+        [switch]$FromText
+    )
     $events = @()
-    foreach ($line in Get-Content -LiteralPath $Path) {
+    $lines = if ($FromText) { @($Text -split '\r?\n') } else { @(Get-Content -LiteralPath $Path) }
+    foreach ($line in $lines) {
         if ($line.Trim().Length -eq 0) {
             continue
         }

@@ -542,3 +542,66 @@ def test_shareable_tree_forbidden_string_scan(tmp_path: Path):
     ):
         assert safe in tree_text
     assert not (shareable / "unknown.bin").exists()
+
+
+def test_minimal_shareable_embeds_csv_evidence_without_extra_files(tmp_path: Path):
+    resource = "USB0::1::2::SERIAL12345::INSTR"
+    context = privacy_context(tmp_path, resource)
+    root = tmp_path / "run"
+    private = root / "private"
+    shareable = root / "shareable"
+    csv = private / "case.csv"
+    csv.write_text(
+        "timestamp_utc_plus_8,measurement_type,value,unit,trigger_metadata,resource_id,status\n"
+        "2026-01-01T00:00:00+08:00,current_dc,0.05,A,secret,USB::SECRET,ok\n",
+        encoding="utf-8",
+    )
+    report = private_report_payload(private, resource)
+    report["cases"] = [{"name": "test_case", "status": "passed", "expected_captured": 1,
+                        "csv": str(csv), "csv_rows": 1, "errors": 0}]
+    (private / "report.json").write_text(json.dumps(report), encoding="utf-8")
+    result = run_privacy_command(
+        f"$c={context}; $r=Get-Content -LiteralPath {ps_quote(private / 'report.json')} -Raw | ConvertFrom-Json; "
+        "[void](New-ShareableArtifactSet -PrivateReport $r -RunRoot $c.RunRoot "
+        "-PrivateRoot $c.PrivateRoot -ShareableRoot $c.ShareableRoot -RepoRoot $c.RepoRoot "
+        "-Resource $c.Resource -Connection $c.Connection -MinimalArtifacts)"
+    )
+    assert result.returncode == 0, result.stderr
+    files = {p.relative_to(shareable).as_posix() for p in shareable.rglob("*") if p.is_file()}
+    assert files == {"report.json", "summary.md"}
+    safe = json.loads((shareable / "report.json").read_text(encoding="utf-8"))
+    assert safe["artifact_mode"] == "minimal"
+    assert safe["private_raw_artifacts_retained"] is False
+    assert safe["cases"][0]["csv_validation"]["header_valid"] is True
+    assert safe["cases"][0]["csv_validation"]["row_count"] == 1
+    assert safe["cases"][0]["csv_validation"]["private_raw_artifact_retained"] is False
+    assert resource not in (shareable / "report.json").read_text(encoding="utf-8")
+
+
+def test_shareable_failure_prunes_only_current_run_and_redacts_summary():
+    from uuid import uuid4
+
+    root = REPO_ROOT / ".tmp_tests" / "pytest_privacy" / uuid4().hex
+    sibling = root.parent / (root.name + "_sibling")
+    private = root / "private"
+    try:
+        private.mkdir(parents=True)
+        sibling.mkdir(parents=True)
+        (private / "raw.txt").write_text("USB0::1::2::SERIAL12345::INSTR", encoding="utf-8")
+        (root / "shareable").mkdir()
+        (root / "shareable" / "incomplete.txt").write_text("raw")
+        (sibling / "keep.txt").write_text("keep")
+        result = run_privacy_command(
+            f"Remove-ValidationRunArtifacts -RunDirectory {ps_quote(root)} "
+            f"-RepoRoot {ps_quote(REPO_ROOT)} -ShareableFailed "
+            "-Resource 'USB0::1::2::SERIAL12345::INSTR' "
+            "-FailureDetail 'Failed for USB0::1::2::SERIAL12345::INSTR'"
+        )
+        assert result.returncode == 0, result.stderr
+        files = {p.relative_to(root).as_posix() for p in root.rglob("*") if p.is_file()}
+        assert files == {"private/error-summary.md"}
+        assert "SERIAL12345" not in (private / "error-summary.md").read_text(encoding="utf-8")
+        assert (sibling / "keep.txt").read_text(encoding="utf-8") == "keep"
+    finally:
+        shutil.rmtree(root, ignore_errors=True)
+        shutil.rmtree(sibling, ignore_errors=True)

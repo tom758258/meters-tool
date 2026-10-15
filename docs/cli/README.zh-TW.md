@@ -217,6 +217,8 @@ keysight-34461a
 keysight-34460a
 ```
 
+兩支驗證腳本皆支援 `-DebugArtifacts`。預設 Minimal 模式優先在記憶體解析一般 stdout/stderr，只有驗證必須使用檔案時才產生暫存資料；驗證結束後，各次執行僅保留經遮蔽的 `shareable/report.json` 與 `shareable/summary.md`。Preflight 的 `-Target all` 會為每個型號分別保留這兩份報告。使用 `-DebugArtifacts` 才保留原本完整的詳細檔案。Shareable 報告產生失敗時，驗證會失敗且僅留下經遮蔽的 `private/error-summary.md`。不變更 release-acceptance 與實機安全行為。
+
 Preflight artifact 預設寫入 `.tmp_tests\cli_preflight`。可透過
 `-OutputRoot` 指定其他位置，但該路徑必須仍位於 `.tmp_tests` 之下。
 

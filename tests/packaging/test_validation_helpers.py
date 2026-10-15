@@ -66,3 +66,34 @@ def test_invoke_captured_command_drains_stdout_and_stderr_without_deadlock(
     assert stderr_path.is_file()
     assert stdout_path.read_text(encoding="utf-8") == "stdout sentinel\n"
     assert stderr_path.read_text(encoding="utf-8") == "e" * (256 * 1024)
+
+
+
+def test_invoke_captured_command_memory_mode_keeps_output_off_disk(tmp_path: Path):
+    if POWERSHELL is None:
+        pytest.skip("powershell.exe is required")
+    if not PYTHON.exists():
+        pytest.skip("venv Python is required")
+    stdout_path = tmp_path / "should_not_exist.stdout.txt"
+    stderr_path = tmp_path / "should_not_exist.stderr.txt"
+    child_code = 'import sys; print("test-json"); sys.stderr.write("test-error")'
+    command = (
+        f"$RepoRoot = {ps_quote(REPO_ROOT)}; "
+        f". {ps_quote(HELPER)}; "
+        "$r = Invoke-CapturedCommand -Name 'memory' "
+        f"-FilePath {ps_quote(PYTHON)} -Arguments @('-c', {ps_quote(child_code)}) "
+        f"-StdOutPath {ps_quote(stdout_path)} -StdErrPath {ps_quote(stderr_path)} "
+        "-CaptureInMemory; $r | ConvertTo-Json -Compress"
+    )
+    result = subprocess.run(
+        [POWERSHELL, "-NoProfile", "-Command", command],
+        cwd=REPO_ROOT, text=True, capture_output=True, check=False, timeout=10,
+    )
+    assert result.returncode == 0, result.stderr + result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["success"] is True
+    assert payload["stdout"] is None and payload["stderr"] is None
+    assert payload["stdout_text"].strip() == "test-json"
+    assert payload["stderr_text"] == "test-error"
+    assert not stdout_path.exists()
+    assert not stderr_path.exists()
