@@ -442,6 +442,7 @@ def test_live_plan_only_minimal_report_contract():
     report = load_json(report_path)
     run_root = report_path.parents[1]
     private_report = load_json(run_root / "private" / "report.json")
+    assert "preflight" in {command["name"] for command in private_report["commands"]}
     assert report["schema_version"] == "1.1"
     assert report["kind"] == "meters_tool_live_validation"
     assert report["artifact_visibility"] == "shareable"
@@ -552,6 +553,7 @@ def test_live_plan_only_full_report_contract():
         "-Suite",
         "full",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -622,6 +624,7 @@ def test_live_plan_only_34460a_minimal_uses_34460a_model():
         "-Suite",
         "minimal",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -649,6 +652,7 @@ def test_live_plan_only_mixed_case_target_normalizes_to_model_id():
         "-Resource",
         "SIM::34461A",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -703,6 +707,7 @@ def test_live_plan_only_forwards_visa_library_to_start_args():
         "-VisaLibrary",
         "@py",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -728,6 +733,7 @@ def test_live_plan_only_backend_alias_forwards_visa_library_to_start_args():
         "-Backend",
         "@py",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -750,6 +756,7 @@ def test_live_plan_only_kebab_visa_library_alias_forwards_visa_library_to_start_
         "-visa-library",
         "@py",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -774,6 +781,7 @@ def test_live_plan_only_34460a_basic_suite_supported_cases():
         "-Suite",
         "basic",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -810,6 +818,7 @@ def test_live_plan_only_34460a_frequency_period_suite():
         "-Suite",
         "frequency-period",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -836,6 +845,7 @@ def test_live_plan_only_34460a_full_excludes_external_cases():
         "-Suite",
         "full",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
@@ -907,6 +917,7 @@ def test_live_plan_only_frequency_period_report_contract():
         "-Suite",
         "frequency-period",
         "-PlanOnly",
+        "-SkipPreflight",
     )
     assert result.returncode == 0, result.stderr + result.stdout
 
