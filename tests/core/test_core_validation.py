@@ -669,6 +669,25 @@ class CoreValidationTests(unittest.TestCase):
             ),
             profile=KEYSIGHT_34460A_PROFILE,
         )
+        # Both custom trigger routes must enforce the same 34460A memory limit.
+        self.assert_invalid(
+            make_start_request(
+                trigger_mode="software-custom",
+                trigger_count=1,
+                sample_count=1001,
+            ),
+            "custom mode expected readings 1001 exceed 34460A reading memory 1000",
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
+        self.assert_valid(
+            make_start_request(
+                trigger_mode="software-custom",
+                trigger_count=1,
+                sample_count=1001,
+                allow_buffer_overflow_risk=True,
+            ),
+            profile=KEYSIGHT_34460A_PROFILE,
+        )
         self.assert_invalid(
             make_start_request(
                 trigger_mode="immediate-custom",

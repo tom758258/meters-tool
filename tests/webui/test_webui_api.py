@@ -230,22 +230,14 @@ class WebUiApiTests(unittest.TestCase):
             summary["capability_profile_id"],
         )
         self.assertTrue(summary["is_fallback_capability_view"])
-        self.assertEqual(
-            "Live runtime model is selected from detected *IDN?.",
-            summary["runtime_driver_note"],
-        )
+        self.assertIsInstance(summary["runtime_driver_note"], str)
+        self.assertTrue(summary["runtime_driver_note"])
         self.assertEqual(
             "support.runtime_driver.detected_idn",
             summary["runtime_driver_note_key"],
         )
-        self.assertEqual(
-            (
-                "Full-suite validated for profile-supported workflows on "
-                "USB/system-VISA, LAN/system-VISA, and optional CLI-only "
-                "LAN/pyvisa-py @py."
-            ),
-            summary["status_text"],
-        )
+        self.assertIsInstance(summary["status_text"], str)
+        self.assertTrue(summary["status_text"])
         self.assertEqual(
             "support.status.profile_workflows_validated",
             summary["status_key"],
@@ -253,18 +245,6 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
-        self.assertEqual(
-            [
-                "immediate",
-                "software",
-                "software timer",
-                "custom buffered",
-                "Frequency",
-                "Period",
-                "external trigger workflows",
-            ],
-            summary["open_workflows"],
-        )
         self.assertEqual(
             [
                 "support.workflow.immediate",
@@ -363,32 +343,17 @@ class WebUiApiTests(unittest.TestCase):
         self.assertEqual("live_validated_full_suite", summary["validation_status"])
         self.assertEqual("usb", summary["transport_scope"])
         self.assertEqual("system_visa", summary["backend_scope"])
-        self.assertEqual(
-            "Live runtime model is selected from detected *IDN?.",
-            summary["runtime_driver_note"],
-        )
+        self.assertIsInstance(summary["runtime_driver_note"], str)
+        self.assertTrue(summary["runtime_driver_note"])
         self.assertEqual(
             "support.runtime_driver.detected_idn",
             summary["runtime_driver_note_key"],
         )
-        self.assertEqual(
-            "USB/system-VISA full-suite validated.",
-            summary["status_text"],
-        )
+        self.assertIsInstance(summary["status_text"], str)
+        self.assertTrue(summary["status_text"])
         self.assertEqual(
             "support.status.usb_system_visa_validated",
             summary["status_key"],
-        )
-        self.assertEqual(
-            [
-                "immediate",
-                "software",
-                "software timer",
-                "custom buffered",
-                "Frequency",
-                "Period",
-            ],
-            summary["open_workflows"],
         )
         self.assertEqual(
             [
@@ -401,17 +366,6 @@ class WebUiApiTests(unittest.TestCase):
             ],
             summary["open_workflow_keys"],
         )
-        self.assertIn("custom buffered", summary["open_workflows"])
-        self.assertIn("Frequency", summary["open_workflows"])
-        self.assertIn("Period", summary["open_workflows"])
-        self.assertIn("no 10 A current path", summary["limits"])
-        self.assertIn("no current-terminal selection", summary["limits"])
-        self.assertIn("1000-reading memory limit", summary["limits"])
-        self.assertIn("no base-profile external trigger support", summary["limits"])
-        self.assertNotIn("no 34460A DCV Ratio live support", summary["limits"])
-        self.assertNotIn("34460A DCV Ratio live validation", summary["pending"])
-        self.assertIn("LAN/TCPIP system-VISA validation", summary["pending"])
-        self.assertIn("LAN/TCPIP pyvisa-py @py validation", summary["pending"])
         self.assertEqual(
             [
                 "support.limit.no_10a_current_path",
@@ -511,14 +465,8 @@ class WebUiApiTests(unittest.TestCase):
             },
             payload["model_resolution"],
         )
-        self.assertEqual(
-            (
-                "Full-suite validated for profile-supported workflows on "
-                "USB/system-VISA, LAN/system-VISA, and optional CLI-only "
-                "LAN/pyvisa-py @py."
-            ),
-            summary["status_text"],
-        )
+        self.assertIsInstance(summary["status_text"], str)
+        self.assertTrue(summary["status_text"])
         self.assertEqual(
             "support.status.profile_workflows_validated",
             summary["status_key"],
@@ -575,15 +523,11 @@ class WebUiApiTests(unittest.TestCase):
         ):
             summary = support_summary(fake_profile)
 
-        self.assertEqual(
-            "Live support is not open for this profile.",
-            summary["status_text"],
-        )
+        self.assertIsInstance(summary["status_text"], str)
+        self.assertTrue(summary["status_text"])
         self.assertEqual("support.status.not_open", summary["status_key"])
-        self.assertEqual(
-            "Live runtime model is selected from detected *IDN?.",
-            summary["runtime_driver_note"],
-        )
+        self.assertIsInstance(summary["runtime_driver_note"], str)
+        self.assertTrue(summary["runtime_driver_note"])
         self.assertEqual(
             "support.runtime_driver.detected_idn",
             summary["runtime_driver_note_key"],

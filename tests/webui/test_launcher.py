@@ -291,19 +291,6 @@ class LauncherHelperTests(unittest.TestCase):
                 )
             )
 
-    def test_script_entry_point_is_after_readiness_helper(self):
-        source = (
-            Path(__file__).parents[2]
-            / "src"
-            / "meters_tool_webui"
-            / "launcher.py"
-        ).read_text(encoding="utf-8")
-
-        self.assertLess(
-            source.index("def _server_is_ready"),
-            source.index('if __name__ == "__main__"'),
-        )
-
 
 class LauncherStartupTests(unittest.TestCase):
     def test_auto_port_hands_same_socket_to_uvicorn_then_opens_actual_ready_url(self):

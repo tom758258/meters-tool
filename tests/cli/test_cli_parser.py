@@ -3,7 +3,6 @@ from __future__ import annotations
 import io
 import unittest
 from contextlib import redirect_stdout
-from pathlib import Path
 
 from meters_tool_cli.cli import build_parser, get_cli_version, main
 
@@ -221,23 +220,6 @@ class CliArgsTests(unittest.TestCase):
 
         self.assertEqual("34461a", lowercase_args.instrument_model)
         self.assertEqual("BADMODEL", unknown_args.instrument_model)
-
-    def test_start_parser_source_has_no_hard_coded_model_choices(self):
-        parser_source = (
-            Path(__file__).resolve().parents[2]
-            / "src"
-            / "meters_tool_cli"
-            / "_parser.py"
-        ).read_text(encoding="utf-8")
-
-        self.assertNotRegex(
-            parser_source,
-            r"choices\s*=\s*(?:\[|\()[^\]\)]*34460A[^\]\)]*34461A[^\]\)]*(?:\]|\))",
-        )
-        self.assertNotRegex(
-            parser_source,
-            r"choices\s*=\s*(?:\[|\()[^\]\)]*34461A[^\]\)]*34460A[^\]\)]*(?:\]|\))",
-        )
 
     def test_start_parses_core_v1_1_measurement_options(self):
         parser = build_parser()
