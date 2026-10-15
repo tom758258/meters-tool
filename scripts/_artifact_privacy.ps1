@@ -375,10 +375,17 @@ function New-ShareableSummaryLines {
         '- Promotes product support: false', '',
         '## Cases'
     )
-    if (@($Report.cases).Count -eq 0) {
+    $caseEntries = @($Report.cases)
+    if (-not [bool]$Report.live_executed -or $caseEntries.Count -eq 0) {
         $lines += '- No live cases executed.'
     } else {
-        foreach ($case in @($Report.cases)) {
+        foreach ($case in $caseEntries) {
+            if ($null -eq $case) { throw 'Live case evidence contains a null record.' }
+            if ($case -is [System.Collections.IDictionary]) {
+                if (-not $case.Contains('name')) { throw 'Live case evidence is missing its name.' }
+            } elseif ($null -eq $case.PSObject.Properties['name']) {
+                throw 'Live case evidence is missing its name.'
+            }
             $lines += "- $($case.name): status=$($case.status) expected_captured=$($case.expected_captured) captured=$($case.captured) errors=$($case.errors) csv_rows=$($case.csv_rows) measurement_type=$($case.measurement_type) unit=$($case.unit)"
             foreach ($failure in @($case.failure_reasons)) { $lines += "  - Failure: $failure" }
         }
@@ -435,6 +442,7 @@ function New-ShareableArtifactSet {
     if (-not $MinimalArtifacts) { Copy-ShareableArtifactTree -Context $context }
     $sourceReport = if ($MinimalArtifacts) { ConvertTo-MinimalEvidenceValue -Value $PrivateReport } else { $PrivateReport }
     $report = ConvertTo-ShareableArtifactValue -Value $sourceReport -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $context.SensitiveValues
+    if (-not [bool]$PrivateReport.live_executed) { $report.cases = @() }
     $report.schema_version = '1.1'
     $report.kind = 'meters_tool_live_validation'
     $report.artifact_visibility = 'shareable'
@@ -448,7 +456,7 @@ function New-ShareableArtifactSet {
     $report.output_dir = 'shareable'
     $report.artifact_paths = [ordered]@{ output_dir = 'shareable'; report = 'shareable/report.json'; summary = 'shareable/summary.md' }
     if ($MinimalArtifacts) {
-        for ($index = 0; $index -lt @($PrivateReport.cases).Count; $index++) {
+        for ($index = 0; $index -lt @($report.cases).Count; $index++) {
             $case = @($PrivateReport.cases)[$index]
             if ($null -ne $case.csv -and (Test-Path -LiteralPath ([string]$case.csv))) {
                 $evidence = New-CsvEvidence -SourcePath ([string]$case.csv) -Case $case
