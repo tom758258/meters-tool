@@ -557,8 +557,11 @@ def test_minimal_shareable_embeds_csv_evidence_without_extra_files(tmp_path: Pat
         encoding="utf-8",
     )
     report = private_report_payload(private, resource)
-    report["cases"] = [{"name": "test_case", "status": "passed", "expected_captured": 1,
-                        "csv": str(csv), "csv_rows": 1, "errors": 0}]
+    report["cases"] = [{
+        "name": "test_case", "status": "passed", "expected_captured": 1,
+        "captured": 1, "csv": str(csv), "csv_rows": 1, "errors": 0,
+        "measurement_type": "current_dc", "unit": "A", "failure_reasons": [],
+    }]
     (private / "report.json").write_text(json.dumps(report), encoding="utf-8")
     result = run_privacy_command(
         f"$c={context}; $r=Get-Content -LiteralPath {ps_quote(private / 'report.json')} -Raw | ConvertFrom-Json; "

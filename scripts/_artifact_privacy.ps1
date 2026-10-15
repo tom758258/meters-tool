@@ -187,7 +187,7 @@ function ConvertTo-ShareableArtifactValue {
         }
         return $result
     }
-    if ($Value -is [pscustomobject]) {
+    if ($Value.GetType().FullName -eq 'System.Management.Automation.PSCustomObject') {
         $result = [ordered]@{}
         foreach ($property in $Value.PSObject.Properties) {
             $result[$property.Name] = ConvertTo-ShareableArtifactValue -Value $property.Value -FieldName $property.Name -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
@@ -201,8 +201,12 @@ function ConvertTo-ShareableArtifactValue {
         return $result
     }
     if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        $items = @($Value | ForEach-Object { ConvertTo-ShareableArtifactValue -Value $_ -FieldName $FieldName -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues })
-        return ,$items
+        $items = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $Value) {
+            $converted = ConvertTo-ShareableArtifactValue -Value $item -FieldName $FieldName -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            $items.Add($converted)
+        }
+        return ,($items.ToArray())
     }
     return $Value
 }
@@ -442,6 +446,10 @@ function New-ShareableArtifactSet {
     if (-not $MinimalArtifacts) { Copy-ShareableArtifactTree -Context $context }
     $sourceReport = if ($MinimalArtifacts) { ConvertTo-MinimalEvidenceValue -Value $PrivateReport } else { $PrivateReport }
     $report = ConvertTo-ShareableArtifactValue -Value $sourceReport -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $context.SensitiveValues
+    # Published report collections must remain arrays for zero, one, or many results.
+    foreach ($arrayField in @('cases', 'dry_runs', 'scpi_diagnostics', 'commands')) {
+        $report[$arrayField] = @($report[$arrayField])
+    }
     if (-not [bool]$PrivateReport.live_executed) { $report.cases = @() }
     $report.schema_version = '1.1'
     $report.kind = 'meters_tool_live_validation'
@@ -477,7 +485,8 @@ function New-ShareableArtifactSet {
 function ConvertTo-MinimalEvidenceValue {
     param([AllowNull()]$Value)
     if ($null -eq $Value) { return $null }
-    if ($Value -is [System.Collections.IDictionary] -or $Value -is [pscustomobject]) {
+    if ($Value -is [System.Collections.IDictionary] -or
+        $Value.GetType().FullName -eq 'System.Management.Automation.PSCustomObject') {
         $entries = if ($Value -is [System.Collections.IDictionary]) { @($Value.Keys) } else { @($Value.PSObject.Properties | ForEach-Object { $_.Name }) }
         $output = [ordered]@{}
         foreach ($name in $entries) {
@@ -498,8 +507,12 @@ function ConvertTo-MinimalEvidenceValue {
         return $output
     }
     if ($Value -is [System.Collections.IEnumerable] -and -not ($Value -is [string])) {
-        $values = @($Value | ForEach-Object { ConvertTo-MinimalEvidenceValue -Value $_ })
-        return ,$values
+        $values = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $Value) {
+            $converted = ConvertTo-MinimalEvidenceValue -Value $item
+            $values.Add($converted)
+        }
+        return ,($values.ToArray())
     }
     return $Value
 }
