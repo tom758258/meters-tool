@@ -515,7 +515,11 @@ function ConvertTo-MinimalEvidenceValue {
                 $output[$key] = '<artifact-not-retained>'
                 continue
             }
-            $child = if ($Value -is [System.Collections.IDictionary]) { $Value[$name] } else { $Value.PSObject.Properties[$key].Value }
+            if ($Value -is [System.Collections.IDictionary]) {
+                $child = $Value[$name]
+            } else {
+                $child = $Value.PSObject.Properties[$key].Value
+            }
             if ($child -is [System.Array] -and $child.Length -eq 0) {
                 $output[$key] = @()
             } else {
