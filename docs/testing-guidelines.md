@@ -74,8 +74,8 @@ The `Tests` GitHub Actions workflow runs for pull requests and pushes to
   behavioral contracts and source-level package/layout contracts. Python
   3.10/3.12 additionally run a small PowerShell-to-Python boundary smoke suite.
   All Python matrix jobs build the Python distribution and smoke CLI entry points.
-- **Windows PowerShell validation** runs conditionally when relevant source,
-  validation tooling, or workflow files change. It owns `windows_powershell`
+- **Windows PowerShell validation** runs conditionally for Core/CLI Python,
+  validation scripts and their tests, and shared dependency/workflow inputs. It owns `windows_powershell`
   tests, wrapper runtime behavior, preflight/live PlanOnly boundaries, and
   contract tests for `release-acceptance.ps1`. These tests **do not execute**
   a full formal release acceptance or contact real instruments.
