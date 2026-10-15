@@ -668,8 +668,11 @@ function Write-LiveArtifacts {
         return $true
     } catch {
         $script:artifactGenerationFailed = $true
+        $failureDetail = Protect-ArtifactText -Text $_.Exception.Message -Resource $Resource `
+            -RepoRoot $RepoRoot -PrivateRoot $privateRoot
+        Write-Host "Shareable artifact generation failed: $failureDetail"
         Remove-ValidationRunArtifacts -RunDirectory $runDir -RepoRoot $RepoRoot `
-            -ShareableFailed -FailureDetail $_.Exception.Message -Resource $Resource
+            -ShareableFailed -FailureDetail $failureDetail -Resource $Resource
         return $false
     }
 }

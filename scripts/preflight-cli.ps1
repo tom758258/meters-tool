@@ -230,7 +230,7 @@ function Complete-PreflightArtifacts {
     param(
         [Parameter(Mandatory = $true)][string]$OutDir,
         [Parameter(Mandatory = $true)]$Report,
-        [Parameter(Mandatory = $true)][string[]]$SummaryLines,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string[]]$SummaryLines,
         [Parameter(Mandatory = $true)][string]$SimulatorResource
     )
     $shareable = Join-Path $OutDir "shareable"

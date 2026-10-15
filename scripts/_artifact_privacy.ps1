@@ -542,4 +542,3 @@ function Remove-ValidationRunArtifacts {
         }
     }
 }
-
