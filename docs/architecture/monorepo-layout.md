@@ -18,7 +18,6 @@ docs/
   contracts/
   core/
   help/
-  skill/
   webui/
 scripts/
 ```

@@ -52,7 +52,6 @@ docs/
   contracts/
   core/
   help/
-  skill/
   webui/
 scripts/
 ```
@@ -295,12 +294,6 @@ Windows wrapper 合約的 CI 工作會另外執行
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --ignore=tests\cli\test_cli_wrappers.py --basetemp .tmp_tests\pytest_tmp
 ```
 
-## Codex / Agent Skill
-
-本專案提供選用的 Codex Skill 範本，供想要要求 Codex 或其他 agents
-安全遵循 Meters CLI/worker 合約的使用者使用。安裝與使用方式請參考
-[Codex Skill 範本](docs/skill/README.zh-TW.md)。
-
 ## 文件
 
 * [Core README](docs/core/README.zh-TW.md)
@@ -312,7 +305,6 @@ Windows wrapper 合約的 CI 工作會另外執行
 * [Monorepo 架構](docs/architecture/monorepo-layout.md)
 * [測試指南](docs/testing-guidelines.md)
 * [貢獻指南](docs/CONTRIBUTING.md)
-* [Codex Skill 範本](docs/skill/README.zh-TW.md)
 * [公開合約](docs/contracts)
 * [Meters CLI JSONL 合約](docs/contracts/meters-cli-jsonl-contract.md)
 * [Meters Worker 合約](docs/contracts/meters-worker-contract.md)
