@@ -434,15 +434,21 @@ resourceInput.addEventListener("input", () => {
   updateFeatureAvailability();
 });
 
+let csvFolderPickerPending = false;
+
 function updateCsvOutputUi() {
   const enabled = csvEnabledCheckbox.checked;
   csvInput.disabled = !enabled;
   selectCsvFolderButton.disabled = !enabled;
+  if (csvFolderPickerPending) selectCsvFolderButton.disabled = true;
 }
 
 csvEnabledCheckbox.addEventListener("change", updateCsvOutputUi);
 
 selectCsvFolderButton.addEventListener("click", async () => {
+  if (csvFolderPickerPending) return;
+  csvFolderPickerPending = true;
+  updateCsvOutputUi();
   try {
     appendTranslatedStatusLog("run.opening_csv_folder_selector");
     const result = await api("/api/csv/select-folder", { method: "POST" });
@@ -454,6 +460,9 @@ selectCsvFolderButton.addEventListener("click", async () => {
     }
   } catch (error) {
     appendBrowserError(error);
+  } finally {
+    csvFolderPickerPending = false;
+    updateCsvOutputUi();
   }
 });
 
