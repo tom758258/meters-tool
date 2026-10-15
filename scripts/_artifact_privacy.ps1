@@ -175,7 +175,12 @@ function ConvertTo-ShareableArtifactValue {
     if ($Value -is [System.Collections.IDictionary]) {
         $result = [ordered]@{}
         foreach ($entryKey in $Value.Keys) {
-            $result[[string]$entryKey] = ConvertTo-ShareableArtifactValue -Value $Value[$entryKey] -FieldName ([string]$entryKey) -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            $originalField = $Value[$entryKey]
+            if ($originalField -is [System.Array] -and $originalField.Length -eq 0) {
+                $result[[string]$entryKey] = @()
+            } else {
+                $result[[string]$entryKey] = ConvertTo-ShareableArtifactValue -Value $originalField -FieldName ([string]$entryKey) -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            }
         }
         if (
             $Value.Contains('command') -and
@@ -190,7 +195,11 @@ function ConvertTo-ShareableArtifactValue {
     if ($Value.GetType().FullName -eq 'System.Management.Automation.PSCustomObject') {
         $result = [ordered]@{}
         foreach ($property in $Value.PSObject.Properties) {
-            $result[$property.Name] = ConvertTo-ShareableArtifactValue -Value $property.Value -FieldName $property.Name -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            if ($property.Value -is [System.Array] -and $property.Value.Length -eq 0) {
+                $result[$property.Name] = @()
+            } else {
+                $result[$property.Name] = ConvertTo-ShareableArtifactValue -Value $property.Value -FieldName $property.Name -RunRoot $RunRoot -PrivateRoot $PrivateRoot -RepoRoot $RepoRoot -Resource $Resource -Connection $Connection -SensitiveValues $SensitiveValues
+            }
         }
         $commandProperty = $Value.PSObject.Properties['command']
         $responseProperty = $Value.PSObject.Properties['response']
@@ -507,7 +516,11 @@ function ConvertTo-MinimalEvidenceValue {
                 continue
             }
             $child = if ($Value -is [System.Collections.IDictionary]) { $Value[$name] } else { $Value.PSObject.Properties[$key].Value }
-            $output[$key] = ConvertTo-MinimalEvidenceValue -Value $child
+            if ($child -is [System.Array] -and $child.Length -eq 0) {
+                $output[$key] = @()
+            } else {
+                $output[$key] = ConvertTo-MinimalEvidenceValue -Value $child
+            }
         }
         return $output
     }
