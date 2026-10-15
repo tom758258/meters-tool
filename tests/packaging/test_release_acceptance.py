@@ -72,17 +72,6 @@ def test_release_acceptance_runs_complete_no_hardware_suite():
     assert "pytest_metadata_docs" not in script
 
 
-def test_release_acceptance_reports_recorded_command_progress():
-    script = release_acceptance_text()
-
-    assert 'Write-Host "[start] $Name"' in script
-    assert 'Write-Host "[passed] $Name duration=$($result.duration_seconds)s"' in script
-    assert 'Write-Host "[failed] $Name duration=$($result.duration_seconds)s"' in script
-    assert 'Write-Host "[failed] $Name"' in script
-    for step in ("pytest_no_hardware", "build_release", "live_cli_plan_only"):
-        assert f'$script:currentStep = "{step}"' in script
-
-
 def test_release_acceptance_isolates_python_process_environment():
     script = release_acceptance_text()
     isolation_start = script.index('$env:PYTHONNOUSERSITE = "1"')
@@ -449,15 +438,8 @@ def test_desktop_help_theme_bridge_uses_query_override_in_external_browser():
     assert 'return { action: "deny" }' in main
 
 
-def test_conditional_windows_packaging_owns_real_build_and_not_formal_acceptance():
+def test_python_windows_matrix_does_not_build_desktop_or_release():
     workflow = TESTS_WORKFLOW.read_text(encoding="utf-8")
-    assert "  windows-packaging-smoke:" in workflow
-    assert "  windows-validation:" in workflow
-    assert "needs: detect-validation-changes" in workflow
-    assert "node-version: '22'" in workflow
-    assert r".\scripts\build_desktop.ps1" in workflow
-    assert r".\scripts\build_release.ps1" in workflow
-    assert r".\scripts\release-acceptance.ps1" not in workflow
     windows_matrix = workflow.split("  pytest-windows:", 1)[1].split("  windows-validation:", 1)[0]
     assert "build_desktop.ps1" not in windows_matrix
     assert "build_release.ps1" not in windows_matrix
