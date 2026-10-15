@@ -709,14 +709,14 @@ $summaryPath = Join-Path $privateRoot "summary.md"
 $canonicalSummaryPath = ((Get-PortableRelativePath -BasePath $RepoRoot -Path (Join-Path $shareableRoot "summary.md")).Replace('\', '/'))
 $canonicalErrorPath = ((Get-PortableRelativePath -BasePath $RepoRoot -Path (Join-Path $privateRoot "error-summary.md")).Replace('\', '/'))
 $stdinRedirected = [Console]::IsInputRedirected
-$handlingArtifactFailure = $false
+$script:handlingArtifactFailure = $false
 $artifactsFinalized = $false
 $artifactGenerationFailed = $false
 $liveExecuted = $false
 
 trap {
-    if (-not $handlingArtifactFailure -and -not $script:artifactsFinalized -and -not $script:artifactGenerationFailed) {
-        $handlingArtifactFailure = $true
+    if (-not $script:handlingArtifactFailure -and -not $script:artifactsFinalized -and -not $script:artifactGenerationFailed) {
+        $script:handlingArtifactFailure = $true
         $written = Write-LiveArtifacts `
             -Status "wrapper_failed" `
             -PlanOnlyRun ([bool]$PlanOnly) `

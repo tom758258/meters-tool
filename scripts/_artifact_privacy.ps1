@@ -479,7 +479,8 @@ function ConvertTo-MinimalEvidenceValue {
             if ($lower -in @('stdout', 'stderr', 'jsonl', 'csv', 'path', 'case_dir',
                 'artifact_path', 'stderr_path', 'scpi_diagnostic_path', 'preflight_report',
                 'csv_evidence', 'output_dir') -or
-                ($lower -ne 'read_path' -and $lower -match '(^|_)(path|file|filename|dir|directory)
+                ($lower -ne 'read_path' -and
+                    ($lower.EndsWith('_path') -or $lower.EndsWith('_dir')))) {
                 $output[$key] = '<artifact-not-retained>'
                 continue
             }
