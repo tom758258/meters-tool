@@ -1143,6 +1143,7 @@ const idle = { active: false, state: "idle", captured: 0, errors: 0, recent_samp
 let finishScan;
 let finishCapabilities;
 let finishInitialCapabilities;
+let finishStart;
 const calls = [];
 globalThis.fetch = async (path, options) => {
   calls.push({ path: String(path), options });
@@ -1151,6 +1152,7 @@ globalThis.fetch = async (path, options) => {
     return response(capabilities);
   }
   if (String(path).startsWith("/api/resources")) return new Promise((resolve) => { finishScan = resolve; });
+  if (String(path) === "/api/runs") return new Promise((resolve) => { finishStart = resolve; });
   return response(idle);
 };
 globalThis.FormData = class {
@@ -1191,10 +1193,16 @@ setLocale("zh-TW");
 element("#locale-toggle").click();
 assert.equal(backend.value, "@py");
 assert.equal(buttons[0].getAttribute("aria-pressed"), "true");
-await element("#start-run").listeners.get("click")();
+const pendingStart = element("#start-run").listeners.get("click")();
 const run = calls.findLast((call) => call.path === "/api/runs");
 assert.equal(JSON.parse(run.options.body).visa_library, "@py");
 const { renderStatus } = await import(new URL("./status.js", appUrl));
+const completed = { ...idle, run_id: "fast-run", state: "stopped", captured: 1, latest_status: "recording stopped" };
+renderStatus(completed); // Newer SSE event arrives before the Start POST response.
+finishStart(response({ ...completed, state: "running", active: true, captured: 0, latest_status: "ready" }));
+await pendingStart;
+assert.equal(element("#status-captured").textContent, "1");
+assert.equal(JSON.parse(element("#raw-status").textContent).state, "stopped");
 renderStatus({ ...idle, active: true });
 assert.equal(backend.disabled, true);
 await switchBackend("");

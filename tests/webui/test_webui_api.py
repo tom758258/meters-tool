@@ -924,6 +924,52 @@ class WebUiBackendApiTests(unittest.TestCase):
                 scan.assert_called_once_with(**options)
                 verify.assert_called_once_with("TCPIP0::fake::inst0::INSTR", **options)
 
+    def test_py_scan_filters_non_tcpip_before_verification(self):
+        client = make_api_client_with_manager(WebRunManager())
+        tcpip = "TCPIP0::fake::inst0::INSTR"
+        scanned = ["USB0::FAKE::INSTR", "ASRL6::INSTR", tcpip]
+        for verify_enabled in (False, True):
+            with self.subTest(verify=verify_enabled), patch(
+                "meters_tool_webui._run_manager.VisaInstrument.list_resources",
+                return_value=scanned,
+            ) as scan, patch(
+                "meters_tool_webui._run_manager.VisaInstrument.verify_resource",
+                return_value=(True, "Keysight Technologies,34461A,FAKE,1.0"),
+            ) as verify:
+                response = client.get("/api/resources", params={
+                    "visa_library": "@py", "verify": str(verify_enabled).lower(),
+                })
+                self.assertEqual(200, response.status_code, response.text)
+                self.assertEqual([tcpip], [
+                    item["resource"] for item in response.json()["resources"]
+                ])
+                scan.assert_called_once_with(visa_library="@py")
+                if verify_enabled:
+                    verify.assert_called_once_with(tcpip, visa_library="@py")
+                else:
+                    verify.assert_not_called()
+
+    def test_py_start_rejects_non_tcpip_before_idn_preflight(self):
+        client = make_api_client_with_manager(WebRunManager())
+        with patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn"
+        ) as preflight, patch(
+            "meters_tool_webui._run_manager.run_start_session"
+        ) as runner:
+            for resource in ("USB0::FAKE::INSTR", "ASRL6::INSTR"):
+                with self.subTest(resource=resource):
+                    response = client.post("/api/runs", json={
+                        "resource": resource,
+                        "visa_library": "@py",
+                        "instrument_model": "34461A",
+                        "measurement": "voltage-dc",
+                        "trigger_mode": "immediate",
+                        "max_samples": 1,
+                    })
+                    self.assertEqual(422, response.status_code, response.text)
+            preflight.assert_not_called()
+            runner.assert_not_called()
+
     def test_unknown_backend_is_rejected_before_hardware_access(self):
         client = make_api_client_with_manager(WebRunManager())
         with patch("meters_tool_core.instrument.pyvisa.ResourceManager") as manager:

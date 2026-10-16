@@ -142,7 +142,7 @@ const supportSummary = {
   backend_scope: "system_visa",
   status_text: (
     "Full-suite validated for profile-supported workflows on USB/system-VISA, " +
-    "LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
+    "LAN/system-VISA, and LAN/pyvisa-py @py."
   ),
   status_key: "support.status.profile_workflows_validated",
   runtime_driver_note: "Live runtime model is selected from detected *IDN?.",
@@ -346,7 +346,7 @@ supportSummary.model = "34461A";
 supportSummary.capability_profile = "34461A";
 supportSummary.status_text = (
   "Full-suite validated for profile-supported workflows on USB/system-VISA, " +
-  "LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
+  "LAN/system-VISA, and LAN/pyvisa-py @py."
 );
 supportSummary.status_key = "support.status.profile_workflows_validated";
 await runForm.loadCapabilities();

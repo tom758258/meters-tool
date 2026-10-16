@@ -77,6 +77,7 @@ import {
   markSoftwareTriggerQueuedForLog,
   pollStatus,
   renderStatus,
+  renderStartStatus,
   renderPlanPreview,
   refreshStatusPresentation,
   startStatusUpdates,
@@ -695,7 +696,7 @@ startRunButton.addEventListener("click", async () => {
     if (submittedMode === "dry-run") {
       renderPlanPreview(result);
     } else {
-      renderStatus(result);
+      renderStartStatus(result);
     }
   } catch (error) {
     appendBrowserError(error);
