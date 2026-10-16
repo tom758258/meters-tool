@@ -294,8 +294,8 @@ class LauncherHelperTests(unittest.TestCase):
 
 class LauncherStartupTests(unittest.TestCase):
     def test_auto_port_hands_same_socket_to_uvicorn_then_opens_actual_ready_url(self):
-        for retryable_error in _retryable_bind_errors():
-            with self.subTest(retryable_error=type(retryable_error).__name__):
+        for label, retryable_error in _retryable_bind_errors():
+            with self.subTest(retryable_error=label):
                 self._assert_auto_port_skips_to_next_candidate(retryable_error)
 
     def _assert_auto_port_skips_to_next_candidate(self, retryable_error):
@@ -708,14 +708,13 @@ def _drain_ui_queue(app):
 
 def _retryable_bind_errors():
     return (
-        PermissionError(errno.EACCES, "bind denied"),
-        _windows_access_denied(),
+        ("EACCES", PermissionError(errno.EACCES, "bind denied")),
+        ("winerror 10013", _windows_access_denied()),
     )
 
 
 def _windows_access_denied():
-    error = OSError(None, "address already in use")
-    error.errno = errno.EACCES
+    error = OSError(None, "bind denied")
     error.winerror = 10013
     return error
 
