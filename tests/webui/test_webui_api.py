@@ -1015,7 +1015,10 @@ class WebUiBackendApiTests(unittest.TestCase):
                         "trigger_mode": "immediate", "measurement": "voltage-dc", "max_samples": 1,
                     })
                     self.assertEqual(status, response.status_code, response.text)
-                    self.assertEqual(selector, preflight.call_args.kwargs["visa_library"])
+                    if selector == "@py" and resource.startswith("USB"):
+                        preflight.assert_not_called()
+                    else:
+                        self.assertEqual(selector, preflight.call_args.kwargs["visa_library"])
                     self.assertEqual(status == 200, runner.called)
 
     def test_pyvisa_backend_preserves_no_hardware_plan_and_simulation(self):
