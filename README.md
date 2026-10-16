@@ -17,7 +17,9 @@ measurement type, unit, trigger source, and related metadata. CLI callers can
 use `--no-csv`; WebUI users can clear the `CSV output` checkbox. Both opt-outs
 map to the same Core `csv_enabled` setting.
 
-Live instrument access requires a separately installed VISA implementation. Meters Tool does not bundle a system VISA runtime; dry-run and simulation can be used without one.
+System VISA requires a separately installed runtime. Meters Tool bundles
+PyVISA-py for supported 34461A TCPIP sessions; dry-run and simulation require
+no VISA runtime.
 
 ## Features
 
@@ -191,9 +193,12 @@ See the [CLI README](docs/cli/README.md) and [WebUI README](docs/webui/README.md
 for detailed options and workflows.
 
 By default, live sessions use the system VISA runtime through
-`pyvisa.ResourceManager()`. CLI VISA-opening commands can select the optional
-pyvisa-py backend with `--visa-library "@py"`; the WebUI always uses system VISA
-and does not provide a backend selector.
+`pyvisa.ResourceManager("@ivi")`. CLI VISA-opening commands can select the
+bundled PyVISA-py backend with
+`--visa-library "@py"`. WebUI and Desktop select it in Device options > VISA
+Backend. System VISA remains the default and never falls back to `@py`.
+PyVISA-py supports only 34461A TCPIP; no extra USB drivers or LAN discovery
+packages are included.
 
 ## Build
 

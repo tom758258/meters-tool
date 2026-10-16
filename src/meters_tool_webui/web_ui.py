@@ -5,7 +5,7 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 try:
     from fastapi import FastAPI, HTTPException, Request
@@ -83,9 +83,15 @@ def create_app(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     @app.get("/api/resources")
-    def api_resources(verify: bool = False, live_only: bool = False) -> dict[str, Any]:
+    def api_resources(
+        verify: bool = False,
+        live_only: bool = False,
+        visa_library: Literal["", "@py"] | None = None,
+    ) -> dict[str, Any]:
         try:
-            return app.state.manager.list_resources(verify=verify, live_only=live_only)
+            return app.state.manager.list_resources(
+                verify=verify, live_only=live_only, visa_library=visa_library
+            )
         except Exception as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 

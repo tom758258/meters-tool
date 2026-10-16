@@ -436,7 +436,7 @@ form.
 | `_web_payloads.py` | 34460A open workflows | `immediate`; `software`; `software timer`; `custom buffered`; `Frequency`; `Period` | API presentation list | existing prose fallback plus positional semantic keys | `support.workflow.*` |
 | `_web_payloads.py` | 34460A limits | `no 10 A current path`; `no current-terminal selection`; `1000-reading memory limit`; `no base-profile external trigger support` | API presentation list | existing prose fallback plus positional semantic keys | `support.limit.*` |
 | `_web_payloads.py` | 34460A pending | `LAN/TCPIP system-VISA validation`; `LAN/TCPIP pyvisa-py @py validation` | API presentation list | existing prose fallback plus positional semantic keys | `support.pending.*` |
-| `_web_payloads.py` | 34461A status | `Full-suite validated ... optional CLI-only LAN/pyvisa-py @py.` | API presentation prose | existing text fallback plus semantic key | `support.status.profile_workflows_validated` |
+| `_web_payloads.py` | 34461A status | `Full-suite validated ... LAN/pyvisa-py @py.` | API presentation prose | existing text fallback plus semantic key | `support.status.profile_workflows_validated` |
 | `_web_payloads.py` | 34461A open workflow | preceding common items plus `external trigger workflows` | API presentation list | existing prose fallback plus positional semantic keys | `support.workflow.external_trigger` |
 | `_web_payloads.py` | Unknown profile | `Live support is not open for this profile.` | API presentation prose | existing text fallback plus semantic key | `support.status.not_open` |
 | `_web_payloads.py` | Display identity | `Auto-detect`, model tokens, `display_model`; range labels from Core | display/canonical mix | wrapper `translate`; tokens `machine_value` | `device.auto_detect`, `measurement.range_value` |
@@ -592,6 +592,13 @@ configured or captured quantity. `Range` means an instrument measurement range,
 not a generic interval; validation intervals should use wording appropriate to
 minimum/maximum bounds. `Status`, `state`, and support-policy status must not be
 collapsed into one term when their meanings differ.
+
+## Backend Selection Presentation
+
+`device.visa_backend` and `device.system_visa` label the communication selector
+and independent Supported devices viewing filter. `visa_library` values remain
+empty (System VISA) or `@py`; `system_visa` and `pyvisa_py` are machine scopes.
+Locale switching preserves both selections, form payloads, and active sessions.
 
 ## Localization Verification
 

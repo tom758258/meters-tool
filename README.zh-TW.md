@@ -6,7 +6,7 @@ Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀
 
 本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。預設會將每筆擷取樣本寫入 CSV 的一行，包含時間戳記、量測類型、單位、觸發來源與相關 metadata。CLI 呼叫端可使用 `--no-csv`，WebUI 使用者則可取消勾選 `CSV 輸出`；兩者都映射到同一個 Core `csv_enabled` 設定。
 
-實體儀器連線需要另外安裝相容的 VISA 實作。Meters Tool 不包含系統 VISA 執行環境；dry-run 與模擬模式則不需要安裝 VISA。
+System VISA 需要另外安裝相容的執行環境。Meters Tool 隨程式提供 PyVISA-py，可用於正式支援的 34461A TCPIP 連線；dry-run 與模擬模式不需要 VISA 執行環境。
 
 ## 功能特性
 
@@ -162,9 +162,13 @@ Electron 只包覆既有 FastAPI 與 static WebUI，不是另一套 frontend。
 詳細選項與工作流程請參閱 [CLI README](docs/cli/README.zh-TW.md) 和
 [WebUI README](docs/webui/README.zh-TW.md)。
 
-預設情況下，實機工作階段會透過 `pyvisa.ResourceManager()` 使用系統 VISA
-執行階段。CLI 開啟 VISA 的指令可使用 `--visa-library "@py"` 選擇選用的
-pyvisa-py 後端；WebUI 一律使用系統 VISA，且不提供後端選擇器。
+預設情況下，實機工作階段會透過 `pyvisa.ResourceManager("@ivi")` 使用系統
+VISA 執行環境。CLI 開啟 VISA 的指令可使用 `--visa-library "@py"` 選擇
+隨程式提供的 PyVISA-py 後端；WebUI 與 Desktop 可在「裝置選項 > VISA 後端」
+選擇。System VISA 仍為預設，不會靜默退回 `@py`，也不會因 `PYVISA_LIBRARY`
+而改用其他後端。PyVISA-py 僅正式支援 34461A TCPIP；System VISA 保持支援
+34461A USB／TCPIP 與 34460A USB。Windows 封裝也包含 PyVISA-py；不包含額外
+USB 驅動或 LAN 探索套件。
 
 ## 建置
 

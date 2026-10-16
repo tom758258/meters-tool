@@ -33,7 +33,7 @@ def _create_resource_manager(visa_library: str | None = None):
     normalized = _normalize_visa_library(visa_library)
     if normalized is not None:
         return pyvisa.ResourceManager(normalized)
-    return pyvisa.ResourceManager()
+    return pyvisa.ResourceManager("@ivi")
 
 
 def is_pyvisa_timeout_error(exc: Exception) -> bool:

@@ -79,17 +79,17 @@ class WebUiApiTests(unittest.TestCase):
                     "vendor": "Keysight",
                     "model": "34461A",
                     "connections": ["usb", "tcpip"],
+                    "backend_connections": {"system_visa": ["usb", "tcpip"], "pyvisa_py": ["tcpip"]},
                 },
                 {
                     "vendor": "Keysight",
                     "model": "34460A",
                     "connections": ["usb"],
+                    "backend_connections": {"system_visa": ["usb"]},
                 },
             ],
             payload["supported_devices"],
         )
-        self.assertNotIn("backend", str(payload["supported_devices"]).lower())
-        self.assertNotIn("@py", str(payload["supported_devices"]).lower())
         self.assertEqual(
             [
                 "current-dc",
@@ -900,3 +900,92 @@ class WebUiApiTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(TestClient is None, "FastAPI test dependencies are not installed")
+class WebUiBackendApiTests(unittest.TestCase):
+    def test_resource_scan_and_verification_use_selected_backend(self):
+        client = make_api_client_with_manager(WebRunManager())
+        for selector in (None, "", "@py"):
+            with self.subTest(selector=selector), patch(
+                "meters_tool_webui._run_manager.VisaInstrument.list_resources",
+                return_value=["TCPIP0::fake::inst0::INSTR"],
+            ) as scan, patch(
+                "meters_tool_webui._run_manager.VisaInstrument.verify_resource",
+                return_value=(True, "Keysight Technologies,34461A,FAKE,1.0"),
+            ) as verify:
+                query = {"verify": "true", "live_only": "true"}
+                if selector is not None:
+                    query["visa_library"] = selector
+                response = client.get("/api/resources", params=query)
+                self.assertEqual(200, response.status_code)
+                self.assertEqual("34461A", response.json()["resources"][0]["instrument_model"])
+                options = {"visa_library": selector} if selector else {}
+                scan.assert_called_once_with(**options)
+                verify.assert_called_once_with("TCPIP0::fake::inst0::INSTR", **options)
+
+    def test_unknown_backend_is_rejected_before_hardware_access(self):
+        client = make_api_client_with_manager(WebRunManager())
+        with patch("meters_tool_core.instrument.pyvisa.ResourceManager") as manager:
+            for selector in ("@bt", "@ivi", "custom", "system_visa"):
+                with self.subTest(selector=selector):
+                    self.assertEqual(422, client.get(
+                        "/api/resources", params={"visa_library": selector}
+                    ).status_code)
+                    for endpoint in ("/api/runs", "/api/plan"):
+                        self.assertEqual(422, client.post(endpoint, json={
+                            "resource": "TCPIP0::fake::inst0::INSTR",
+                            "instrument_model": "34461A", "visa_library": selector,
+                        }).status_code)
+            manager.assert_not_called()
+
+    def test_start_backend_exact_scope_and_expected_model_guard(self):
+        from meters_tool_core.session import StartRunResult
+
+        cases = [
+            ("34461A", "USB::FAKE", None, None, 200),
+            ("34461A", "TCPIP0::fake::inst0::INSTR", "", None, 200),
+            ("34460A", "USB::FAKE", None, None, 200),
+            ("34461A", "TCPIP0::fake::inst0::INSTR", "@py", "34461A", 200),
+            ("34461A", "USB::FAKE", "@py", None, 422),
+            ("34460A", "TCPIP0::fake::inst0::INSTR", "@py", None, 422),
+            ("34461A", "TCPIP0::fake::inst0::INSTR", "@py", "34460A", 422),
+        ]
+        for detected, resource, selector, expected, status in cases:
+            with self.subTest(detected=detected, resource=resource, selector=selector, expected=expected):
+                client = make_api_client_with_manager(WebRunManager())
+                def complete(request, _mode, _profile, _sink, **kwargs):
+                    self.assertEqual(selector, request.visa_library)
+                    return StartRunResult(kwargs["run_id"], True, "completed", 0, 0, None, None)
+                with patch(
+                    "meters_tool_core.start_resolution.VisaInstrument.preflight_idn",
+                    return_value=f"Keysight Technologies,{detected},FAKE,1.0",
+                ) as preflight, patch(
+                    "meters_tool_webui._run_manager.run_start_session", side_effect=complete,
+                ) as runner:
+                    response = client.post("/api/runs", json={
+                        "resource": resource, "visa_library": selector,
+                        "instrument_model": expected, "csv_enabled": False,
+                        "trigger_mode": "immediate", "measurement": "voltage-dc", "max_samples": 1,
+                    })
+                    self.assertEqual(status, response.status_code, response.text)
+                    self.assertEqual(selector, preflight.call_args.kwargs["visa_library"])
+                    self.assertEqual(status == 200, runner.called)
+
+    def test_pyvisa_backend_preserves_no_hardware_plan_and_simulation(self):
+        client = make_api_client_with_manager(WebRunManager())
+        with patch("meters_tool_core.instrument.pyvisa.ResourceManager") as manager, patch(
+            "meters_tool_core.start_resolution.VisaInstrument.preflight_idn"
+        ) as preflight:
+            for endpoint in ("/api/plan", "/api/runs"):
+                for model in ("34460A", "34461A"):
+                    response = client.post(endpoint, json={
+                        "resource": f"SIM::{model}", "instrument_model": model,
+                        "visa_library": "@py", "simulate": endpoint == "/api/runs",
+                        "csv_enabled": False, "trigger_mode": "immediate", "max_samples": 1,
+                    })
+                    self.assertEqual(200, response.status_code, response.text)
+                    if endpoint == "/api/runs":
+                        self.assertFalse(wait_until_inactive(client)["active"])
+            manager.assert_not_called()
+            preflight.assert_not_called()

@@ -22,6 +22,8 @@ import {
   gateTimeSelect,
   helpButton,
   instrumentModelSelect,
+  visaLibrarySelect,
+  supportedBackendButtons,
   localeToggle,
   localeToggleLabel,
   measurementRangeInput,
@@ -54,6 +56,7 @@ import {
 import {
   formPayload,
   loadCapabilities,
+  invalidateCapabilities,
   triggerMetadataPayload,
   updateFeatureAvailability,
   updateMeasurementUi,
@@ -103,6 +106,10 @@ function setSupportedDevicesExpanded(expanded) {
   if (!supportedDevicesPanel || !supportedDevicesToggleButton) {
     return;
   }
+  if (expanded) {
+    supportBackend = visaLibrarySelect.value;
+    renderSupportedDevices();
+  }
   supportedDevicesPanel.classList.toggle("is-hidden", !expanded);
   supportedDevicesToggleButton.setAttribute("aria-expanded", String(expanded));
 }
@@ -140,6 +147,9 @@ let realResourceValue = resourceInput.value;
 let realModelValue = instrumentModelSelect.value;
 let noHardwareModelValue = "";
 let supportedDevices = [];
+let supportBackend = "";
+let selectedBackend = visaLibrarySelect.value;
+let scanRevision = 0;
 
 function connectionLabel(connection) {
   return connection === "tcpip"
@@ -151,13 +161,16 @@ function renderSupportedDevices() {
   if (!supportedDevicesBody) {
     return;
   }
+  const backend = supportBackend === "@py" ? "pyvisa_py" : "system_visa";
+  for (const button of supportedBackendButtons) {
+    button.setAttribute("aria-pressed", String(button.dataset.supportBackend === supportBackend));
+  }
   supportedDevicesBody.replaceChildren(
-    ...supportedDevices.map((device) => {
+    ...supportedDevices.filter((device) => device.backend_connections?.[backend]?.length).map((device) => {
       const row = document.createElement("tr");
       for (const value of [
-        device.vendor,
         device.model,
-        (device.connections || [])
+        (device.backend_connections[backend] || [])
           .map(connectionLabel)
           .join(t("supported_devices.connection_separator")),
       ]) {
@@ -209,6 +222,7 @@ function updateModelSelectorPresentation() {
 
 function updateExecutionModePresentation() {
   const noHardware = currentExecutionMode !== "real";
+  visaLibrarySelect.disabled = executionRequestPending || isRunActive();
   startRunButton.dataset.executionPending = String(executionRequestPending);
   startRunButton.disabled = executionRequestPending || isRunActive();
   for (const input of executionModeInputs) {
@@ -265,6 +279,7 @@ async function switchExecutionMode(nextMode) {
   } else {
     noHardwareModelValue = instrumentModelSelect.value;
   }
+  scanRevision += 1;
   currentExecutionMode = nextMode;
   if (currentExecutionMode === "real") {
     resourceInput.value = realResourceValue;
@@ -325,6 +340,7 @@ async function applyScannedResource(resource) {
   if (!resource) {
     return;
   }
+  const revision = scanRevision;
   const metadata = scanMetadataByResource.get(resource);
   const inferredModel = metadata?.instrument_model || null;
   const forcedModel = instrumentModelSelect.value || "";
@@ -336,7 +352,8 @@ async function applyScannedResource(resource) {
     appendTranslatedStatusLog("resource.model_inference_failed");
     return;
   }
-  await loadCapabilities(forcedModel || inferredModel);
+  const capabilities = await loadCapabilities(forcedModel || inferredModel);
+  if (!capabilities || revision !== scanRevision) return;
   instrumentModelSelect.value = forcedModel;
   updateRangeAndLiveChartScale();
   updateTriggerModeUi();
@@ -345,16 +362,15 @@ async function applyScannedResource(resource) {
 }
 
 function renderScannedResourceOptions() {
-  if (!resourceScanCompleted) {
-    return;
-  }
   const previousResource = resourceSelect.value;
   const resources = [...scanMetadataByResource.values()];
   const placeholder = document.createElement("option");
   placeholder.value = "";
   setTranslatedText(
     placeholder,
-    resources.length ? "resource.select_live" : "resource.no_live_resources"
+    !resourceScanCompleted
+      ? "resource.not_scanned"
+      : resources.length ? "resource.select_live" : "resource.no_live_resources"
   );
   resourceSelect.replaceChildren(
     placeholder,
@@ -390,7 +406,16 @@ export function refreshResourcesPresentation() {
 
 async function refreshResources() {
   appendTranslatedStatusLog("resource.scanning");
-  const result = await api("/api/resources?verify=true&live_only=true");
+  const revision = ++scanRevision;
+  const query = selectedBackend ? `&visa_library=${encodeURIComponent(selectedBackend)}` : "";
+  let result;
+  try {
+    result = await api(`/api/resources?verify=true&live_only=true${query}`);
+  } catch (error) {
+    if (revision !== scanRevision) return;
+    throw error;
+  }
+  if (revision !== scanRevision || currentExecutionMode !== "real") return;
   scanMetadataByResource = new Map(
     result.resources.map((item) => [item.resource, item])
   );
@@ -399,9 +424,45 @@ async function refreshResources() {
   if (!resourceInput.value && result.resources.length > 0) {
     await applyScannedResource(result.resources[0].resource);
   }
+  if (revision !== scanRevision) return;
   updateDeviceResourceSummary();
   appendTranslatedStatusLog("resource.scan_result_count", {
     count: result.resources.length,
+  });
+}
+
+visaLibrarySelect.addEventListener("change", async () => {
+  if (executionRequestPending || isRunActive()) {
+    visaLibrarySelect.value = selectedBackend;
+    return;
+  }
+  selectedBackend = visaLibrarySelect.value;
+  scanRevision += 1;
+  invalidateCapabilities();
+  scanMetadataByResource.clear();
+  resourceScanCompleted = false;
+  resourceInput.value = "";
+  realResourceValue = "";
+  renderScannedResourceOptions();
+  clearPlanPreview();
+  updateFeatureAvailability();
+  updateDeviceResourceSummary();
+  try {
+    const capabilities = await loadCapabilities(instrumentModelSelect.value);
+    if (capabilities) {
+      supportedDevices = capabilities.supported_devices || [];
+      renderSupportedDevices();
+      updateModelSelectorPresentation();
+    }
+  } catch (error) {
+    appendBrowserError(error);
+  }
+});
+
+for (const button of supportedBackendButtons) {
+  button.addEventListener("click", () => {
+    supportBackend = button.dataset.supportBackend;
+    renderSupportedDevices();
   });
 }
 
@@ -474,8 +535,12 @@ instrumentModelSelect.addEventListener("change", async () => {
     } else {
       noHardwareModelValue = instrumentModelSelect.value;
     }
-    await loadCapabilities(instrumentModelSelect.value);
-    updateModelSelectorPresentation();
+    const capabilities = await loadCapabilities(instrumentModelSelect.value);
+    if (capabilities) {
+      supportedDevices = capabilities.supported_devices || [];
+      renderSupportedDevices();
+      updateModelSelectorPresentation();
+    }
     updateRangeAndLiveChartScale();
     updateDeviceResourceSummary();
   } catch (error) {
@@ -752,7 +817,7 @@ for (const button of panelToggles) {
 
 loadCapabilities()
   .then((capabilities) => {
-    supportedDevices = capabilities.supported_devices || [];
+    if (capabilities) supportedDevices = capabilities.supported_devices || [];
     renderSupportedDevices();
     updateModelSelectorPresentation();
     updateRangeAndLiveChartScale();

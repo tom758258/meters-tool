@@ -168,7 +168,9 @@ class WebUiStaticTests(unittest.TestCase):
         for expected in (
             'id="supported-devices-panel"',
             'id="supported-devices-body"',
-            'data-i18n="supported_devices.vendor"',
+            'id="visa-library"',
+            'name="visa_library"',
+            'data-support-backend="@py"',
             'data-i18n="supported_devices.model"',
             'data-i18n="supported_devices.connections"',
         ):

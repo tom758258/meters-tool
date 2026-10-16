@@ -9,7 +9,7 @@ export function inferTransportScope(resource) {
   return null;
 }
 
-export function findProductSupportScope(resource, liveSupport) {
+export function findProductSupportScope(resource, liveSupport, visaLibrary = "") {
   const normalizedResource = String(resource || "").trim();
   const transport = inferTransportScope(normalizedResource) || (
     normalizedResource ? null : liveSupport?.transport_scope
@@ -18,7 +18,7 @@ export function findProductSupportScope(resource, liveSupport) {
     return null;
   }
   return (liveSupport?.scopes || []).find(
-    (scope) => scope.transport_scope === transport && scope.backend_scope === "system_visa"
+    (scope) => scope.transport_scope === transport && scope.backend_scope === (visaLibrary === "@py" ? "pyvisa_py" : "system_visa")
   ) || null;
 }
 

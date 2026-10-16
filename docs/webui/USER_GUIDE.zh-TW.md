@@ -205,7 +205,11 @@ WebUI 會在啟動作業前檢查各項設定。如果 `Start` 被封鎖無法�
 
 `VISA resource` (VISA 資源) 是作業將使用的儀器位址。建議使用透過 `Scan Device` 找到的資源，或手動輸入由操作人員或測試程序提供的已知資源。當可能連接多台儀器時，請勿用猜測的方式填寫資源。
 
-WebUI 使用電腦固定的預設 System VISA runtime。它不提供 PyVISA backend 選擇器，resource scan 與 run API 也不接受 backend override。精確的實機型號與連線支援由 Core policy 決定，並記載於 [Supported Models](../core/supported-models.zh-TW.md)。
+WebUI 與 Desktop 可在右側齒輪的裝置設定中，透過 `VISA 後端` 選擇 `System VISA`（預設）或 `PyVISA-py (@py)`。選擇會套用至 Scan Device、資源驗證及 Start。PyVISA-py 隨程式提供，僅支援 34461A LAN/TCPIP；不支援 USB/`@py`、34460A TCPIP 或其他 backend。System VISA 需要已安裝的 VISA runtime，不會靜默改用 `@py`。
+
+切換後端會清除先前的掃描結果及資源位址；請重新掃描或輸入已知資源。Start 處理中及量測執行中會鎖定後端選擇。Expected model 仍是 IDN 防護檢查。
+
+支援裝置面板的 `System VISA | @py` 按鈕只篩選型號與連線清單，不會改變通訊後端。開啟面板時，會預設查看齒輪目前選定的後端。精確支援範圍由 Core policy 決定，請參閱 [Supported Models](../core/supported-models.zh-TW.md)。
 
 `Live resource`（實機資源）顯示最後一次掃描回應的結果。請先用它確認是哪台儀器回應，再複製或選取資源以進行作業。當掃描辨識出支援的 34460A 或 34461A IDN 時，WebUI 可能會載入特定型號的選項以供顯示，同時保持 `Expected model` 在 `Auto-detect`。
 

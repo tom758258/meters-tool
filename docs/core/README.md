@@ -19,17 +19,16 @@ adapter-specific contracts. Core must not import `meters_tool_cli` or
 
 Core can carry an optional `visa_library` value through `StartRequest` and
 `InstrumentConfig`. When it is unset, live VISA sessions use
-`pyvisa.ResourceManager()` and therefore the system-default VISA runtime. CLI
-diagnostics may pass an explicit value such as `@py`; normal WebUI runs leave
-the value unset.
+`pyvisa.ResourceManager("@ivi")` to require the System VISA runtime without
+auto-fallback or an environment backend override. CLI, WebUI, and Desktop can
+select the bundled `@py` backend for the registered 34461A TCPIP scope.
 
 For support-policy matching, an unset or blank selector maps to `system_visa`,
 `@py` maps to `pyvisa_py`, `@bt` is reserved as the distinct `pyvisa_bt`
 identity, and other selectors map to `custom_visa`. A backend identity does not
 itself grant Product support; live acquisition requires an exact registered
 Product-open scope in [Supported Models](supported-models.md). Unregistered backend
-selectors fail closed under generic support-policy rules. The WebUI remains
-System-VISA-only and exposes no backend override.
+selectors fail closed under generic support-policy rules. The WebUI accepts only unset/empty System VISA or `@py` selectors.
 
 ## Request Admission And Adapter Boundary
 

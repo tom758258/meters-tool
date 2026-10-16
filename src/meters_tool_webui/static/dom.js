@@ -77,6 +77,8 @@ export const triggerRunButton = document.querySelector("#trigger-run");
 export const stopRunButton = document.querySelector("#stop-run");
 export const openCsvButton = document.querySelector("#open-csv");
 export const measurementSelect = document.querySelector("#measurement");
+export const visaLibrarySelect = document.querySelector("#visa-library");
+export const supportedBackendButtons = document.querySelectorAll("[data-support-backend]");
 export const instrumentModelSelect = document.querySelector("#instrument-model");
 export const measurementRangeInput = document.querySelector("#measurement-range");
 export const autoRangeCheckbox = document.querySelector("[name='auto_range']");

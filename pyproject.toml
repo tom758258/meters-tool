@@ -10,6 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pyvisa>=1.14.1",
+    "pyvisa-py>=0.8.1",
 ]
 
 [project.optional-dependencies]

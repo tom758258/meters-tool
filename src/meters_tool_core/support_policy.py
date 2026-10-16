@@ -158,7 +158,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 BACKEND_PYVISA_PY,
                 evidence="operator_full_suite",
                 artifact=".tmp_tests/cli_live/keysight-34461a/lan/full/20260709-112406/summary.md",
-                note="Optional CLI-only pyvisa-py @py backend validation.",
+                note="TCPIP pyvisa-py @py backend support.",
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34461A_MEASUREMENTS,
                     _FEATURE_STATUSES_34461A_TRIGGER_MODES,

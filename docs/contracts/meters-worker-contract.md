@@ -72,8 +72,9 @@ maps to `expected_model_id`; in simulate and dry-run modes it maps to
 context is startup-bound, `POST /command` does not include `context`.
 When a CLI caller passes an optional PyVISA library/backend value such as
 `--visa-library "@py"`, live resource manager creation uses that backend. If it
-is omitted, live mode uses the system default `pyvisa.ResourceManager()`
-behavior. This option does not change the worker JSONL, CSV, HTTP control, or
+is omitted, live mode uses System VISA through `pyvisa.ResourceManager("@ivi")`,
+without automatic pyvisa-py fallback or a `PYVISA_LIBRARY` override. This option
+does not change the worker JSONL, CSV, HTTP control, or
 cleanup contracts.
 
 ## Orchestrator Quickstart

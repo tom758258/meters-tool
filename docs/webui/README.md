@@ -349,17 +349,25 @@ IDN preflight.
 The user can still type a resource manually and can require a specific Expected
 model from `Device options` after scanning.
 
-The WebUI uses the fixed default System VISA runtime through Core. The browser
-exposes no optional PyVISA backend selector, and the WebUI API accepts no
-backend override for resource scans or live runs. Current Product-open connection
-scopes (such as USB/system-VISA or LAN/TCPIP) are documented in
-[Supported Models](../core/supported-models.md). In a source or installed Python
-environment, CLI live acquisition with the optional `@py` backend is limited to
-registered Product-open scopes. The `@bt` selector is reserved for a future
-distinct `pyvisa_bt` identity only; this project does not implement pyvisa_bt,
-there is no Product-open `@bt` live support scope, and live use with `@bt`
-remains fail-closed. The official standalone WebUI supports neither optional
-backend; do not attempt to supply one through an undocumented API payload.
+WebUI and Desktop expose System VISA (default) and bundled PyVISA-py (`@py`)
+in Device options. `GET /api/resources` accepts an optional `visa_library`
+query; `POST /api/runs` and `POST /api/plan` accept the same field. Only null
+or empty (System VISA) and `@py` are accepted; unknown selectors return 422.
+Scan and verification pass the selector to Core. Live support remains limited
+to the exact Product-open matrix in [Supported Models](../core/supported-models.md).
+System VISA explicitly loads `@ivi`, avoiding PyVISA's automatic `@py` fallback.
+
+Backend changes invalidate scan metadata and pending scan/capability responses,
+clear the resource address, and recalculate feature availability. The selector
+is locked during pending Start/Preview and active runs. Simulation and Dry-run
+remain hardware-free and retain their planning-model behavior.
+
+`supported_devices[].backend_connections` adds a Core-derived mapping from
+backend scope to Product-open USB/TCPIP connections. Existing `connections`
+remains the System VISA list for compatibility. The Supported devices panel's
+independent segmented control filters only this metadata; opening it initializes
+the filter from the selected communication backend. It displays Model and
+Connections and does not alter the run form's `visa_library`.
 
 `live_validated_full_suite` and `transport_pending` are Core-owned machine-readable
 statuses. The WebUI does not expose validation mode; normal browser starts only allow
@@ -452,7 +460,7 @@ normal Product starts; the status does not authorize execution.
 
 The browser uses this metadata to show model live support and to disable
 features that are not product-open for the current resource transport and the
-WebUI's fixed system-VISA backend. Before a resource is known, Auto-detect
+selected communication backend. Before a resource is known, Auto-detect
 keeps the existing fallback capability view and uses only the fallback
 profile's declared product scope; it never opens a non-Product-open feature.
 For the exact model, transport, backend, and feature support matrix, see [Supported Models](../core/supported-models.md). Existing measurement, trigger, range, and limit fields remain the
@@ -467,12 +475,8 @@ was found in the IDN.
 The selected WebUI model must not be treated as a feature unlock. Disabled or
 hidden controls are UX only; the Core support policy and `run_start_session()`
 runner final gate remain the safety boundary for WebUI backend submissions.
-The current WebUI exposes no optional backend selector; System VISA remains the
-supported WebUI runtime. Optional `@py` backend work remains outside the
-current WebUI product surface; `@bt` is reserved for a future `pyvisa_bt`
-identity only and is not a currently supported backend. CLI
-development/installed-environment use still requires a loadable backend and an
-exact registered Product-open scope in [Supported Models](../core/supported-models.md).
+Backend selection does not change Expected model semantics or the Core final
+support gate. `@bt` and all other WebUI backend selectors remain unsupported.
 
 Currently surfaced measurement modes include:
 
@@ -509,7 +513,7 @@ Measurement-specific UI behavior:
   terminal/path. Custom-mode reading memory is limited to 1000 readings.
 - With the 34460A profile selected, `voltage-dc-ratio` availability depends on
   registered Product-open support scopes (see [Supported Models](../core/supported-models.md)).
-  The WebUI does not expose a pyvisa-py selector.
+  Backend/transport availability is derived from Core support metadata.
 - DCV Input Z appears only for `voltage-dc` and `voltage-dc-ratio`.
 - VM Comp remains a measurement option where supported by Core.
 - Auto Zero Once is available for supported DC/resistance measurements through
@@ -537,7 +541,7 @@ hard-coded 34460A option list.
 For trigger modes that remain in the profile list, the browser also applies the
 exact-scope feature status. `feature_pending` and `not_supported_by_model`
 options are disabled, while `live_validated_full_suite` options remain
-selectable. There is no validation-mode toggle or backend selector.
+selectable. There is no validation-mode toggle.
 
 Simple immediate and software-triggered reads use Core's `READ?` path.
 Hardware-triggered simple reads use Core's `FETC?` path after the trigger

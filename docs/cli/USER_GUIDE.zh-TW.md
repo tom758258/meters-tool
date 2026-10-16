@@ -70,7 +70,7 @@ live 啟動省略 `--model` 時，連接儀器的 `*IDN?` 決定 runtime profile
 
 精確的目前支援矩陣，請參閱 [支援型號](../core/supported-models.zh-TW.md)。
 
-CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。backend 選擇不會改變或擴充 Product 支援。Windows 發佈版 CLI 執行檔只支援固定的 System VISA 路徑，不會 bundle 選用 backend。
+CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。使用 `--visa-library "@py"` 可選擇隨程式提供的 PyVISA-py 後端，用於 34461A TCPIP；Windows 執行檔也支援此選擇。backend 選擇不會改變或擴充 Product 支援。
 
 ## 不連接硬體先檢查設定
 
@@ -186,7 +186,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 
 `--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 `$env:METER_RESOURCE` 並傳遞 `--resource "$env:METER_RESOURCE"`，以便複製的命令能繼續使用選定的儀器。
 
-`--visa-library` 是進階 CLI backend 選擇器。一般 Product 使用請省略它並使用 System VISA。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。
+`--visa-library` 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 `"@py"`。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。
 
 `list-resources --verify` 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。
 

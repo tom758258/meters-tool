@@ -42,7 +42,7 @@ Dry-run 與 simulator 執行使用 selected/no-hardware planning profile，不�
 | 10 A / current-terminal | 支援，需操作人員確認接線 | 不支援 |
 | 超過 model memory 的 buffer drain | 最高 10000 readings | 超過 1000 不支援 |
 | LAN/TCPIP 搭配 system VISA | 34461A 支援 | 目前不支援 |
-| LAN/TCPIP 搭配 pyvisa-py `@py` | 選用的 CLI-only 34461A 範圍支援 | 目前不支援 |
+| LAN/TCPIP 搭配 pyvisa-py `@py` | CLI、WebUI 與 Desktop 支援 34461A | 目前不支援 |
 
 ### 精確範圍詳細資訊
 
@@ -55,7 +55,10 @@ Dry-run 與 simulator 執行使用 selected/no-hardware planning profile，不�
 VISA backend 支援是精確連線範圍的一部分，而不是 model capability。
 除非介面明確提供另一個受支援 backend，正常 Product 作業使用電腦的 System VISA runtime。
 選用 backend scopes 互相獨立：選擇另一個 backend 不會解鎖未支援的 model、transport、量測或其他 Product 支援。
-WebUI 不提供 backend selector。
+WebUI 與 Desktop 可在裝置設定選擇 System VISA（預設）或 PyVISA-py（`@py`）。
+PyVISA-py 預設安裝並隨 Windows 成品提供，僅支援 34461A TCPIP；
+USB/`@py`、34460A TCPIP 及其他 backend 不在正式支援範圍。
+System VISA 明確載入 `@ivi`；即使設定 `PYVISA_LIBRARY`，也不會自動改用其他 backend。
 
 ## 量測能力
 

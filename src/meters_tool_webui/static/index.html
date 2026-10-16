@@ -111,7 +111,13 @@
                 class="device-options-panel supported-devices-panel is-hidden"
                 aria-labelledby="supported-devices-title"
               >
-                <h2 id="supported-devices-title" data-i18n="supported_devices.heading">Supported devices</h2>
+                <div class="supported-devices-header">
+                  <h2 id="supported-devices-title" data-i18n="supported_devices.heading">Supported devices</h2>
+                  <div class="backend-segments" role="group" data-i18n-aria-label="device.visa_backend" aria-label="VISA Backend">
+                    <button type="button" data-support-backend="" aria-pressed="true" data-i18n="device.system_visa">System VISA</button>
+                    <button type="button" data-support-backend="@py" aria-pressed="false">@py</button>
+                  </div>
+                </div>
                 <p class="device-options-help" data-i18n="supported_devices.description">
                   Devices and connections currently supported by the WebUI.
                 </p>
@@ -119,7 +125,6 @@
                   <table class="supported-devices-table">
                     <thead>
                       <tr>
-                        <th scope="col" data-i18n="supported_devices.vendor">Vendor</th>
                         <th scope="col" data-i18n="supported_devices.model">Model</th>
                         <th scope="col" data-i18n="supported_devices.connections">Connections</th>
                       </tr>
@@ -149,6 +154,13 @@
                 aria-labelledby="device-options-title"
               >
                 <h2 id="device-options-title" data-i18n="device.options">Device options</h2>
+                <label>
+                  <span data-i18n="device.visa_backend">VISA Backend</span>
+                  <select name="visa_library" id="visa-library" form="run-form">
+                    <option value="" data-i18n="device.system_visa">System VISA</option>
+                    <option value="@py">PyVISA-py (@py)</option>
+                  </select>
+                </label>
                 <fieldset class="execution-mode-fieldset">
                   <legend data-i18n="execution.heading">Execution mode</legend>
                   <div class="execution-mode-options">

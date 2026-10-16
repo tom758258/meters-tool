@@ -152,7 +152,7 @@ do not query live hardware.</p>
 </tr>
 <tr>
 <td>LAN/TCPIP with pyvisa-py <code>@py</code></td>
-<td>Open for optional CLI-only 34461A scope</td>
+<td>Open for 34461A in CLI, WebUI, and Desktop</td>
 <td>Not currently supported</td>
 </tr>
 </tbody>
@@ -168,8 +168,12 @@ do not query live hardware.</p>
 capability. Normal Product operation uses the computer System VISA runtime
 unless an interface explicitly exposes another supported backend. Optional
 backend scopes remain independent: selecting another backend does not unlock
-unsupported models, transports, measurements, or other Product support. The
-WebUI does not expose a backend selector.</p>
+unsupported models, transports, measurements, or other Product support.
+WebUI and Desktop expose System VISA (default) and PyVISA-py (<code>@py</code>) in
+Device options. PyVISA-py is installed by default and bundled on Windows. It
+supports 34461A TCPIP only; USB/<code>@py</code>, 34460A TCPIP, and other backends are
+not Product-open. System VISA explicitly loads <code>@ivi</code> and fails if its runtime
+is unavailable, even when <code>PYVISA_LIBRARY</code> requests another backend.</p>
 <h2 id="measurement-capability">Measurement Capability</h2>
 <p>The 34460A and 34461A profiles currently expose the same measurement names, in
 profile order:</p>

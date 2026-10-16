@@ -50,7 +50,7 @@ do not query live hardware.
 | 10 A / current-terminal | Open with operator-confirmed wiring | Not supported |
 | Buffer drain above profile memory | Up to 10000 readings | Not supported above 1000 |
 | LAN/TCPIP with system VISA | Open for 34461A | Not currently supported |
-| LAN/TCPIP with pyvisa-py `@py` | Open for optional CLI-only 34461A scope | Not currently supported |
+| LAN/TCPIP with pyvisa-py `@py` | Open for 34461A in CLI, WebUI, and Desktop | Not currently supported |
 
 ### Exact-Scope Details
 
@@ -64,8 +64,12 @@ VISA backend support is part of the exact connection scope, not a model
 capability. Normal Product operation uses the computer System VISA runtime
 unless an interface explicitly exposes another supported backend. Optional
 backend scopes remain independent: selecting another backend does not unlock
-unsupported models, transports, measurements, or other Product support. The
-WebUI does not expose a backend selector.
+unsupported models, transports, measurements, or other Product support.
+WebUI and Desktop expose System VISA (default) and PyVISA-py (`@py`) in
+Device options. PyVISA-py is installed by default and bundled on Windows. It
+supports 34461A TCPIP only; USB/`@py`, 34460A TCPIP, and other backends are
+not Product-open. System VISA explicitly loads `@ivi` and fails if its runtime
+is unavailable, even when `PYVISA_LIBRARY` requests another backend.
 
 ## Measurement Capability
 

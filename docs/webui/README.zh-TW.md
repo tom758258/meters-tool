@@ -255,7 +255,7 @@ GET /api/resources?verify=true&live_only=true
 
 使用者仍然可以手動輸入資源，並在掃描後於 `Device options` 中要求特定的 `Expected model`。
 
-WebUI 透過 Core 使用固定的預設 System VISA runtime。瀏覽器不提供選用的 PyVISA backend 選擇器，WebUI API 也不接受 resource scan 或實機執行的 backend override。目前 Product-open 的連線範圍（如 USB/system-VISA 或 LAN/TCPIP）記載於 [支援型號](../core/supported-models.md)。在 source 或已安裝 Python 環境中，CLI 使用選用 `@py` backend 的實機擷取僅限於已註冊的 Product-open scope。`@bt` selector 僅保留給未來獨立的 `pyvisa_bt` identity；本專案未實作 pyvisa_bt，沒有 Product-open 的 `@bt` 實機支援 scope，以 `@bt` 進行的 live 使用仍會 fail closed。官方 standalone WebUI 不支援選用 backend；請勿嘗試透過未記載的 API payload 指定 backend。
+WebUI 與 Desktop 可在裝置選項中選擇 System VISA（預設）或隨程式提供的 PyVISA-py（`@py`）。資源掃描 query、Start 與 Plan payload 的 `visa_library` 僅接受未設定／空白或 `@py`；其他值回傳 422。掃描與驗證會將選擇傳入 Core。切換後會清除資源及掃描 metadata、忽略過期掃描與功能回應，並重新計算功能可用性。Start／Preview 處理中及執行中會鎖定後端。支援裝置面板的獨立切換僅篩選 Core metadata 產生的型號／連線清單，不會修改執行後端。`@py` 僅支援 34461A TCPIP；詳見 [支援型號](../core/supported-models.zh-TW.md)。
 
 `live_validated_full_suite` 與 `transport_pending` 是 Core-owned machine-readable status。WebUI 不公開 Validation mode；normal browser starts 只允許 Product-open scopes/features，non-Product-open 仍被封鎖。瀏覽器會停用產品不可用的功能選項，但該狀態僅為 UX；Core 驗證、支援原則關卡以及 `run_start_session()` 最終關卡仍是安全邊界。
 
@@ -310,7 +310,7 @@ pending_keys
 
 Expected model 檢查是選用的。Core 會在 Start 時驗證連接儀器的識別資訊。若明確指定的預期型號與新的 IDN preflight 不符，WebUI 會回報選取的型號以及 IDN 中找到的支援型號。
 
-選取的 WebUI 型號不得被視為功能解鎖。停用或隱藏的控制項僅為 UX；Core 支援原則與 `run_start_session()` 最終關卡仍是 WebUI 後端提交的安全邊界。目前 WebUI 不提供選用 backend 選擇器；System VISA 仍是受支援的 WebUI runtime。選用的 `@py` backend 工作不在目前 WebUI product surface 內；`@bt` 僅保留給未來的 `pyvisa_bt` identity，並非目前受支援的 backend。CLI 開發／已安裝環境用途仍需要可載入的 backend 與在 [支援型號](../core/supported-models.md) 中已註冊的 Product-open scope。
+選取的 WebUI 型號不得被視為功能解鎖。停用或隱藏的控制項僅為 UX；Core 支援原則與 `run_start_session()` 最終關卡仍是 WebUI 後端提交的安全邊界。後端選擇不會改變 Expected model 的 IDN 防護或 Core 支援政策。`@bt` 及其他 WebUI backend selector 仍不受支援。
 
 目前呈現的量測模式包括：
 
@@ -335,7 +335,7 @@ Expected model 檢查是選用的。Core 會在 Start 時驗證連接儀器的�
 - 閘門時間 (Gate Time) 僅出現在頻率和週期，預設值為 `0.1` 秒。逾時 (Timeout) 僅出現在頻率，預設為 `auto`；週期會隱藏它且不送出逾時 payload。
 - 電流端子選擇僅在支援的電流量測中顯示。
 - 在 34460A 設定檔選定時，電流量程排除 10 A 且電流端子選擇會被隱藏，因為基礎 34460A 設定檔沒有 10 A 端子/路徑。自訂模式讀值記憶體限制為 1000 筆。
-- 在 34460A 設定檔選定時，`voltage-dc-ratio` 的可用性取決於已註冊的 Product-open scope（請參閱 [支援型號](../core/supported-models.md)）。WebUI 不會公開 pyvisa-py 選擇器。
+- 在 34460A 設定檔選定時，`voltage-dc-ratio` 的可用性取決於已註冊的 Product-open scope（請參閱 [支援型號](../core/supported-models.md)）。Backend／transport 可用性來自 Core 支援 metadata。
 - DCV Input Z (輸入阻抗) 僅在 `voltage-dc` 與 `voltage-dc-ratio` 中顯示。
 - 在 Core 支援的情況下，VM Comp 仍會作為量測選項。
 - 透過 Core 能力 (capabilities)，支援的 DC/電阻量測可使用 Auto Zero Once。
@@ -355,7 +355,7 @@ Expected model 檢查是選用的。Core 會在 Start 時驗證連接儀器的�
 
 確切列表為設定檔專屬。34460A 基礎設定檔隱藏 `external` 與 `external-custom`，因為 LAN/LXI/外接觸發能力為選用且非假設擁有。不支援的 34460A 選項會透過 `/api/capabilities?model=34460A` 予以排除；前端不會維護一個分開的手寫 34460A 選項清單。
 
-對於設定檔清單中保留的觸發模式，瀏覽器也會套用確切範圍的功能狀態。`feature_pending` 與 `not_supported_by_model` 選項將被停用，而 `live_validated_full_suite` 選項則保持可選。不提供驗證模式切換或後端選擇器。
+對於設定檔清單中保留的觸發模式，瀏覽器也會套用確切範圍的功能狀態。`feature_pending` 與 `not_supported_by_model` 選項將被停用，而 `live_validated_full_suite` 選項則保持可選。不提供驗證模式切換。
 
 簡單的立即與軟體觸發讀取使用 Core 的 `READ?` 路徑。硬體觸發的簡單讀取在觸發配接器裝載並完成量測後，使用 Core 的 `FETC?` 路徑。
 

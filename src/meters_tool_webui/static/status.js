@@ -11,6 +11,7 @@ import {
   openCsvButton,
   rawStatus,
   refreshResourcesButton,
+  visaLibrarySelect,
   startRunButton,
   statusCaptured,
   statusCsv,
@@ -366,6 +367,7 @@ function updateRunControlButtons(status) {
   const active = Boolean(status?.active);
   const executionPending = startRunButton.dataset.executionPending === "true";
   startRunButton.disabled = active || executionPending;
+  if (visaLibrarySelect) visaLibrarySelect.disabled = active || executionPending;
   refreshResourcesButton.disabled =
     active || refreshResourcesButton.dataset.executionDisabled === "true";
   for (const input of executionModeInputs) {

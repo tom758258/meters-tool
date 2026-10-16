@@ -8,9 +8,9 @@ Core 負責共享請求模型、請求驗證、dry-run 規劃、執行階段工�
 
 CLI 與 WebUI 負責各自的輸入解析、顯示文字、在地化、終端機與瀏覽器工作流程、序列化、HTTP/SSE payload，以及其他配接器專屬合約。Core 不得 import `meters_tool_cli` 或 `meters_tool_webui`。
 
-Core 可以透過 `StartRequest` 與 `InstrumentConfig` 傳遞選用的 `visa_library` 值。未設定時，live VISA 工作階段會使用 `pyvisa.ResourceManager()`，也就是系統預設的 VISA 執行階段。CLI 診斷可以傳入像 `@py` 這類明確值；一般 WebUI 執行則會保持未設定。
+Core 可以透過 `StartRequest` 與 `InstrumentConfig` 傳遞選用的 `visa_library` 值。未設定時，live VISA 工作階段會使用 `pyvisa.ResourceManager("@ivi")`，明確要求 System VISA，不會自動退回 `@py`，也不會由 `PYVISA_LIBRARY` 改用其他 backend。CLI、WebUI 與 Desktop 可選擇隨程式提供的 `@py`，但正式支援僅限已註冊的 34461A TCPIP scope。
 
-進行支援政策比對時，未設定或空白 selector 對應 `system_visa`，`@py` 對應 `pyvisa_py`，`@bt` 則保留為獨立的 `pyvisa_bt` identity，其他 selector 仍對應 `custom_visa`。Backend identity 本身不代表 Product support；實機擷取需要符合 [Supported Models](supported-models.md) 中已註冊的 Product-open scope。未註冊的 backend selector 會在一般支援政策規則下 fail closed。WebUI 維持僅使用 System VISA，且不提供 backend override。
+進行支援政策比對時，未設定或空白 selector 對應 `system_visa`，`@py` 對應 `pyvisa_py`，`@bt` 則保留為獨立的 `pyvisa_bt` identity，其他 selector 仍對應 `custom_visa`。Backend identity 本身不代表 Product support；實機擷取需要符合 [Supported Models](supported-models.md) 中已註冊的 Product-open scope。未註冊的 backend selector 會在一般支援政策規則下 fail closed。WebUI 僅接受未設定／空白的 System VISA selector 或 `@py`。
 
 ## 請求准入與配接器邊界
 

@@ -698,8 +698,8 @@ const capabilities = {
   support: { "start-trigger-record": { live: null } },
   available_profiles: [],
   supported_devices: [
-    { vendor: "Keysight", model: "34461A", connections: ["usb", "tcpip"] },
-    { vendor: "Keysight", model: "34460A", connections: ["usb"] },
+    { vendor: "Keysight", model: "34461A", connections: ["usb", "tcpip"], backend_connections: { system_visa: ["usb", "tcpip"], pyvisa_py: ["tcpip"] } },
+    { vendor: "Keysight", model: "34460A", connections: ["usb"], backend_connections: { system_visa: ["usb"] } },
   ],
   measurements: [{ name: "current-dc", unit: "A", nplc_options: [], range_options: [], defaults: {} }],
   trigger_modes: ["software"],
@@ -770,8 +770,8 @@ assert.equal(supportedRows.length, 2);
 assert.deepEqual(
   supportedRows.map((row) => row.children.map((cell) => cell.textContent)),
   [
-    ["Keysight", "34461A", "USB, LAN / TCPIP"],
-    ["Keysight", "34460A", "USB"],
+    ["34461A", "USB, LAN"],
+    ["34460A", "USB"],
   ]
 );
 
@@ -797,8 +797,8 @@ assert.deepEqual(
     (row) => row.children.map((cell) => cell.textContent)
   ),
   [
-    ["Keysight", "34461A", "USB、LAN / TCPIP"],
-    ["Keysight", "34460A", "USB"],
+    ["34461A", "USB、LAN"],
+    ["34460A", "USB"],
   ]
 );
 assert.deepEqual(
@@ -1107,3 +1107,110 @@ process.stdout.write(JSON.stringify({ ok: true }));
         f"Help path locale contract failed\nstdout:\n{completed.stdout}\nstderr:\n{completed.stderr}"
     )
     assert completed.stdout == '{"ok":true}'
+
+
+@pytest.mark.frontend_node
+@pytest.mark.skipif(NODE is None, reason="Node.js is required for backend selection tests")
+def test_backend_switch_invalidates_scan_and_keeps_support_filter_independent():
+    script = APPLICATION_TEST_SETUP + r"""
+const buttons = ["", "@py"].map((backend) => {
+  const button = new FakeElement();
+  button.dataset.supportBackend = backend;
+  return button;
+});
+const originalQuery = document.querySelectorAll;
+document.querySelectorAll = (selector) => selector === "[data-support-backend]"
+  ? buttons : originalQuery(selector);
+const features = {
+  measurement: { "current-dc": { validation_status: "live_validated_full_suite" } },
+  trigger_mode: { immediate: { validation_status: "live_validated_full_suite" } },
+};
+const scopes = [
+  { transport_scope: "usb", backend_scope: "system_visa", validation_status: "live_validated_full_suite", features },
+  { transport_scope: "tcpip", backend_scope: "pyvisa_py", validation_status: "live_validated_full_suite", features },
+];
+const capabilities = {
+  limits: {}, available_profiles: [{ model: "34461A" }],
+  supported_devices: [
+    { model: "34461A", backend_connections: { system_visa: ["usb", "tcpip"], pyvisa_py: ["tcpip"] } },
+    { model: "34460A", backend_connections: { system_visa: ["usb"] } },
+  ],
+  support: { "start-trigger-record": { live: { transport_scope: "usb", scopes } } },
+  measurements: [{ name: "current-dc", unit: "A", nplc_options: [1], range_options: [], defaults: {} }],
+  trigger_modes: ["immediate"], trigger_mode_metadata: {},
+};
+const idle = { active: false, state: "idle", captured: 0, errors: 0, recent_samples: [] };
+let finishScan;
+let finishCapabilities;
+let finishInitialCapabilities;
+const calls = [];
+globalThis.fetch = async (path, options) => {
+  calls.push({ path: String(path), options });
+  if (String(path).startsWith("/api/capabilities")) {
+    if (calls.length === 1) return new Promise((resolve) => { finishInitialCapabilities = resolve; });
+    return response(capabilities);
+  }
+  if (String(path).startsWith("/api/resources")) return new Promise((resolve) => { finishScan = resolve; });
+  return response(idle);
+};
+globalThis.FormData = class {
+  get(name) { return {
+    resource: element("#resource").value, visa_library: element("#visa-library").value,
+    instrument_model: "34461A", measurement: "current-dc", trigger_mode: "immediate",
+    nplc: "1", auto_range: "on", max_samples: "1",
+  }[name] ?? null; }
+};
+await import(appUrl);
+await new Promise((resolve) => setTimeout(resolve, 0));
+const backend = element("#visa-library");
+const scan = element("#refresh-resources").listeners.get("click");
+const switchBackend = async (value) => { backend.value = value; await backend.listeners.get("change")(); };
+const pendingScan = scan();
+await switchBackend("@py");
+finishInitialCapabilities(response(capabilities));
+finishScan(response({ resources: [{ resource: "USB::OLD", instrument_model: "34460A" }] }));
+await pendingScan;
+assert.equal(element("#resource").value, "");
+assert.equal(element("#resource-select").options.length, 1);
+const pyScan = scan();
+finishScan(response({ resources: [{ resource: "TCPIP0::fake::inst0::INSTR", instrument_model: "34461A" }] }));
+await pyScan;
+assert.match(calls.findLast((call) => call.path.includes("/api/resources")).path, /visa_library=%40py/);
+assert.equal(element("#resource").value, "TCPIP0::fake::inst0::INSTR");
+assert.equal(element("#measurement").options[0].disabled, false);
+element("#supported-devices-toggle").listeners.get("click")({ stopPropagation() {} });
+const rows = element("#supported-devices-body");
+assert.equal(rows.children.length, 1);
+assert.equal(rows.children[0].children.length, 2);
+assert.equal(rows.children[0].children[0].textContent, "34461A");
+buttons[0].click();
+assert.equal(rows.children.length, 2);
+assert.equal(backend.value, "@py");
+const { setLocale } = await import(new URL("./i18n.js", appUrl));
+setLocale("zh-TW");
+element("#locale-toggle").click();
+assert.equal(backend.value, "@py");
+assert.equal(buttons[0].getAttribute("aria-pressed"), "true");
+await element("#start-run").listeners.get("click")();
+const run = calls.findLast((call) => call.path === "/api/runs");
+assert.equal(JSON.parse(run.options.body).visa_library, "@py");
+const { renderStatus } = await import(new URL("./status.js", appUrl));
+renderStatus({ ...idle, active: true });
+assert.equal(backend.disabled, true);
+await switchBackend("");
+assert.equal(backend.value, "@py");
+renderStatus(idle);
+// An inferred profile response from the old backend must not restore stale options.
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (path, options) => String(path).startsWith("/api/capabilities")
+  ? new Promise((resolve) => { finishCapabilities = resolve; }) : originalFetch(path, options);
+const oldSelection = element("#resource-select").listeners.get("change")();
+globalThis.fetch = originalFetch;
+await switchBackend("");
+finishCapabilities(response({ ...capabilities, trigger_modes: ["stale-mode"] }));
+await oldSelection;
+assert.equal(element("#trigger-mode").options.some((option) => option.value === "stale-mode"), false);
+assert.equal(element("#resource").value, "");
+"""
+    completed = run_node(script, STATIC_DIR / "app.js")
+    assert completed.returncode == 0, completed.stdout + completed.stderr

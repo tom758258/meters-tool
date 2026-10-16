@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import unittest
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
+
+import pytest
 
 from meters_tool_core.instrument import (
     ASRL_VERIFY_TIMEOUT_MS,
@@ -129,7 +131,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
 
     def test_list_resources_returns_list_and_closes_resource_manager(self):
         rm = FakeResourceManager(resources=("USB::A", "TCPIP::B"))
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             resources = VisaInstrument.list_resources()
@@ -168,7 +170,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
             resources = VisaInstrument.list_resources(visa_library="   ")
 
         self.assertEqual(["USB::A"], resources)
-        self.assertEqual([()], calls)
+        self.assertEqual([("@ivi",)], calls)
         self.assertTrue(rm.closed)
 
     def test_list_resources_factory_takes_priority_over_visa_library(self):
@@ -194,7 +196,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_verify_resource_queries_only_idn_and_closes(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with (
             patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
@@ -215,7 +217,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_preflight_idn_queries_only_idn_and_closes(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             idn = VisaInstrument.preflight_idn("USB::FAKE", timeout_ms=4321)
@@ -231,7 +233,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_verify_asrl_uses_bounded_open_and_session_timeout_without_release(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR", timeout_ms=9999)
@@ -249,7 +251,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_verify_asrl_applies_serial_termination_options(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, _detail = VisaInstrument.verify_resource(
@@ -265,7 +267,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
     def test_verify_serial_termination_options_do_not_apply_to_usb(self):
         session = FakeVisaSession()
         rm = FakeResourceManager(session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with (
             patch("meters_tool_core.instrument.pyvisa", fake_pyvisa),
@@ -337,7 +339,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         session = FakeVisaSession()
         session.fail_query = True
         rm = FakeResourceManager(session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("USB::FAKE")
@@ -354,7 +356,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         session = FakeVisaSession()
         session.fail_query = True
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
 
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             ok, detail = VisaInstrument.verify_resource("ASRL6::INSTR")
@@ -373,7 +375,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
         session.fail_query_exception = FakeVisaIOError(-1073807339)
         rm = FakeResourceManager(resources=("ASRL6::INSTR",), session=session)
         fake_pyvisa = SimpleNamespace(
-            ResourceManager=lambda: rm,
+            ResourceManager=lambda *_args: rm,
             errors=SimpleNamespace(VisaIOError=FakeVisaIOError),
             constants=SimpleNamespace(
                 StatusCode=SimpleNamespace(error_timeout=-1073807339)
@@ -445,7 +447,7 @@ class VisaInstrumentStaticTests(unittest.TestCase):
 class VisaInstrumentInstanceTests(unittest.TestCase):
     def make_instrument(self, session: FakeVisaSession | None = None, resource: str = "USB::FAKE"):
         rm = FakeResourceManager(session=session)
-        fake_pyvisa = SimpleNamespace(ResourceManager=lambda: rm)
+        fake_pyvisa = SimpleNamespace(ResourceManager=lambda *_args: rm)
         instrument = VisaInstrument(InstrumentConfig(resource_string=resource, timeout_ms=4321))
         return instrument, rm, fake_pyvisa
 
@@ -506,7 +508,7 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
         with patch("meters_tool_core.instrument.pyvisa", fake_pyvisa):
             instrument.connect()
 
-        self.assertEqual([()], calls)
+        self.assertEqual([("@ivi",)], calls)
         self.assertEqual(["USB::FAKE"], rm.opened_resources)
 
     def test_connect_accepts_idn_matching_expected_model(self):
@@ -792,3 +794,20 @@ class VisaInstrumentInstanceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_system_visa_is_explicit_even_when_environment_requests_py(monkeypatch):
+    monkeypatch.setenv("PYVISA_LIBRARY", "@py")
+    manager = Mock()
+    manager.list_resources.return_value = []
+    with patch("meters_tool_core.instrument.pyvisa.ResourceManager", return_value=manager) as factory:
+        VisaInstrument.list_resources()
+    factory.assert_called_once_with("@ivi")
+    manager.close.assert_called_once()
+    with patch(
+        "meters_tool_core.instrument.pyvisa.ResourceManager",
+        side_effect=ValueError("missing IVI"),
+    ) as factory:
+        with pytest.raises(ValueError, match="missing IVI"):
+            VisaInstrument.list_resources()
+    factory.assert_called_once_with("@ivi")

@@ -269,10 +269,19 @@ found by `Scan Device`, or type a known resource provided by the operator or
 test procedure. Do not guess a resource when more than one instrument may be
 connected.
 
-The WebUI uses the computer's fixed default System VISA runtime. It does not
-include a PyVISA backend selector, and its resource scan and run API accept no
-backend override. Exact live model and connection support is governed by Core
-policy and documented in [Supported Models](../core/supported-models.md).
+In Device options (gear), choose `VISA Backend`: `System VISA` (default) or
+`PyVISA-py (@py)`. The selection applies to Scan Device, verification, and Start
+in both WebUI and Desktop. PyVISA-py is included and supports 34461A LAN/TCPIP
+only. USB with `@py`, 34460A TCPIP, and other backends are unsupported.
+System VISA requires an installed VISA runtime and never silently uses `@py`.
+Changing backend clears the previous scan and resource address; scan again or
+enter a known resource. Backend selection is locked during Start and active runs.
+Expected model remains an IDN guard.
+
+The Supported devices panel has a separate `System VISA | @py` control that
+filters its Model/Connections table. Opening it selects the current backend
+for viewing; changing this filter does not change the communication backend.
+Exact support is governed by Core policy in [Supported Models](../core/supported-models.md).
 
 `Live resource` shows the result of the last scan. Use it to confirm which
 instrument answered before copying or selecting a resource for the run. When

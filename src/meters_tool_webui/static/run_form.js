@@ -34,6 +34,8 @@ import {
   gateTimeContainer,
   gateTimeSelect,
   instrumentModelSelect,
+  executionModeInputs,
+  visaLibrarySelect,
   measurementRangeInput,
   measurementScopedControls,
   measurementSelect,
@@ -159,7 +161,14 @@ function triggerOptionElement(mode) {
 }
 
 function currentProductSupportScope() {
-  return findProductSupportScope(resourceInput?.value, liveSupport);
+  const noHardware = [...executionModeInputs].some(
+    (input) => input.checked && input.value !== "real"
+  );
+  return findProductSupportScope(
+    noHardware ? "" : resourceInput?.value,
+    liveSupport,
+    noHardware ? "" : visaLibrarySelect?.value
+  );
 }
 
 function featureOptionElement(value, text, featureKind, textKey, textParams) {
@@ -251,6 +260,7 @@ export function formPayload() {
   const selectedMeasurement = String(data.get("measurement") || "current-dc");
   const values = {
     resource: data.get("resource"),
+    visa_library: data.get("visa_library"),
     instrument_model: data.get("instrument_model"),
     csv_enabled: data.get("csv_enabled"),
     csv: data.get("csv"),
@@ -872,7 +882,14 @@ export function refreshRunFormPresentation() {
   refreshSupportSummaryPresentation();
 }
 
+let capabilitiesRevision = 0;
+
+export function invalidateCapabilities() {
+  capabilitiesRevision += 1;
+}
+
 export async function loadCapabilities(model = null) {
+  const revision = ++capabilitiesRevision;
   const selectedModel = textOrNull(model || instrumentModelSelect?.value);
   const url = selectedModel
     ? `/api/capabilities?model=${encodeURIComponent(selectedModel)}`
@@ -880,6 +897,7 @@ export async function loadCapabilities(model = null) {
   const previousMeasurement = measurementSelect.value;
   const previousTriggerMode = triggerModeSelect.value;
   const capabilities = await api(url);
+  if (revision !== capabilitiesRevision) return null;
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
   latestSupportSummary = capabilities.support_summary ?? null;

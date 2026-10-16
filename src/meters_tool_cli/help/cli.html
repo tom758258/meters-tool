@@ -113,9 +113,9 @@ Core policy. Unsupported combinations fail closed instead of being unlocked by
 <code>--model</code> or a scan result.</p>
 <p>For the exact current support matrix, see <a href="supported-models.html">Supported Models</a>.</p>
 <p>By default, the CLI uses the computer's System VISA runtime, such as Keysight
-IO Libraries Suite or NI-VISA. Backend selection does not change or expand
-Product support. The bundled Windows CLI executable supports only the fixed
-System VISA path and does not bundle optional backends.</p>
+IO Libraries Suite or NI-VISA. Use <code>--visa-library "@py"</code> to select the bundled
+PyVISA-py backend for 34461A TCPIP, including in the Windows executable.
+Backend selection does not change or expand Product support.</p>
 <h2 id="check-settings-without-hardware">Check Settings Without Hardware</h2>
 <p>Before a first live run, you can check the same request without controlling a
 physical instrument.</p>
@@ -244,7 +244,7 @@ failed measurement.</p>
 PowerShell examples, set <code>$env:METER_RESOURCE</code> once and pass
 <code>--resource "$env:METER_RESOURCE"</code> so copied commands continue to use
 the selected instrument.</p>
-<p><code>--visa-library</code> is an advanced CLI backend selector. Omit it for normal Product use and rely on System VISA.
+<p><code>--visa-library</code> selects the VISA backend. Omit it to use System VISA, or pass <code>"@py"</code> for supported 34461A TCPIP sessions.
 Selecting a backend does not unlock unsupported models, transports, measurements, or other Product support.</p>
 <p><code>list-resources --verify</code> opens discovered VISA resources and queries <code>*IDN?</code>.
 <code>list-resources --live-only</code> implies verification and hides stale entries.

@@ -275,6 +275,7 @@ button:disabled:hover {
 }
 
 .resource-row-header {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -318,6 +319,10 @@ button:disabled:hover {
 .supported-devices {
   position: relative;
   flex: 0 0 auto;
+}
+
+.supported-devices {
+  position: static;
 }
 
 .supported-devices-button {
@@ -384,7 +389,7 @@ button:disabled:hover {
 }
 
 .supported-devices-panel {
-  width: min(440px, calc(100vw - 40px));
+  width: min(440px, calc(100vw - 60px));
 }
 
 .supported-devices-table-wrap {
@@ -458,6 +463,37 @@ button:disabled:hover {
   background: transparent;
   box-shadow: none;
   accent-color: var(--accent);
+}
+
+.supported-devices-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.backend-segments {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+
+.backend-segments button {
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 11px;
+  box-shadow: none;
+}
+
+.backend-segments button[aria-pressed="true"] {
+  background: var(--selected-surface);
+  color: var(--accent);
 }
 
 .device-options-help {

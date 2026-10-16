@@ -54,6 +54,7 @@ export function buildRunPayload(values, context) {
   const payload = {
     resource: String(values.resource || "").trim(),
     instrument_model: textOrNull(values.instrument_model),
+    visa_library: textOrNull(values.visa_library),
     csv_enabled: csvEnabled,
     csv: csvEnabled ? textOrNull(values.csv) : null,
     timeout_ms: numberOrNull(values.timeout_ms),

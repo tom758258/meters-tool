@@ -330,8 +330,11 @@ The UI may look different, but these behaviors must remain true:
 - Disabled or hidden frontend controls are UX only. Core support policy and
   the `run_start_session()` runner final gate must remain the safety boundary
   for browser, WebUI backend, and direct API submissions.
-- Do not expose a PyVISA backend selector in the WebUI without a future
-  explicit product decision. Backend selection remains CLI-only.
+- Device options exposes System VISA (default) and PyVISA-py (`@py`) only.
+  Pass `visa_library` through scan, verify, Start, and Preview. Backend changes
+  invalidate old scan/capability responses and resources; lock selection while
+  Start/Preview is pending or a run is active. The Supported devices panel uses
+  an independent viewing filter backed by Core Product-open metadata.
 - Do not infer LAN/TCPIP or pyvisa-py `@py` support from USB/system-VISA
   support. Exact model/transport/backend support remains defined by Core and
   the canonical support matrix in `docs/core/supported-models.md`.

@@ -100,9 +100,9 @@ Core policy. Unsupported combinations fail closed instead of being unlocked by
 For the exact current support matrix, see [Supported Models](../core/supported-models.md).
 
 By default, the CLI uses the computer's System VISA runtime, such as Keysight
-IO Libraries Suite or NI-VISA. Backend selection does not change or expand
-Product support. The bundled Windows CLI executable supports only the fixed
-System VISA path and does not bundle optional backends.
+IO Libraries Suite or NI-VISA. Use `--visa-library "@py"` to select the bundled
+PyVISA-py backend for 34461A TCPIP, including in the Windows executable.
+Backend selection does not change or expand Product support.
 
 ## Check Settings Without Hardware
 
@@ -230,7 +230,7 @@ PowerShell examples, set `$env:METER_RESOURCE` once and pass
 `--resource "$env:METER_RESOURCE"` so copied commands continue to use
 the selected instrument.
 
-`--visa-library` is an advanced CLI backend selector. Omit it for normal Product use and rely on System VISA.
+`--visa-library` selects the VISA backend. Omit it to use System VISA, or pass `"@py"` for supported 34461A TCPIP sessions.
 Selecting a backend does not unlock unsupported models, transports, measurements, or other Product support.
 
 `list-resources --verify` opens discovered VISA resources and queries `*IDN?`.

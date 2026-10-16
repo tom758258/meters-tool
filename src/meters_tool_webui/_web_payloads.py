@@ -20,6 +20,7 @@ from meters_tool_core.measurement import (
 )
 from meters_tool_core.models import INSTRUMENT_PROFILES, find_instrument_profile_by_idn
 from meters_tool_core.support_policy import (
+    BACKEND_PYVISA_PY,
     BACKEND_SYSTEM_VISA,
     TRANSPORT_TCPIP,
     TRANSPORT_USB,
@@ -212,21 +213,24 @@ def supported_devices_payload() -> list[dict[str, Any]]:
     for profile in INSTRUMENT_PROFILES:
         live_support = start_workflow_support(profile)["start-trigger-record"]["live"]
         connections = []
+        backend_connections = {}
         for scope in live_support.scopes:
             if (
-                scope.backend_scope == BACKEND_SYSTEM_VISA
+                scope.backend_scope in {BACKEND_SYSTEM_VISA, BACKEND_PYVISA_PY}
                 and scope.validation_status
                 == VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE
                 and scope.transport_scope in displayed_transports
-                and scope.transport_scope not in connections
             ):
-                connections.append(scope.transport_scope)
-        if connections:
+                backend_connections.setdefault(scope.backend_scope, []).append(scope.transport_scope)
+                if scope.backend_scope == BACKEND_SYSTEM_VISA:
+                    connections.append(scope.transport_scope)
+        if backend_connections:
             devices.append(
                 {
                     "vendor": profile.vendor,
                     "model": profile.model,
                     "connections": connections,
+                    "backend_connections": backend_connections,
                 }
             )
     return devices
@@ -325,7 +329,7 @@ def support_summary(profile: Any, *, auto_unresolved: bool = False) -> dict[str,
             "backend_scope": live_support.backend_scope,
             "status_text": (
                 "Full-suite validated for profile-supported workflows on "
-                "USB/system-VISA, LAN/system-VISA, and optional CLI-only LAN/pyvisa-py @py."
+                "USB/system-VISA, LAN/system-VISA, and LAN/pyvisa-py @py."
             ),
             "status_key": "support.status.profile_workflows_validated",
             "open_workflows": [

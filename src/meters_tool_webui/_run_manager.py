@@ -7,7 +7,7 @@ import threading
 import time
 from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, Iterator, Optional
+from typing import Any, Callable, Iterator, Literal, Optional
 from uuid import uuid4
 
 try:
@@ -61,6 +61,7 @@ SSE_KEEPALIVE_INTERVAL_S = 5.0
 
 class RunStartRequest(BaseModel):
     resource: str
+    visa_library: Literal["", "@py"] | None = None
     instrument_model: Optional[str] = None
     csv: Optional[str] = None
     csv_enabled: bool = True
@@ -359,14 +360,19 @@ class WebRunManager:
             package_version=get_webui_version(),
         )
 
-    def list_resources(self, verify: bool = False, live_only: bool = False) -> dict[str, Any]:
+    def list_resources(
+        self, verify: bool = False, live_only: bool = False, visa_library: str | None = None
+    ) -> dict[str, Any]:
+        if visa_library not in (None, "", "@py"):
+            raise RunValidationError("visa_library must be empty or @py")
+        backend_options = {"visa_library": visa_library} if visa_library else {}
         effective_verify = bool(verify or live_only)
         resources: list[dict[str, Any]] = []
-        for resource in VisaInstrument.list_resources():
+        for resource in VisaInstrument.list_resources(**backend_options):
             if not effective_verify:
                 resources.append({"resource": resource})
                 continue
-            live, detail = VisaInstrument.verify_resource(resource)
+            live, detail = VisaInstrument.verify_resource(resource, **backend_options)
             if live_only and not live:
                 continue
             resources.append(

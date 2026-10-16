@@ -90,6 +90,7 @@ def test_webui_distribution_uses_adapter_metadata_and_console_script():
     assert project["version"] == FALLBACK_WEBUI_VERSION
     assert "WebUI" in project["description"]
     assert "pyvisa>=1.14.1" in dependencies
+    assert "pyvisa-py>=0.8.1" in dependencies
     assert not any(str(item).startswith("meters-tool-core") for item in dependencies)
     assert any(str(item).startswith("fastapi") for item in webui_dependencies)
     assert any(str(item).startswith("uvicorn") for item in webui_dependencies)

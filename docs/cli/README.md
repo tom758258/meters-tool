@@ -126,34 +126,18 @@ Important limitations:
 ## Requirements
 
 - Python 3.10 or newer.
-- A VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
+- For System VISA, a runtime such as Keysight IO Libraries Suite or NI-VISA.
+  The bundled PyVISA-py backend supports 34461A TCPIP without this runtime.
 - A supported digital multimeter visible to VISA; see Supported Models for the
   currently supported models and connection scopes. The 34460A base profile
   does not assume optional LAN/LXI or external trigger support.
 
-The CLI can pass the optional `@py` backend selector in a development or
-installed Python environment when pyvisa-py is installed and loadable. That makes
-the selector available to PyVISA; live acquisition separately requires an exact
-registered Product-open support scope (see [Supported Models](../core/supported-models.md)).
-Installing a backend package alone does not enable `start-trigger-record` live
-execution if the target connection scope is not registered as Product-open for
-that backend. Backend selection does not alter SCPI setup or Core validation.
-The `@bt` selector is reserved for a future distinct `pyvisa_bt` backend
-identity; this project does not implement or provide pyvisa_bt, there is no
-Product-open `@bt` live support scope, and live use with `@bt` remains
-fail-closed. For pyvisa-py testing, install the optional packages only when
-needed:
-
-```powershell
-uv pip install pyvisa-py pyserial psutil zeroconf
-```
-
-Current Product-open connection scopes under System VISA (such as USB/system-VISA or LAN/TCPIP)
-and the optional CLI `@py` backend are documented in [Supported Models](../core/supported-models.md).
-Support-policy validation status does not imply that a distribution bundles
-the backend package. The current Windows release CLI executable supports the
-default System VISA path only; `@py` is not bundled or part of the Windows
-release bundle.
+The CLI can select the included pyvisa-py backend with `--visa-library "@py"`
+or `--backend "@py"`. It is installed by default and bundled in Windows CLI,
+WebUI Launcher, and Desktop host. Only 34461A TCPIP is Product-open for `@py`;
+see [Supported Models](../core/supported-models.md). Backend selection changes
+resource-manager creation only. USB/`@py`, 34460A TCPIP, and `@bt` are not open.
+No USB-driver or extra LAN-discovery dependencies are included.
 
 ## Development
 
@@ -507,7 +491,7 @@ reading memory.
 
 ### Optional Backends In Installed Python Environments
 
-By default, `meters-tool` uses `pyvisa.ResourceManager()` and therefore the
+By default, `meters-tool` uses `pyvisa.ResourceManager("@ivi")` and therefore the
 system VISA runtime, such as Keysight IO Libraries Suite or NI-VISA.
 
 In a source checkout, virtual environment, or installed Python environment,
@@ -515,12 +499,9 @@ the CLI can pass an optional selector when its backend is installed and
 loadable. Live acquisition separately requires an exact registered
 Product-open support scope (see [Supported Models](../core/supported-models.md)).
 Installing a backend package alone does not enable `start-trigger-record`.
-For advanced pyvisa-py testing, install its optional packages and pass
-`--visa-library "@py"` to CLI commands that open VISA resources:
+Pass `--visa-library "@py"` to CLI commands that open VISA resources:
 
 ```powershell
-uv pip install pyvisa-py pyserial psutil zeroconf
-
 uv run meters-tool list-resources --visa-library "@py" --verify
 
 uv run meters-tool start-trigger-record `
@@ -533,22 +514,11 @@ uv run meters-tool start-trigger-record `
 ```
 
 `--backend "@py"` is accepted as an alias for `--visa-library "@py"`. This
-option is intended for CLI diagnostics and optional installed-environment
-backend checks. The current bundled Windows CLI executable supports only the
-default System VISA path and does not bundle `@py`. The WebUI also uses the
-fixed default System VISA runtime and accepts no backend override. The `@bt`
-selector is reserved for a future `pyvisa_bt` identity only; this project does
-not provide that backend and live use with `@bt` remains fail-closed.
-
-Exact Product-open scopes for pyvisa-py are documented in [Supported Models](../core/supported-models.md).
-Validation metadata does not indicate that a given distribution contains pyvisa-py.
-USBTMC on Windows may need
-WinUSB/libusb setup and is often not simpler than Keysight IO Libraries Suite
-or NI-VISA. RS-232/ASRL with pyvisa-py and pyserial is usually straightforward
-when a supported instrument uses serial I/O, but the current Meters profiles
-target USB/LAN Truevolt DMMs. `PYVISA_LIBRARY="@py"` can still affect PyVISA
-directly, but this project recommends explicit `--visa-library "@py"` on CLI
-commands so tests are reproducible.
+option selects the bundled backend in source, installed, and Windows packaged
+environments. WebUI and Desktop provide the same choice in Device options.
+System VISA remains the default and explicitly requires `@ivi`; it does not
+fall back to `@py` or honor a different `PYVISA_LIBRARY` backend. Exact
+Product-open scopes remain defined by [Supported Models](../core/supported-models.md).
 
 ## Command Reference
 
@@ -626,7 +596,7 @@ schemas as unsupported instead of negotiating.
 | `--verify` | Open each discovered resource, query `*IDN?`, then close the session and resource manager. It performs no acquisition cleanup and sends no release-to-local SCPI. Text output marks rows as `live` or `stale`; JSON output includes `live`, `status`, and `detail`. ASRL/RS-232 checks use a short bounded timeout. |
 | `--live-only` | Verify resources and print only rows that answered. This implies `--verify`, suppresses stale resources, and still continues after an ASRL stale timeout. Verification closes each session and resource manager after its `*IDN?` query without acquisition cleanup or release-to-local SCPI. Text output prints `no live VISA resources found` if nothing is connected or reachable. |
 | `--dry-run` | Print the resource-discovery contract and exit 0 without creating a VISA resource manager, listing resources, opening resources, querying `*IDN?`, or running release/local cleanup. Can be combined with `--verify`, `--live-only`, and `--json`. |
-| `--visa-library TEXT`, `--backend TEXT` | Optional installed-environment PyVISA library/backend argument, such as `@py`. The backend package must be installed and loadable. Omit it to use the system default VISA runtime through `pyvisa.ResourceManager()`. |
+| `--visa-library TEXT`, `--backend TEXT` | Optional installed-environment PyVISA library/backend argument, such as `@py`. The backend package must be installed and loadable. Omit it to use the system default VISA runtime through `pyvisa.ResourceManager("@ivi")`. |
 | `--serial-read-termination VALUE` | CLI discovery/verification compatibility setting for ASRL resources only. Accepted values are `CRLF`, `LF`, `CR`, and `NONE`. It maps to the PyVISA session `read_termination` before querying `*IDN?`; it is not an acquisition setting. |
 | `--serial-write-termination VALUE` | CLI discovery/verification compatibility setting for ASRL resources only. Accepted values are `CRLF`, `LF`, `CR`, and `NONE`. It maps to the PyVISA session `write_termination` before querying `*IDN?`; it is not an acquisition setting. |
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |

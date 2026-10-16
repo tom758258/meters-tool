@@ -83,7 +83,7 @@
 <h2 id="實機支援範圍提醒">實機支援範圍提醒</h2>
 <p>某個 VISA resource 能回應 <code>*IDN?</code> 或出現在 <code>list-resources</code> 中，本身不代表所有型號與 transport/backend 組合都已 Product-open。型號、transport、backend、量測與觸發支援都是精確範圍，且必須符合 Core policy。未列出的組合會 fail closed，而不是透過 <code>--model</code> 或掃描結果被解鎖。</p>
 <p>精確的目前支援矩陣，請參閱 <a href="supported-models.zh-TW.html">支援型號</a>。</p>
-<p>CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。backend 選擇不會改變或擴充 Product 支援。Windows 發佈版 CLI 執行檔只支援固定的 System VISA 路徑，不會 bundle 選用 backend。</p>
+<p>CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。使用 <code>--visa-library "@py"</code> 可選擇隨程式提供的 PyVISA-py 後端，用於 34461A TCPIP；Windows 執行檔也支援此選擇。backend 選擇不會改變或擴充 Product 支援。</p>
 <h2 id="不連接硬體先檢查設定">不連接硬體先檢查設定</h2>
 <p>第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。</p>
 <p>使用 <code>--dry-run</code> 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
@@ -200,7 +200,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 (re-arm) 條件，並非自動代表量測失敗。</p>
 <h2 id="常見設定">常見設定</h2>
 <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
-<p><code>--visa-library</code> 是進階 CLI backend 選擇器。一般 Product 使用請省略它並使用 System VISA。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</p>
+<p><code>--visa-library</code> 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 <code>"@py"</code>。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</p>
 <p><code>list-resources --verify</code> 會開啟偵測到的 VISA 資源並查詢 <code>*IDN?</code>。<code>list-resources --live-only</code> 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 <code>--serial-read-termination</code> 與 <code>--serial-write-termination</code> 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。</p>
 <p><code>--csv</code> 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。</p>
 <p><code>--max-samples</code> 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。</p>

@@ -644,7 +644,8 @@ def test_static_html_bindings_cover_static_prose_and_preserve_fallbacks():
 
     parser = _StaticTextBindingParser()
     parser.feed(html)
-    allowed_raw = {"-", "X", "A", "CSV", "10M", "0", "--", "⚙"}
+    # Backend product names and selectors are invariant technical tokens.
+    allowed_raw = {"-", "X", "A", "CSV", "10M", "0", "--", "⚙", "@py", "PyVISA-py (@py)"}
     assert set(parser.unbound_text) <= allowed_raw
     for key, params, fallback in parser.bound_fallbacks:
         expected = re.sub(
