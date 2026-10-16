@@ -356,6 +356,9 @@ or empty (System VISA) and `@py` are accepted; unknown selectors return 422.
 Scan and verification pass the selector to Core. Live support remains limited
 to the exact Product-open matrix in [Supported Models](../core/supported-models.md).
 System VISA explicitly loads `@ivi`, avoiding PyVISA's automatic `@py` fallback.
+For exact connection scopes, 34461A supports USB/system-VISA and LAN/TCPIP
+through System VISA, plus LAN/TCPIP with `@py`; 34460A supports USB/system-VISA
+only. Unsupported combinations remain closed.
 
 Backend changes invalidate scan metadata and pending scan/capability responses,
 clear the resource address, and recalculate feature availability. The selector
