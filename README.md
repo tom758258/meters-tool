@@ -197,8 +197,8 @@ By default, live sessions use the system VISA runtime through
 bundled PyVISA-py backend with
 `--visa-library "@py"`. WebUI and Desktop select it in Device options > VISA
 Backend. System VISA remains the default and never falls back to `@py`.
-PyVISA-py supports only 34461A TCPIP; no extra USB drivers or LAN discovery
-packages are included.
+PyVISA-py supports only 34461A TCPIP. The `psutil` and `zeroconf` dependencies
+are included for LAN resource discovery; no extra USB drivers are included.
 
 ## Build
 

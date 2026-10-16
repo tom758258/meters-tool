@@ -137,7 +137,8 @@ or `--backend "@py"`. It is installed by default and bundled in Windows CLI,
 WebUI Launcher, and Desktop host. Only 34461A TCPIP is Product-open for `@py`;
 see [Supported Models](../core/supported-models.md). Backend selection changes
 resource-manager creation only. USB/`@py`, 34460A TCPIP, and `@bt` are not open.
-No USB-driver or extra LAN-discovery dependencies are included.
+The `psutil` and `zeroconf` dependencies are included for LAN resource discovery.
+No extra USB drivers are included.
 
 ## Development
 
