@@ -315,6 +315,20 @@ export function renderStatus(status) {
   renderLiveData(planPreviewActive ? EMPTY_PLAN_LIVE_DATA : status);
 }
 
+// The Start HTTP response can arrive after a newer SSE status for the same run.
+export function renderStartStatus(status) {
+  const current = latestRenderedStatus;
+  if (
+    status?.run_id &&
+    current?.run_id === status.run_id &&
+    ((current.captured ?? 0) > (status.captured ?? 0) ||
+      (current.active === false && status.active === true))
+  ) {
+    return;
+  }
+  renderStatus(status);
+}
+
 export function beginPlanPreview() {
   planPreviewActive = true;
   dryRunPlanResult.classList.add("is-hidden");

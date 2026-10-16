@@ -255,7 +255,7 @@ GET /api/resources?verify=true&live_only=true
 
 使用者仍然可以手動輸入資源，並在掃描後於 `Device options` 中要求特定的 `Expected model`。
 
-WebUI 與 Desktop 可在裝置選項中選擇 System VISA（預設）或隨程式提供的 PyVISA-py（`@py`）。資源掃描 query、Start 與 Plan payload 的 `visa_library` 僅接受未設定／空白或 `@py`；其他值回傳 422。掃描與驗證會將選擇傳入 Core。切換後會清除資源及掃描 metadata、忽略過期掃描與功能回應，並重新計算功能可用性。Start／Preview 處理中及執行中會鎖定後端。支援裝置面板的獨立切換僅篩選 Core metadata 產生的型號／連線清單，不會修改執行後端。`@py` 僅支援 34461A TCPIP；詳見 [支援型號](../core/supported-models.zh-TW.md)。
+WebUI 與 Desktop 可在裝置選項中選擇 System VISA（預設）或隨程式提供的 PyVISA-py（`@py`）。資源掃描 query、Start 與 Plan payload 的 `visa_library` 僅接受未設定／空白或 `@py`；其他值回傳 422。掃描與驗證會將選擇傳入 Core。切換後會清除資源及掃描 metadata、忽略過期掃描與功能回應，並重新計算功能可用性。Start／Preview 處理中及執行中會鎖定後端。支援裝置面板的獨立切換僅篩選 Core metadata 產生的型號／連線清單，不會修改執行後端。`@py` 僅支援 34461A LAN/TCPIP；System VISA 支援 34461A USB/system-VISA 與 LAN/TCPIP，以及 34460A USB/system-VISA；詳見 [支援型號](../core/supported-models.zh-TW.md)。
 
 `live_validated_full_suite` 與 `transport_pending` 是 Core-owned machine-readable status。WebUI 不公開 Validation mode；normal browser starts 只允許 Product-open scopes/features，non-Product-open 仍被封鎖。瀏覽器會停用產品不可用的功能選項，但該狀態僅為 UX；Core 驗證、支援原則關卡以及 `run_start_session()` 最終關卡仍是安全邊界。
 

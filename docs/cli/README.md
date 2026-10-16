@@ -127,7 +127,7 @@ Important limitations:
 
 - Python 3.10 or newer.
 - For System VISA, a runtime such as Keysight IO Libraries Suite or NI-VISA.
-  The bundled PyVISA-py backend supports 34461A TCPIP without this runtime.
+  The bundled PyVISA-py backend supports 34461A LAN/TCPIP without this runtime.
 - A supported digital multimeter visible to VISA; see Supported Models for the
   currently supported models and connection scopes. The 34460A base profile
   does not assume optional LAN/LXI or external trigger support.

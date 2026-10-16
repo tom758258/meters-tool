@@ -38,6 +38,7 @@ from meters_tool_core._version import (
 from meters_tool_core.command import SoftwareTriggerCommand
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
 from meters_tool_core.models import (
+    Transport,
     TriggerEvent,
     TriggerSource,
     find_instrument_profile_by_idn,
@@ -369,6 +370,8 @@ class WebRunManager:
         effective_verify = bool(verify or live_only)
         resources: list[dict[str, Any]] = []
         for resource in VisaInstrument.list_resources(**backend_options):
+            if visa_library == "@py" and VisaInstrument.infer_transport(resource) != Transport.LAN:
+                continue
             if not effective_verify:
                 resources.append({"resource": resource})
                 continue
@@ -403,6 +406,12 @@ class WebRunManager:
         handle: _RunHandle | None = None
         try:
             start_request = self._normalize_request_payload(request)
+            if (
+                not start_request.simulate
+                and start_request.visa_library == "@py"
+                and VisaInstrument.infer_transport(start_request.resource) != Transport.LAN
+            ):
+                raise RunValidationError("PyVISA-py (@py) supports TCPIP resources only")
             start_request, profile = resolve_start_profile(start_request)
             trigger_mode = resolve_trigger_mode(start_request)
             validate_start_request(
