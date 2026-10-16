@@ -167,8 +167,8 @@ VISA 執行環境。CLI 開啟 VISA 的指令可使用 `--visa-library "@py"` �
 隨程式提供的 PyVISA-py 後端；WebUI 與 Desktop 可在「裝置選項 > VISA 後端」
 選擇。System VISA 仍為預設，不會靜默退回 `@py`，也不會因 `PYVISA_LIBRARY`
 而改用其他後端。PyVISA-py 僅正式支援 34461A TCPIP；System VISA 保持支援
-34461A USB／TCPIP 與 34460A USB。Windows 封裝也包含 PyVISA-py；不包含額外
-USB 驅動或 LAN 探索套件。
+34461A USB／TCPIP 與 34460A USB。Windows 封裝也包含 PyVISA-py；`psutil` 與 `zeroconf`
+已納入正式依賴，支援 PyVISA-py LAN 資源自動探索。不包含額外 USB 驅動。
 
 ## 建置
 

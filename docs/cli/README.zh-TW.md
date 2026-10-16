@@ -79,7 +79,7 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
   隨程式提供的 PyVISA-py 支援 34461A LAN/TCPIP，不需要此執行環境。
 - 透過 VISA 可見的支援數位萬用電表；目前支援的型號與連線範圍請參閱支援型號文件。34460A 基礎設定檔不假設具備選用的 LAN/LXI 或外接觸發支援。
 
-CLI 可使用 `--visa-library "@py"` 或 `--backend "@py"` 選擇 PyVISA-py。此套件預設安裝，並隨 Windows CLI、WebUI Launcher 與 Desktop host 提供。`@py` 正式支援僅限 34461A TCPIP；USB/`@py`、34460A TCPIP 與 `@bt` 均不開放。Backend 選擇只改變 ResourceManager 建立，不改變 SCPI 或 Core 驗證。未加入 USB 驅動或額外 LAN discovery 相依。詳見 [支援型號](../core/supported-models.zh-TW.md)。
+CLI 可使用 `--visa-library "@py"` 或 `--backend "@py"` 選擇 PyVISA-py。此套件預設安裝，並隨 Windows CLI、WebUI Launcher 與 Desktop host 提供。`@py` 正式支援僅限 34461A TCPIP；USB/`@py`、34460A TCPIP 與 `@bt` 均不開放。Backend 選擇只改變 ResourceManager 建立，不改變 SCPI 或 Core 驗證。`psutil` 與 `zeroconf` 已納入正式依賴，支援 PyVISA-py LAN 資源自動探索。不包含額外 USB 驅動。詳見 [支援型號](../core/supported-models.zh-TW.md)。
 
 ## 開發
 
