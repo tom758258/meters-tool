@@ -57,8 +57,9 @@ During normal startup no port window or Start action is required. After startup,
 a small launcher window shows the running URL and `Quit`. Use `Quit` when you
 are done so active-run cleanup can finish before the local server closes.
 
-Only when all automatic candidates are occupied does the full port window
-appear. Enter another port from `1` through `65535` and click `Start`. Each
+Only when all automatic candidates are unavailable does the full port window
+appear. A candidate is unavailable when it is occupied or when Windows refuses
+to bind it. Enter another port from `1` through `65535` and click `Start`. Each
 manual retry tries only that port once and leaves the window open if it fails.
 
 If the browser does not open automatically, open this address manually:
@@ -460,7 +461,8 @@ shows a startup error.
 
 The default launcher mode automatically tries the next port. This also applies
 when another Meters Tool WebUI owns the port, because separate instances may be
-needed for different instruments. A fixed `--port` reports the conflict without
+needed for different instruments. A port that Windows also refuses to bind is
+skipped the same way. A fixed `--port` reports the conflict without
 incrementing. If the automatic 100-port search is exhausted, enter another
 legal port in the fallback window; each manual retry tries only that port.
 

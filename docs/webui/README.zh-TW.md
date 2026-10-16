@@ -164,8 +164,9 @@ meters-tool-webui <package-version>
 接近 `65535` 時則於合法 Port 上限停止。
 
 正常啟動期間不會顯示 Port 控制項。瀏覽器開啟後，Launcher 只顯示實際 URL
-與 `Quit`。只有全部自動候選都被占用時才顯示完整 Port 視窗；此後每次手動
-Start／Retry 都只嘗試輸入的 Port 一次。
+與 `Quit`。只有全部自動候選都無法使用時才顯示完整 Port 視窗；候選無法使用是指
+該 Port 已被占用，或系統拒絕 bind 該 Port。此後每次手動 Start／Retry 都只嘗試
+輸入的 Port 一次。
 
 開啟：
 
@@ -636,9 +637,9 @@ logger、測試程序或外部 VISA 應用程式控制。並行控制可能干�
 
 連接埠已被使用：
 
-- 預設 Launcher 模式會自動嘗試下一個 Port，不論占用者是另一個 Meters Tool WebUI 或其他服務。
+- 預設 Launcher 模式會自動嘗試下一個 Port，不論占用者是另一個 Meters Tool WebUI 或其他服務。系統同樣拒絕 bind 的 Port 也會以相同方式略過。
 - 固定的 `--port` 只會嘗試一次，若被占用則顯示錯誤。
-- 若全部自動候選都被占用，請在 fallback 視窗輸入其他合法 Port 並選擇 Start；每次手動重試只嘗試該 Port。
+- 若全部自動候選都無法使用，請在 fallback 視窗輸入其他合法 Port 並選擇 Start；每次手動重試只嘗試該 Port。
 - 對主控台伺服器，請選擇其他連接埠，例如 `--port 8768`，或停止現有的監聽程序。
 
 `q` 無法停止伺服器：

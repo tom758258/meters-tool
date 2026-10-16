@@ -294,6 +294,11 @@ class LauncherHelperTests(unittest.TestCase):
 
 class LauncherStartupTests(unittest.TestCase):
     def test_auto_port_hands_same_socket_to_uvicorn_then_opens_actual_ready_url(self):
+        for retryable_error in _retryable_bind_errors():
+            with self.subTest(retryable_error=type(retryable_error).__name__):
+                self._assert_auto_port_skips_to_next_candidate(retryable_error)
+
+    def _assert_auto_port_skips_to_next_candidate(self, retryable_error):
         attempted_ports = []
         created_ports = []
         browser_urls = []
@@ -305,6 +310,8 @@ class LauncherStartupTests(unittest.TestCase):
             attempted_ports.append(port)
             if port == launcher.DEFAULT_PORT:
                 raise OSError(errno.EADDRINUSE, "in use")
+            if port == launcher.DEFAULT_PORT + 1:
+                raise retryable_error
             return bound_socket
 
         def server_factory(_manager, port):
@@ -330,48 +337,70 @@ class LauncherStartupTests(unittest.TestCase):
             app.start(auto_port=True)
             _drain_ui_queue(app)
 
-        self.assertEqual([8767, 8768], attempted_ports)
-        self.assertEqual([8768], created_ports)
+        expected_url = f"http://127.0.0.1:{launcher.DEFAULT_PORT + 2}"
+        self.assertEqual([8767, 8768, 8769], attempted_ports)
+        self.assertEqual([8769], created_ports)
         self.assertFalse(server.config.setup_event_loop_accessed)
         self.assertEqual([bound_socket], server.served_sockets)
         self.assertEqual(["capabilities-ready", "browser"], events)
-        self.assertEqual(["http://127.0.0.1:8768"], browser_urls)
-        self.assertEqual("Running at http://127.0.0.1:8768", app._status_value.get())
+        self.assertEqual([expected_url], browser_urls)
+        self.assertEqual(f"Running at {expected_url}", app._status_value.get())
         self.assertFalse(app._config_frame.visible)
         self.assertFalse(app._start_button.visible)
         self.assertTrue(app._root.restored)
         self.assertTrue(bound_socket.closed)
         urlopen.assert_called_once_with(
-            "http://127.0.0.1:8768/api/capabilities",
+            f"{expected_url}/api/capabilities",
             timeout=0.5,
         )
         showerror.assert_not_called()
 
-    def test_fixed_port_conflict_attempts_once_and_exits(self):
-        attempted_ports = []
-        app = _make_startup_launcher(
-            initial_port=9000,
-            socket_binder=lambda port: _raise_port_conflict(attempted_ports, port),
-            server_factory=lambda _manager, _port: self.fail("server must not be created"),
+    def test_fixed_port_bind_error_attempts_once_and_exits(self):
+        cases = (
+            (
+                OSError(errno.EADDRINUSE, "in use"),
+                "RuntimeError: Port 9000 is already in use.",
+            ),
+            (
+                PermissionError(errno.EACCES, "bind denied"),
+                "PermissionError: [Errno 13] bind denied",
+            ),
         )
 
-        with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
-            app.start()
+        for bind_error, expected_message in cases:
+            with self.subTest(bind_error=type(bind_error).__name__):
+                attempted_ports = []
+                app = _make_startup_launcher(
+                    initial_port=9000,
+                    socket_binder=lambda port: _raise_bind_error(
+                        attempted_ports, port, bind_error
+                    ),
+                    server_factory=lambda _manager, _port: self.fail(
+                        "server must not be created"
+                    ),
+                )
 
-        self.assertEqual([9000], attempted_ports)
-        self.assertTrue(app._root.destroyed)
-        self.assertFalse(app._root.restored)
-        showerror.assert_called_once_with(
-            "Start failed",
-            "RuntimeError: Port 9000 is already in use.",
-        )
+                with patch("meters_tool_webui.launcher.messagebox.showerror") as showerror:
+                    app.start()
+
+                self.assertEqual([9000], attempted_ports)
+                self.assertTrue(app._root.destroyed)
+                self.assertFalse(app._root.restored)
+                showerror.assert_called_once_with("Start failed", expected_message)
 
     def test_auto_port_exhaustion_shows_fallback_and_manual_retry_stays_fixed(self):
         attempted_ports = []
+        retryable_errors = iter(
+            [
+                OSError(errno.EADDRINUSE, "in use"),
+                PermissionError(errno.EACCES, "bind denied"),
+                _windows_access_denied(),
+            ]
+        )
 
         def socket_binder(port):
             attempted_ports.append(port)
-            raise OSError(errno.EADDRINUSE, "in use")
+            raise next(retryable_errors)
 
         app = _make_startup_launcher(
             initial_port=launcher.DEFAULT_PORT,
@@ -392,14 +421,22 @@ class LauncherStartupTests(unittest.TestCase):
             self.assertIn("8767..8769", app._status_value.get())
 
             app._port_value.set("9100")
+            app._socket_binder = lambda port: _raise_bind_error(
+                attempted_ports, port, PermissionError(errno.EACCES, "bind denied")
+            )
+
+            app.start()
+            self.assertFalse(app._root.destroyed)
+            self.assertEqual("normal", app._start_button.state)
+            self.assertEqual("normal", app._default_checkbox.state)
+            self.assertIn("PermissionError", app._status_value.get())
+
             app.start()
 
-        self.assertEqual([8767, 8768, 8769, 9100], attempted_ports)
-        self.assertFalse(app._root.destroyed)
-        self.assertEqual("normal", app._start_button.state)
-        self.assertEqual(2, showerror.call_count)
+        self.assertEqual([8767, 8768, 8769, 9100, 9100], attempted_ports)
+        self.assertEqual(3, showerror.call_count)
 
-    def test_non_conflict_bind_error_stops_auto_search_and_exits(self):
+    def test_unexpected_bind_error_stops_auto_search_and_exits(self):
         attempted_ports = []
         expected_error = PermissionError("bind denied")
 
@@ -669,9 +706,23 @@ def _drain_ui_queue(app):
         callback()
 
 
-def _raise_port_conflict(attempted_ports, port):
+def _retryable_bind_errors():
+    return (
+        PermissionError(errno.EACCES, "bind denied"),
+        _windows_access_denied(),
+    )
+
+
+def _windows_access_denied():
+    error = OSError(None, "address already in use")
+    error.errno = errno.EACCES
+    error.winerror = 10013
+    return error
+
+
+def _raise_bind_error(attempted_ports, port, error):
     attempted_ports.append(port)
-    raise OSError(errno.EADDRINUSE, "in use")
+    raise error
 
 
 def _raise(exc):

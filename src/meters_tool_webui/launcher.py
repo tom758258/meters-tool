@@ -85,6 +85,12 @@ def _is_port_in_use_error(exc: OSError) -> bool:
     return exc.errno == errno.EADDRINUSE or getattr(exc, "winerror", None) == 10048
 
 
+def _is_retryable_bind_error(exc: OSError) -> bool:
+    if _is_port_in_use_error(exc):
+        return True
+    return exc.errno == errno.EACCES or getattr(exc, "winerror", None) == 10013
+
+
 def run_self_test() -> int:
     try:
         for module_name in ("meters_tool_webui", "meters_tool_webui.web_ui"):
@@ -244,7 +250,7 @@ class LauncherApp:
                 if self._fallback_active:
                     self._show_manual_port_error(port, exc)
                     return
-                if auto_port and _is_port_in_use_error(exc):
+                if auto_port and _is_retryable_bind_error(exc):
                     continue
                 if _is_port_in_use_error(exc):
                     self._show_startup_error(

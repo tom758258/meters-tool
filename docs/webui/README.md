@@ -197,8 +197,9 @@ starting port. Searches near `65535` stop at the legal port limit.
 
 The port controls remain hidden during normal startup. After the browser opens,
 the launcher shows only the running URL and `Quit`. The full port window appears
-only when all automatic candidates are occupied; each manual Start/Retry then
-tries only the entered port once.
+only when all automatic candidates are unavailable; a candidate is unavailable
+when it is occupied or when the system refuses to bind it. Each manual
+Start/Retry then tries only the entered port once.
 
 Open:
 
@@ -884,9 +885,10 @@ Wrapper is missing:
 Port is already in use:
 
 - The default launcher mode automatically tries the next port, whether the
-  owner is another Meters Tool WebUI or an unrelated service.
+  owner is another Meters Tool WebUI or an unrelated service. A port that the
+  system also refuses to bind is skipped the same way.
 - A fixed `--port` is tried once and reports an error if occupied.
-- If all automatic candidates are occupied, enter another legal port in the
+- If all automatic candidates are unavailable, enter another legal port in the
   fallback window and select Start. Each manual retry tries only that port.
 - For the console server, choose another port, for example `--port 8768`, or
   stop the existing listening process.
