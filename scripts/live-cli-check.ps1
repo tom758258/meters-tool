@@ -194,6 +194,7 @@ function New-StartArgs {
         "--resource", $Resource,
         "--model", $resolvedCliModel,
         "--csv", $CsvPath,
+        "--csv-format", "full",
         "--sw-trigger-port", [string]$Port,
         "--auto-range", "on",
         "--auto-zero", "off",
