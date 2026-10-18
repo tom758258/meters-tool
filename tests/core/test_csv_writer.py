@@ -103,6 +103,22 @@ def test_data_is_default_and_time_columns_are_independent(tmp_path):
         ]
 
 
+def test_full_time_columns_keep_original_fields_and_fixed_time_order(tmp_path):
+    at = datetime(2026, 4, 28, tzinfo=timezone.utc)
+    out = tmp_path / "full-timed.csv"
+    writer = CsvWriter(out, clock_ns=lambda: 100)
+    writer.configure_output("full", ("delta", "elapsed"))
+    writer.open()
+    writer.write(_sample(at, 0.5))
+    writer.close()
+    with out.open(encoding="utf-8", newline="") as fh:
+        reader = csv.DictReader(fh)
+        assert reader.fieldnames == CsvWriter.FIELDNAMES + ["elapsed_s", "delta_t_s"]
+        first = next(reader)
+    assert first["elapsed_s"] == "0.000"
+    assert first["delta_t_s"] == ""
+
+
 def test_buffered_batch_reuses_one_pc_receipt_time(tmp_path):
     at = datetime(2026, 4, 28, tzinfo=timezone.utc)
     clocks = iter([1_000_000_000, 2_256_000_000])
