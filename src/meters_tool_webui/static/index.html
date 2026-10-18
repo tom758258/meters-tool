@@ -256,18 +256,6 @@
               <button class="panel-toggle" type="button" aria-expanded="true">-</button>
             </div>
             <div class="panel-body">
-              <div class="switch-row">
-                <label><input id="csv-enabled-checkbox" name="csv_enabled" type="checkbox" checked /> <span data-i18n="run.csv_output">CSV output</span></label>
-              </div>
-              <div class="csv-path-field">
-                <div class="csv-path-header">
-                  <label for="csv-path-input">
-                    <span class="label-title"><span data-i18n="run.csv_path">CSV path</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
-                  </label>
-                  <button id="select-csv-folder" type="button" data-i18n="common.select">Select</button>
-                </div>
-                <input id="csv-path-input" name="csv" placeholder="Default" data-i18n-placeholder="common.default" />
-              </div>
             <label>
               <span data-i18n="measurement.heading">Measurement</span>
               <select name="measurement" id="measurement"></select>
@@ -290,6 +278,54 @@
             </label>
             </div>
           </form>
+
+          <section class="panel collapsible-panel" data-panel="output-settings">
+            <div class="panel-header">
+              <div>
+                <h2 data-i18n="output.heading">Output Settings</h2>
+                <p class="panel-summary" data-summary-for="output-settings"
+                   data-i18n="output.summary_default">CSV · Data</p>
+              </div>
+              <button class="panel-toggle" type="button" aria-expanded="true">-</button>
+            </div>
+            <div class="panel-body">
+              <div class="switch-row">
+                <label><input id="csv-enabled-checkbox" name="csv_enabled" form="run-form"
+                              type="checkbox" checked />
+                  <span data-i18n="run.csv_output">CSV output</span></label>
+              </div>
+              <div class="csv-path-field">
+                <div class="csv-path-header">
+                  <label for="csv-path-input">
+                    <span class="label-title"><span data-i18n="run.csv_path">CSV path</span>
+                    <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
+                  </label>
+                  <button id="select-csv-folder" type="button" data-i18n="common.select">Select</button>
+                </div>
+                <input id="csv-path-input" name="csv" form="run-form" placeholder="Default"
+                       data-i18n-placeholder="common.default" />
+              </div>
+              <label>
+                <span data-i18n="output.format">CSV format</span>
+                <select id="csv-format" name="csv_format" form="run-form">
+                  <option value="data" selected data-i18n="output.format_data">Data</option>
+                  <option value="full" data-i18n="output.format_full">Full</option>
+                </select>
+              </label>
+              <div class="switch-row">
+                <span data-i18n="output.time_columns">Time columns</span>
+              </div>
+              <div class="switch-row">
+                <label><input id="csv-elapsed" name="csv_elapsed" form="run-form" type="checkbox" />
+                  <span data-i18n="output.elapsed">Elapsed time (s)</span></label>
+              </div>
+              <div class="switch-row">
+                <label><input id="csv-delta" name="csv_delta" form="run-form" type="checkbox" />
+                  <span data-i18n="output.delta">Sample interval Δt (s)</span></label>
+              </div>
+              <p class="panel-summary" data-i18n="output.time_note">Elapsed starts with the first sample; values describe PC receipt time.</p>
+            </div>
+          </section>
 
           <section class="panel collapsible-panel" data-panel="measurement-options">
             <div class="panel-header">
