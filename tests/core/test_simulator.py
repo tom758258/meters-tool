@@ -257,6 +257,8 @@ class CoreSimulatorRatioSessionTests(unittest.TestCase):
                 resource="SIM::34461A",
                 csv=str(csv_path),
                 csv_enabled=False,
+                csv_format="full",
+                csv_time_columns=("elapsed", "delta"),
                 simulate=True,
                 trigger_mode="immediate",
                 max_samples=1,
