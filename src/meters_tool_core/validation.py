@@ -233,6 +233,7 @@ def validate_start_request(
     instrument_profile: InstrumentProfile | None = None,
 ) -> None:
     _validate_basic_mode_conflicts(request)
+    _validate_csv_output(request)
     context = _resolve_start_validation_context(request, trigger_mode, instrument_profile)
     _validate_trigger_mode(context)
     _validate_measurement_preconditions(context)
