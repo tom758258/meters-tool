@@ -297,6 +297,7 @@ class CoreSimulatorRatioSessionTests(unittest.TestCase):
                     trigger_mode="immediate",
                     measurement="voltage-dc-ratio",
                     max_samples=1,
+                    csv_format="full",
                 ),
                 sink,
             )
