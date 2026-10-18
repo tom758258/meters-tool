@@ -42,7 +42,7 @@ class CsvWriter:
         if self._writer is not None:
             raise RuntimeError("Cannot reconfigure an open CSV writer")
         self._csv_format = csv_format
-        self._time_columns = tuple(time_columns)
+        self._time_columns = tuple(name for name in ("elapsed", "delta") if name in time_columns)
 
     def open(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
