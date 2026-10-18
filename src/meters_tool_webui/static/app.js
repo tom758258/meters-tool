@@ -500,12 +500,20 @@ let csvFolderPickerPending = false;
 
 function updateCsvOutputUi() {
   const enabled = csvEnabledCheckbox.checked;
+  for (const selector of ["#csv-format", "#csv-elapsed", "#csv-delta"]) {
+    const control = document.querySelector(selector);
+    if (control) control.disabled = !enabled;
+  }
   csvInput.disabled = !enabled;
   selectCsvFolderButton.disabled = !enabled;
   if (csvFolderPickerPending) selectCsvFolderButton.disabled = true;
+  updatePanelSummaries();
 }
 
 csvEnabledCheckbox.addEventListener("change", updateCsvOutputUi);
+for (const selector of ["#csv-format", "#csv-elapsed", "#csv-delta"]) {
+  document.querySelector(selector)?.addEventListener("change", updatePanelSummaries);
+}
 
 selectCsvFolderButton.addEventListener("click", async () => {
   if (csvFolderPickerPending) return;
