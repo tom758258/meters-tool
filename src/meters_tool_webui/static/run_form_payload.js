@@ -57,6 +57,11 @@ export function buildRunPayload(values, context) {
     visa_library: textOrNull(values.visa_library),
     csv_enabled: csvEnabled,
     csv: csvEnabled ? textOrNull(values.csv) : null,
+    csv_format: values.csv_format === "full" ? "full" : "data",
+    csv_time_columns: [
+      ...(values.csv_elapsed === "on" || values.csv_elapsed === true ? ["elapsed"] : []),
+      ...(values.csv_delta === "on" || values.csv_delta === true ? ["delta"] : []),
+    ],
     timeout_ms: numberOrNull(values.timeout_ms),
     trigger_timeout_ms: numberOrNull(triggerTimeoutValue),
     trigger_mode: triggerMode,
