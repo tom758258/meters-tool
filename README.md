@@ -12,10 +12,11 @@ Product support scope. It provides one installable distribution,
 
 The project supports DC and AC current, DC and AC voltage, DC voltage ratio,
 frequency, period, and 2-wire or 4-wire resistance measurements over VISA. By
-default, each captured sample is written as one CSV row with timestamp,
-measurement type, unit, trigger source, and related metadata. CLI callers can
-use `--no-csv`; WebUI users can clear the `CSV output` checkbox. Both opt-outs
-map to the same Core `csv_enabled` setting.
+default, each captured sample is written as a compact CSV row containing
+timestamp, value, and unit. Select the `full` CSV format for the original
+trigger and measurement metadata fields, or add optional elapsed and sample
+interval columns. CLI callers can use `--no-csv`; WebUI users can clear the
+`CSV output` checkbox. Both opt-outs map to the same Core `csv_enabled` setting.
 
 System VISA requires a separately installed runtime. Meters Tool bundles
 PyVISA-py for supported 34461A TCPIP sessions; dry-run and simulation require
