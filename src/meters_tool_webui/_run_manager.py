@@ -66,6 +66,8 @@ class RunStartRequest(BaseModel):
     instrument_model: Optional[str] = None
     csv: Optional[str] = None
     csv_enabled: bool = True
+    csv_format: Literal["full", "data"] = "data"
+    csv_time_columns: tuple[Literal["elapsed", "delta"], ...] = ()
     simulate: bool = False
     timeout_ms: int = 5000
     trigger_timeout_ms: int = 10000
