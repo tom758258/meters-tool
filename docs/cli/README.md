@@ -676,6 +676,8 @@ after that many successful timed samples.
 | `--visa-library TEXT`, `--backend TEXT` | No | system default | Optional installed-environment PyVISA library/backend argument, such as `@py`. The backend package must be installed and loadable. Dry-run and simulator runs accept the option but do not open VISA. |
 | `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
 | `--no-csv` | No | Off | Disable CSV output for this run when an external orchestrator persists JSONL `sample` events. Mutually exclusive with `--csv`. |
+| `--csv-format full\|data` | No | `data` | `data` writes timestamp, value and unit; `full` preserves the old 10-column CSV with trigger and measurement metadata. |
+| `--csv-time-columns elapsed,delta` | No | None | Add one or both relative timing columns in seconds with 3 decimal places. |
 | `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |
 | `--dry-run` | No | Off | Validate arguments and print the planned measurement, SCPI, read path, and cleanup contract without opening VISA, writing CSV, or starting the HTTP server. |
 | `--simulate` | No | Off | Run against a deterministic simulated instrument backend instead of opening a real VISA session. Simple modes require bounded runs such as `--max-samples`. |
@@ -1598,8 +1600,9 @@ for the selected front or rear terminals.
   --arguments-json "{""metadata"":{""batch"":""A1"",""operator"":""lab""}}"
 ```
 
-The metadata is accepted by the command endpoint and written to the CSV
-`trigger_metadata` field as a JSON object string.
+The metadata is accepted by the command endpoint and appears in JSONL samples.
+Use `--csv-format full` to also write it to the CSV `trigger_metadata` field
+as a JSON object string.
 
 ### Software Trigger Rate Limit And Queue Limit
 
@@ -1865,6 +1868,15 @@ rows continue to store the raw value in the measurement base unit (`A`, `V`,
 readings at once; the console status shows the last sample in that drain batch.
 
 ## CSV Output
+
+The default `data` layout contains `timestamp_utc_plus_8,value,unit`.
+Use `--csv-format full` for the prior 10-column CSV including metadata.
+Use `--csv-time-columns elapsed,delta` to append `elapsed_s,delta_t_s`.
+Both time columns are optional and can be requested individually. The first
+elapsed value is `0.000`; the first interval is blank. Time differences use
+PC writer-arrival time, not an instrument ADC clock; multiple buffered readings
+returned together share one time and subsequent rows in that batch report
+`delta_t_s=0.000`.
 
 If `--csv` is omitted, the logger writes to a UTC+8 timestamped file under
 `data`, for example `data/2026-05-11-14-30-05.csv`. Passing `--csv PATH`
