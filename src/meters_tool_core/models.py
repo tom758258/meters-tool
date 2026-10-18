@@ -492,6 +492,8 @@ class StartRequest:
     dcv_input_impedance: str = "default"
     vm_comp_slope: Optional[str] = None
     csv_enabled: bool = True
+    csv_format: str = "data"
+    csv_time_columns: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
