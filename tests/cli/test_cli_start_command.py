@@ -950,6 +950,10 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "@py",
                 "--csv",
                 "data\\delegate.csv",
+                "--csv-format",
+                "full",
+                "--csv-time-columns",
+                "elapsed,delta",
                 "--trigger-mode",
                 "immediate",
                 "--measurement",
@@ -995,6 +999,8 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("@py", request_model.visa_library)
         self.assertEqual("data\\delegate.csv", request_model.csv)
         self.assertTrue(request_model.csv_enabled)
+        self.assertEqual("full", request_model.csv_format)
+        self.assertEqual(("elapsed", "delta"), request_model.csv_time_columns)
         self.assertTrue(request_model.simulate)
         self.assertEqual("current-ac", request_model.measurement)
         self.assertFalse(request_model.auto_range)
