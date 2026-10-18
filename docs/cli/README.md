@@ -1889,7 +1889,7 @@ When an external orchestrator owns persistence, use `--no-csv` together with
 `--status-format jsonl` and store the emitted `sample` events. This does not
 change acquisition, status, summary, exit codes, HTTP control, or cleanup.
 
-CSV fields:
+The `full` layout fields (in the original order) are:
 
 | Field | Description |
 | --- | --- |
