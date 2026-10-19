@@ -81,7 +81,8 @@ entry points. The main areas are:
   `Scan Device` button, `Supported devices` list, and `Device options` gear for
   execution mode and model selection. It starts expanded and can collapse to a
   short summary that identifies the selected execution mode.
-- `Run Setup`: CSV output path and run count settings.
+- `Run Setup`: measurement, trigger mode, and run count settings.
+- `Output Settings`: CSV output, path, format, and optional timing columns.
 - `Measurement`: measurement type and related options.
 - `Trigger`: trigger mode and trigger-related options.
 - `Status`: current run state, captured sample count, errors, CSV path, and log.
@@ -411,16 +412,22 @@ SCPI commands, CSV output, or recorded values.
 
 ## CSV Output
 
-`CSV output` is checked by default. Clear it to run without creating a CSV.
-This disables `CSV path` and `Select` but preserves the current path so it is
-available if CSV output is re-enabled.
+`Output Settings` starts expanded below `Run Setup`. `CSV output` is checked
+by default. Clearing it disables the path, `Select`, format and time-column
+controls without losing their settings.
 
-When enabled, the CSV path shown in `Run Setup` is the file that will be used
-when `Start` is clicked.
+When enabled, the CSV path shown in `Output Settings` is used by `Start`.
+`Data` is the default `timestamp_utc_plus_8,value,unit` layout; `Full`
+preserves the original ten fields and metadata.
 
 `Select` opens a folder picker on the Windows computer running the WebUI. After
 you choose a folder, the WebUI fills in a timestamped CSV file path in that
 folder. You can edit the path manually before clicking `Start`.
+
+The independent Elapsed Time and Sample Interval Δt checkboxes add `elapsed_s`
+and `delta_t_s`. Both start unchecked. PC Writer monotonic receipt times use
+seconds and three decimals: the first elapsed is `0.000`, the first delta is
+blank, and one buffered fetch shares a time. They are not ADC sample times.
 
 `Open CSV` is available after a completed run has a CSV path. It opens the last
 completed run CSV using the Windows default app. It is disabled while a run is

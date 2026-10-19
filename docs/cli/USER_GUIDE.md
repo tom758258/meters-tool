@@ -243,7 +243,7 @@ settings.
 
 `--csv` is the output file path. If omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
-or automation. Use `--no-csv` to disable CSV output for a run; it cannot be combined with `--csv`.
+or automation. Use `--no-csv` to disable CSV output for a run; it cannot be combined with `--csv`. The default CSV format is `data`; choose `--csv-format full` for the original ten columns, and optionally add `--csv-time-columns elapsed,delta`.
 
 `--max-samples` bounds simple runs. Use it during smoke tests and validation so
 the command stops by itself.
@@ -307,17 +307,23 @@ Supported Models scope described above.
 
 ## CSV Output
 
-With the default CSV output enabled, each captured sample is written as one
-row. Check the CSV after a smoke run for:
+CSV is enabled by default. The `data` layout writes `timestamp_utc_plus_8,value,unit`.
+Choose `--csv-format full` to preserve the original ten fields, including metadata.
+After a smoke run, check the CSV for:
 
 - at least one data row;
-- expected `measurement_type`;
+- expected `value`;
 - expected `unit`;
-- expected `trigger_source`;
+- `measurement_type` and `trigger_source` when using `full`;
 - a value that matches the front panel closely enough for the test setup.
 
 The CSV is flushed after each captured sample, so completed rows should be
 available even during longer runs.
+
+Optional `elapsed_s` and `delta_t_s` represent PC CSV Writer monotonic receipt
+time in seconds with three decimals. The first elapsed is `0.000` and the first
+interval is blank. Samples from one buffered fetch share a time; this is not the
+instrument's ADC sampling interval.
 
 ## Stop A Run
 

@@ -94,7 +94,8 @@ entry points. The main areas are:</p>
   <code>Scan Device</code> button, <code>Supported devices</code> list, and <code>Device options</code> gear for
   execution mode and model selection. It starts expanded and can collapse to a
   short summary that identifies the selected execution mode.</li>
-<li><code>Run Setup</code>: CSV output path and run count settings.</li>
+<li><code>Run Setup</code>: measurement, trigger mode, and run count settings.</li>
+<li><code>Output Settings</code>: CSV output, path, format, and optional timing columns.</li>
 <li><code>Measurement</code>: measurement type and related options.</li>
 <li><code>Trigger</code>: trigger mode and trigger-related options.</li>
 <li><code>Status</code>: current run state, captured sample count, errors, CSV path, and log.</li>
@@ -388,14 +389,19 @@ clamped to the chart boundary. Like the other chart scale modes, Range step
 affects only the interface chart display and does not change instrument settings,
 SCPI commands, CSV output, or recorded values.</p>
 <h2 id="csv-output">CSV Output</h2>
-<p><code>CSV output</code> is checked by default. Clear it to run without creating a CSV.
-This disables <code>CSV path</code> and <code>Select</code> but preserves the current path so it is
-available if CSV output is re-enabled.</p>
-<p>When enabled, the CSV path shown in <code>Run Setup</code> is the file that will be used
-when <code>Start</code> is clicked.</p>
+<p><code>Output Settings</code> starts expanded below <code>Run Setup</code>. <code>CSV output</code> is checked
+by default. Clearing it disables the path, <code>Select</code>, format and time-column
+controls without losing their settings.</p>
+<p>When enabled, the CSV path shown in <code>Output Settings</code> is used by <code>Start</code>.
+<code>Data</code> is the default <code>timestamp_utc_plus_8,value,unit</code> layout; <code>Full</code>
+preserves the original ten fields and metadata.</p>
 <p><code>Select</code> opens a folder picker on the Windows computer running the WebUI. After
 you choose a folder, the WebUI fills in a timestamped CSV file path in that
 folder. You can edit the path manually before clicking <code>Start</code>.</p>
+<p>The independent Elapsed Time and Sample Interval Δt checkboxes add <code>elapsed_s</code>
+and <code>delta_t_s</code>. Both start unchecked. PC Writer monotonic receipt times use
+seconds and three decimals: the first elapsed is <code>0.000</code>, the first delta is
+blank, and one buffered fetch shares a time. They are not ADC sample times.</p>
 <p><code>Open CSV</code> is available after a completed run has a CSV path. It opens the last
 completed run CSV using the Windows default app. It is disabled while a run is
 active and after a no-CSV run. Live data, captured samples, status, Stop, and

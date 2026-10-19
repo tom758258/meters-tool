@@ -51,7 +51,7 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 - 立即擷取模式。
 - 透過 `--max-samples` 限制樣本數的執行。
 - 透過 HTTP、Ctrl+C、Ctrl+Break 或 `q` 進行正常停止。
-- 軟體觸發 metadata 儲存至 CSV 中的 `trigger_metadata`。
+- 軟體觸發 metadata 可在選擇 Full CSV 時儲存至 `trigger_metadata`。
 - 預設產生 UTC+8 時間戳記 CSV，並可透過 `--no-csv` 明確停用。
 - 透過 `list-resources --verify` 進行選用的資源驗證。
 - 透過 `list-resources --live-only` 進行選用的作用中資源篩選。
@@ -561,6 +561,8 @@ uv run meters-tool start-trigger-record `
 | `--visa-library TEXT`、`--backend TEXT` | 否 | 系統預設 | 已安裝環境中的選用 PyVISA library/backend 引數，例如 `@py`；backend 套件必須已安裝且可載入。Dry-run 與 simulator 執行會接受此選項，但不會開啟 VISA。 |
 | `--csv PATH` | 否 | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV 輸出路徑。若省略，則在 `data` 下建立帶有 UTC+8 時間戳記的檔案。父目錄會自動建立。 |
 | `--no-csv` | 否 | 關閉 | 當外部 orchestrator 保存 JSONL `sample` events 時，停用本次執行的 CSV 輸出。不可與 `--csv` 同時使用。 |
+| `--csv-format data\|full` | 否 | `data` | `data` 僅輸出時間戳記、數值與單位；`full` 保留原有十欄及 metadata。 |
+| `--csv-time-columns elapsed,delta` | 否 | 無 | 可獨立或同時選擇 `elapsed_s` 與 `delta_t_s`，單位秒、三位小數。 |
 | `--status-format text\|jsonl` | 否 | `text` | 執行階段狀態輸出格式。`jsonl` 為 Agent 呼叫端每行發出一個 JSON 物件。 |
 | `--dry-run` | 否 | 關閉 | 驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。 |
 | `--simulate` | 否 | 關閉 | 針對確定的模擬儀器後端執行，而不開啟實機 VISA 工作階段。簡單模式需要有界限的執行，例如 `--max-samples`。 |
@@ -915,7 +917,7 @@ TCPIP0::...::hislip0::INSTR
 1. 執行 `list-resources --live-only` 並選擇作用中的資源。當需要診斷過期的 VISA 快取項目時，請改用 `list-resources --verify`。
 2. 以 `--trigger-mode immediate` 與 `--max-samples 1` 執行單一樣本的電流、電壓、頻率、週期或電阻快速功能健檢。
 3. 執行實驗所需的特定觸發模式：軟體（可選擇計時）、外接、立即或自訂/緩衝。
-4. 確認 CSV 中的 `measurement_type`、`unit`、`trigger_source` 與列數。
+4. 確認使用 `--csv-format full` 的 CSV 中 `measurement_type`、`unit`、`trigger_source` 與列數。
 5. 在信賴長期無人值守執行前，先用 `stop`、Ctrl+C、Ctrl+Break 或 `q` 確認正常停止行為。
 
 在進行無人值守擷取前，請使用操作人員提供、連接至支援型號的 VISA 資源，以及 Product-open 的確切傳輸/後端範圍。從立即模式、自動量程開啟以及 `--max-samples 1` 開始，然後擴展至預期的量測、觸發模式與緩衝模式。在適用時，請將 CLI CSV 資料列與連接型號的前面板讀值進行對比。請保留型號專屬限制，包括 34460A 的 USB/system-VISA 範圍、1000 筆讀值限制，以及基礎設定檔不支援外接觸發。
@@ -1323,7 +1325,7 @@ Dry-run AC 頻寬檢查：
   --arguments-json "{""metadata"":{""batch"":""A1"",""operator"":""lab""}}"
 ```
 
-命令端點接受此 metadata，並以 JSON 物件字串形式寫入 CSV 的 `trigger_metadata` 欄位。
+命令端點接受此 metadata，並透過 JSONL 輸出；明確指定 `--csv-format full` 時，才會以 JSON 物件字串寫入 CSV 的 `trigger_metadata` 欄位。
 
 ### 軟體觸發速率限制與佇列限制
 
@@ -1559,7 +1561,9 @@ already stopped (endpoint not listening)
 
 CSV 是 Meters-specific artifact，預設仍會產生。當外部 orchestrator 統一保存資料時，請搭配 `--no-csv` 與 `--status-format jsonl`，並保存輸出的 `sample` events。這不會改變量測、status、summary、exit code、HTTP control 或 cleanup。
 
-CSV 欄位：
+預設 Data CSV 欄位為 `timestamp_utc_plus_8,value,unit`。指定 `--csv-format full` 保留原有十欄；`--csv-time-columns elapsed,delta` 可在兩種格式後附加 `elapsed_s,delta_t_s`，也可單獨選用。第一筆 Elapsed 為 `0.000`、Δt 留空；相對時間使用 PC Writer 的單調時鐘，同一 Buffered 批次共用 PC 接收時間，不代表 ADC 取樣間隔。
+
+Full CSV 欄位：
 
 | 欄位 | 說明 |
 | --- | --- |

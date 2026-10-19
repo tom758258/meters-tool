@@ -202,7 +202,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
 <p><code>--visa-library</code> 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 <code>"@py"</code>。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</p>
 <p><code>list-resources --verify</code> 會開啟偵測到的 VISA 資源並查詢 <code>*IDN?</code>。<code>list-resources --live-only</code> 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 <code>--serial-read-termination</code> 與 <code>--serial-write-termination</code> 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。</p>
-<p><code>--csv</code> 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。</p>
+<p><code>--csv</code> 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。預設 CSV 格式是 <code>data</code>；選擇 <code>--csv-format full</code> 可保留原有十欄，並可選用 <code>--csv-time-columns elapsed,delta</code>。</p>
 <p><code>--max-samples</code> 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。</p>
 <p><code>--auto-range</code>（自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。</p>
 <p>當自動量程停用時，使用 <code>--range</code> 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。</p>
@@ -219,15 +219,16 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 <p><code>--trigger-timeout-ms</code> (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</p>
 <p>若需要指令選項及 CLI 層級的可接受值、範圍與預設值，請執行 <code>meters-tool &lt;command&gt; --help</code>（例如 <code>.\meters-tool.exe start-trigger-record --help</code>）。型號特定的支援與限制仍以 Core 驗證及前述「支援型號」範圍為準。</p>
 <h2 id="csv-輸出">CSV 輸出</h2>
-<p>預設 CSV 輸出啟用時，每筆擷取樣本都會寫成一列。在快速功能健檢後，請檢查 CSV 檔案以確認：</p>
+<p>CSV 預設啟用，<code>data</code> 格式輸出 <code>timestamp_utc_plus_8,value,unit</code>。使用 <code>--csv-format full</code> 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：</p>
 <ul>
 <li>至少有一筆資料列；</li>
-<li>預期的 <code>measurement_type</code> (量測類型)；</li>
+<li>預期的 <code>value</code> (數值)；</li>
 <li>預期的 <code>unit</code> (單位)；</li>
-<li>預期的 <code>trigger_source</code> (觸發來源)；</li>
+<li>選擇 <code>full</code> 時才有的 <code>measurement_type</code>、<code>trigger_source</code>；</li>
 <li>一個與前面板顯示足夠接近，且符合測試設定的數值。</li>
 </ul>
 <p>每擷取一個樣本後，CSV 都會立即排空 (flush) 並寫入磁碟，因此即使在較長時間的執行中，也隨時能取得已完成的資料列。</p>
+<p>選用的 <code>elapsed_s</code> 與 <code>delta_t_s</code> 使用 PC CSV Writer 的單調時鐘，單位為秒、三位小數；首筆經過時間為 <code>0.000</code>，首筆間隔留空。同一 Buffered 取回批次共用時間，不代表儀器 ADC 的真實取樣間隔。</p>
 <h2 id="停止執行">停止執行</h2>
 <p>對於有界限的驗證作業，建議使用 <code>--max-samples</code> 讓作業自行停止。</p>
 <p>若要停止正在執行中的工作器 (worker)，請使用下列其中一種停止路徑：</p>

@@ -84,7 +84,8 @@ Port，等待 WebUI ready 後，再以實際成功 bind 的 Port 開啟瀏覽器
 <li>右上角工具列：語言、主題與 <code>說明</code>（英文介面為 <code>Help</code>）控制項。</li>
 <li><code>說明</code>：開啟隨附的使用指南。</li>
 <li><code>Device / Resource</code> (裝置/資源列)：儀器位址、最近一次掃描回應的實機資源、<code>Scan Device</code> 按鈕、<code>支援裝置</code> 清單，以及 <code>Device options</code> 齒輪中的執行模式與型號選擇器。此列預設展開，可收合成能辨識目前執行模式的摘要。</li>
-<li><code>Run Setup</code> (作業設定)：CSV 輸出路徑與執行次數設定。</li>
+<li><code>Run Setup</code> (作業設定)：量測、觸發模式與執行次數設定。</li>
+<li><code>Output Settings</code>（輸出設定）：CSV 開關、路徑、格式與選用時間欄位。</li>
 <li><code>Measurement</code> (量測)：量測類型與相關選項。</li>
 <li><code>Trigger</code> (觸發)：觸發模式與觸發相關選項。</li>
 <li><code>Status</code> (狀態)：目前的作業狀態、擷取到的樣本數、錯誤、CSV 路徑與日誌。</li>
@@ -121,7 +122,7 @@ Port，等待 WebUI ready 後，再以實際成功 bind 的 Port 開啟瀏覽器
 <li>選取或將偵測到的 VISA 資源複製到 <code>VISA resource</code> 欄位中。</li>
 <li>只有在需要強制指定型號時，才在 <code>Device options</code> 中將 <code>Expected model</code> 改選 <code>Require 34460A</code> 或 <code>Require 34461A</code>；否則請維持 <code>Auto-detect</code>。</li>
 <li>選擇量測類型，例如直流電壓 (DC voltage) 或直流電流 (DC current)。</li>
-<li>在 <code>Run Setup</code> 中，選擇 CSV 檔案位置。使用 <code>Select</code> (選擇) 挑選一個資料夾，讓系統產生帶有時間戳記的 CSV 路徑。</li>
+<li>在 <code>Output Settings</code> 中選擇 CSV 格式與路徑，使用 <code>Select</code>（選擇）挑選資料夾並產生帶有時間戳記的 CSV 路徑。</li>
 <li>除非您特別需要軟體或外部觸發，否則請將觸發模式保持在立即／預設模式 (immediate/default mode)。</li>
 <li>檢閱反白顯示的設定。</li>
 <li>點擊 <code>Start</code> (啟動)。</li>
@@ -244,9 +245,10 @@ command，也不是可執行 script。</p>
 <p><code>Manual span</code>（手動跨度）使用第一個數值取樣為中心，以及操作人員輸入的固定正數跨度。跨度使用原始量測單位：<code>V</code> 代表伏特，<code>A</code> 代表安培，<code>Ohm</code> 代表歐姆，<code>Hz</code> 代表赫茲，<code>s</code> 代表秒。對於電壓，<code>0.01</code> 代表 <code>0.01 V</code>，而不是 <code>0.01 mV</code>。如果第一個取樣是 <code>5.000 V</code> 且手動跨度是 <code>0.010 V</code>，則圖表顯示 <code>4.990 V</code> 到 <code>5.010 V</code>。超出 <code>baseline +/- span</code> 的值會被裁切到圖表邊界，目前版本不會另外顯示 <code>clipped indicator</code>。</p>
 <p><code>Range step</code>（量程步進）使用手動選取的 <code>Range</code> 作為圖表顯示跨度。僅在 <code>Auto Range</code> 關閉且選取手動量程時可用。它不反映儀器的實際自動選擇量程，因為在啟用自動量程時 WebUI 無法得知該硬體量程。如果第一個取樣是 <code>5.000 V</code> 且選取的手動 Range 是 <code>0.010 V</code>，則圖表顯示 <code>4.990 V</code> 到 <code>5.010 V</code>。超出 <code>baseline +/- selected Range</code> 的值可能會被裁切到圖表邊界。與其他圖表縮放模式一樣，Range step 僅影響介面圖表顯示，不會改變儀器設定、SCPI 指令、CSV 輸出或記錄的數值。</p>
 <h2 id="csv-輸出">CSV 輸出</h2>
-<p>在 <code>Run Setup</code> 中顯示的 CSV 路徑就是當點擊 <code>Start</code> 時將寫入資料的檔案。</p>
+<p><code>Output Settings</code>（輸出設定）位於 <code>Run Setup</code> 正下方，預設展開。這裡的 CSV 路徑就是點擊 <code>Start</code> 時將寫入資料的檔案。</p>
 <p><code>Select</code> 會在執行 WebUI 的 Windows 電腦上開啟一個資料夾選擇器。選擇資料夾後，WebUI 會在該資料夾內填入帶有時間戳記的 CSV 檔案路徑。您也可以在點擊 <code>Start</code> 之前手動編輯該路徑。</p>
-<p><code>CSV 輸出</code> 預設為勾選。取消勾選會停用 <code>CSV path</code> 與 <code>Select</code>，但保留目前的路徑值；重新勾選後可繼續使用。停用 CSV 不影響即時資料、已擷取樣本、狀態、Stop 或 cleanup。</p>
+<p><code>Data</code> 為預設格式，輸出 <code>timestamp_utc_plus_8,value,unit</code>；<code>Full</code> 保留原有十欄與 metadata。Elapsed Time 與 Sample Interval Δt 可獨立勾選，預設皆關閉。新增 <code>elapsed_s</code>、<code>delta_t_s</code> 使用 PC Writer 的單調時鐘、秒與三位小數；第一筆 Elapsed 為 <code>0.000</code>，Δt 留空。同一 Buffered 批次共用 PC 接收時間，不代表 ADC 取樣間隔。</p>
+<p><code>CSV 輸出</code> 預設勾選。取消勾選會停用路徑、<code>Select</code>、格式及時間欄位控制，但保留目前的選擇，重新勾選後可繼續使用。停用 CSV 不影響即時資料、已擷取樣本、狀態、Stop 或 cleanup。</p>
 <p><code>Open CSV</code> 僅在作業停止且產生 CSV 路徑時可用。它會使用 Windows 的預設應用程式開啟上一次完成作業的 CSV。在作業執行期間或停用 CSV 的作業完成後，此按鈕會處於停用狀態。</p>
 <h2 id="停止與離開">停止與離開</h2>
 <h3 id="desktop-應用程式_1">Desktop 應用程式</h3>
