@@ -280,14 +280,14 @@ found by <code>Scan Device</code>, or type a known resource provided by the oper
 test procedure. Do not guess a resource when more than one instrument may be
 connected.</p>
 <p>In Device options (gear), choose <code>VISA Backend</code>: <code>System VISA</code> (default) or
-<code>PyVISA-py (@py)</code>. The selection applies to Scan Device, verification, and Start
+<code>PyVISA-py</code>. The selection applies to Scan Device, verification, and Start
 in both WebUI and Desktop. PyVISA-py is included and supports 34461A LAN/TCPIP
 only. USB with <code>@py</code>, 34460A TCPIP, and other backends are unsupported.
 System VISA requires an installed VISA runtime and never silently uses <code>@py</code>.
 Changing backend clears the previous scan and resource address; scan again or
 enter a known resource. Backend selection is locked during Start and active runs.
 Expected model remains an IDN guard.</p>
-<p>The Supported devices panel has a separate <code>System VISA | @py</code> control that
+<p>The Supported devices panel has a separate <code>System VISA | PyVISA-py</code> control that
 filters its Model/Connections table. Opening it selects the current backend
 for viewing; changing this filter does not change the communication backend.
 Exact support is governed by Core policy in <a href="supported-models.html">Supported Models</a>.</p>

@@ -272,7 +272,7 @@ test procedure. Do not guess a resource when more than one instrument may be
 connected.
 
 In Device options (gear), choose `VISA Backend`: `System VISA` (default) or
-`PyVISA-py (@py)`. The selection applies to Scan Device, verification, and Start
+`PyVISA-py`. The selection applies to Scan Device, verification, and Start
 in both WebUI and Desktop. PyVISA-py is included and supports 34461A LAN/TCPIP
 only. USB with `@py`, 34460A TCPIP, and other backends are unsupported.
 System VISA requires an installed VISA runtime and never silently uses `@py`.
@@ -280,7 +280,7 @@ Changing backend clears the previous scan and resource address; scan again or
 enter a known resource. Backend selection is locked during Start and active runs.
 Expected model remains an IDN guard.
 
-The Supported devices panel has a separate `System VISA | @py` control that
+The Supported devices panel has a separate `System VISA | PyVISA-py` control that
 filters its Model/Connections table. Opening it selects the current backend
 for viewing; changing this filter does not change the communication backend.
 Exact support is governed by Core policy in [Supported Models](../core/supported-models.md).
