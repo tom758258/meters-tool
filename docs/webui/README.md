@@ -20,7 +20,7 @@ panels, status logs, Live samples, chart settings, resource metadata, and
 support summaries. Unknown Core/backend/status diagnostics, raw status JSON,
 sample metadata, and schemas remain raw. Core, HTTP API endpoints and status
 codes, existing response fields, form values, support policy, instrument
-runtime, and CSV/JSON/JSONL schemas remain unchanged. Traditional Chinese
+runtime, and JSON/JSONL schemas remain unchanged; CSV adds Data/Full formats and optional time columns. Traditional Chinese
 catalog terminology and browser presentation use the shared label layout.
 
 ## Purpose

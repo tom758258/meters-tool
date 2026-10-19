@@ -502,7 +502,7 @@ uv run meters-tool start-trigger-record `
 | `--port N` | `8765` | 本機指令端點連接埠。支援範圍：`1` 到 `65535`。 |
 | `--timeout-ms N` | `3000` | HTTP 用戶端逾時（毫秒）。支援範圍：`100` 到 `600000`。 |
 | `--command NAME` | `software_trigger` | Meters 指令名稱。此版本僅支援 `software_trigger`。 |
-| `--arguments-json JSON` | `{}` | 完整的 JSON 指令引數物件。使用 `{"metadata":{...}}` 來附加寫入 CSV 中 `trigger_metadata` 欄位的觸發 metadata。無效的 JSON、非物件的 metadata 以及其他指令驗證失敗將在傳送請求前被拒絕。 |
+| `--arguments-json JSON` | `{}` | 完整的 JSON 指令引數物件。使用 `{"metadata":{...}}` 附加觸發 metadata；JSONL 保留該欄位，選擇 `--csv-format full` 時 CSV 亦會寫入 `trigger_metadata`。無效的 JSON、非物件的 metadata 以及其他指令驗證失敗將在傳送請求前被拒絕。 |
 | `--job-id TEXT` | 未設置 | 選用的用戶端產生工作識別碼，僅由指令外殼回應。 |
 | `--format text\|json` | `text` | 回應輸出格式。`json` 為 Agent 呼叫端發出一個結構化物件。 |
 | `--json` | 關閉 | `--format json` 的別名。 |
@@ -539,7 +539,7 @@ uv run meters-tool start-trigger-record `
 
 ## 觸發模式
 
-| 模式 | 擷取如何開始 | 讀取路徑 | CSV `trigger_source` | 備註 |
+| 模式 | 擷取如何開始 | 讀取路徑 | Full CSV `trigger_source` | 備註 |
 | --- | --- | --- | --- | --- |
 | `software` | `send-command` 發送至本機 HTTP 端點，或 `--timer-interval-s` 建立自動的計時軟體事件。 | `READ?` | `software` 或 `timer` | 省略 `--trigger-mode` 時的預設值。計時軟體路徑在每次擷取嘗試後使用固定延遲間隔。 |
 | `external` | 儀器接收到外接硬體觸發邊緣。 | `FETC?` | `hardware` | 使用 `--trigger-mode external`。 |
@@ -939,7 +939,7 @@ TCPIP0::...::hislip0::INSTR
   --max-samples 1
 ```
 
-對於電流列，預期 CSV 中的 `measurement_type=current_dc` 且 `unit=A`。
+對於電流列，預設 Data CSV 應有 `unit=A`；如需檢查 `measurement_type=current_dc`，請加入 `--csv-format full`。
 
 Dry-run 10 A 端子檢查：
 
@@ -1407,7 +1407,7 @@ Dry-run AC 頻寬檢查：
   --nplc 1.0
 ```
 
-此模式使用 34461A 讀值記憶體來減少每個取樣 `READ?` 通訊的開銷。這不是儀器的內部定時模式：取樣步調仍由量測速度、DC/電阻的 NPLC 與 Auto Zero、自動量程、量程安定（range settling）以及儀器觸發/取樣行為決定。CSV 的 `trigger_metadata` 會將自訂列標記為 `time_basis=pc_data_remove_time_not_instrument_sample_time`。預期列數為 `trigger_count * sample_count`。除非設定了 `--allow-buffer-overflow-risk`，否則超過 34461A 的 10,000 筆記憶體限制的請求將會被拒絕。
+此模式使用 34461A 讀值記憶體來減少每個取樣 `READ?` 通訊的開銷。這不是儀器的內部定時模式：取樣步調仍由量測速度、DC/電阻的 NPLC 與 Auto Zero、自動量程、量程安定（range settling）以及儀器觸發/取樣行為決定。Full CSV 的 `trigger_metadata` 會將自訂列標記為 `time_basis=pc_data_remove_time_not_instrument_sample_time`。預期列數為 `trigger_count * sample_count`。除非設定了 `--allow-buffer-overflow-risk`，否則超過 34461A 的 10,000 筆記憶體限制的請求將會被拒絕。
 
 ### 軟體自訂（Software Custom）模式
 

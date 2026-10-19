@@ -91,9 +91,11 @@ Before constructing `StartRequest`, adapters should:
   contains `elapsed` and/or `delta`, appending `elapsed_s` and `delta_t_s`
   in that order. Relative times use the CSV Writer's monotonic clock; the first
   elapsed time is `0.000`, the first interval is blank, and the units are
-  seconds to three decimals. Buffered samples sharing a PC fetch timestamp
-  reuse their batch's writer-arrival time, so later rows in that batch have
-  `delta_t_s=0.000`. These are PC receipt times, not ADC timestamps.
+  seconds to three decimals. Buffered rows from one PC fetch reuse their
+  batch's writer-arrival time, identified by the existing buffer index and
+  batch size (not by equality of wall-clock timestamps). Missing or invalid
+  batch metadata falls back to a separate monotonic reading per sample.
+  These are PC receipt times, not ADC timestamps.
 - Map adapter-owned display labels to Core-owned request values such as
   `auto_zero`, `ac_bandwidth_hz`, `gate_time_s`, `freq_period_timeout`, and
   `current_terminal`.
