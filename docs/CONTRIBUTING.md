@@ -293,4 +293,5 @@ the pull-request process when review needs them.
 - [ ] Direct hidden CLI validation was used only as bounded bootstrap validation for a target or case not yet supported by the wrapper.
 - [ ] Live artifacts identify revision, model, transport, backend, suite/cases, results, errors, and cleanup.
 - [ ] Passing validation is not described as automatic support promotion.
-- [ ] English documentation is updated where required; localized documentation is a follow-up unless explicitly synchronized.
+- [ ] English and Traditional Chinese documentation are semantically aligned and
+      updated together where required.
