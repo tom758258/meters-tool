@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -18,11 +19,11 @@ def run_node(script: str, *modules: Path) -> subprocess.CompletedProcess[str]:
         [
             NODE,
             "--input-type=module",
-            "--eval",
-            script,
+            "-",
             *(module.resolve().as_uri() for module in modules),
         ],
         cwd=REPO_ROOT,
+        input="process.argv.splice(1, 1);\n" + script,
         check=False,
         capture_output=True,
         text=True,
@@ -177,6 +178,235 @@ const fallbackState = {
   autoRange: element("[name='auto_range']").checked,
 };
 '''
+
+
+@pytest.mark.frontend_node
+@pytest.mark.skipif(NODE is None, reason="Node.js is required for live Start tests")
+def test_product_live_start_uses_detected_identity_and_core_support():
+    from meters_tool_core.models import INSTRUMENT_PROFILES
+    from meters_tool_webui._web_payloads import build_capabilities_payload
+
+    payloads = {
+        profile.model: build_capabilities_payload(
+            profile, auto_unresolved=False, package_name="meters-tool", package_version="test"
+        )
+        for profile in INSTRUMENT_PROFILES
+    }
+    script = APPLICATION_TEST_SETUP + "\nconst payloads = " + json.dumps(payloads) + r''';
+const idle = { active: false, state: "idle", captured: 0, errors: 0, recent_samples: [] };
+const calls = [];
+let resources = [];
+let finishCapabilities;
+let finishScan;
+let finishStart;
+let deferCapabilities = false;
+let deferScan = false;
+let deferStart = false;
+globalThis.fetch = async (path, options) => {
+  calls.push({ path: String(path), options });
+  if (String(path).startsWith("/api/capabilities")) {
+    const model = new URL(path, "http://test").searchParams.get("model") || "34461A";
+    if (deferCapabilities) return new Promise((resolve) => { finishCapabilities = () => resolve(response(payloads[model])); });
+    return response(payloads[model]);
+  }
+  if (String(path).startsWith("/api/resources")) {
+    if (deferScan) return new Promise((resolve) => { finishScan = () => resolve(response({ resources })); });
+    return response({ resources });
+  }
+  if (path === "/api/runs" && deferStart) return new Promise((resolve) => { finishStart = () => resolve(response(idle)); });
+  return response(path === "/api/plan" ? { dry_run: true, scpi_commands: [] } : idle);
+};
+globalThis.FormData = class {
+  get(name) { return {
+    resource: element("#resource").value,
+    visa_library: element("#visa-library").value,
+    instrument_model: element("#instrument-model").value,
+    measurement: measurementSelect.value, trigger_mode: triggerSelect.value,
+    nplc: "1", auto_range: "on", max_samples: "1",
+  }[name] ?? null; }
+};
+const event = (selector, name) => element(selector).listeners.get(name)();
+const typeResource = (value) => { element("#resource").value = value; return event("#resource", "input"); };
+const backend = async (value) => { element("#visa-library").value = value; await event("#visa-library", "change"); };
+const expected = async (value) => { element("#instrument-model").value = value; await event("#instrument-model", "change"); };
+const mode = async (value) => {
+  for (const input of executionModeInputs) input.checked = input.value === value;
+  await executionModeInputs.find((input) => input.checked).listeners.get("change")();
+};
+const start = () => event("#start-run", "click");
+const requests = () => calls.filter((call) => call.path === "/api/runs" || call.path === "/api/plan");
+const available = (value, label) => assert.equal(element("#start-run").disabled, !value, label);
+element("#instrument-model").value = "";
+deferCapabilities = true;
+await import(appUrl);
+available(false, "fallback controls cannot establish live support before capabilities arrive");
+typeResource("USB0::EDIT-DURING-INITIAL-LOAD");
+deferCapabilities = false;
+finishCapabilities();
+await new Promise((resolve) => setTimeout(resolve, 0));
+const { renderStatus } = await import(new URL("./status.js", appUrl));
+const { t } = await import(new URL("./i18n.js", appUrl));
+const scan = () => event("#refresh-resources", "click");
+const selectResource = async (resource) => { element("#resource-select").value = resource; await event("#resource-select", "change"); };
+
+for (const [model, transport, library, allowed] of [
+  ["34461A", "USB", "", true], ["34461A", "TCPIP", "", true],
+  ["34461A", "TCPIP", "@py", true], ["34460A", "USB", "", true],
+  ["34460A", "TCPIP", "", false], ["34460A", "TCPIP", "@py", false],
+  ["34461A", "USB", "@py", false], ["34461A", "GPIB", "", false],
+]) {
+  await backend(library);
+  const resource = `${transport}0::FAKE-${model}`;
+  resources = [{ resource, instrument_model: model }];
+  await scan();
+  await selectResource(resource);
+  available(allowed, `${model}/${transport}/${library}`);
+  renderStatus(idle);
+  available(allowed, "status refresh preserves support restriction");
+  const before = requests().length;
+  await start(); // Invoke the handler directly even if the button is disabled.
+  assert.equal(requests().length, before + Number(allowed));
+  if (!allowed) {
+    assert.ok(element("#start-run").title);
+    assert.ok(element("#latest-status").children.some((line) => line.textContent.includes(element("#start-run").title)));
+  }
+}
+
+await backend("");
+await expected("34460A");
+for (const resource of ["USB0::MANUAL", "TCPIP0::MANUAL"]) {
+  typeResource(resource);
+  available(true, "Expected Model is not detected IDN");
+  await start();
+}
+await expected("");
+await start();
+assert.equal("instrument_model" in JSON.parse(requests().at(-1).options.body), false);
+assert.equal(requests().at(-1).path, "/api/runs");
+await backend("@py");
+typeResource("USB0::MANUAL");
+available(false, "unknown USB/@py cannot be approved");
+await mode("simulate");
+await expected("34460A");
+available(true, "simulation ignores live connection restrictions");
+await start();
+assert.equal(JSON.parse(requests().at(-1).options.body).simulate, true);
+await mode("dry-run");
+available(true, "dry-run ignores live connection restrictions");
+await start();
+assert.equal(requests().at(-1).path, "/api/plan");
+await mode("real");
+available(false, "returning to Real restores restriction");
+
+await backend("");
+await expected("");
+resources = [
+  { resource: "USB0::KNOWN", instrument_model: "34460A" },
+  { resource: "TCPIP0::KNOWN", instrument_model: "34460A" },
+];
+await scan();
+await selectResource("TCPIP0::KNOWN");
+available(false, "detected model is authoritative");
+await expected("34461A");
+available(false, "Expected Model cannot override detected identity");
+await mode("simulate");
+deferCapabilities = true;
+const returningToReal = mode("real");
+available(false, "known unsupported identity is restored before capabilities finish");
+deferCapabilities = false;
+finishCapabilities();
+await returningToReal;
+typeResource("TCPIP0::NEW");
+available(true, "new resource does not inherit old identity");
+await selectResource("USB0::KNOWN");
+triggerSelect.value = "external";
+await event("#trigger-mode", "change");
+available(false, "unapproved trigger blocks Start");
+await start();
+assert.equal(element("#start-run").title, t("support.reason.scope_unavailable"));
+element("#locale-toggle").click();
+assert.equal(documentElement.lang, "zh-TW");
+assert.equal(element("#start-run").title, t("support.reason.scope_unavailable"));
+triggerSelect.value = "immediate";
+await event("#trigger-mode", "change");
+available(true, "supported trigger restores Start");
+measurementSelect.value = "unapproved-measurement";
+await event("#measurement", "change");
+available(false, "unapproved measurement blocks Start");
+const blockedCount = requests().length;
+await start();
+assert.equal(requests().length, blockedCount);
+measurementSelect.value = "voltage-dc";
+await event("#measurement", "change");
+available(true, "supported measurement restores Start");
+
+deferCapabilities = true;
+const oldSelection = selectResource("TCPIP0::KNOWN");
+typeResource("USB0::NEW");
+finishCapabilities();
+await oldSelection;
+available(true, "late capability response cannot restore old identity");
+deferCapabilities = false;
+deferScan = true;
+const oldScan = scan();
+typeResource("TCPIP0::MANUAL-AFTER-SCAN");
+resources = [{ resource: "TCPIP0::MANUAL-AFTER-SCAN", instrument_model: "34460A" }];
+finishScan();
+await oldScan;
+available(true, "late scan cannot attach identity after a resource edit");
+deferScan = false;
+deferStart = true;
+const pending = start();
+available(false, "pending submission blocks duplicate Start");
+const pendingCount = requests().length;
+await start();
+renderStatus(idle);
+available(false, "idle SSE cannot unlock pending Start");
+assert.equal(requests().length, pendingCount);
+finishStart();
+await pending;
+available(true, "completion clears pending lock");
+renderStatus({ ...idle, active: true });
+available(false, "active run blocks Start");
+await start();
+assert.equal(requests().length, pendingCount);
+renderStatus(idle);
+available(true, "inactive status restores valid Start");
+await backend("@unsupported");
+typeResource("TCPIP0::MANUAL");
+available(false, "an unrecognized backend must not inherit System VISA support");
+const unsupportedCount = requests().length;
+await start();
+assert.equal(requests().length, unsupportedCount);
+
+await backend("");
+typeResource("USB0::MANUAL");
+// Features must be approved together by one candidate model, not across models.
+for (const scope of payloads["34461A"].support["start-trigger-record"].live.scopes) {
+  scope.features.measurement["voltage-dc"].validation_status = "feature_pending";
+}
+for (const scope of payloads["34460A"].support["start-trigger-record"].live.scopes) {
+  scope.features.trigger_mode.immediate.validation_status = "feature_pending";
+}
+await expected("34461A");
+await expected("34460A");
+measurementSelect.value = "voltage-dc";
+triggerSelect.value = "immediate";
+await event("#measurement", "change");
+available(false, "no candidate approves both features");
+const pendingFeatureCount = requests().length;
+await start();
+assert.equal(requests().length, pendingFeatureCount);
+resources = [{ resource: "USB0::PENDING-FEATURE", instrument_model: "34461A" }];
+await scan();
+await selectResource(resources[0].resource);
+measurementSelect.value = "voltage-dc";
+await event("#measurement", "change");
+available(false, "known pending measurement blocks Start");
+assert.equal(element("#start-run").title, t("support.reason.pending_live_validation"));
+'''
+    completed = run_node(script, STATIC_DIR / "app.js")
+    assert completed.returncode == 0, completed.stdout + completed.stderr
 
 
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for execution-mode tests")

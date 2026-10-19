@@ -10,6 +10,7 @@ export function inferTransportScope(resource) {
 }
 
 export function findProductSupportScope(resource, liveSupport, visaLibrary = "") {
+  if (visaLibrary !== "" && visaLibrary !== "@py") return null;
   const normalizedResource = String(resource || "").trim();
   const transport = inferTransportScope(normalizedResource) || (
     normalizedResource ? null : liveSupport?.transport_scope

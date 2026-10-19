@@ -58,6 +58,7 @@ import {
   loadCapabilities,
   invalidateCapabilities,
   triggerMetadataPayload,
+  productLiveAvailability,
   updateFeatureAvailability,
   updateMeasurementUi,
   updatePanelSummaries,
@@ -65,6 +66,7 @@ import {
   updateRangeVisibility,
   updateTriggerButtonUi,
   updateTriggerModeUi,
+  updateStartButtonUi,
   validateSwMinInterval,
 } from "./run_form.js";
 import {
@@ -225,7 +227,7 @@ function updateExecutionModePresentation() {
   const noHardware = currentExecutionMode !== "real";
   visaLibrarySelect.disabled = executionRequestPending || isRunActive();
   startRunButton.dataset.executionPending = String(executionRequestPending);
-  startRunButton.disabled = executionRequestPending || isRunActive();
+  updateStartButtonUi(isRunActive());
   for (const input of executionModeInputs) {
     input.disabled = executionRequestPending || isRunActive();
   }
@@ -291,7 +293,10 @@ async function switchExecutionMode(nextMode) {
   }
   clearPlanPreview();
   updateExecutionModePresentation();
-  updateFeatureAvailability();
+  updateFeatureAvailability(
+    currentExecutionMode === "real"
+      ? scanMetadataByResource.get(resourceInput.value.trim())?.instrument_model : null
+  );
   await loadCapabilities(instrumentModelSelect.value);
   updateModelSelectorPresentation();
   updateRangeAndLiveChartScale();
@@ -347,13 +352,13 @@ async function applyScannedResource(resource) {
   const forcedModel = instrumentModelSelect.value || "";
   resourceInput.value = resource;
   resourceSelect.value = resource;
-  updateFeatureAvailability();
+  updateFeatureAvailability(inferredModel);
   updateDeviceResourceSummary();
   if (!inferredModel) {
     appendTranslatedStatusLog("resource.model_inference_failed");
     return;
   }
-  const capabilities = await loadCapabilities(forcedModel || inferredModel);
+  const capabilities = await loadCapabilities(forcedModel || inferredModel, resource);
   if (!capabilities || revision !== scanRevision) return;
   instrumentModelSelect.value = forcedModel;
   updateRangeAndLiveChartScale();
@@ -426,6 +431,7 @@ async function refreshResources() {
     await applyScannedResource(result.resources[0].resource);
   }
   if (revision !== scanRevision) return;
+  updateFeatureAvailability(scanMetadataByResource.get(resourceInput.value.trim())?.instrument_model);
   updateDeviceResourceSummary();
   appendTranslatedStatusLog("resource.scan_result_count", {
     count: result.resources.length,
@@ -492,8 +498,11 @@ resourceSelect.addEventListener("change", async () => {
 });
 
 resourceInput.addEventListener("input", () => {
+  scanRevision += 1;
+  resourceSelect.value = scanMetadataByResource.has(resourceInput.value.trim())
+    ? resourceInput.value.trim() : "";
   updateDeviceResourceSummary();
-  updateFeatureAvailability();
+  updateFeatureAvailability(scanMetadataByResource.get(resourceInput.value.trim())?.instrument_model);
 });
 
 let csvFolderPickerPending = false;
@@ -668,6 +677,12 @@ if (supportedDevicesToggleButton && supportedDevicesPanel) {
 startRunButton.addEventListener("click", async () => {
   if (executionRequestPending || isRunActive()) {
     appendTranslatedStatusLog("status.active_run_start_blocked");
+    return;
+  }
+  const availability = productLiveAvailability();
+  if (!availability.available) {
+    updateStartButtonUi(isRunActive());
+    appendTranslatedStatusLog(availability.reasonKey);
     return;
   }
   const submittedMode = currentExecutionMode;

@@ -261,7 +261,7 @@ element("[name='timer_interval_s']").value = "1";
 const runForm = await import(runFormUrl);
 const i18n = await import(new URL("./i18n.js", runFormUrl));
 await runForm.loadCapabilities();
-assert.equal(fetchCount, 1);
+assert.equal(fetchCount, 2);
 assert.equal(runForm.supportsAutoZero({
   supports_auto_zero: true,
   auto_zero_options: ["on", "off", "once"],
@@ -333,7 +333,7 @@ assert.equal(
 for (const token of ["34460A", "live_validated_full_suite", "usb/system_visa"]) {
   assert.match(supportStatus.textContent, new RegExp(token));
 }
-assert.equal(fetchCount, 2);
+assert.equal(fetchCount, 3);
 
 const preservedValues = {
   measurement: element("#measurement").value,

@@ -51,6 +51,7 @@ import {
   rangeUnit,
   resourceInput,
   sampleCountInput,
+  startRunButton,
   subtitle,
   swMinIntervalContainer,
   swMinIntervalInput,
@@ -71,6 +72,8 @@ let measurementsByName = new Map();
 let supportedTriggerModes = [];
 let triggerModeMetadata = {};
 let liveSupport = null;
+let liveSupportByModel = new Map();
+let detectedInstrumentModel = null;
 let inputLimits = {};
 let latestSupportSummary = null;
 let capabilitiesLoaded = false;
@@ -160,23 +163,50 @@ function triggerOptionElement(mode) {
   );
 }
 
-function currentProductSupportScope() {
+function currentProductSupportScopes() {
   const noHardware = [...executionModeInputs].some(
     (input) => input.checked && input.value !== "real"
   );
-  return findProductSupportScope(
-    noHardware ? "" : resourceInput?.value,
-    liveSupport,
-    noHardware ? "" : visaLibrarySelect?.value
+  if (noHardware) return [findProductSupportScope("", liveSupport)];
+  const candidates = detectedInstrumentModel
+    ? [liveSupportByModel.get(detectedInstrumentModel)]
+    : [...liveSupportByModel.values()];
+  return candidates.map((support) => findProductSupportScope(
+    resourceInput?.value, support, visaLibrarySelect?.value
+  ));
+}
+
+export function productLiveAvailability() {
+  if ([...executionModeInputs].some((input) => input.checked && input.value !== "real")) {
+    return { available: true, reasonKey: null };
+  }
+  const results = currentProductSupportScopes().map((scope) => {
+    const measurement = featureAvailability(scope, "measurement", measurementSelect.value);
+    return measurement.available
+      ? featureAvailability(scope, "trigger_mode", triggerModeSelect.value)
+      : measurement;
+  });
+  return results.find((result) => result.available)
+    || results[0] || featureAvailability(null, "measurement", measurementSelect.value);
+}
+
+export function updateStartButtonUi(active = startRunButton.dataset.runActive === "true") {
+  const availability = productLiveAvailability();
+  startRunButton.dataset.runActive = String(active);
+  startRunButton.disabled = active
+    || startRunButton.dataset.executionPending === "true" || !availability.available;
+  startRunButton.title = availability.available ? "" : bindTranslation(
+    startRunButton, "data-i18n-title", availability.reasonKey
   );
+  if (availability.available) startRunButton.removeAttribute("data-i18n-title");
 }
 
 function featureOptionElement(value, text, featureKind, textKey, textParams) {
-  const availability = featureAvailability(
-    currentProductSupportScope(),
-    featureKind,
-    value
+  const results = currentProductSupportScopes().map(
+    (scope) => featureAvailability(scope, featureKind, value)
   );
+  const availability = results.find((result) => result.available)
+    || results[0] || featureAvailability(null, featureKind, value);
   const option = optionElement(value, text);
   if (availability.available && textKey) {
     setTranslatedText(option, textKey, textParams);
@@ -234,7 +264,8 @@ function populateFeatureOptions(
   }
 }
 
-export function updateFeatureAvailability() {
+export function updateFeatureAvailability(detectedModel = null) {
+  detectedInstrumentModel = detectedModel;
   const previousMeasurement = measurementSelect.value;
   const previousTriggerMode = triggerModeSelect.value;
   populateFeatureOptions(previousMeasurement, previousTriggerMode);
@@ -700,6 +731,7 @@ export function updateTriggerButtonUi() {
 }
 
 export function updatePanelSummaries() {
+  updateStartButtonUi();
   const outputSummary = document.querySelector("[data-summary-for='output-settings']");
   if (outputSummary) {
     const csvOn = document.querySelector("#csv-enabled-checkbox")?.checked;
@@ -904,7 +936,7 @@ export function invalidateCapabilities() {
   capabilitiesRevision += 1;
 }
 
-export async function loadCapabilities(model = null) {
+export async function loadCapabilities(model = null, resource = null) {
   const revision = ++capabilitiesRevision;
   const selectedModel = textOrNull(model || instrumentModelSelect?.value);
   const url = selectedModel
@@ -913,7 +945,25 @@ export async function loadCapabilities(model = null) {
   const previousMeasurement = measurementSelect.value;
   const previousTriggerMode = triggerModeSelect.value;
   const capabilities = await api(url);
-  if (revision !== capabilitiesRevision) return null;
+  if (revision !== capabilitiesRevision || (resource !== null && resource !== resourceInput.value.trim())) return null;
+  // Cache policy by model, independently of the expected model or scanned identity.
+  const supports = new Map(liveSupportByModel);
+  const profileModel = capabilities.instrument_profile?.model
+    || selectedModel || capabilities.support_summary?.model;
+  if (profileModel) {
+    supports.set(profileModel, capabilities.support?.["start-trigger-record"]?.live);
+  }
+  const missingProfiles = (capabilities.available_profiles || []).filter(
+    (profile) => !supports.has(profile.model)
+  );
+  const otherCapabilities = await Promise.all(missingProfiles.map(async (profile) => [
+    profile.model, await api(`/api/capabilities?model=${encodeURIComponent(profile.model)}`),
+  ]));
+  if (revision !== capabilitiesRevision || (resource !== null && resource !== resourceInput.value.trim())) return null;
+  for (const [modelName, payload] of otherCapabilities) {
+    supports.set(modelName, payload.support?.["start-trigger-record"]?.live);
+  }
+  liveSupportByModel = supports;
   applyAppMetadata(capabilities.app);
   applyInputLimits(capabilities.limits);
   latestSupportSummary = capabilities.support_summary ?? null;

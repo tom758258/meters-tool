@@ -1,4 +1,5 @@
 import { api } from "./api.js";
+import { updateStartButtonUi } from "./run_form.js";
 import {
   cleanupStatus,
   commandStateIndicator,
@@ -380,7 +381,7 @@ export function refreshStatusPresentation() {
 function updateRunControlButtons(status) {
   const active = Boolean(status?.active);
   const executionPending = startRunButton.dataset.executionPending === "true";
-  startRunButton.disabled = active || executionPending;
+  updateStartButtonUi(active);
   if (visaLibrarySelect) visaLibrarySelect.disabled = active || executionPending;
   refreshResourcesButton.disabled =
     active || refreshResourcesButton.dataset.executionDisabled === "true";
