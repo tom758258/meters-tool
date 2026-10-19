@@ -97,15 +97,27 @@ def test_data_is_default_and_time_columns_are_independent(tmp_path):
     assert [row["delta_t_s"] for row in rows] == ["", "1.234"]
     assert [row["value"] for row in rows] == ["0.123", "0.124"]
 
-    only_delta = CsvWriter(tmp_path / "delta.csv", clock_ns=lambda: 123)
-    only_delta.configure_output("data", ("delta",))
-    only_delta.open()
-    only_delta.write(_sample(at, 1.0))
-    only_delta.close()
-    with (tmp_path / "delta.csv").open(encoding="utf-8", newline="") as fh:
-        assert csv.DictReader(fh).fieldnames == [
-            "timestamp_utc_plus_8", "value", "unit", "delta_t_s"
-        ]
+    # Exercise the unconfigured default and each single-column option in one contract check.
+    base_fields = ["timestamp_utc_plus_8", "value", "unit"]
+    for label, columns, extra_field, expected_time in (
+        ("default", None, None, None),
+        ("elapsed", ("elapsed",), "elapsed_s", "0.000"),
+        ("delta", ("delta",), "delta_t_s", ""),
+    ):
+        path = tmp_path / f"{label}.csv"
+        single = CsvWriter(path, clock_ns=lambda: 123)
+        if columns is not None:
+            single.configure_output("data", columns)
+        single.open()
+        single.write(_sample(at, 1.0))
+        single.close()
+        with path.open(encoding="utf-8", newline="") as fh:
+            reader = csv.DictReader(fh)
+            assert reader.fieldnames == base_fields + ([extra_field] if extra_field else [])
+            row = next(reader)
+        assert row["value"] == "1.0"
+        if extra_field:
+            assert row[extra_field] == expected_time
 
 
 def test_full_time_columns_keep_original_fields_and_fixed_time_order(tmp_path):
