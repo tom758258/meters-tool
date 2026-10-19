@@ -36,7 +36,9 @@ class CsvWriter:
         self._time_columns: tuple[str, ...] = ()
         self._first_ns: int | None = None
         self._previous_ns: int | None = None
-        self._last_batch_key: tuple[str, object] | None = None
+        self._last_batch_key: tuple[str, int] | None = None
+        self._next_batch_index: int | None = None
+        self._batch_remaining = 0
 
     def configure_output(self, csv_format: str, time_columns: tuple[str, ...]) -> None:
         if self._writer is not None:
@@ -53,6 +55,8 @@ class CsvWriter:
         self._first_ns = None
         self._previous_ns = None
         self._last_batch_key = None
+        self._next_batch_index = None
+        self._batch_remaining = 0
         self._writer.writeheader()
         self._fh.flush()
 
@@ -81,18 +85,37 @@ class CsvWriter:
             "status": sample.status,
         }
         if self._time_columns:
-            # DATA:REMove? returns multiple samples with the same PC fetch time.
-            # Keep one writer-arrival timestamp for all readings in that batch.
-            batch_key = (
-                (sample.trigger_id, sample.timestamp_utc)
-                if sample.trigger_metadata.get("buffered") == "true"
-                else None
+            # Use existing fetch index/size, never an equal wall-clock timestamp.
+            metadata = sample.trigger_metadata
+            raw_index = metadata.get("buffer_index")
+            raw_size = metadata.get("buffer_batch_size")
+            valid_batch = (
+                metadata.get("buffered") == "true"
+                and isinstance(raw_index, str) and raw_index.isascii() and raw_index.isdigit()
+                and isinstance(raw_size, str) and raw_size.isascii() and raw_size.isdigit()
             )
-            now_ns = (
-                self._previous_ns
-                if batch_key is not None and batch_key == self._last_batch_key
-                else self._clock_ns()
+            if valid_batch:
+                try:
+                    index, batch_size = int(raw_index), int(raw_size)
+                    valid_batch = batch_size > 0
+                except ValueError:
+                    valid_batch = False
+            same_batch = (
+                valid_batch
+                and self._batch_remaining > 0
+                and self._last_batch_key == (sample.trigger_id, batch_size)
+                and self._next_batch_index == index
             )
+            now_ns = self._previous_ns if same_batch else self._clock_ns()
+            if valid_batch:
+                self._last_batch_key = (sample.trigger_id, batch_size)
+                self._next_batch_index = index + 1
+                self._batch_remaining = self._batch_remaining - 1 if same_batch else batch_size - 1
+            else:
+                # Missing or invalid metadata: conservatively time each sample.
+                self._last_batch_key = None
+                self._next_batch_index = None
+                self._batch_remaining = 0
             if self._first_ns is None:
                 self._first_ns = now_ns
             elapsed_s = (now_ns - self._first_ns) / 1_000_000_000
@@ -105,7 +128,6 @@ class CsvWriter:
             if "delta" in self._time_columns:
                 row["delta_t_s"] = "" if delta_s is None else f"{delta_s:.3f}"
             self._previous_ns = now_ns
-            self._last_batch_key = batch_key
         self._writer.writerow({name: row[name] for name in self._writer.fieldnames})
         self._fh.flush()
 

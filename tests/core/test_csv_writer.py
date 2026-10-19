@@ -57,7 +57,12 @@ def test_csv_writer_writes_header_and_row(tmp_path):
     )
 
 
-def _sample(at, value, *, buffered=False, trigger="t1"):
+def _sample(at, value, *, buffered=False, trigger="t1", index=None, batch_size=None):
+    metadata = {"buffered": "true"} if buffered else {}
+    if index is not None:
+        metadata["buffer_index"] = str(index)
+    if batch_size is not None:
+        metadata["buffer_batch_size"] = str(batch_size)
     return MeasurementSample(
         timestamp_utc=at,
         measurement_type="current_dc",
@@ -67,7 +72,7 @@ def _sample(at, value, *, buffered=False, trigger="t1"):
         resource_id="SIM::34461A",
         trigger_id=trigger,
         trigger_source="immediate-custom" if buffered else "immediate",
-        trigger_metadata={"buffered": "true"} if buffered else {},
+        trigger_metadata=metadata,
     )
 
 
@@ -126,11 +131,11 @@ def test_buffered_batch_reuses_one_pc_receipt_time(tmp_path):
     writer = CsvWriter(out, clock_ns=lambda: next(clocks))
     writer.configure_output("data", ("elapsed", "delta"))
     writer.open()
-    writer.write(_sample(at, 1.0, buffered=True))
-    writer.write(_sample(at, 2.0, buffered=True))
+    writer.write(_sample(at, 1.0, buffered=True, index=0, batch_size=2))
+    writer.write(_sample(at, 2.0, buffered=True, index=1, batch_size=2))
     later = at.replace(second=1)
-    writer.write(_sample(later, 3.0, buffered=True))
-    writer.write(_sample(later, 4.0, buffered=True))
+    writer.write(_sample(later, 3.0, buffered=True, index=2, batch_size=2))
+    writer.write(_sample(later, 4.0, buffered=True, index=3, batch_size=2))
     writer.close()
 
     with out.open(encoding="utf-8", newline="") as fh:
@@ -141,3 +146,43 @@ def test_buffered_batch_reuses_one_pc_receipt_time(tmp_path):
     ]
     assert [row["elapsed_s"] for row in rows] == ["0.000", "0.000", "1.256", "1.256"]
     assert [row["delta_t_s"] for row in rows] == ["", "0.000", "1.256", "0.000"]
+
+def test_distinct_fetches_with_equal_utc_timestamps_are_not_merged(tmp_path):
+    at = datetime(2026, 4, 28, tzinfo=timezone.utc)
+    clocks = iter([1_000_000_000, 2_256_000_000, 2_900_000_000])
+    out = tmp_path / "equal-utc.csv"
+    writer = CsvWriter(out, clock_ns=lambda: next(clocks))
+    writer.configure_output("data", ("elapsed", "delta"))
+    writer.open()
+    for value, index, size in (
+        (1.0, 0, 2), (2.0, 1, 2), (3.0, 2, 2),
+        (4.0, 3, 2), (5.0, 4, 1),
+    ):
+        writer.write(_sample(at, value, buffered=True, index=index, batch_size=size))
+    writer.close()
+    with out.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert [row["elapsed_s"] for row in rows] == [
+        "0.000", "0.000", "1.256", "1.256", "1.900"
+    ]
+    assert [row["delta_t_s"] for row in rows] == [
+        "", "0.000", "1.256", "0.000", "0.644"
+    ]
+
+
+def test_missing_or_invalid_batch_metadata_uses_per_sample_clock(tmp_path):
+    at = datetime(2026, 4, 28, tzinfo=timezone.utc)
+    clocks = iter([1_000_000_000, 1_250_000_000, 1_500_000_000, 1_750_000_000])
+    out = tmp_path / "unidentified-batches.csv"
+    writer = CsvWriter(out, clock_ns=lambda: next(clocks))
+    writer.configure_output("data", ("elapsed", "delta"))
+    writer.open()
+    writer.write(_sample(at, 1.0, buffered=True))
+    writer.write(_sample(at, 2.0, buffered=True, index=1, batch_size=0))
+    writer.write(_sample(at, 3.0, buffered=True, index="bad", batch_size=2))
+    writer.write(_sample(at, 4.0, buffered=True, index=3, batch_size=2))
+    writer.close()
+    with out.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert [row["delta_t_s"] for row in rows] == ["", "0.250", "0.250", "0.250"]
+    assert [row["elapsed_s"] for row in rows] == ["0.000", "0.250", "0.500", "0.750"]
