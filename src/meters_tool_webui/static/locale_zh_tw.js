@@ -181,6 +181,7 @@ export const ZH_TW_MESSAGES = Object.freeze({
   "output.summary_default": "CSV · Data",
   "output.summary": "CSV · {format}{columns}",
   "output.summary_disabled": "CSV 已停用",
+  "output.summary_elapsed": "經過時間",
   "output.format": "CSV 格式",
   "output.format_data": "Data（量測資料）",
   "output.format_full": "Full（完整紀錄）",

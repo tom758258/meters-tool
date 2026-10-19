@@ -312,6 +312,17 @@ class WebUiStaticTests(unittest.TestCase):
         )
         for key in ("csv-elapsed", "csv-delta"):
             assert_tag_with_attrs(self, index, "input", {"id": key, "form": "run-form"})
+        self.assertNotRegex(
+            index,
+            r'<input\b(?=[^>]*\bid="csv-(?:elapsed|delta)")[^>]*\bchecked\b',
+        )
+        tree = _HtmlTreeParser()
+        tree.feed(index)
+        output_panel = next(
+            node for node in tree.descendants(tree.root)
+            if node["attrs"].get("data-panel") == "output-settings"
+        )
+        self.assertNotIn("is-collapsed", output_panel["attrs"].get("class", "").split())
 
     def test_static_ui_exposes_live_data_panel(self):
         index, _app_js = load_static_ui()

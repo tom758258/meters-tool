@@ -181,6 +181,7 @@ export const EN_MESSAGES = Object.freeze({
   "output.summary_default": "CSV · Data",
   "output.summary": "CSV · {format}{columns}",
   "output.summary_disabled": "CSV disabled",
+  "output.summary_elapsed": "Elapsed",
   "output.format": "CSV format",
   "output.format_data": "Data",
   "output.format_full": "Full",

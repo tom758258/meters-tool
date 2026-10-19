@@ -258,6 +258,10 @@ const withTimes = buildRunPayload({
 }, { measurement: {} });
 assert.equal(withTimes.csv_format, "full");
 assert.deepEqual(withTimes.csv_time_columns, ["elapsed", "delta"]);
+for (const [field, column] of [["csv_elapsed", "elapsed"], ["csv_delta", "delta"]]) {
+  const onlyTime = buildRunPayload({ resource: "USB0::SIM", [field]: "on" }, { measurement: {} });
+  assert.deepEqual(onlyTime.csv_time_columns, [column]);
+}
 for (const csvEnabled of [null, false]) {
   const disabled = buildRunPayload({
     resource: "USB0::SIM",

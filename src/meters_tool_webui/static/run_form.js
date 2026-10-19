@@ -705,7 +705,7 @@ export function updatePanelSummaries() {
     const csvOn = document.querySelector("#csv-enabled-checkbox")?.checked;
     const format = document.querySelector("#csv-format")?.value || "data";
     const selected = [
-      document.querySelector("#csv-elapsed")?.checked ? "Elapsed" : "",
+      document.querySelector("#csv-elapsed")?.checked ? t("output.summary_elapsed") : "",
       document.querySelector("#csv-delta")?.checked ? "Δt" : "",
     ].filter(Boolean).join(" + ");
     setTranslatedText(outputSummary, csvOn ? "output.summary" : "output.summary_disabled", {
