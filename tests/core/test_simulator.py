@@ -245,6 +245,38 @@ class CoreSimulatorRatioSessionTests(unittest.TestCase):
                 if out.exists():
                     out.unlink()
 
+    def test_data_csv_time_columns_flow_through_core_runner(self):
+        out = self._csv_path("data-time-columns")
+        sink = RecordingEventSink()
+        try:
+            result = self._run(
+                StartRequest(
+                    resource="SIM::34461A",
+                    csv=str(out),
+                    csv_format="data",
+                    csv_time_columns=("elapsed", "delta"),
+                    simulate=True,
+                    trigger_mode="immediate",
+                    max_samples=2,
+                ),
+                sink,
+            )
+            self.assertTrue(result.ok)
+            with out.open(encoding="utf-8", newline="") as fh:
+                reader = csv.DictReader(fh)
+                self.assertEqual(
+                    ["timestamp_utc_plus_8", "value", "unit", "elapsed_s", "delta_t_s"],
+                    reader.fieldnames,
+                )
+                rows = list(reader)
+            self.assertEqual(2, len(rows))
+            self.assertEqual("0.000", rows[0]["elapsed_s"])
+            self.assertEqual("", rows[0]["delta_t_s"])
+            self.assertNotEqual("", rows[1]["delta_t_s"])
+        finally:
+            if out.exists():
+                out.unlink()
+
     def test_no_csv_session_emits_samples_and_summary_without_creating_storage(self):
         sink = RecordingEventSink()
         with tempfile.TemporaryDirectory() as tempdir:
@@ -257,6 +289,8 @@ class CoreSimulatorRatioSessionTests(unittest.TestCase):
                 resource="SIM::34461A",
                 csv=str(csv_path),
                 csv_enabled=False,
+                csv_format="full",
+                csv_time_columns=("elapsed", "delta"),
                 simulate=True,
                 trigger_mode="immediate",
                 max_samples=1,
@@ -297,6 +331,7 @@ class CoreSimulatorRatioSessionTests(unittest.TestCase):
                     trigger_mode="immediate",
                     measurement="voltage-dc-ratio",
                     max_samples=1,
+                    csv_format="full",
                 ),
                 sink,
             )

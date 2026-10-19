@@ -294,6 +294,36 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertIn('csv_enabled: data.get("csv_enabled")', run_form_js)
         self.assertIn("csv_enabled: csvEnabled", payload_js)
 
+    def test_output_panel_fields_use_existing_run_form_contract(self):
+        index, _app_js = load_static_ui()
+        self.assertIn('data-panel="output-settings"', index)
+        self.assertIn('data-summary-for="output-settings"', index)
+        assert_tag_with_attrs(
+            self, index, "input",
+            {"id": "csv-enabled-checkbox", "form": "run-form", "name": "csv_enabled"},
+        )
+        assert_tag_with_attrs(
+            self, index, "input",
+            {"id": "csv-path-input", "form": "run-form", "name": "csv"},
+        )
+        assert_tag_with_attrs(
+            self, index, "select",
+            {"id": "csv-format", "form": "run-form", "name": "csv_format"},
+        )
+        for key in ("csv-elapsed", "csv-delta"):
+            assert_tag_with_attrs(self, index, "input", {"id": key, "form": "run-form"})
+        self.assertNotRegex(
+            index,
+            r'<input\b(?=[^>]*\bid="csv-(?:elapsed|delta)")[^>]*\bchecked\b',
+        )
+        tree = _HtmlTreeParser()
+        tree.feed(index)
+        output_panel = next(
+            node for node in tree.descendants(tree.root)
+            if node["attrs"].get("data-panel") == "output-settings"
+        )
+        self.assertNotIn("is-collapsed", output_panel["attrs"].get("class", "").split())
+
     def test_static_ui_exposes_live_data_panel(self):
         index, _app_js = load_static_ui()
         live_data_js = (STATIC_DIR / "live_data.js").read_text(encoding="utf-8")

@@ -84,7 +84,18 @@ Before constructing `StartRequest`, adapters should:
 - Convert toggles to booleans.
 - Normalize adapter-only aliases.
 - Map output enablement to the positive `csv_enabled` field. It defaults to
-  `True`; when it is `False`, Core ignores any residual `csv` value.
+  `True`; when it is `False`, Core ignores any residual `csv` value and
+  skips CSV timing/output options.
+- `csv_format` defaults to `data` (timestamp, value, unit), while `full`
+  preserves the former 10-column CSV schema. `csv_time_columns` optionally
+  contains `elapsed` and/or `delta`, appending `elapsed_s` and `delta_t_s`
+  in that order. Relative times use the CSV Writer's monotonic clock; the first
+  elapsed time is `0.000`, the first interval is blank, and the units are
+  seconds to three decimals. Buffered rows from one PC fetch reuse their
+  batch's writer-arrival time, identified by the existing buffer index and
+  batch size (not by equality of wall-clock timestamps). Missing or invalid
+  batch metadata falls back to a separate monotonic reading per sample.
+  These are PC receipt times, not ADC timestamps.
 - Map adapter-owned display labels to Core-owned request values such as
   `auto_zero`, `ac_bandwidth_hz`, `gate_time_s`, `freq_period_timeout`, and
   `current_terminal`.

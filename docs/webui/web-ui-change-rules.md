@@ -167,6 +167,8 @@ Important payload fields currently sent by the UI include:
 - `simulate` for simulated runtime requests
 - `csv_enabled`
 - `csv`
+- `csv_format`
+- `csv_time_columns`
 - `timeout_ms`
 - `trigger_timeout_ms`
 - `trigger_mode`
@@ -360,7 +362,9 @@ The UI may look different, but these behaviors must remain true:
   `software` without Timer trigger, and `software-custom`.
 - Stop calls `POST /api/runs/current/stop`.
 - The default-checked CSV output control sends `csv_enabled`. Clearing it
-  disables the CSV input and Select button without clearing the input value.
+  disables the CSV path, Select, format and time controls without clearing their
+  current values. The expanded Output Settings panel follows Run Setup, shares
+  `run-form`, defaults to `data`, and offers independent elapsed/delta columns.
 - Open CSV calls `POST /api/runs/current/open-csv` and must use the backend's
   current or latest completed CSV path, not a frontend-supplied path.
 - Select CSV folder calls `POST /api/csv/select-folder` and fills the existing

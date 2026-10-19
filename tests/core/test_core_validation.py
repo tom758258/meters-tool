@@ -109,6 +109,16 @@ class CoreValidationTests(unittest.TestCase):
             resolve_csv_path(None, now=now),
         )
 
+    def test_csv_output_options_and_no_csv_compatibility(self):
+        self.assert_valid(make_start_request(csv_format="data", csv_time_columns=("elapsed", "delta")))
+        self.assert_valid(make_start_request(csv_format="full", csv_time_columns=("delta",)))
+        self.assert_invalid(make_start_request(csv_format="other"), "csv_format")
+        self.assert_invalid(make_start_request(csv_time_columns=("interval",)), "csv_time_columns")
+        self.assert_invalid(make_start_request(csv_time_columns=("delta", "delta")), "csv_time_columns")
+        self.assert_valid(make_start_request(
+            csv_enabled=False, csv_format="ignored", csv_time_columns=("ignored",)
+        ))
+
     def test_csv_path_uses_explicit_path(self):
         self.assertEqual(Path("out.csv"), resolve_csv_path("out.csv"))
 

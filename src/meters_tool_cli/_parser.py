@@ -266,6 +266,17 @@ def _add_start_parser(
         ),
     )
     start.add_argument(
+        "--csv-format",
+        choices=["full", "data"],
+        default="data",
+        help="CSV layout; default: data",
+    )
+    start.add_argument(
+        "--csv-time-columns",
+        default="",
+        help="optional comma-separated CSV timing columns: elapsed,delta",
+    )
+    start.add_argument(
         "--status-format",
         choices=["text", "jsonl"],
         default="text",

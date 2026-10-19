@@ -181,6 +181,8 @@ assert.deepEqual(simpleValues, simpleBefore);
 assert.deepEqual(simple, {
   resource: "USB0::SIM",
   csv_enabled: true,
+  csv_format: "data",
+  csv_time_columns: [],
   trigger_timeout_ms: 10000,
   trigger_mode: "immediate",
   measurement: "current-dc",
@@ -246,6 +248,19 @@ for (const csvEnabled of ["on", true]) {
   }, { measurement: {} });
   assert.equal(enabled.csv_enabled, true);
   assert.equal(enabled.csv, "data/example.csv");
+  assert.equal(enabled.csv_format, "data");
+}
+const withTimes = buildRunPayload({
+  resource: "USB0::SIM",
+  csv_format: "full",
+  csv_elapsed: "on",
+  csv_delta: "on",
+}, { measurement: {} });
+assert.equal(withTimes.csv_format, "full");
+assert.deepEqual(withTimes.csv_time_columns, ["elapsed", "delta"]);
+for (const [field, column] of [["csv_elapsed", "elapsed"], ["csv_delta", "delta"]]) {
+  const onlyTime = buildRunPayload({ resource: "USB0::SIM", [field]: "on" }, { measurement: {} });
+  assert.deepEqual(onlyTime.csv_time_columns, [column]);
 }
 for (const csvEnabled of [null, false]) {
   const disabled = buildRunPayload({

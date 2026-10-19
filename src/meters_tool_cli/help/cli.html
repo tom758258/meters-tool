@@ -255,7 +255,7 @@ compatibility settings for ASRL verification only; they are not acquisition
 settings.</p>
 <p><code>--csv</code> is the output file path. If omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
-or automation. Use <code>--no-csv</code> to disable CSV output for a run; it cannot be combined with <code>--csv</code>.</p>
+or automation. Use <code>--no-csv</code> to disable CSV output for a run; it cannot be combined with <code>--csv</code>. The default CSV format is <code>data</code>; choose <code>--csv-format full</code> for the original ten columns, and optionally add <code>--csv-time-columns elapsed,delta</code>.</p>
 <p><code>--max-samples</code> bounds simple runs. Use it during smoke tests and validation so
 the command stops by itself.</p>
 <p><code>--auto-range</code> lets the instrument choose the range. Keep Auto Range enabled
@@ -302,17 +302,22 @@ intentionally waits longer.</p>
 Model-specific support and limits remain subject to Core validation and the
 Supported Models scope described above.</p>
 <h2 id="csv-output">CSV Output</h2>
-<p>With the default CSV output enabled, each captured sample is written as one
-row. Check the CSV after a smoke run for:</p>
+<p>CSV is enabled by default. The <code>data</code> layout writes <code>timestamp_utc_plus_8,value,unit</code>.
+Choose <code>--csv-format full</code> to preserve the original ten fields, including metadata.
+After a smoke run, check the CSV for:</p>
 <ul>
 <li>at least one data row;</li>
-<li>expected <code>measurement_type</code>;</li>
+<li>expected <code>value</code>;</li>
 <li>expected <code>unit</code>;</li>
-<li>expected <code>trigger_source</code>;</li>
+<li><code>measurement_type</code> and <code>trigger_source</code> when using <code>full</code>;</li>
 <li>a value that matches the front panel closely enough for the test setup.</li>
 </ul>
 <p>The CSV is flushed after each captured sample, so completed rows should be
 available even during longer runs.</p>
+<p>Optional <code>elapsed_s</code> and <code>delta_t_s</code> represent PC CSV Writer monotonic receipt
+time in seconds with three decimals. The first elapsed is <code>0.000</code> and the first
+interval is blank. Samples from one buffered fetch share a time; this is not the
+instrument's ADC sampling interval.</p>
 <h2 id="stop-a-run">Stop A Run</h2>
 <p>For bounded validation runs, prefer <code>--max-samples</code> so the run stops by itself.</p>
 <p>For a running worker, use one of these stop paths:</p>

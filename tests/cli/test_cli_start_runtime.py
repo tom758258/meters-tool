@@ -442,6 +442,8 @@ class CliStartRuntimeTests(CliCommandHarnessMixin, unittest.TestCase):
                     "SIM::34461A",
                     "--csv",
                     str(csv_path),
+                    "--csv-format",
+                    "full",
                     "--trigger-mode",
                     "software",
                     "--measurement",

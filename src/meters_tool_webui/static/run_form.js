@@ -264,6 +264,9 @@ export function formPayload() {
     instrument_model: data.get("instrument_model"),
     csv_enabled: data.get("csv_enabled"),
     csv: data.get("csv"),
+    csv_format: data.get("csv_format"),
+    csv_elapsed: data.get("csv_elapsed"),
+    csv_delta: data.get("csv_delta"),
     timeout_ms: data.get("timeout_ms"),
     trigger_timeout_ms: data.get("trigger_timeout_ms"),
     trigger_mode: data.get("trigger_mode"),
@@ -697,6 +700,19 @@ export function updateTriggerButtonUi() {
 }
 
 export function updatePanelSummaries() {
+  const outputSummary = document.querySelector("[data-summary-for='output-settings']");
+  if (outputSummary) {
+    const csvOn = document.querySelector("#csv-enabled-checkbox")?.checked;
+    const format = document.querySelector("#csv-format")?.value || "data";
+    const selected = [
+      document.querySelector("#csv-elapsed")?.checked ? t("output.summary_elapsed") : "",
+      document.querySelector("#csv-delta")?.checked ? "Δt" : "",
+    ].filter(Boolean).join(" + ");
+    setTranslatedText(outputSummary, csvOn ? "output.summary" : "output.summary_disabled", {
+      format: format === "full" ? "Full" : "Data",
+      columns: selected ? " · " + selected : "",
+    });
+  }
   const runSummary = document.querySelector("[data-summary-for='run-setup']");
   const measurementSummary = document.querySelector(
     "[data-summary-for='measurement-options']"

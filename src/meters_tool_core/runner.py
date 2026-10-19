@@ -89,6 +89,8 @@ def run_start_session(
     )
     router = deps.router_factory(max_pending_events=request.sw_queue_max)
     storage = deps.storage_factory(resolved_csv_path) if resolved_csv_path is not None else None
+    if callable(getattr(storage, "configure_output", None)):
+        storage.configure_output(request.csv_format, request.csv_time_columns)
     measurement = deps.measurement_factory(measurement_type)
     engine = deps.engine_factory(
         instrument=instrument,

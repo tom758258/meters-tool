@@ -233,6 +233,7 @@ def validate_start_request(
     instrument_profile: InstrumentProfile | None = None,
 ) -> None:
     _validate_basic_mode_conflicts(request)
+    _validate_csv_output(request)
     context = _resolve_start_validation_context(request, trigger_mode, instrument_profile)
     _validate_trigger_mode(context)
     _validate_measurement_preconditions(context)
@@ -244,6 +245,18 @@ def validate_start_request(
     _validate_timer_interval(context)
     _validate_buffer_drain_size(context)
     _validate_custom_mode_contract(context)
+
+
+def _validate_csv_output(request: StartRequest) -> None:
+    if not request.csv_enabled:
+        return
+    if request.csv_format not in ("full", "data"):
+        raise ValueError("csv_format must be 'full' or 'data'")
+    columns = request.csv_time_columns
+    if not isinstance(columns, (tuple, list)) or any(
+        column not in ("elapsed", "delta") for column in columns
+    ) or len(set(columns)) != len(columns):
+        raise ValueError("csv_time_columns must contain unique 'elapsed' and/or 'delta' values")
 
 
 def _validate_basic_mode_conflicts(request: StartRequest) -> None:

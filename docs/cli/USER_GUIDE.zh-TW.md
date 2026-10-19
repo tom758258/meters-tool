@@ -190,7 +190,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 
 `list-resources --verify` 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。
 
-`--csv` 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。
+`--csv` 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。
 
 `--max-samples` 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。
 
@@ -224,15 +224,17 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 
 ## CSV 輸出
 
-預設 CSV 輸出啟用時，每筆擷取樣本都會寫成一列。在快速功能健檢後，請檢查 CSV 檔案以確認：
+CSV 預設啟用，`data` 格式輸出 `timestamp_utc_plus_8,value,unit`。使用 `--csv-format full` 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：
 
 - 至少有一筆資料列；
-- 預期的 `measurement_type` (量測類型)；
+- 預期的 `value` (數值)；
 - 預期的 `unit` (單位)；
-- 預期的 `trigger_source` (觸發來源)；
+- 選擇 `full` 時才有的 `measurement_type`、`trigger_source`；
 - 一個與前面板顯示足夠接近，且符合測試設定的數值。
 
 每擷取一個樣本後，CSV 都會立即排空 (flush) 並寫入磁碟，因此即使在較長時間的執行中，也隨時能取得已完成的資料列。
+
+選用的 `elapsed_s` 與 `delta_t_s` 使用 PC CSV Writer 的單調時鐘，單位為秒、三位小數；首筆經過時間為 `0.000`，首筆間隔留空。同一 Buffered 取回批次共用時間，不代表儀器 ADC 的真實取樣間隔。
 
 ## 停止執行
 

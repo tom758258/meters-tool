@@ -71,7 +71,8 @@ WebUI / Desktop 介面在兩種入口中都是相同的本機擷取主控台。�
 - 右上角工具列：語言、主題與 `說明`（英文介面為 `Help`）控制項。
 - `說明`：開啟隨附的使用指南。
 - `Device / Resource` (裝置/資源列)：儀器位址、最近一次掃描回應的實機資源、`Scan Device` 按鈕、`支援裝置` 清單，以及 `Device options` 齒輪中的執行模式與型號選擇器。此列預設展開，可收合成能辨識目前執行模式的摘要。
-- `Run Setup` (作業設定)：CSV 輸出路徑與執行次數設定。
+- `Run Setup` (作業設定)：量測、觸發模式與執行次數設定。
+- `Output Settings`（輸出設定）：CSV 開關、路徑、格式與選用時間欄位。
 - `Measurement` (量測)：量測類型與相關選項。
 - `Trigger` (觸發)：觸發模式與觸發相關選項。
 - `Status` (狀態)：目前的作業狀態、擷取到的樣本數、錯誤、CSV 路徑與日誌。
@@ -122,7 +123,7 @@ Execution mode 僅存在於目前頁面，Start／Preview request pending 或 ac
 4. 選取或將偵測到的 VISA 資源複製到 `VISA resource` 欄位中。
 5. 只有在需要強制指定型號時，才在 `Device options` 中將 `Expected model` 改選 `Require 34460A` 或 `Require 34461A`；否則請維持 `Auto-detect`。
 6. 選擇量測類型，例如直流電壓 (DC voltage) 或直流電流 (DC current)。
-7. 在 `Run Setup` 中，選擇 CSV 檔案位置。使用 `Select` (選擇) 挑選一個資料夾，讓系統產生帶有時間戳記的 CSV 路徑。
+7. 在 `Output Settings` 中選擇 CSV 格式與路徑，使用 `Select`（選擇）挑選資料夾並產生帶有時間戳記的 CSV 路徑。
 8. 除非您特別需要軟體或外部觸發，否則請將觸發模式保持在立即／預設模式 (immediate/default mode)。
 9. 檢閱反白顯示的設定。
 10. 點擊 `Start` (啟動)。
@@ -269,11 +270,13 @@ WebUI 與 Desktop 可在右側齒輪的裝置設定中，透過 `VISA 後端` �
 
 ## CSV 輸出
 
-在 `Run Setup` 中顯示的 CSV 路徑就是當點擊 `Start` 時將寫入資料的檔案。
+`Output Settings`（輸出設定）位於 `Run Setup` 正下方，預設展開。這裡的 CSV 路徑就是點擊 `Start` 時將寫入資料的檔案。
 
 `Select` 會在執行 WebUI 的 Windows 電腦上開啟一個資料夾選擇器。選擇資料夾後，WebUI 會在該資料夾內填入帶有時間戳記的 CSV 檔案路徑。您也可以在點擊 `Start` 之前手動編輯該路徑。
 
-`CSV 輸出` 預設為勾選。取消勾選會停用 `CSV path` 與 `Select`，但保留目前的路徑值；重新勾選後可繼續使用。停用 CSV 不影響即時資料、已擷取樣本、狀態、Stop 或 cleanup。
+`Data` 為預設格式，輸出 `timestamp_utc_plus_8,value,unit`；`Full` 保留原有十欄與 metadata。Elapsed Time 與 Sample Interval Δt 可獨立勾選，預設皆關閉。新增 `elapsed_s`、`delta_t_s` 使用 PC Writer 的單調時鐘、秒與三位小數；第一筆 Elapsed 為 `0.000`，Δt 留空。同一 Buffered 批次共用 PC 接收時間，不代表 ADC 取樣間隔。
+
+`CSV 輸出` 預設勾選。取消勾選會停用路徑、`Select`、格式及時間欄位控制，但保留目前的選擇，重新勾選後可繼續使用。停用 CSV 不影響即時資料、已擷取樣本、狀態、Stop 或 cleanup。
 
 `Open CSV` 僅在作業停止且產生 CSV 路徑時可用。它會使用 Windows 的預設應用程式開啟上一次完成作業的 CSV。在作業執行期間或停用 CSV 的作業完成後，此按鈕會處於停用狀態。
 

@@ -194,6 +194,8 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
         dcv_input_impedance=args.dcv_input_impedance,
         vm_comp_slope=args.vm_comp_slope,
         csv_enabled=not args.no_csv,
+        csv_format=args.csv_format,
+        csv_time_columns=tuple(filter(None, (value.strip() for value in args.csv_time_columns.split(",")))),
     )
 
 def build_parser() -> argparse.ArgumentParser:

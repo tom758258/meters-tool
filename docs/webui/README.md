@@ -20,7 +20,7 @@ panels, status logs, Live samples, chart settings, resource metadata, and
 support summaries. Unknown Core/backend/status diagnostics, raw status JSON,
 sample metadata, and schemas remain raw. Core, HTTP API endpoints and status
 codes, existing response fields, form values, support policy, instrument
-runtime, and CSV/JSON/JSONL schemas remain unchanged. Traditional Chinese
+runtime, and JSON/JSONL schemas remain unchanged; CSV adds Data/Full formats and optional time columns. Traditional Chinese
 catalog terminology and browser presentation use the shared label layout.
 
 ## Purpose
@@ -240,7 +240,7 @@ Main areas:
 - Status strip: `State`, `Captured`, `Errors`, and `CSV`.
 - Action buttons: `Start`, `Trigger`, `Stop`, and `Open CSV`.
 - Collapsible setup panels for device/resource setup, run configuration,
-  measurement settings, trigger settings, Live data, and status details.
+  output settings, measurement settings, trigger settings, Live data, and status details.
 - Live data panel with latest value, sample time, trigger source, trend chart,
   statistics, recent sample table, and selected-sample metadata.
 
@@ -675,9 +675,21 @@ scale controls are not included in `POST /api/runs`.
 
 ## CSV Output, Select, And Open CSV
 
+The expanded `Output Settings` panel follows `Run Setup` and keeps its CSV
+checkbox, path and Select button. The default CSV layout is `data`:
+`timestamp_utc_plus_8,value,unit`. Choose `full` for the previous ten-column
+metadata-rich layout. Independent Elapsed and sample interval checkboxes append
+`elapsed_s` and `delta_t_s`, each in seconds with three decimals. Elapsed
+starts at the first CSV row. The first interval is blank. Buffered rows from
+one PC fetch share a single writer-arrival timestamp; subsequent rows in the
+same batch have interval zero. These are PC receipt times, not instrument ADC
+timestamps.
+
 CSV output is enabled by default. The browser sends the optional
 `csv_enabled` boolean in `POST /api/runs`; omitted values default to `true` for
-older API callers. With `csv_enabled=true`, an optional `csv` path selects the
+older API callers. Optional `csv_format` defaults to `data` and
+`csv_time_columns` defaults to an empty sequence. Existing callers do not
+need to send these fields. With `csv_enabled=true`, an optional `csv` path selects the
 output file and omission uses the default timestamped path. With
 `csv_enabled=false`, the backend ignores any residual `csv` value and Core does
 not create a CSV writer, file, or CSV-only parent directory.
@@ -712,8 +724,8 @@ Backend behavior:
 Frontend behavior:
 
 - The `CSV output` checkbox is checked by default.
-- Clearing it disables `CSV path` and `Select` without clearing the current
-  path; re-enabling it restores editing with that value intact.
+- Clearing it disables `CSV path`, `Select`, CSV format and time columns without
+  clearing the selected values; re-enabling it restores the controls.
 - A selected folder fills the existing `CSV path` input with the returned
   timestamped `.csv` path.
 - Operators can still manually edit or clear the CSV path.

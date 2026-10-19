@@ -160,6 +160,8 @@ class WebUiRunLifecycleApiTests(unittest.TestCase):
 
         self.assertEqual("current-dc", request.measurement)
         self.assertTrue(request.csv_enabled)
+        self.assertEqual("data", request.csv_format)
+        self.assertEqual((), request.csv_time_columns)
         self.assertEqual("on", request.auto_zero)
         self.assertIsNone(request.ac_bandwidth_hz)
         self.assertIsNone(request.gate_time_s)
@@ -170,6 +172,11 @@ class WebUiRunLifecycleApiTests(unittest.TestCase):
 
         normalized = WebRunManager()._normalize_request_payload(request)
         self.assertTrue(normalized.csv_enabled)
+        selected = WebRunManager()._normalize_request_payload(RunStartRequest(
+            resource="USB::FAKE", csv_format="full", csv_time_columns=("elapsed", "delta")
+        ))
+        self.assertEqual("full", selected.csv_format)
+        self.assertEqual(("elapsed", "delta"), selected.csv_time_columns)
 
     def test_manager_normalizes_legacy_auto_zero_booleans(self):
         manager = WebRunManager()

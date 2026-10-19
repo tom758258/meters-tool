@@ -69,6 +69,7 @@ function New-StartBaseArgs {
         "--resource", $Resource,
         "--model", $Model,
         "--csv", $CsvPath,
+        "--csv-format", "full",
         "--sw-trigger-port", $Port,
         "--auto-range", "on",
         "--auto-zero", "off",

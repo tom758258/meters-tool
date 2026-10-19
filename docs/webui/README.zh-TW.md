@@ -4,7 +4,7 @@
 
 關於版本發佈說明，請參閱套件變更日誌 (changelog)。關於 Core API 和擁有權規則，請參閱 Core 整合指南。請將本指南專注於長期的公開 WebUI 行為與整合邊界。
 
-[WebUI 本地化合約](localization-contract.md) 定義瀏覽器呈現的本地化。WebUI 使用不依賴套件的語系 runtime、English fallback、English／繁體中文語系目錄、靜態與動態瀏覽器呈現，以及安全的命名插值。右上角永久顯示的地球與文字按鈕可切換 English 與繁體中文。有效的已儲存語系優先於瀏覽器偵測與 English fallback；手動選擇使用 `meters-tool.webui.locale` 儲存鍵。切換會立即更新頁面，不重新載入或呼叫 runtime/API，並從快取狀態重新轉譯，同時保留表單值、作用中的作業、面板、狀態日誌、Live 取樣、圖表設定、資源 metadata 與支援摘要。未知的 Core/backend/status 診斷、原始 status JSON、取樣 metadata 與 schema 保持原始內容。Core、HTTP API 端點與狀態碼、現有回應欄位、表單值、支援政策、儀器執行階段，以及 CSV/JSON/JSONL schema 都不變。繁體中文語系目錄術語與瀏覽器呈現使用共用的欄位標題配置。
+[WebUI 本地化合約](localization-contract.md) 定義瀏覽器呈現的本地化。WebUI 使用不依賴套件的語系 runtime、English fallback、English／繁體中文語系目錄、靜態與動態瀏覽器呈現，以及安全的命名插值。右上角永久顯示的地球與文字按鈕可切換 English 與繁體中文。有效的已儲存語系優先於瀏覽器偵測與 English fallback；手動選擇使用 `meters-tool.webui.locale` 儲存鍵。切換會立即更新頁面，不重新載入或呼叫 runtime/API，並從快取狀態重新轉譯，同時保留表單值、作用中的作業、面板、狀態日誌、Live 取樣、圖表設定、資源 metadata 與支援摘要。未知的 Core/backend/status 診斷、原始 status JSON、取樣 metadata 與 schema 保持原始內容。Core、HTTP API 端點與狀態碼、現有回應欄位、表單值、支援政策、儀器執行階段，以及 JSON/JSONL schema 都不變；CSV 則新增 Data/Full 格式與選用時間欄位。繁體中文語系目錄術語與瀏覽器呈現使用共用的欄位標題配置。
 
 ## 目的
 
@@ -195,7 +195,7 @@ http://127.0.0.1:8767/
 - 型號支援摘要顯示來自 `/api/capabilities` 的驗證狀態、開啟工作流程群組、型號限制以及傳輸/後端範圍狀態。這僅供操作人員檢視；Core 仍會透過支援原則與執行器最終關卡拒絕不支援的直接後端提交。
 - 狀態列 (Status strip)：`State`、`Captured`、`Errors` 和 `CSV`。
 - 動作按鈕：`Start`、`Trigger`、`Stop` 和 `Open CSV`。
-- 用於裝置/資源設定、執行設定 (run configuration)、量測設定、觸發設定、即時資料 (Live data) 與狀態詳細資料的可摺疊設定面板。
+- 用於裝置/資源設定、Run Setup、Output Settings（輸出設定）、量測設定、觸發設定、即時資料 (Live data) 與狀態詳細資料的可摺疊設定面板。
 - 即時資料面板包含最新讀值、取樣時間、觸發來源、趨勢圖表、統計資料、最近取樣表格以及所選取樣的 metadata。
 
 `支援裝置` 按鈕會開啟一個精簡的 WebUI 連線清單，僅顯示目前 WebUI 正式支援的連線方式（由 Core 能力 metadata 衍生）。如需操作人員所見之連線清單，請參閱 [WebUI／Desktop 使用者指南](USER_GUIDE.zh-TW.md)；確切的產品支援型號與連線範圍請參閱 [支援型號](../core/supported-models.md)。
@@ -462,7 +462,9 @@ GET /api/runs/current
 
 ## CSV 輸出、選擇與開啟 CSV
 
-CSV 輸出預設啟用。瀏覽器會在 `POST /api/runs` 傳送選用的 `csv_enabled` boolean；舊 API caller 省略此欄位時預設為 `true`。`csv_enabled=true` 時可提供選用的 `csv` 路徑，省略則使用預設時間戳記路徑。`csv_enabled=false` 時，後端會忽略殘留的 `csv` 值，Core 不會建立 CSV writer、檔案或僅供 CSV 使用的父目錄。
+`Output Settings` 位於 `Run Setup` 下方，預設展開。Data CSV 預設為 `timestamp_utc_plus_8,value,unit`；Full 保留原有十欄及 metadata。Elapsed 與 Sample Interval Δt 可獨立勾選，預設皆關閉，依序附加 `elapsed_s`、`delta_t_s`。相對時間使用 PC Writer 單調時鐘；首筆為 `0.000`／空白，同批 Buffered 資料共用接收時間，並非 ADC 間隔。
+
+CSV 輸出預設啟用。瀏覽器會在 `POST /api/runs` 傳送選用的 `csv_enabled` boolean；舊 API caller 省略此欄位時預設為 `true`。選用 `csv_format` 預設為 `data`，`csv_time_columns` 預設為空；舊呼叫端不需要提供新欄位。`csv_enabled=true` 時可提供選用的 `csv` 路徑，省略則使用預設時間戳記路徑。`csv_enabled=false` 時，後端會忽略殘留的 `csv` 值，Core 不會建立 CSV writer、檔案或僅供 CSV 使用的父目錄。
 
 `CSV path` 欄位也有一個 `Select` 按鈕。它呼叫：
 
@@ -494,7 +496,7 @@ POST /api/csv/select-folder
 前端行為：
 
 - `CSV 輸出` checkbox 預設為勾選。
-- 取消勾選會停用 `CSV path` 與 `Select`，但不清空目前的路徑；重新勾選後可繼續編輯該值。
+- 取消勾選會停用 `CSV path`、`Select`、格式與時間欄位控制，但保留所有設定；重新勾選後恢復。
 - 選取的資料夾會在現有的 `CSV path` 輸入欄位中填入傳回的帶有時間戳記的 `.csv` 路徑。
 - 操作人員仍可手動編輯或清除 CSV 路徑。
 - `Start` 會傳送 `csv_enabled`，且只有啟用 CSV 時才傳送正規化後的路徑。

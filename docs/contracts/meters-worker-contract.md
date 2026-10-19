@@ -262,7 +262,10 @@ objects.
 Primary worker artifacts:
 
 - CSV: a Meters-specific artifact enabled by default, with one row per captured
-  sample using the field order documented in the CLI guide. `--no-csv`
+  sample. Default `data` columns are `timestamp_utc_plus_8,value,unit`;
+  explicit `full` preserves the former 10-column schema and its field order.
+  Optional `elapsed_s` and `delta_t_s` columns use PC writer-arrival timing,
+  with one shared time for buffered readings from the same fetch. `--no-csv`
   disables the writer, file, and CSV-only parent-directory creation.
 - stdout: human text by default, or JSONL when `--status-format jsonl` or
   `--json` is used.
