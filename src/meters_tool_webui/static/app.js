@@ -43,6 +43,7 @@ import {
   swMinIntervalInput,
   timerIntervalInput,
   timerTriggerCheckbox,
+  triggerCountInfiniteCheckbox,
   triggerModeSelect,
   triggerRunButton,
   themeToggle,
@@ -584,6 +585,7 @@ timerIntervalInput.addEventListener("input", () => {
   updatePanelSummaries();
 });
 timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
+triggerCountInfiniteCheckbox.addEventListener("change", updateTriggerModeUi);
 autoRangeCheckbox.addEventListener("change", () => {
   updateRangeAndLiveChartScale(
     autoRangeCheckbox.checked

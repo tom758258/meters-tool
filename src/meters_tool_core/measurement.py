@@ -66,6 +66,28 @@ def _format_scpi_value(value: float | int | str, *, compact: bool = False) -> st
     return str(value)
 
 
+def _trigger_count_command_value(trigger_count: int | None) -> str:
+    if trigger_count is None:
+        return "INF"
+    if trigger_count <= 0:
+        raise ValueError("trigger_count must be > 0")
+    return str(trigger_count)
+
+
+def _parse_status_register(raw: str, command: str) -> int:
+    try:
+        value = int(float(raw))
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            f"Failed to parse {command} status register response from '{raw}'"
+        ) from exc
+    if value < 0:
+        raise RuntimeError(
+            f"Invalid {command} status register response from '{raw}'"
+        )
+    return value
+
+
 def _write_auto_or_manual_range(
     instrument: InstrumentBackend,
     prefix: str,
@@ -135,7 +157,7 @@ class MeasurementPlugin(ABC):
         self,
         instrument: InstrumentBackend,
         config: AcquisitionConfig,
-        trigger_count: int,
+        trigger_count: int | None,
         sample_count: int,
     ) -> None:
         raise NotImplementedError
@@ -144,7 +166,7 @@ class MeasurementPlugin(ABC):
         self,
         instrument: InstrumentBackend,
         config: AcquisitionConfig,
-        trigger_count: int,
+        trigger_count: int | None,
         sample_count: int,
     ) -> None:
         raise NotImplementedError
@@ -153,7 +175,7 @@ class MeasurementPlugin(ABC):
         self,
         instrument: InstrumentBackend,
         config: AcquisitionConfig,
-        trigger_count: int,
+        trigger_count: int | None,
         sample_count: int,
         slope: str,
         delay_s: float,
@@ -167,6 +189,24 @@ class MeasurementPlugin(ABC):
         raise NotImplementedError
 
     def buffered_points_available(self, instrument: InstrumentBackend) -> int:
+        raise NotImplementedError
+
+    def clear_questionable_events(self, instrument: InstrumentBackend) -> None:
+        raise NotImplementedError
+
+    def overflow_status_asserted(self, instrument: InstrumentBackend) -> bool:
+        raise NotImplementedError
+
+    def clear_standard_event(self, instrument: InstrumentBackend) -> None:
+        raise NotImplementedError
+
+    def standard_event_complete(self, instrument: InstrumentBackend) -> bool:
+        raise NotImplementedError
+
+    def request_operation_complete(self, instrument: InstrumentBackend) -> None:
+        raise NotImplementedError
+
+    def software_trigger_ready(self, instrument: InstrumentBackend) -> bool:
         raise NotImplementedError
 
     def read_buffered_samples(
@@ -282,52 +322,46 @@ class ScalarDmmMeasurement(MeasurementPlugin):
         self,
         instrument: InstrumentBackend,
         config: AcquisitionConfig,
-        trigger_count: int,
+        trigger_count: int | None,
         sample_count: int,
     ) -> None:
         self._require_configured()
-        if trigger_count <= 0:
-            raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
             raise ValueError("sample_count must be > 0")
         instrument.write("TRIG:SOUR IMM")
-        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"TRIG:COUNT {_trigger_count_command_value(trigger_count)}")
         instrument.write(f"SAMP:COUNT {sample_count}")
 
     def configure_software_custom(
         self,
         instrument: InstrumentBackend,
         config: AcquisitionConfig,
-        trigger_count: int,
+        trigger_count: int | None,
         sample_count: int,
     ) -> None:
         self._require_configured()
-        if trigger_count <= 0:
-            raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
             raise ValueError("sample_count must be > 0")
         instrument.write("TRIG:SOUR BUS")
-        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"TRIG:COUNT {_trigger_count_command_value(trigger_count)}")
         instrument.write(f"SAMP:COUNT {sample_count}")
 
     def configure_external_custom(
         self,
         instrument: InstrumentBackend,
         config: AcquisitionConfig,
-        trigger_count: int,
+        trigger_count: int | None,
         sample_count: int,
         slope: str,
         delay_s: float,
     ) -> None:
         self._require_configured()
-        if trigger_count <= 0:
-            raise ValueError("trigger_count must be > 0")
         if sample_count <= 0:
             raise ValueError("sample_count must be > 0")
         slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
         instrument.write("TRIG:SOUR EXT")
         instrument.write(f"TRIG:SLOP {slope_cmd}")
-        instrument.write(f"TRIG:COUNT {trigger_count}")
+        instrument.write(f"TRIG:COUNT {_trigger_count_command_value(trigger_count)}")
         instrument.write(f"SAMP:COUNT {sample_count}")
         instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
 
@@ -345,6 +379,37 @@ class ScalarDmmMeasurement(MeasurementPlugin):
             return max(0, int(float(raw)))
         except ValueError as exc:
             raise RuntimeError(f"Failed to parse DATA:POINts? response from '{raw}'") from exc
+
+    def clear_questionable_events(self, instrument: InstrumentBackend) -> None:
+        instrument.query("STAT:QUES:EVEN?")
+
+    def overflow_status_asserted(self, instrument: InstrumentBackend) -> bool:
+        event_bits = _parse_status_register(
+            instrument.query("STAT:QUES:EVEN?"),
+            "STAT:QUES:EVEN?",
+        )
+        condition_bits = _parse_status_register(
+            instrument.query("STAT:QUES:COND?"),
+            "STAT:QUES:COND?",
+        )
+        return bool((event_bits | condition_bits) & 0x4000)
+
+    def clear_standard_event(self, instrument: InstrumentBackend) -> None:
+        instrument.query("*ESR?")
+
+    def standard_event_complete(self, instrument: InstrumentBackend) -> bool:
+        bits = _parse_status_register(instrument.query("*ESR?"), "*ESR?")
+        return bool(bits & 0x01)
+
+    def request_operation_complete(self, instrument: InstrumentBackend) -> None:
+        instrument.write("*OPC")
+
+    def software_trigger_ready(self, instrument: InstrumentBackend) -> bool:
+        bits = _parse_status_register(
+            instrument.query("STAT:OPER:COND?"),
+            "STAT:OPER:COND?",
+        )
+        return bool(bits & 0x0020)
 
     def read_buffered_samples(
         self,

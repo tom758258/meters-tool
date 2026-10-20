@@ -62,6 +62,7 @@ class CliEventEmitter:
         captured: int,
         errors: int,
         fatal_error: str | None = None,
+        ok: bool | None = None,
         **fields,  # noqa: ANN003
     ) -> None:
         if self._output_format == "jsonl":
@@ -69,7 +70,7 @@ class CliEventEmitter:
                 "captured": captured,
                 "errors": errors,
                 "event": "summary",
-                "ok": fatal_error is None,
+                "ok": fatal_error is None if ok is None else ok,
                 "schema_version": CLI_EVENT_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }
@@ -143,6 +144,7 @@ class CliStartRunEventSink:
             self._emitter.sample(event.sample, int(event.captured or 0), **fields)
             return
         if event.event == "summary":
+            fields.update(event.fields)
             self._emitter.summary(
                 int(event.captured or 0),
                 int(event.errors or 0),

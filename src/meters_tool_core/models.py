@@ -439,7 +439,10 @@ class AcquisitionConfig:
     trigger_timeout_ms: int = 10000
     max_samples: Optional[int] = None
     trigger_count: Optional[int] = None
+    trigger_count_infinite: bool = False
     sample_count: Optional[int] = None
+    monitor_overflow: bool = False
+    stop_on_overflow: bool = False
     timer_interval_s: Optional[float] = None
     buffer_drain_size: Optional[int] = None
     allow_buffer_overflow_risk: bool = False
@@ -473,7 +476,10 @@ class StartRequest:
     trigger_mode: Optional[str] = None
     max_samples: Optional[int] = None
     trigger_count: Optional[int] = None
+    trigger_count_infinite: bool = False
     sample_count: Optional[int] = None
+    monitor_overflow: bool = False
+    stop_on_overflow: bool = False
     timer_interval_s: Optional[float] = None
     buffer_drain_size: Optional[int] = None
     allow_buffer_overflow_risk: bool = False

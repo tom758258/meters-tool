@@ -63,6 +63,7 @@ class StartRunEvent:
         captured: int,
         errors: int,
         fatal_error: str | None = None,
+        **fields: object,
     ) -> "StartRunEvent":
         return StartRunEvent(
             event="summary",
@@ -70,6 +71,7 @@ class StartRunEvent:
             captured=captured,
             errors=errors,
             fatal_error=fatal_error,
+            fields=fields,
         )
 
 
@@ -231,4 +233,11 @@ class StartRunResult:
     errors: int
     fatal_error: str | None
     csv_path: str | None
+    trigger_count_infinite: bool = False
+    expected_readings: int | None = None
+    overflow_monitoring: str = "off"
+    overflow_detected: bool | None = None
+    stop_reason: str = "unknown"
+    final_drain_complete: bool | None = None
+    data_integrity: str = "unknown"
     control: StartControlPlaneHandle | None = None

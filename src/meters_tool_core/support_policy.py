@@ -9,6 +9,12 @@ from .validation import resolve_trigger_mode, supported_measurement_types, suppo
 
 FEATURE_KIND_MEASUREMENT = "measurement"
 FEATURE_KIND_TRIGGER_MODE = "trigger_mode"
+FEATURE_KIND_CUSTOM_ACQUISITION = "custom_acquisition"
+
+CUSTOM_ACQUISITION_FINITE = "finite"
+CUSTOM_ACQUISITION_INFINITE = "infinite"
+CUSTOM_ACQUISITION_MONITOR = "monitor"
+CUSTOM_ACQUISITION_STOP_ON_OVERFLOW = "stop_on_overflow"
 
 VALIDATION_STATUS_NOT_SUPPORTED_BY_MODEL = "not_supported_by_model"
 VALIDATION_STATUS_PROFILE_VALIDATED = "profile_validated"
@@ -111,17 +117,60 @@ _FEATURE_STATUSES_34460A_PENDING_TRIGGER_MODES = (
     ("software-custom", VALIDATION_STATUS_FEATURE_PENDING),
 )
 
+_34461A_CUSTOM_ACQUISITION_FEATURES = (
+    "immediate-custom",
+    "software-custom",
+    "external-custom",
+)
+_34460A_CUSTOM_ACQUISITION_FEATURES = (
+    "immediate-custom",
+    "software-custom",
+)
+
+
+def _custom_acquisition_feature_values(
+    trigger_modes: tuple[str, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        f"{mode}:{count}:{monitoring}"
+        for mode in trigger_modes
+        if mode.endswith("-custom")
+        for count in (CUSTOM_ACQUISITION_FINITE, CUSTOM_ACQUISITION_INFINITE)
+        for monitoring in (
+            CUSTOM_ACQUISITION_MONITOR,
+            CUSTOM_ACQUISITION_STOP_ON_OVERFLOW,
+        )
+    )
+
+
+_FEATURE_STATUSES_34461A_CUSTOM_ACQUISITION = tuple(
+    (value, VALIDATION_STATUS_FEATURE_PENDING)
+    for value in _custom_acquisition_feature_values(_34461A_CUSTOM_ACQUISITION_FEATURES)
+)
+_FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION = tuple(
+    (value, VALIDATION_STATUS_FEATURE_PENDING)
+    for value in _custom_acquisition_feature_values(_34460A_CUSTOM_ACQUISITION_FEATURES)
+)
+
 
 def _feature_scopes(
     measurement_statuses: tuple[tuple[str, str], ...],
     trigger_mode_statuses: tuple[tuple[str, str], ...],
+    custom_acquisition_statuses: tuple[tuple[str, str], ...] = (),
 ) -> tuple[StartFeatureSupportScope, ...]:
-    return tuple(
-        StartFeatureSupportScope(FEATURE_KIND_MEASUREMENT, value, status)
-        for value, status in measurement_statuses
-    ) + tuple(
-        StartFeatureSupportScope(FEATURE_KIND_TRIGGER_MODE, value, status)
-        for value, status in trigger_mode_statuses
+    return (
+        tuple(
+            StartFeatureSupportScope(FEATURE_KIND_MEASUREMENT, value, status)
+            for value, status in measurement_statuses
+        )
+        + tuple(
+            StartFeatureSupportScope(FEATURE_KIND_TRIGGER_MODE, value, status)
+            for value, status in trigger_mode_statuses
+        )
+        + tuple(
+            StartFeatureSupportScope(FEATURE_KIND_CUSTOM_ACQUISITION, value, status)
+            for value, status in custom_acquisition_statuses
+        )
     )
 
 
@@ -135,6 +184,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34461A_MEASUREMENTS,
                     _FEATURE_STATUSES_34461A_TRIGGER_MODES,
+                    _FEATURE_STATUSES_34461A_CUSTOM_ACQUISITION,
                 ),
             ),
             StartWorkflowSupportScope(
@@ -150,6 +200,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34461A_MEASUREMENTS,
                     _FEATURE_STATUSES_34461A_TRIGGER_MODES,
+                    _FEATURE_STATUSES_34461A_CUSTOM_ACQUISITION,
                 ),
             ),
             StartWorkflowSupportScope(
@@ -162,6 +213,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34461A_MEASUREMENTS,
                     _FEATURE_STATUSES_34461A_TRIGGER_MODES,
+                    _FEATURE_STATUSES_34461A_CUSTOM_ACQUISITION,
                 ),
             ),
         )
@@ -186,6 +238,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34460A_USB_MEASUREMENTS,
                     _FEATURE_STATUSES_34460A_USB_TRIGGER_MODES,
+                    _FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION,
                 ),
             ),
             StartWorkflowSupportScope(
@@ -196,6 +249,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34460A_PENDING_MEASUREMENTS,
                     _FEATURE_STATUSES_34460A_PENDING_TRIGGER_MODES,
+                    _FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION,
                 ),
             ),
             StartWorkflowSupportScope(
@@ -206,6 +260,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34460A_PENDING_MEASUREMENTS,
                     _FEATURE_STATUSES_34460A_PENDING_TRIGGER_MODES,
+                    _FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION,
                 ),
             ),
         )
@@ -236,13 +291,52 @@ def normalize_support_feature_value(feature_kind: str, feature_value: str) -> st
         return normalize_measurement_type(feature_value)
     if normalized_kind == FEATURE_KIND_TRIGGER_MODE:
         return str(feature_value).strip().lower().replace("_", "-")
+    if normalized_kind == FEATURE_KIND_CUSTOM_ACQUISITION:
+        parts = str(feature_value).strip().lower().split(":")
+        if len(parts) != 3:
+            raise ValueError(
+                "custom acquisition support value must be "
+                "<trigger-mode>:<finite|infinite>:<monitor|stop_on_overflow>"
+            )
+        trigger_mode = parts[0].replace("_", "-")
+        count, monitoring = parts[1], parts[2]
+        if count not in (CUSTOM_ACQUISITION_FINITE, CUSTOM_ACQUISITION_INFINITE):
+            raise ValueError(f"unsupported custom acquisition count: {count}")
+        if monitoring not in (
+            CUSTOM_ACQUISITION_MONITOR,
+            CUSTOM_ACQUISITION_STOP_ON_OVERFLOW,
+        ):
+            raise ValueError(f"unsupported custom acquisition monitoring: {monitoring}")
+        return f"{trigger_mode}:{count}:{monitoring}"
     raise ValueError(f"unsupported support feature kind: {feature_kind}")
+
+
+def custom_acquisition_feature_value(request: StartRequest) -> str | None:
+    trigger_mode = normalize_support_feature_value(
+        FEATURE_KIND_TRIGGER_MODE,
+        resolve_trigger_mode(request),
+    )
+    if not trigger_mode.endswith("-custom"):
+        return None
+    infinite = bool(request.trigger_count_infinite)
+    if request.stop_on_overflow:
+        monitoring = CUSTOM_ACQUISITION_STOP_ON_OVERFLOW
+    elif request.monitor_overflow or infinite:
+        monitoring = CUSTOM_ACQUISITION_MONITOR
+    else:
+        return None
+    count = CUSTOM_ACQUISITION_INFINITE if infinite else CUSTOM_ACQUISITION_FINITE
+    return f"{trigger_mode}:{count}:{monitoring}"
+
+
+def supported_custom_acquisition_features(profile: InstrumentProfile) -> tuple[str, ...]:
+    return _custom_acquisition_feature_values(supported_trigger_modes(profile))
 
 
 def start_request_feature_requirements(
     request: StartRequest,
 ) -> tuple[tuple[str, str], ...]:
-    return (
+    requirements = [
         (
             FEATURE_KIND_MEASUREMENT,
             normalize_support_feature_value(FEATURE_KIND_MEASUREMENT, request.measurement),
@@ -254,7 +348,11 @@ def start_request_feature_requirements(
                 resolve_trigger_mode(request),
             ),
         ),
-    )
+    ]
+    custom_acquisition = custom_acquisition_feature_value(request)
+    if custom_acquisition is not None:
+        requirements.append((FEATURE_KIND_CUSTOM_ACQUISITION, custom_acquisition))
+    return tuple(requirements)
 
 
 def find_feature_support(
@@ -368,6 +466,9 @@ def validate_start_workflow_support_metadata(
             normalize_support_feature_value(FEATURE_KIND_TRIGGER_MODE, value)
             for value in supported_trigger_modes(profile)
         },
+        FEATURE_KIND_CUSTOM_ACQUISITION: set(
+            supported_custom_acquisition_features(profile)
+        ),
     }
     allowed_connection_statuses = {
         VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE,
@@ -397,6 +498,7 @@ def validate_start_workflow_support_metadata(
         seen_features = {
             FEATURE_KIND_MEASUREMENT: set(),
             FEATURE_KIND_TRIGGER_MODE: set(),
+            FEATURE_KIND_CUSTOM_ACQUISITION: set(),
         }
         for feature in scope.feature_scopes:
             if feature.feature_kind not in seen_features:
@@ -516,6 +618,8 @@ def _format_feature_requirement(feature_kind: str, feature_value: str) -> tuple[
         return "measurement", format_measurement_type(feature_value)
     if feature_kind == FEATURE_KIND_TRIGGER_MODE:
         return "trigger-mode", feature_value
+    if feature_kind == FEATURE_KIND_CUSTOM_ACQUISITION:
+        return "custom-acquisition", feature_value
     return feature_kind.replace("_", "-"), feature_value
 
 

@@ -422,14 +422,15 @@ class CliStartRuntimeTests(CliCommandHarnessMixin, unittest.TestCase):
             server_cls=QueuePressureStopStartServer,
         )
 
-        self.assertEqual(0, rc)
+        self.assertEqual(3, rc)
         self.assertTrue(QueuePressureStopStartServer.trigger_accepted)
         self.assertTrue(QueuePressureStopStartServer.stop_accepted)
         events = self._parse_jsonl_events(output)
         summary = [event for event in events if event["event"] == "summary"][-1]
         self.assertEqual(0, summary["captured"])
         self.assertEqual(0, summary["errors"])
-        self.assertIs(True, summary["ok"])
+        self.assertIs(False, summary["ok"])
+        self.assertEqual("incomplete", summary["data_integrity"])
 
     def test_start_simulate_writes_real_csv_smoke(self):
         parser = build_parser()

@@ -422,6 +422,9 @@
               <span data-i18n="trigger.trigger_count">Trigger count</span>
               <input name="trigger_count" form="run-form" type="number" min="1" max="1000000" />
             </label>
+            <div class="switch-row" data-mode-scope="custom">
+              <label><input name="trigger_count_infinite" form="run-form" type="checkbox" /> <span data-i18n="trigger.trigger_count_infinite">Infinite trigger count</span></label>
+            </div>
             <label data-mode-scope="custom">
               <span data-i18n="trigger.sample_count">Sample count</span>
               <input name="sample_count" form="run-form" type="number" min="1" max="1000000" />
@@ -456,6 +459,10 @@
               <div class="switch-row" data-mode-scope="custom">
                 <label><input name="allow_buffer_overflow_risk" form="run-form" type="checkbox" /> <span data-i18n="trigger.allow_buffer_risk">Allow buffer risk</span></label>
               </div>
+              <div class="switch-row" data-mode-scope="custom">
+                <label><input name="monitor_overflow" form="run-form" type="checkbox" /> <span data-i18n="trigger.monitor_overflow">Monitor overflow</span></label>
+                <label><input name="stop_on_overflow" form="run-form" type="checkbox" /> <span data-i18n="trigger.stop_on_overflow">Stop on overflow</span></label>
+              </div>
               <label id="trigger-metadata-container" data-mode-scope="software-trigger">
                 <span class="label-title"><span data-i18n="trigger.metadata_json">Trigger metadata JSON</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
                 <textarea id="trigger-metadata" rows="3" placeholder="{&quot;batch&quot;:&quot;A1&quot;}"></textarea>
@@ -483,6 +490,14 @@
                 <div>
                   <span data-i18n="status.errors">Errors</span>
                   <strong id="status-errors">0</strong>
+                </div>
+                <div>
+                  <span data-i18n="status.overflow">Overflow</span>
+                  <strong id="status-overflow" data-i18n="status.overflow_off">Not monitored</strong>
+                </div>
+                <div>
+                  <span data-i18n="status.integrity">Data integrity</span>
+                  <strong id="status-integrity" data-i18n="status.integrity_unknown">Unknown</strong>
                 </div>
                 <div class="is-hidden" aria-hidden="true">
                   <span>CSV</span>

@@ -220,6 +220,13 @@ Status response v2:
   "captured": 0,
   "errors": 0,
   "fatal_error": null,
+  "trigger_count_infinite": false,
+  "expected_readings": null,
+  "overflow_monitoring": "off",
+  "overflow_detected": null,
+  "stop_reason": "unknown",
+  "final_drain_complete": null,
+  "data_integrity": "unknown",
   "timestamp_utc": "2026-05-23T00:00:00+00:00"
 }
 ```
@@ -238,10 +245,24 @@ Fields:
 - `captured`: current successful capture count, or `null` if unavailable.
 - `errors`: current acquisition error count, or `null` if unavailable.
 - `fatal_error`: fatal acquisition error text, or `null`.
+- `trigger_count_infinite`: whether the Custom run uses an unbounded trigger
+  count.
+- `expected_readings`: finite Custom expected reading count, or `null` for
+  infinite or non-Custom runs.
+- `overflow_monitoring`: `off`, `starting`, `active`, or `failed`.
+- `overflow_detected`: `null` when no monitoring ran, otherwise `false` or
+  `true`.
+- `stop_reason`: `stop_requested`, `completed`, `overflow_detected`,
+  `overflow_monitor_failed`, `fatal_error`, `max_samples_reached`, or
+  `unknown`.
+- `final_drain_complete`: `null` when no final drain ran, otherwise a boolean.
+- `data_integrity`: `unknown`, `no_loss_detected`, or `incomplete`.
 - `timestamp_utc`: UTC timestamp serialized as ISO 8601.
 
 If the dynamic status provider fails, the endpoint still returns the base
-status object with nullable `captured`, `errors`, and `fatal_error`.
+status object with nullable `captured`, `errors`, and `fatal_error`. The
+structured acquisition outcome fields remain present with their non-Custom
+defaults.
 
 `run_id` is the correlation key between runtime JSONL emitted on stdout,
 `GET /status`, and wrapper artifacts for a single non-dry-run

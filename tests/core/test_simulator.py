@@ -102,6 +102,71 @@ class SimulatedVisaInstrumentTests(unittest.TestCase):
 
         self.assertEqual("6", instrument.query("DATA:POINts?"))
 
+    def test_infinite_bus_trigger_count_accepts_unbounded_triggers(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34461A"),
+            measurement_type="current_dc",
+        )
+
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write("TRIG:COUNT INF")
+        instrument.write("SAMP:COUNT 2")
+        instrument.write("INIT")
+        for _index in range(3):
+            instrument.write("*TRG")
+
+        self.assertEqual("6", instrument.query("DATA:POINts?"))
+        self.assertEqual("0", instrument.query("*ESR?"))
+
+    def test_finite_bus_completion_sets_standard_event(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34461A"),
+            measurement_type="current_dc",
+        )
+
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write("TRIG:COUNT 2")
+        instrument.write("SAMP:COUNT 1")
+        instrument.write("INIT")
+        instrument.write("*TRG")
+        self.assertEqual("0", instrument.query("*ESR?"))
+        instrument.write("*TRG")
+        self.assertEqual("1", instrument.query("*ESR?"))
+
+    def test_software_trigger_ready_status_tracks_armed_state(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34461A"),
+            measurement_type="current_dc",
+        )
+
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write("INIT")
+        self.assertEqual("32", instrument.query("STAT:OPER:COND?"))
+
+        instrument.write("ABOR")
+        self.assertEqual("0", instrument.query("STAT:OPER:COND?"))
+
+    def test_overflow_status_registers_latch_and_clear(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34461A"),
+            measurement_type="current_dc",
+            overflow_after_samples=1,
+        )
+
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write("TRIG:COUNT 1")
+        instrument.write("SAMP:COUNT 1")
+        instrument.write("INIT")
+        instrument.write("*TRG")
+        instrument.query("DATA:REMOVE? 1")
+
+        self.assertEqual("16384", instrument.query("STAT:QUES:EVEN?"))
+        self.assertEqual("0", instrument.query("STAT:QUES:EVEN?"))
+        self.assertEqual("16384", instrument.query("STAT:QUES:COND?"))
+
+        instrument.write("ABOR")
+        self.assertEqual("0", instrument.query("STAT:QUES:COND?"))
+
     def test_ratio_buffered_flow_updates_data2_for_removed_reading(self):
         instrument = SimulatedVisaInstrument(
             InstrumentConfig(resource_string="SIM::34461A"),

@@ -90,14 +90,17 @@ def _trigger_description(trigger_mode: str, request: StartRequest) -> str:
     if trigger_mode == "immediate":
         return "immediate reads"
     if trigger_mode.endswith("-custom"):
+        trigger_count = "infinity" if request.trigger_count_infinite else request.trigger_count
         return (
             f"{trigger_mode} buffered capture "
-            f"trigger_count={request.trigger_count} sample_count={request.sample_count}"
+            f"trigger_count={trigger_count} sample_count={request.sample_count}"
         )
     return trigger_mode
 
 
 def _sample_limit_description(trigger_mode: str, request: StartRequest) -> str:
+    if trigger_mode.endswith("-custom") and request.trigger_count_infinite:
+        return "unbounded buffered capture until stop"
     if (
         trigger_mode.endswith("-custom")
         and request.trigger_count is not None
@@ -131,6 +134,12 @@ def _option_summary(request: StartRequest) -> dict[str, object]:
         summary["buffer_drain_size"] = request.buffer_drain_size
     if request.allow_buffer_overflow_risk:
         summary["allow_buffer_overflow_risk"] = True
+    if request.trigger_count_infinite:
+        summary["trigger_count_infinite"] = True
+    if request.monitor_overflow:
+        summary["monitor_overflow"] = True
+    if request.stop_on_overflow:
+        summary["stop_on_overflow"] = True
     if request.vm_comp_slope is not None:
         summary["vm_comp_slope"] = request.vm_comp_slope
     return summary
@@ -147,6 +156,7 @@ def build_start_plan(
     measurement_def = get_measurement_definition(measurement_type)
     csv_path = str(resolve_csv_path(args.csv)) if args.csv_enabled else None
     config = acquisition_config_from_start_request(args, measurement_type)
+    trigger_count = None if args.trigger_count_infinite else args.trigger_count
     measurement = create_measurement_plugin(measurement_type)
     recorder = _PlanRecorder()
     measurement.configure(recorder, config)
@@ -161,7 +171,7 @@ def build_start_plan(
         measurement.configure_immediate_custom(
             recorder,
             config,
-            trigger_count=args.trigger_count,
+            trigger_count=trigger_count,
             sample_count=args.sample_count,
         )
         measurement.start_buffered_capture(recorder)
@@ -169,7 +179,7 @@ def build_start_plan(
         measurement.configure_software_custom(
             recorder,
             config,
-            trigger_count=args.trigger_count,
+            trigger_count=trigger_count,
             sample_count=args.sample_count,
         )
         measurement.start_buffered_capture(recorder)
@@ -177,7 +187,7 @@ def build_start_plan(
         measurement.configure_external_custom(
             recorder,
             config,
-            trigger_count=args.trigger_count,
+            trigger_count=trigger_count,
             sample_count=args.sample_count,
             slope=args.hw_trigger_slope,
             delay_s=args.hw_trigger_delay_s,
@@ -207,6 +217,17 @@ def build_start_plan(
         notes.extend(buffer_warnings)
     if trigger_mode.endswith("-custom"):
         notes.append("buffered drain uses DATA:POINts? and DATA:REMove?")
+    if args.trigger_count_infinite:
+        notes.append("infinite trigger count sends TRIG:COUNT INF and runs until stop")
+    if (
+        trigger_mode.endswith("-custom")
+        and (args.monitor_overflow or args.trigger_count_infinite or args.stop_on_overflow)
+    ):
+        notes.append(
+            "overflow monitoring polls STAT:QUES:EVEN? and STAT:QUES:COND? for bit 0x4000"
+        )
+    if args.stop_on_overflow:
+        notes.append("stop-on-overflow stops the run and reports a non-zero outcome")
     if ratio_metadata:
         notes.append(
             "voltage-dc-ratio stores DATA2? signal/reference voltage in measurement_metadata"

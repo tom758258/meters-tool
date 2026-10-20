@@ -2,6 +2,8 @@ export const form = document.querySelector("#run-form");
 export const statusState = document.querySelector("#status-state");
 export const statusCaptured = document.querySelector("#status-captured");
 export const statusErrors = document.querySelector("#status-errors");
+export const statusOverflow = document.querySelector("#status-overflow");
+export const statusIntegrity = document.querySelector("#status-integrity");
 export const statusCsv = document.querySelector("#status-csv");
 export const webuiStateIndicator = document.querySelector("#webui-state-indicator");
 export const commandStateIndicator = document.querySelector("#command-state-indicator");
@@ -107,6 +109,7 @@ export const swMinIntervalInput = document.querySelector("[name='sw_min_interval
 export const swQueueMaxContainer = document.querySelector("#sw-queue-max-container");
 export const swQueueMaxInput = document.querySelector("[name='sw_queue_max']");
 export const triggerCountInput = document.querySelector("[name='trigger_count']");
+export const triggerCountInfiniteCheckbox = document.querySelector("[name='trigger_count_infinite']");
 export const sampleCountInput = document.querySelector("[name='sample_count']");
 export const triggerMetadataContainer = document.querySelector("#trigger-metadata-container");
 export const triggerMetadataInput = document.querySelector("#trigger-metadata");

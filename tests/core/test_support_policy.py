@@ -14,6 +14,7 @@ from meters_tool_core.support_policy import (
     BACKEND_PYVISA_BT,
     BACKEND_PYVISA_PY,
     BACKEND_SYSTEM_VISA,
+    FEATURE_KIND_CUSTOM_ACQUISITION,
     FEATURE_KIND_MEASUREMENT,
     FEATURE_KIND_TRIGGER_MODE,
     SUPPORT_POLICY_MODE_PRODUCT,
@@ -31,6 +32,7 @@ from meters_tool_core.support_policy import (
     infer_backend_scope,
     start_request_feature_requirements,
     start_workflow_support,
+    supported_custom_acquisition_features,
     validate_start_workflow_support,
     validate_start_workflow_support_metadata,
 )
@@ -261,11 +263,22 @@ class StartSupportPolicyTests(unittest.TestCase):
         )
         for scope in scopes.values():
             feature_statuses = {
-                feature.validation_status for feature in scope.feature_scopes
+                feature.validation_status
+                for feature in scope.feature_scopes
+                if feature.feature_kind != FEATURE_KIND_CUSTOM_ACQUISITION
             }
             self.assertEqual(
                 {VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE},
                 feature_statuses,
+            )
+            custom_acquisition_statuses = {
+                feature.validation_status
+                for feature in scope.feature_scopes
+                if feature.feature_kind == FEATURE_KIND_CUSTOM_ACQUISITION
+            }
+            self.assertEqual(
+                {VALIDATION_STATUS_FEATURE_PENDING},
+                custom_acquisition_statuses,
             )
 
     def test_34461a_live_representative_full_suite_workflows_are_supported(self):
@@ -498,6 +511,84 @@ class StartSupportPolicyTests(unittest.TestCase):
             start_request_feature_requirements(request),
         )
 
+    def test_custom_acquisition_feature_requirements_follow_request_flags(self):
+        base = {
+            "max_samples": None,
+            "trigger_mode": "immediate-custom",
+            "trigger_count": 1,
+            "sample_count": 1,
+        }
+        cases = [
+            ({}, None),
+            ({"monitor_overflow": True}, "immediate-custom:finite:monitor"),
+            ({"stop_on_overflow": True}, "immediate-custom:finite:stop_on_overflow"),
+            (
+                {"monitor_overflow": True, "stop_on_overflow": True},
+                "immediate-custom:finite:stop_on_overflow",
+            ),
+            (
+                {
+                    "trigger_count": None,
+                    "trigger_count_infinite": True,
+                    "allow_buffer_overflow_risk": True,
+                },
+                "immediate-custom:infinite:monitor",
+            ),
+            (
+                {
+                    "trigger_count": None,
+                    "trigger_count_infinite": True,
+                    "stop_on_overflow": True,
+                    "allow_buffer_overflow_risk": True,
+                },
+                "immediate-custom:infinite:stop_on_overflow",
+            ),
+        ]
+
+        for overrides, expected in cases:
+            with self.subTest(overrides=overrides):
+                request = make_request(**{**base, **overrides})
+                requirements = start_request_feature_requirements(request)
+                if expected is None:
+                    self.assertEqual(
+                        (
+                            (FEATURE_KIND_MEASUREMENT, "voltage_dc"),
+                            (FEATURE_KIND_TRIGGER_MODE, "immediate-custom"),
+                        ),
+                        requirements,
+                    )
+                else:
+                    self.assertEqual(
+                        (FEATURE_KIND_CUSTOM_ACQUISITION, expected),
+                        requirements[-1],
+                    )
+
+    def test_custom_acquisition_features_are_pending_in_product_mode(self):
+        request = make_request(
+            max_samples=None,
+            trigger_mode="immediate-custom",
+            trigger_count=1,
+            sample_count=1,
+            monitor_overflow=True,
+        )
+        for profile in (KEYSIGHT_34460A_PROFILE, KEYSIGHT_34461A_PROFILE):
+            with self.subTest(profile=profile.model):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "custom-acquisition=immediate-custom:finite:monitor is pending validation",
+                ):
+                    validate_start_workflow_support(
+                        request,
+                        resolve_trigger_mode(request),
+                        profile,
+                    )
+                validate_start_workflow_support(
+                    request,
+                    resolve_trigger_mode(request),
+                    profile,
+                    support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+                )
+
     def test_feature_pending_trigger_mode_obeys_product_and_validation_modes(self):
         support = make_live_support(
             make_scope(trigger_status=VALIDATION_STATUS_FEATURE_PENDING)
@@ -666,6 +757,9 @@ class StartSupportPolicyTests(unittest.TestCase):
                 live_support = start_workflow_support(profile)["start-trigger-record"]["live"]
                 expected_measurements = set(supported_measurement_types(profile))
                 expected_triggers = set(supported_trigger_modes(profile))
+                expected_custom_acquisition = set(
+                    supported_custom_acquisition_features(profile)
+                )
                 for scope in live_support.scopes:
                     actual_measurements = {
                         feature.feature_value
@@ -677,8 +771,17 @@ class StartSupportPolicyTests(unittest.TestCase):
                         for feature in scope.feature_scopes
                         if feature.feature_kind == FEATURE_KIND_TRIGGER_MODE
                     }
+                    actual_custom_acquisition = {
+                        feature.feature_value
+                        for feature in scope.feature_scopes
+                        if feature.feature_kind == FEATURE_KIND_CUSTOM_ACQUISITION
+                    }
                     self.assertEqual(expected_measurements, actual_measurements)
                     self.assertEqual(expected_triggers, actual_triggers)
+                    self.assertEqual(
+                        expected_custom_acquisition,
+                        actual_custom_acquisition,
+                    )
 
     def test_policy_metadata_validation_detects_duplicate_and_unknown_feature_status(self):
         live_support = start_workflow_support(KEYSIGHT_34460A_PROFILE)[

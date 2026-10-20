@@ -6,13 +6,14 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
+from meters_tool_cli._runtime_output import CliEventEmitter, CliStartRunEventSink
 from meters_tool_cli.cli import (
     build_parser,
     cmd_start,
     main,
 )
 from meters_tool_core.models import KEYSIGHT_34461A_PROFILE, StartRequest
-from meters_tool_core.session import StartRunResult
+from meters_tool_core.session import StartRunEvent, StartRunResult
 from meters_tool_core.support_policy import (
     SUPPORT_POLICY_MODE_PRODUCT,
     SUPPORT_POLICY_MODE_VALIDATION,
@@ -210,6 +211,89 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("34460A", request_model.instrument_model)
         self.assertEqual("34460A", profile.model)
         preflight.assert_called_once()
+
+    def test_start_infinite_custom_flags_reach_request_and_exit_code(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--model",
+                "34461A",
+                "--simulate",
+                "--trigger-mode",
+                "software-custom",
+                "--trigger-count-infinite",
+                "--monitor-overflow",
+                "--stop-on-overflow",
+                "--sample-count",
+                "2",
+                "--allow-buffer-overflow-risk",
+                "--validation-allow-pending-live-support",
+                "--json",
+            ]
+        )
+        fake_result = StartRunResult(
+            run_id="run-123",
+            ok=False,
+            reason="overflow_detected",
+            captured=0,
+            errors=0,
+            fatal_error=None,
+            csv_path=None,
+            trigger_count_infinite=True,
+            overflow_monitoring="active",
+            overflow_detected=True,
+            stop_reason="overflow_detected",
+            data_integrity="incomplete",
+        )
+
+        with patch("meters_tool_cli.cli.run_start_session", return_value=fake_result) as runner:
+            rc = cmd_start(args)
+
+        self.assertEqual(3, rc)
+        request_model, trigger_mode, _profile = runner.call_args.args[:3]
+        self.assertEqual("software-custom", trigger_mode)
+        self.assertTrue(request_model.trigger_count_infinite)
+        self.assertTrue(request_model.monitor_overflow)
+        self.assertTrue(request_model.stop_on_overflow)
+        self.assertIsNone(request_model.trigger_count)
+        self.assertEqual(2, request_model.sample_count)
+
+    def test_summary_event_preserves_core_ok_and_structured_fields(self):
+        lines: list[str] = []
+        sink = CliStartRunEventSink(
+            CliEventEmitter(print_fn=lines.append, output_format="jsonl")
+        )
+
+        sink.emit(
+            StartRunEvent.summary_event(
+                "run-123",
+                0,
+                1,
+                None,
+                ok=False,
+                trigger_count_infinite=True,
+                expected_readings=None,
+                overflow_monitoring="failed",
+                overflow_detected=None,
+                stop_reason="overflow_monitor_failed",
+                final_drain_complete=True,
+                data_integrity="unknown",
+            )
+        )
+
+        summary = json.loads(lines[-1])
+        self.assertEqual("summary", summary["event"])
+        self.assertIs(False, summary["ok"])
+        self.assertIs(True, summary["trigger_count_infinite"])
+        self.assertIsNone(summary["expected_readings"])
+        self.assertEqual("failed", summary["overflow_monitoring"])
+        self.assertIsNone(summary["overflow_detected"])
+        self.assertEqual("overflow_monitor_failed", summary["stop_reason"])
+        self.assertIs(True, summary["final_drain_complete"])
+        self.assertEqual("unknown", summary["data_integrity"])
 
     def test_start_live_selected_model_mismatch_does_not_override_detected_profile(self):
         parser = build_parser()

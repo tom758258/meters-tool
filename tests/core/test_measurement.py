@@ -193,6 +193,42 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertIn("TRIG:DEL 0.25", inst.commands)
         self.assertEqual("INIT", inst.commands[-1])
 
+    def test_immediate_custom_infinite_trigger_count_writes_inf(self):
+        inst = FakeInstrument()
+        measurement = CurrentMeasurement()
+        measurement.configure(inst, AcquisitionConfig())
+
+        measurement.configure_immediate_custom(
+            inst,
+            AcquisitionConfig(),
+            trigger_count=None,
+            sample_count=3,
+        )
+
+        self.assertIn("TRIG:COUNT INF", inst.commands)
+        self.assertIn("SAMP:COUNT 3", inst.commands)
+
+    def test_overflow_monitoring_scpi_helpers(self):
+        inst = FakeInstrument()
+        inst.responses["STAT:QUES:EVEN?"] = "0"
+        inst.responses["STAT:QUES:COND?"] = "16384"
+        inst.responses["*ESR?"] = "1"
+        inst.responses["STAT:OPER:COND?"] = "32"
+        measurement = CurrentMeasurement()
+
+        measurement.clear_questionable_events(inst)
+        self.assertTrue(measurement.overflow_status_asserted(inst))
+        measurement.clear_standard_event(inst)
+        self.assertTrue(measurement.standard_event_complete(inst))
+        measurement.request_operation_complete(inst)
+        self.assertTrue(measurement.software_trigger_ready(inst))
+
+        self.assertIn("STAT:QUES:EVEN?", inst.commands)
+        self.assertIn("STAT:QUES:COND?", inst.commands)
+        self.assertIn("*ESR?", inst.commands)
+        self.assertIn("*OPC", inst.commands)
+        self.assertIn("STAT:OPER:COND?", inst.commands)
+
     def test_immediate_custom_reads_and_removes_available_points(self):
         inst = FakeInstrument()
         inst.responses["DATA:POINts?"] = "2"

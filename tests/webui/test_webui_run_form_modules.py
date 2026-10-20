@@ -231,6 +231,9 @@ assert.equal(custom.auto_range, false);
 assert.equal(custom.measurement_range, 1);
 assert.equal(custom.dcv_input_impedance, "10m");
 assert.equal(custom.trigger_count, 2);
+assert.equal(custom.trigger_count_infinite, false);
+assert.equal(custom.monitor_overflow, false);
+assert.equal(custom.stop_on_overflow, false);
 assert.equal(custom.sample_count, 3);
 assert.equal(custom.buffer_drain_size, 4);
 assert.equal(custom.allow_buffer_overflow_risk, true);
@@ -239,6 +242,17 @@ assert.equal(custom.sw_queue_max, 6);
 assert.equal("max_samples" in custom, false);
 assert.equal("csv" in custom, false);
 assert.equal(custom.csv_enabled, true);
+
+const infiniteCustom = buildRunPayload({
+  ...customValues,
+  trigger_count_infinite: "on",
+  monitor_overflow: "on",
+  stop_on_overflow: "on",
+}, { measurement: {} });
+assert.equal("trigger_count" in infiniteCustom, false);
+assert.equal(infiniteCustom.trigger_count_infinite, true);
+assert.equal(infiniteCustom.monitor_overflow, true);
+assert.equal(infiniteCustom.stop_on_overflow, true);
 
 for (const csvEnabled of ["on", true]) {
   const enabled = buildRunPayload({

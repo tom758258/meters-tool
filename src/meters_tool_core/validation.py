@@ -204,6 +204,10 @@ def start_help_epilog(profile: InstrumentProfile | None = None) -> str:
         "  --trigger-timeout-ms: 500-600000 ms\n"
         "  --timeout-ms: 100-600000 ms\n"
         "  --trigger-count/--sample-count: 1-1000000, custom modes only\n"
+        "  --trigger-count-infinite: custom modes only; requires "
+        "--allow-buffer-overflow-risk and excludes --trigger-count\n"
+        "  --monitor-overflow/--stop-on-overflow: custom modes only; "
+        "--stop-on-overflow implies monitoring\n"
         "  --buffer-drain-size: 1-10000, custom modes only\n"
         "  --max-samples: 1-1000000, simple modes only\n"
         "  --sw-trigger-port: 0 or 1024-65535; 0 lets the server choose\n"
@@ -225,6 +229,14 @@ def validate_client_port(port: int) -> None:
 
 def resolve_trigger_mode(request: StartRequest) -> str:
     return request.trigger_mode or "software"
+
+
+def overflow_monitoring_enabled(request: StartRequest) -> bool:
+    return bool(
+        request.monitor_overflow
+        or request.trigger_count_infinite
+        or request.stop_on_overflow
+    )
 
 
 def validate_start_request(
@@ -539,21 +551,37 @@ def _validate_custom_mode_contract(context: _StartValidationContext) -> None:
     args = context.request
     if args.allow_buffer_overflow_risk and not context.custom_mode:
         raise ValueError("--allow-buffer-overflow-risk requires a custom trigger mode")
+    if args.trigger_count_infinite and not context.custom_mode:
+        raise ValueError("--trigger-count-infinite requires a custom trigger mode")
+    if args.monitor_overflow and not context.custom_mode:
+        raise ValueError("--monitor-overflow requires a custom trigger mode")
+    if args.stop_on_overflow and not context.custom_mode:
+        raise ValueError("--stop-on-overflow requires a custom trigger mode")
     if context.custom_mode:
         if args.max_samples is not None:
             raise ValueError("--max-samples cannot be used with custom trigger modes")
-        if args.trigger_count is None:
+        if args.trigger_count_infinite:
+            if args.trigger_count is not None:
+                raise ValueError(
+                    "--trigger-count cannot be used with --trigger-count-infinite"
+                )
+            if not args.allow_buffer_overflow_risk:
+                raise ValueError(
+                    "--trigger-count-infinite requires --allow-buffer-overflow-risk"
+                )
+        elif args.trigger_count is None:
             raise ValueError("--trigger-count is required with custom trigger modes")
         if args.sample_count is None:
             raise ValueError("--sample-count is required with custom trigger modes")
-        memory_limit = context.profile.reading_memory_limit
-        expected_readings = args.trigger_count * args.sample_count
-        if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
-            raise ValueError(
-                f"custom mode expected readings {expected_readings} exceed "
-                f"{context.profile.model} reading memory {memory_limit}; "
-                "add --allow-buffer-overflow-risk to proceed."
-            )
+        if not args.trigger_count_infinite:
+            memory_limit = context.profile.reading_memory_limit
+            expected_readings = args.trigger_count * args.sample_count
+            if expected_readings > memory_limit and not args.allow_buffer_overflow_risk:
+                raise ValueError(
+                    f"custom mode expected readings {expected_readings} exceed "
+                    f"{context.profile.model} reading memory {memory_limit}; "
+                    "add --allow-buffer-overflow-risk to proceed."
+                )
     else:
         if args.trigger_count is not None:
             raise ValueError("--trigger-count requires a custom trigger mode")

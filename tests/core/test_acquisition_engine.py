@@ -81,6 +81,28 @@ class FailingStatusHardwareInstrument(AlwaysTimeoutHardwareInstrument):
         raise RuntimeError("stb failed")
 
 
+class OverflowAssertingMeasurement(FakeBufferedMeasurement):
+    def __init__(self) -> None:
+        super().__init__()
+        self.overflow_asserted = True
+
+
+class OverflowFailingMeasurement(FakeBufferedMeasurement):
+    def overflow_status_asserted(self, instrument):  # noqa: ANN001, ARG002
+        raise RuntimeError("questionable status failed")
+
+
+class PostAbortDrainMeasurement(FakeBufferedMeasurement):
+    def __init__(self, instrument: RecordingInstrument) -> None:
+        super().__init__()
+        self.instrument = instrument
+
+    def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
+        if self.instrument.abort_count == 0:
+            return 0
+        return self.sample_count
+
+
 class WaitingExternalBufferedMeasurement(FakeBufferedMeasurement):
     def configure_external_custom(self, instrument, config, trigger_count, sample_count, slope, delay_s):  # noqa: ANN001, ARG002
         self.sample_count = 0
@@ -760,6 +782,207 @@ class AcquisitionEngineTests(unittest.TestCase):
             any("software trigger ignored while external custom is enabled" in s for s in statuses)
         )
         self.assertTrue(any("stop request received" in s for s in statuses))
+
+    def test_software_custom_infinite_captures_until_stop(self):
+        router = TriggerRouter()
+        measurement = FakeBufferedMeasurement()
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=measurement,  # type: ignore[arg-type]
+            storage=CapturingStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=None,
+                sample_count=2,
+                trigger_count_infinite=True,
+            ),
+            router=router,
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        deadline = time.monotonic() + 1.0
+        while engine.stats.captured < 4 and time.monotonic() < deadline:
+            time.sleep(0.01)
+        engine.stop()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(4, engine.stats.captured)
+        self.assertTrue(engine.stats.trigger_count_infinite)
+        self.assertIsNone(engine.stats.expected_readings)
+        self.assertEqual("active", engine.stats.overflow_monitoring)
+        self.assertFalse(engine.stats.overflow_detected)
+        self.assertEqual("stop_requested", engine.stats.stop_reason)
+        self.assertTrue(engine.stats.final_drain_complete)
+        self.assertEqual("unknown", engine.stats.data_integrity)
+        self.assertTrue(engine.ok)
+        self.assertTrue(
+            any(
+                "trigger_count=infinity" in status and "expected_readings=unbounded" in status
+                for status in statuses
+            )
+        )
+
+    def test_software_custom_infinite_stop_on_overflow_stops_run(self):
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=OverflowAssertingMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=None,
+                sample_count=2,
+                trigger_count_infinite=True,
+                stop_on_overflow=True,
+            ),
+            router=TriggerRouter(),
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual("active", engine.stats.overflow_monitoring)
+        self.assertTrue(engine.stats.overflow_detected)
+        self.assertEqual("overflow_detected", engine.stats.stop_reason)
+        self.assertTrue(engine.stats.final_drain_complete)
+        self.assertEqual("incomplete", engine.stats.data_integrity)
+        self.assertFalse(engine.ok)
+        self.assertEqual("overflow_detected", engine.result_reason)
+
+    def test_overflow_detection_without_stop_finishes_but_marks_incomplete(self):
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=OverflowAssertingMeasurement(),  # type: ignore[arg-type]
+            storage=CapturingStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=1,
+                sample_count=2,
+                monitor_overflow=True,
+            ),
+            router=TriggerRouter(),
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-custom"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(2, engine.stats.captured)
+        self.assertTrue(engine.stats.overflow_detected)
+        self.assertEqual("completed", engine.stats.stop_reason)
+        self.assertTrue(engine.stats.final_drain_complete)
+        self.assertEqual("incomplete", engine.stats.data_integrity)
+        self.assertFalse(engine.ok)
+        self.assertEqual("overflow_detected", engine.result_reason)
+
+    def test_overflow_monitoring_failure_stops_run_once(self):
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=OverflowFailingMeasurement(),  # type: ignore[arg-type]
+            storage=FakeStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=None,
+                sample_count=2,
+                trigger_count_infinite=True,
+            ),
+            router=TriggerRouter(),
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, engine.stats.errors)
+        self.assertEqual("failed", engine.stats.overflow_monitoring)
+        self.assertIsNone(engine.stats.overflow_detected)
+        self.assertEqual("overflow_monitor_failed", engine.stats.stop_reason)
+        self.assertTrue(engine.stats.final_drain_complete)
+        self.assertEqual("unknown", engine.stats.data_integrity)
+        self.assertFalse(engine.ok)
+        self.assertEqual("overflow_monitor_failed", engine.result_reason)
+        self.assertIsNone(engine.fatal_error)
+
+    def test_final_drain_reads_buffer_after_stop(self):
+        instrument = RecordingInstrument()
+        measurement = PostAbortDrainMeasurement(instrument)
+        statuses: list[str] = []
+        engine = TriggerAcquisitionEngine(
+            instrument=instrument,  # type: ignore[arg-type]
+            measurement=measurement,  # type: ignore[arg-type]
+            storage=CapturingStorage(),  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=None,
+                sample_count=2,
+                trigger_count_infinite=True,
+            ),
+            router=TriggerRouter(),
+            status_cb=statuses.append,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        deadline = time.monotonic() + 1.0
+        while "software custom capture armed" not in statuses and time.monotonic() < deadline:
+            time.sleep(0.01)
+        self.assertEqual(0, engine.stats.captured)
+        measurement.sample_count = 3
+
+        engine.stop()
+        worker.join(timeout=1)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(3, engine.stats.captured)
+        self.assertEqual([3], measurement.read_counts)
+        self.assertEqual("stop_requested", engine.stats.stop_reason)
+        self.assertTrue(engine.stats.final_drain_complete)
+        self.assertGreaterEqual(instrument.abort_count, 1)
+
+    def test_software_custom_monitoring_waits_for_trigger_ready(self):
+        measurement = FakeBufferedMeasurement()
+        measurement.trigger_ready = False
+        storage = CapturingStorage()
+        router = TriggerRouter()
+        engine = TriggerAcquisitionEngine(
+            instrument=RecordingInstrument(),  # type: ignore[arg-type]
+            measurement=measurement,  # type: ignore[arg-type]
+            storage=storage,  # type: ignore[arg-type]
+            config=AcquisitionConfig(
+                trigger_timeout_ms=50,
+                trigger_count=1,
+                sample_count=1,
+                monitor_overflow=True,
+            ),
+            router=router,
+        )
+
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+        time.sleep(0.15)
+        self.assertEqual(0, measurement.bus_triggers_sent)
+
+        measurement.trigger_ready = True
+        worker.join(timeout=2)
+
+        self.assertFalse(worker.is_alive())
+        self.assertEqual(1, measurement.bus_triggers_sent)
+        self.assertEqual(1, engine.stats.captured)
+        self.assertEqual(1, measurement.questionable_clears)
+        self.assertGreaterEqual(measurement.standard_event_clears, 1)
+        self.assertEqual(1, measurement.opc_requests)
+        self.assertFalse(engine.stats.overflow_detected)
+        self.assertTrue(engine.ok)
 
     def test_software_timer_captures_until_max_samples(self):
         storage = CapturingStorage()

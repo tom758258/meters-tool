@@ -18,6 +18,8 @@ import {
   statusCsv,
   statusDetails,
   statusErrors,
+  statusIntegrity,
+  statusOverflow,
   statusState,
   stopRunButton,
   toggleStatusDetailsButton,
@@ -290,6 +292,41 @@ function markWebUiStateError() {
   setStateIndicator(webuiStateIndicator, webuiIndicatorRender);
 }
 
+function overflowStatusKey(status) {
+  if (status.overflow_monitoring === "failed") {
+    return "status.overflow_failed";
+  }
+  if (status.overflow_detected === true) {
+    return "status.overflow_detected";
+  }
+  if (status.overflow_monitoring === "active") {
+    return "status.overflow_clear";
+  }
+  if (status.overflow_monitoring === "starting") {
+    return "status.overflow_starting";
+  }
+  return "status.overflow_off";
+}
+
+function integrityStatusKey(status) {
+  if (status.data_integrity === "no_loss_detected") {
+    return "status.integrity_ok";
+  }
+  if (status.data_integrity === "incomplete") {
+    return "status.integrity_incomplete";
+  }
+  return "status.integrity_unknown";
+}
+
+function renderStructuredStatus(status) {
+  if (statusOverflow) {
+    setTranslatedText(statusOverflow, overflowStatusKey(status || {}));
+  }
+  if (statusIntegrity) {
+    setTranslatedText(statusIntegrity, integrityStatusKey(status || {}));
+  }
+}
+
 export function renderStatus(status) {
   latestRenderedStatus = status || null;
   markWebUiStateReady();
@@ -298,6 +335,7 @@ export function renderStatus(status) {
   renderPresentation(statusState, runStatePresentation(status.state || "idle"));
   statusCaptured.textContent = String(status.captured ?? 0);
   statusErrors.textContent = String(status.errors ?? 0);
+  renderStructuredStatus(status);
   if (statusCsv) {
     if (status.csv_enabled === false) {
       setTranslatedText(statusCsv, "common.off");
@@ -367,6 +405,7 @@ export function refreshStatusPresentation() {
       statusState,
       runStatePresentation(latestRenderedStatus.state || "idle")
     );
+    renderStructuredStatus(latestRenderedStatus);
     if (statusCsv) {
       if (latestRenderedStatus.csv_enabled === false) {
         setTranslatedText(statusCsv, "common.off");

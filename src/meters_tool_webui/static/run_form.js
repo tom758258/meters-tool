@@ -60,6 +60,7 @@ import {
   timerIntervalContainer,
   timerIntervalInput,
   timerTriggerCheckbox,
+  triggerCountInfiniteCheckbox,
   triggerCountInput,
   triggerMetadataContainer,
   triggerMetadataInput,
@@ -695,7 +696,10 @@ export function updateTriggerModeUi() {
       control.disabled = !visible;
     }
   }
-  triggerCountInput.required = customMode;
+  const infiniteTriggerCount =
+    customMode && triggerCountInfiniteCheckbox.checked;
+  triggerCountInput.required = customMode && !infiniteTriggerCount;
+  triggerCountInput.disabled = !customMode || infiniteTriggerCount;
   sampleCountInput.required = customMode;
 
   const isSoftware = mode === "software";

@@ -58,6 +58,9 @@ class CliArgsTests(unittest.TestCase):
                 "--json",
                 "--status-format",
                 "--no-csv",
+                "--trigger-count-infinite",
+                "--monitor-overflow",
+                "--stop-on-overflow",
             ],
             "send-command": ["--dry-run", "--json", "--format", "--timeout-ms"],
             "stop": ["--dry-run", "--json", "--format", "--timeout-ms"],
@@ -126,12 +129,37 @@ class CliArgsTests(unittest.TestCase):
         self.assertIsNone(args.trigger_mode)
         self.assertIsNone(args.max_samples)
         self.assertIsNone(args.trigger_count)
+        self.assertFalse(args.trigger_count_infinite)
+        self.assertFalse(args.monitor_overflow)
+        self.assertFalse(args.stop_on_overflow)
         self.assertIsNone(args.sample_count)
         self.assertIsNone(args.timer_interval_s)
         self.assertIsNone(args.buffer_drain_size)
         self.assertFalse(args.allow_buffer_overflow_risk)
         self.assertIsNone(args.vm_comp_slope)
         self.assertIsNone(args.visa_library)
+
+    def test_start_infinite_and_overflow_flags(self):
+        parser = build_parser()
+        args = parser.parse_args(
+            [
+                "start-trigger-record",
+                "--resource",
+                "USB::FAKE",
+                "--trigger-mode",
+                "software-custom",
+                "--trigger-count-infinite",
+                "--monitor-overflow",
+                "--stop-on-overflow",
+                "--sample-count",
+                "2",
+                "--allow-buffer-overflow-risk",
+            ]
+        )
+        self.assertTrue(args.trigger_count_infinite)
+        self.assertTrue(args.monitor_overflow)
+        self.assertTrue(args.stop_on_overflow)
+        self.assertEqual(2, args.sample_count)
 
     def test_csv_output_flags_are_optional(self):
         parser = build_parser()

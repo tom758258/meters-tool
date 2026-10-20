@@ -13,6 +13,7 @@ except ModuleNotFoundError:  # pragma: no cover - dependency-gated tests
 
 if TestClient is not None:
     from meters_tool_core.runner import StartRunnerDependencies
+    from meters_tool_core.session import StartRunEvent
     from meters_tool_webui.web_ui import (
         RunAlreadyActive,
         RunStartRequest,
@@ -32,6 +33,68 @@ from webui_test_helpers import (
 class WebUiRunLifecycleApiTests(unittest.TestCase):
     def tearDown(self):
         cleanup_tempdir(self)
+
+    def test_run_start_request_maps_infinite_and_overflow_flags(self):
+        manager = WebRunManager()
+        request = RunStartRequest(
+            resource="USB::FAKE",
+            trigger_mode="software-custom",
+            trigger_count_infinite=True,
+            monitor_overflow=True,
+            stop_on_overflow=True,
+            sample_count=2,
+        )
+
+        start_request = manager._normalize_request_payload(request)
+
+        self.assertTrue(start_request.trigger_count_infinite)
+        self.assertTrue(start_request.monitor_overflow)
+        self.assertTrue(start_request.stop_on_overflow)
+        self.assertIsNone(start_request.trigger_count)
+        self.assertEqual(2, start_request.sample_count)
+
+    def test_status_exposes_overflow_and_integrity_fields(self):
+        manager = WebRunManager()
+        client = make_api_client_with_manager(manager)
+        started = client.post(
+            "/api/runs",
+            json={
+                "resource": "USB::FAKE",
+                "instrument_model": "34461A",
+                "simulate": True,
+                "trigger_mode": "immediate",
+                "max_samples": 1,
+            },
+        )
+        self.assertEqual(200, started.status_code)
+        status = wait_until_inactive(client, timeout_s=1.0)
+
+        manager._record_event(
+            StartRunEvent.summary_event(
+                status["run_id"],
+                0,
+                1,
+                None,
+                ok=False,
+                trigger_count_infinite=True,
+                expected_readings=None,
+                overflow_monitoring="failed",
+                overflow_detected=None,
+                stop_reason="overflow_monitor_failed",
+                final_drain_complete=True,
+                data_integrity="unknown",
+            )
+        )
+
+        updated = client.get("/api/runs/current").json()
+        self.assertTrue(updated["trigger_count_infinite"])
+        self.assertIsNone(updated["expected_readings"])
+        self.assertEqual("failed", updated["overflow_monitoring"])
+        self.assertIsNone(updated["overflow_detected"])
+        self.assertEqual("overflow_monitor_failed", updated["stop_reason"])
+        self.assertTrue(updated["final_drain_complete"])
+        self.assertEqual("unknown", updated["data_integrity"])
+
     def test_run_start_rejects_second_active_run_and_stop_releases_it(self):
         client, csv_path = make_api_client(self)
         request = {

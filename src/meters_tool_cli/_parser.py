@@ -346,6 +346,21 @@ def _add_start_parser(
         help="instrument trigger count; range 1-1000000, required with custom trigger modes",
     )
     start.add_argument(
+        "--trigger-count-infinite",
+        action="store_true",
+        help="use an unbounded trigger count for custom modes; requires --allow-buffer-overflow-risk",
+    )
+    start.add_argument(
+        "--monitor-overflow",
+        action="store_true",
+        help="monitor the questionable overflow status bit during custom modes",
+    )
+    start.add_argument(
+        "--stop-on-overflow",
+        action="store_true",
+        help="stop a custom run when the overflow status bit is detected",
+    )
+    start.add_argument(
         "--sample-count",
         type=int,
         default=None,

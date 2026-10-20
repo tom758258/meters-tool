@@ -651,6 +651,70 @@ class CoreValidationTests(unittest.TestCase):
             profile=FAKE_CURRENT_ONLY_PROFILE,
         )
 
+    def test_infinite_trigger_count_validation(self):
+        self.assert_valid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count_infinite=True,
+                sample_count=10,
+                allow_buffer_overflow_risk=True,
+            )
+        )
+        self.assert_invalid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count_infinite=True,
+                sample_count=10,
+            ),
+            "--trigger-count-infinite requires --allow-buffer-overflow-risk",
+        )
+        self.assert_invalid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count_infinite=True,
+                trigger_count=10,
+                sample_count=10,
+                allow_buffer_overflow_risk=True,
+            ),
+            "--trigger-count cannot be used with --trigger-count-infinite",
+        )
+        self.assert_invalid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count_infinite=True,
+                allow_buffer_overflow_risk=True,
+            ),
+            "--sample-count is required with custom trigger modes",
+        )
+        self.assert_invalid(
+            make_start_request(trigger_mode="immediate", trigger_count_infinite=True),
+            "--trigger-count-infinite requires a custom trigger mode",
+        )
+
+    def test_overflow_monitoring_flags_require_custom_modes(self):
+        self.assert_valid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=10,
+                monitor_overflow=True,
+            )
+        )
+        self.assert_valid(
+            make_start_request(
+                trigger_mode="immediate-custom",
+                trigger_count=1,
+                sample_count=10,
+                stop_on_overflow=True,
+            )
+        )
+        for flag in ("monitor_overflow", "stop_on_overflow"):
+            with self.subTest(flag=flag):
+                self.assert_invalid(
+                    make_start_request(trigger_mode="immediate", **{flag: True}),
+                    f"--{flag.replace('_', '-')} requires a custom trigger mode",
+                )
+
     def test_34460a_buffer_memory_and_trigger_mode_limits(self):
         self.assert_valid(
             make_start_request(

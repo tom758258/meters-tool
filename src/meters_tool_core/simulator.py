@@ -17,18 +17,30 @@ class SimulatedMeasurementState:
     points_available: int = 0
     armed: bool = False
     trigger_count: int = 1
+    trigger_count_infinite: bool = False
+    triggers_received: int = 0
+    samples_read: int = 0
     sample_count: int = 1
     source: str = "READ"
+    overflow_event: bool = False
+    overflow_condition: bool = False
     last_signal_voltage_v: float = 2.46
     last_reference_voltage_v: float = 2.0
 
 
 class SimulatedVisaInstrument:
-    def __init__(self, config: InstrumentConfig, measurement_type: str = "current_dc"):
+    def __init__(
+        self,
+        config: InstrumentConfig,
+        measurement_type: str = "current_dc",
+        *,
+        overflow_after_samples: int | None = None,
+    ):
         self._config = config
         self._closed = False
         self._writes: list[str] = []
         self._timeout_ms = config.timeout_ms
+        self._overflow_after_samples = overflow_after_samples
         self._state = SimulatedMeasurementState(measurement_type=measurement_type)
         self._resource_id = config.resource_string
 
@@ -43,6 +55,24 @@ class SimulatedVisaInstrument:
         self._state.last_signal_voltage_v = ratio * reference_voltage_v
         self._state.last_reference_voltage_v = reference_voltage_v
 
+    def _record_overflow(self) -> None:
+        self._state.overflow_event = True
+        self._state.overflow_condition = True
+
+    def _reset_overflow(self) -> None:
+        self._state.overflow_event = False
+        self._state.overflow_condition = False
+
+    def _finite_point_limit(self) -> int:
+        return self._state.trigger_count * self._state.sample_count
+
+    def _operation_complete(self) -> bool:
+        if self._state.trigger_count_infinite:
+            return False
+        if self._state.source == "BUS":
+            return self._state.triggers_received >= self._state.trigger_count
+        return self._state.points_available == 0
+
     def write(self, command: str) -> None:
         self._writes.append(command)
         normalized = command.strip().upper()
@@ -53,17 +83,28 @@ class SimulatedVisaInstrument:
             return
         if normalized == "ABOR":
             self._state.armed = False
+            self._reset_overflow()
             return
         if normalized == "INIT":
             self._state.armed = True
+            self._state.triggers_received = 0
+            self._state.samples_read = 0
+            self._reset_overflow()
             if self._state.source in {"IMM", "EXT"}:
-                self._state.points_available = self._state.trigger_count * self._state.sample_count
+                if self._state.trigger_count_infinite:
+                    self._state.points_available = 0
+                else:
+                    self._state.points_available = self._finite_point_limit()
             return
         if normalized == "*TRG":
-            self._state.points_available = min(
-                self._state.trigger_count * self._state.sample_count,
-                self._state.points_available + self._state.sample_count,
-            )
+            if self._state.trigger_count_infinite:
+                self._state.points_available += self._state.sample_count
+            else:
+                self._state.points_available = min(
+                    self._finite_point_limit(),
+                    self._state.points_available + self._state.sample_count,
+                )
+            self._state.triggers_received += 1
             return
         if normalized.startswith("TRIG:SOUR"):
             if "IMM" in normalized:
@@ -74,10 +115,16 @@ class SimulatedVisaInstrument:
                 self._state.source = "EXT"
             return
         if normalized.startswith("TRIG:COUNT"):
-            try:
-                self._state.trigger_count = int(float(command.split()[-1]))
-            except Exception:
-                pass
+            argument = command.split()[-1]
+            if argument.upper() == "INF":
+                self._state.trigger_count_infinite = True
+                self._state.trigger_count = 0
+            else:
+                try:
+                    self._state.trigger_count = int(float(argument))
+                    self._state.trigger_count_infinite = False
+                except Exception:
+                    pass
             return
         if normalized.startswith("SAMP:COUNT"):
             try:
@@ -95,7 +142,24 @@ class SimulatedVisaInstrument:
             return "Keysight Technologies,34461A,MYSIMULATED,1.0"
         if normalized == "SYST:ERR?":
             return "0,No error"
+        if normalized == "*ESR?":
+            return "1" if self._operation_complete() else "0"
+        if normalized == "STAT:QUES:EVEN?":
+            asserted = self._state.overflow_event
+            self._state.overflow_event = False
+            return "16384" if asserted else "0"
+        if normalized == "STAT:QUES:COND?":
+            return "16384" if self._state.overflow_condition else "0"
+        if normalized == "STAT:OPER:COND?":
+            return "32" if self._state.armed else "0"
         if normalized == "DATA:POINTS?":
+            if (
+                self._state.source == "IMM"
+                and self._state.trigger_count_infinite
+                and self._state.armed
+                and self._state.points_available == 0
+            ):
+                self._state.points_available = self._state.sample_count
             return str(max(0, self._state.points_available))
         if normalized == "DATA2?":
             return ",".join(
@@ -117,6 +181,12 @@ class SimulatedVisaInstrument:
                 values.append(_format_ascii_float(value))
             self._state.points_available = max(0, self._state.points_available - count)
             self._state.value_seed += max(0, count)
+            self._state.samples_read += max(0, count)
+            if (
+                self._overflow_after_samples is not None
+                and self._state.samples_read >= self._overflow_after_samples
+            ):
+                self._record_overflow()
             return ",".join(values)
         if normalized in {"READ?", "FETC?"}:
             value = self._state.value_seed

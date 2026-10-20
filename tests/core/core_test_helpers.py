@@ -95,9 +95,21 @@ class FakeBufferedMeasurement(FakeMeasurement):
         self.started = False
         self.read_counts: list[int] = []
         self.bus_triggers_sent = 0
+        self.overflow_asserted = False
+        self.completion_asserted = True
+        self.trigger_ready = True
+        self.questionable_clears = 0
+        self.standard_event_clears = 0
+        self.opc_requests = 0
+
+    @staticmethod
+    def _initial_sample_count(trigger_count, sample_count):  # noqa: ANN001
+        if trigger_count is None:
+            return 0
+        return trigger_count * sample_count
 
     def configure_immediate_custom(self, instrument, config, trigger_count, sample_count):  # noqa: ANN001, ARG002
-        self.sample_count = trigger_count * sample_count
+        self.sample_count = self._initial_sample_count(trigger_count, sample_count)
         instrument.write("TRIG:SOUR IMM")
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
@@ -110,13 +122,37 @@ class FakeBufferedMeasurement(FakeMeasurement):
         instrument.write(f"SAMP:COUNT {sample_count}")
 
     def configure_external_custom(self, instrument, config, trigger_count, sample_count, slope, delay_s):  # noqa: ANN001, ARG002
-        self.sample_count = trigger_count * sample_count
+        self.sample_count = self._initial_sample_count(trigger_count, sample_count)
         slope_cmd = "POS" if str(slope).upper() == "POS" else "NEG"
         instrument.write("TRIG:SOUR EXT")
         instrument.write(f"TRIG:SLOP {slope_cmd}")
         instrument.write(f"TRIG:COUNT {trigger_count}")
         instrument.write(f"SAMP:COUNT {sample_count}")
         instrument.write(f"TRIG:DEL {max(0.0, float(delay_s))}")
+
+    def clear_questionable_events(self, instrument):  # noqa: ANN001
+        self.questionable_clears += 1
+        instrument.write("STAT:QUES:EVEN?")
+
+    def overflow_status_asserted(self, instrument):  # noqa: ANN001
+        instrument.write("STAT:QUES:EVEN?")
+        return self.overflow_asserted
+
+    def clear_standard_event(self, instrument):  # noqa: ANN001
+        self.standard_event_clears += 1
+        instrument.write("*ESR?")
+
+    def standard_event_complete(self, instrument):  # noqa: ANN001
+        instrument.write("*ESR?")
+        return self.completion_asserted
+
+    def request_operation_complete(self, instrument):  # noqa: ANN001
+        self.opc_requests += 1
+        instrument.write("*OPC")
+
+    def software_trigger_ready(self, instrument):  # noqa: ANN001
+        instrument.write("STAT:OPER:COND?")
+        return self.trigger_ready
 
     def send_bus_trigger(self, instrument):  # noqa: ANN001
         self.bus_triggers_sent += 1

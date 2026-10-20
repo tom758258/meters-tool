@@ -114,13 +114,29 @@ def run_start_session(
     def emit_error(message: str) -> None:
         event_sink.emit(StartRunEvent.error_event(active_run_id, message))
 
+    def engine_result_fields() -> dict[str, object]:
+        provider = getattr(engine, "result_fields", None)
+        if not callable(provider):
+            return {}
+        fields = provider()
+        return fields if isinstance(fields, dict) else {}
+
+    def engine_ok() -> bool:
+        value = getattr(engine, "ok", None)
+        if value is None:
+            return not (engine.fatal_error or runtime_fatal_error)
+        return bool(value)
+
     def emit_summary() -> None:
+        fields = engine_result_fields()
+        fields["ok"] = engine_ok()
         event_sink.emit(
             StartRunEvent.summary_event(
                 active_run_id,
                 engine.stats.captured,
                 engine.stats.errors,
                 engine.fatal_error or runtime_fatal_error,
+                **fields,
             )
         )
 
@@ -148,10 +164,12 @@ def run_start_session(
             ),
             csv_path=csv_path,
             control=control,
+            **engine_result_fields(),
         )
 
     def worker_status() -> dict[str, object]:
         return {
+            **engine_result_fields(),
             "run_id": active_run_id,
             "status": "stopping" if stop_controller.stop else "running",
             "captured": engine.stats.captured,
@@ -247,6 +265,9 @@ def run_start_session(
         emit_summary()
         if engine.fatal_error or runtime_fatal_error:
             return result(ok=False, reason="fatal_error", control=control_handle)
+        if not engine_ok():
+            reason = getattr(engine, "result_reason", "incomplete")
+            return result(ok=False, reason=reason, control=control_handle)
         return result(ok=True, reason="completed", control=control_handle)
     finally:
         emit_message("final cleanup starting")

@@ -41,6 +41,10 @@ class CoreCapabilities:
     aliases: tuple[str, ...]
     reading_memory_limit: int
     trigger_modes: tuple[str, ...]
+    supports_custom_acquisition: bool
+    supports_infinite_trigger_count: bool
+    supports_overflow_monitoring: bool
+    supports_stop_on_overflow: bool
     measurements: tuple[MeasurementCapability, ...]
     available_profiles: tuple[dict[str, str], ...]
 
@@ -87,13 +91,19 @@ def get_core_capabilities(profile: InstrumentProfile | None = None) -> CoreCapab
                 default_freq_period_timeout=options.default_freq_period_timeout,
             )
         )
+    trigger_modes = supported_trigger_modes(effective_profile)
+    supports_custom_acquisition = any(mode.endswith("-custom") for mode in trigger_modes)
     return CoreCapabilities(
         vendor=effective_profile.vendor,
         model=effective_profile.model,
         model_id=effective_profile.model_id,
         aliases=effective_profile.aliases,
         reading_memory_limit=effective_profile.reading_memory_limit,
-        trigger_modes=supported_trigger_modes(effective_profile),
+        trigger_modes=trigger_modes,
+        supports_custom_acquisition=supports_custom_acquisition,
+        supports_infinite_trigger_count=supports_custom_acquisition,
+        supports_overflow_monitoring=supports_custom_acquisition,
+        supports_stop_on_overflow=supports_custom_acquisition,
         measurements=tuple(measurement_capabilities),
         available_profiles=tuple(
             {

@@ -203,6 +203,7 @@ function Invoke-SimulateCase {
     Assert-Condition ($summary.Count -eq 1) "$Name summary event missing"
     Assert-Condition ([int]$summary[0].captured -eq $ExpectedCaptured) "$Name captured count mismatch"
     Assert-Condition ([int]$summary[0].errors -eq 0) "$Name errors should be 0"
+    Assert-Condition ([bool]$summary[0].ok) "$Name summary should be ok"
     $rowCount = Test-CsvRowCount -Path $csv
     Assert-Condition ($rowCount -ge $ExpectedCaptured) "$Name CSV row count mismatch"
     $rows = @(Import-Csv -LiteralPath $csv)
@@ -366,6 +367,25 @@ function Invoke-TargetPreflight {
         -Commands $commands `
         -Checks $checks
 
+    Invoke-DryRunCase `
+        -Name "dry_run_infinite_custom_overflow" `
+        -ModeArgs @(
+            "--trigger-mode", "software-custom",
+            "--measurement", "current-dc",
+            "--trigger-count-infinite",
+            "--sample-count", "2",
+            "--monitor-overflow",
+            "--stop-on-overflow",
+            "--allow-buffer-overflow-risk"
+        ) `
+        -ExpectedMeasurement "current-dc" `
+        -ExpectedReadPath "DATA:POINts? / DATA:REMove?" `
+        -Resource $simulatorResource `
+        -Model $cliModel `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
     foreach ($measurementCase in $measurementCases) {
         Invoke-SimulateCase `
             -Name "simulate_immediate_$($measurementCase.name)" `
@@ -417,6 +437,17 @@ function Invoke-TargetPreflight {
     Invoke-SimulateCase `
         -Name "simulate_software_custom" `
         -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "2", "--sample-count", "1") `
+        -ExpectedCaptured 2 `
+        -SoftTriggerCount 2 `
+        -Resource $simulatorResource `
+        -Model $cliModel `
+        -OutDir $outDir `
+        -Commands $commands `
+        -Checks $checks
+
+    Invoke-SimulateCase `
+        -Name "simulate_software_custom_overflow_monitoring" `
+        -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count", "2", "--sample-count", "1", "--monitor-overflow") `
         -ExpectedCaptured 2 `
         -SoftTriggerCount 2 `
         -Resource $simulatorResource `

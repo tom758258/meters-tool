@@ -450,6 +450,9 @@ function Invoke-LiveCase {
         if ($errors -ne 0) {
             $failureReasons.Add("errors should be 0; actual=$errors") | Out-Null
         }
+        if ($null -ne $summary[0].PSObject.Properties['ok'] -and -not [bool]$summary[0].ok) {
+            $failureReasons.Add("summary ok should be true") | Out-Null
+        }
     } else {
         $failureReasons.Add("summary event missing") | Out-Null
     }
@@ -478,6 +481,13 @@ function Invoke-LiveCase {
             [ordered]@{
                 ok = $summary[0].ok
                 fatal_error = if ($null -ne $summary[0].PSObject.Properties['fatal_error']) { $summary[0].fatal_error } else { $null }
+                trigger_count_infinite = if ($null -ne $summary[0].PSObject.Properties['trigger_count_infinite']) { $summary[0].trigger_count_infinite } else { $null }
+                expected_readings = if ($null -ne $summary[0].PSObject.Properties['expected_readings']) { $summary[0].expected_readings } else { $null }
+                overflow_monitoring = if ($null -ne $summary[0].PSObject.Properties['overflow_monitoring']) { $summary[0].overflow_monitoring } else { $null }
+                overflow_detected = if ($null -ne $summary[0].PSObject.Properties['overflow_detected']) { $summary[0].overflow_detected } else { $null }
+                stop_reason = if ($null -ne $summary[0].PSObject.Properties['stop_reason']) { $summary[0].stop_reason } else { $null }
+                final_drain_complete = if ($null -ne $summary[0].PSObject.Properties['final_drain_complete']) { $summary[0].final_drain_complete } else { $null }
+                data_integrity = if ($null -ne $summary[0].PSObject.Properties['data_integrity']) { $summary[0].data_integrity } else { $null }
             }
         } else { $null }
         error_events = $runtimeErrors

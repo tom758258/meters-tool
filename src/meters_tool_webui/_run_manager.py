@@ -77,6 +77,9 @@ class RunStartRequest(BaseModel):
     trigger_mode: Optional[str] = None
     max_samples: Optional[int] = None
     trigger_count: Optional[int] = None
+    trigger_count_infinite: bool = False
+    monitor_overflow: bool = False
+    stop_on_overflow: bool = False
     sample_count: Optional[int] = None
     timer_interval_s: Optional[float] = None
     buffer_drain_size: Optional[int] = None
@@ -114,6 +117,13 @@ class _RunHandle:
     errors: int = 0
     fatal_error: str | None = None
     cleanup_status: str | None = None
+    trigger_count_infinite: bool = False
+    expected_readings: int | None = None
+    overflow_monitoring: str = "off"
+    overflow_detected: bool | None = None
+    stop_reason: str = "unknown"
+    final_drain_complete: bool | None = None
+    data_integrity: str = "unknown"
     result: StartRunResult | None = None
     warnings: list[str] = field(default_factory=list)
     cleanup_messages: list[str] = field(default_factory=list)
@@ -647,6 +657,13 @@ class WebRunManager:
                 handle.captured = result.captured
                 handle.errors = result.errors
                 handle.fatal_error = result.fatal_error
+                handle.trigger_count_infinite = result.trigger_count_infinite
+                handle.expected_readings = result.expected_readings
+                handle.overflow_monitoring = result.overflow_monitoring
+                handle.overflow_detected = result.overflow_detected
+                handle.stop_reason = result.stop_reason
+                handle.final_drain_complete = result.final_drain_complete
+                handle.data_integrity = result.data_integrity
                 handle.state = "stopped" if result.ok else "error"
                 if result.ok:
                     handle.latest_status = "recording stopped"
@@ -699,6 +716,17 @@ class WebRunManager:
                 handle.captured = int(event.captured or 0)
                 handle.errors = int(event.errors or 0)
                 handle.fatal_error = event.fatal_error
+                for name in (
+                    "trigger_count_infinite",
+                    "expected_readings",
+                    "overflow_monitoring",
+                    "overflow_detected",
+                    "stop_reason",
+                    "final_drain_complete",
+                    "data_integrity",
+                ):
+                    if name in event.fields:
+                        setattr(handle, name, event.fields[name])
             if event.event == "error":
                 handle.fatal_error = event.message
                 handle.state = "error"
@@ -752,6 +780,13 @@ class WebRunManager:
             "latest_status": handle.latest_status,
             "fatal_error": handle.fatal_error,
             "cleanup_status": handle.cleanup_status,
+            "trigger_count_infinite": handle.trigger_count_infinite,
+            "expected_readings": handle.expected_readings,
+            "overflow_monitoring": handle.overflow_monitoring,
+            "overflow_detected": handle.overflow_detected,
+            "stop_reason": handle.stop_reason,
+            "final_drain_complete": handle.final_drain_complete,
+            "data_integrity": handle.data_integrity,
             "warnings": list(handle.warnings),
             "latest_sample": dict(recent_samples[-1]) if recent_samples else None,
             "recent_samples": recent_samples,
@@ -781,6 +816,13 @@ class WebRunManager:
             "latest_status": "idle",
             "fatal_error": None,
             "cleanup_status": None,
+            "trigger_count_infinite": False,
+            "expected_readings": None,
+            "overflow_monitoring": "off",
+            "overflow_detected": None,
+            "stop_reason": "unknown",
+            "final_drain_complete": None,
+            "data_integrity": "unknown",
             "warnings": [],
             "latest_sample": None,
             "recent_samples": [],
