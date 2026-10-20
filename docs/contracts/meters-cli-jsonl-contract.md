@@ -55,7 +55,8 @@ Selected fields:
 
 - `ready`: `run_id`, `service`, `host`, `port`, `command_url`, `stop_url`,
   `status_url`
-- `status`: `message`, `run_id`
+- `status`: `message`, `run_id`, and the structured acquisition outcome fields
+  listed for `summary` below
 - `sample`: `run_id`, `captured`, `measurement_type`,
   `measurement_metadata`, `message`, `resource_id`, `status`, `trigger_id`,
   `trigger_metadata`, `trigger_source`, `unit`, `value`
@@ -78,11 +79,13 @@ agents can correlate stdout JSONL, `/status`, and wrapper artifacts for the
 same acquisition run. Dry-run preview objects do not include `run_id` because
 dry-run does not start a runtime session.
 
-For Custom trigger modes, `summary` adds the structured acquisition outcome
-fields. `trigger_count_infinite` is always a boolean. `expected_readings` is
+For Custom trigger modes, acquisition `status` and final `summary` events carry
+the structured acquisition outcome fields. `trigger_count_infinite` is always
+a boolean. `expected_readings` is
 `null` for infinite runs. `overflow_monitoring` is `off`, `starting`, `active`,
-or `failed`. `overflow_detected` is `null` when no monitoring ran, otherwise
-`false` or `true`. `stop_reason` is one of `stop_requested`, `completed`,
+or `failed`. `overflow_detected` is `null` when monitoring is unavailable,
+otherwise `false` or `true`. Once observed, `true` remains latched even if a
+later poll fails. `stop_reason` is one of `stop_requested`, `completed`,
 `overflow_detected`, `overflow_monitor_failed`, `fatal_error`,
 `max_samples_reached`, or `unknown`. `final_drain_complete` is `null` when no
 final drain ran, otherwise a boolean. `data_integrity` is `unknown`,

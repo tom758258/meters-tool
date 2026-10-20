@@ -183,12 +183,26 @@ export function productLiveAvailability() {
   }
   const results = currentProductSupportScopes().map((scope) => {
     const measurement = featureAvailability(scope, "measurement", measurementSelect.value);
-    return measurement.available
-      ? featureAvailability(scope, "trigger_mode", triggerModeSelect.value)
-      : measurement;
+    if (!measurement.available) return measurement;
+    const trigger = featureAvailability(scope, "trigger_mode", triggerModeSelect.value);
+    if (!trigger.available) return trigger;
+    const customFeature = customAcquisitionFeatureValue();
+    return customFeature
+      ? featureAvailability(scope, "custom_acquisition", customFeature)
+      : trigger;
   });
   return results.find((result) => result.available)
     || results[0] || featureAvailability(null, "measurement", measurementSelect.value);
+}
+
+function customAcquisitionFeatureValue() {
+  const mode = triggerModeSelect.value;
+  if (!isCustomMode(mode)) return null;
+  const infinite = triggerCountInfiniteCheckbox.checked;
+  const stop = document.querySelector("[name='stop_on_overflow']")?.checked;
+  const monitor = document.querySelector("[name='monitor_overflow']")?.checked;
+  if (!infinite && !stop && !monitor) return null;
+  return `${mode}:${infinite ? "infinite" : "finite"}:${stop ? "stop_on_overflow" : "monitor"}`;
 }
 
 export function updateStartButtonUi(active = startRunButton.dataset.runActive === "true") {
@@ -316,6 +330,9 @@ export function formPayload() {
     max_samples: data.get("max_samples"),
     timer_interval_s: data.get("timer_interval_s"),
     trigger_count: data.get("trigger_count"),
+    trigger_count_infinite: data.get("trigger_count_infinite"),
+    monitor_overflow: document.querySelector("[name='monitor_overflow']")?.checked ? "on" : null,
+    stop_on_overflow: data.get("stop_on_overflow"),
     sample_count: data.get("sample_count"),
     buffer_drain_size: data.get("buffer_drain_size"),
     allow_buffer_overflow_risk: data.get("allow_buffer_overflow_risk"),
@@ -698,6 +715,16 @@ export function updateTriggerModeUi() {
   }
   const infiniteTriggerCount =
     customMode && triggerCountInfiniteCheckbox.checked;
+  const monitorCheckbox = document.querySelector("[name='monitor_overflow']");
+  const stopCheckbox = document.querySelector("[name='stop_on_overflow']");
+  if (monitorCheckbox) {
+    const forced = infiniteTriggerCount || (customMode && stopCheckbox?.checked);
+    if (monitorCheckbox.dataset.manualChecked === undefined) {
+      monitorCheckbox.dataset.manualChecked = String(monitorCheckbox.checked);
+    }
+    monitorCheckbox.checked = forced || monitorCheckbox.dataset.manualChecked === "true";
+    monitorCheckbox.disabled = !customMode || forced;
+  }
   triggerCountInput.required = customMode && !infiniteTriggerCount;
   triggerCountInput.disabled = !customMode || infiniteTriggerCount;
   sampleCountInput.required = customMode;

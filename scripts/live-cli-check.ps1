@@ -10,11 +10,13 @@ param(
     [Alias("Backend", "visa-library")]
     [string]$VisaLibrary,
 
-    [ValidateSet("minimal", "basic", "frequency-period", "external", "full")]
+    [ValidateSet("minimal", "basic", "frequency-period", "external", "stream", "overflow", "full")]
     [string]$Suite = "minimal",
 
     [switch]$PlanOnly,
     [switch]$DebugArtifacts,
+
+    [switch]$AllowIntentionalOverflow,
 
     [switch]$SkipPreflight
 )
@@ -78,7 +80,11 @@ function New-LiveCase {
         [string[]]$ExpectedScpiCommands = @(),
         [int]$SoftTriggerCount = 0,
         [int]$ExternalEdges = 0,
-        [int]$TimeoutSeconds = 45
+        [int]$TimeoutSeconds = 45,
+        [int]$PlannedStopAfterSeconds = 0,
+        [int]$ExpectedExitCode = 0,
+        [string]$ExpectedStopReason = "",
+        [int]$MinCaptured = 0
     )
 
     return [pscustomobject]@{
@@ -91,6 +97,10 @@ function New-LiveCase {
         soft_trigger_count = $SoftTriggerCount
         external_edges = $ExternalEdges
         timeout_seconds = $TimeoutSeconds
+        planned_stop_after_seconds = $PlannedStopAfterSeconds
+        expected_exit_code = $ExpectedExitCode
+        expected_stop_reason = $ExpectedStopReason
+        min_captured = $MinCaptured
     }
 }
 
@@ -162,8 +172,19 @@ function Get-LiveCases {
     $external += New-LiveCase -Name "external_simple" -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
     $external += New-LiveCase -Name "external_custom" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
 
-    if ($ResolvedTarget -eq "keysight-34460a" -and $SelectedSuite -eq "external") {
-        Fail-Usage "Suite 'external' is not supported for keysight-34460a because the base 34460A profile does not support external trigger modes."
+    $stream = @()
+    $stream += New-LiveCase -Name "stream_immediate" -ModeArgs @("--trigger-mode", "immediate-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1", "--monitor-overflow", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -MinCaptured 1 -PlannedStopAfterSeconds 3 -ExpectedStopReason "stop_requested"
+    $stream += New-LiveCase -Name "stream_software" -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1", "--monitor-overflow", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -MinCaptured 2 -SoftTriggerCount 2 -PlannedStopAfterSeconds 3 -ExpectedStopReason "stop_requested"
+
+    if ($ResolvedTarget -eq "keysight-34461a") {
+        $stream += New-LiveCase -Name "stream_external" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1", "--monitor-overflow", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -MinCaptured 2 -ExternalEdges 2 -PlannedStopAfterSeconds 10 -ExpectedStopReason "stop_requested"
+    }
+
+    $overflow = @()
+    $overflow += New-LiveCase -Name "intentional_overflow" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1000000", "--nplc", "0.02", "--stop-on-overflow", "--buffer-drain-size", "1", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -ExternalEdges 1 -TimeoutSeconds 60 -ExpectedExitCode 3 -ExpectedStopReason "overflow_detected"
+
+    if ($ResolvedTarget -eq "keysight-34460a" -and $SelectedSuite -in @("external", "overflow")) {
+        Fail-Usage "Suite '$SelectedSuite' is not supported for keysight-34460a because the base 34460A profile does not support external trigger modes."
     }
 
     switch ($SelectedSuite) {
@@ -171,6 +192,8 @@ function Get-LiveCases {
         "basic" { return $basic }
         "frequency-period" { return $frequencyPeriod }
         "external" { return $external }
+        "stream" { return $stream }
+        "overflow" { return $overflow }
         "full" {
             if ($ResolvedTarget -eq "keysight-34460a") {
                 return @($basic + $frequencyPeriod)
@@ -406,6 +429,8 @@ function Invoke-LiveCase {
         -SoftTriggerRetryDelayMs 250 `
         -InterTriggerDelayMs 250 `
         -StopGracePeriodMs 10000 `
+        -PlannedStopAfterSeconds $Case.planned_stop_after_seconds `
+        -ExpectedExitCode $Case.expected_exit_code `
         -CaptureClientCommandsInMemory:(-not $DebugArtifacts)
 
     $failureReasons = [System.Collections.Generic.List[string]]::new()
@@ -426,11 +451,11 @@ function Invoke-LiveCase {
     } elseif ($summary.Count -eq 1) {
         $runId = $summary[0].run_id
     }
-    if ($Case.soft_trigger_count -gt 0) {
+    if ($Case.soft_trigger_count -gt 0 -or $Case.planned_stop_after_seconds -gt 0 -or $Case.expected_exit_code -ne 0) {
         if ($ready.Count -ne 1) {
             $failureReasons.Add("ready event missing") | Out-Null
         }
-        $statusCommand = @($result.client_commands | Where-Object { $_.name -eq "$($Case.name)_live_soft_status" } | Select-Object -Last 1)
+        $statusCommand = @($result.client_commands | Where-Object { $_.name -in @("$($Case.name)_live_soft_status", "$($Case.name)_live_planned_stop_status") } | Select-Object -Last 1)
         if ($statusCommand.Count -ne 1) {
             $failureReasons.Add("status client command missing") | Out-Null
         } elseif ($ready.Count -eq 1) {
@@ -439,19 +464,60 @@ function Invoke-LiveCase {
             if ($statusPayload.run_id -ne $ready[0].run_id) {
                 $failureReasons.Add("status run_id mismatch") | Out-Null
             }
+            foreach ($field in @("trigger_count_infinite", "expected_readings", "overflow_monitoring", "overflow_detected", "stop_reason", "final_drain_complete", "data_integrity")) {
+                if ($null -eq $statusPayload.PSObject.Properties[$field]) {
+                    $failureReasons.Add("status field missing: $field") | Out-Null
+                }
+            }
+            if ($Case.planned_stop_after_seconds -gt 0 -and ($statusPayload.trigger_count_infinite -ne $true -or $statusPayload.overflow_monitoring -ne "active")) {
+                $failureReasons.Add("running Infinity monitoring state mismatch") | Out-Null
+            }
         }
     }
     if ($summary.Count -eq 1) {
+        if ($null -eq $runId -or $summary[0].run_id -ne $runId) {
+            $failureReasons.Add("summary run_id mismatch") | Out-Null
+        }
         $captured = [int]$summary[0].captured
         $errors = [int]$summary[0].errors
-        if ($captured -ne $Case.expected_captured) {
+        if ($Case.expected_captured -ge 0 -and $captured -ne $Case.expected_captured) {
             $failureReasons.Add("captured count mismatch: expected=$($Case.expected_captured) actual=$captured") | Out-Null
+        }
+        if ($captured -lt $Case.min_captured) {
+            $failureReasons.Add("captured count below minimum: expected=$($Case.min_captured) actual=$captured") | Out-Null
         }
         if ($errors -ne 0) {
             $failureReasons.Add("errors should be 0; actual=$errors") | Out-Null
         }
-        if ($null -ne $summary[0].PSObject.Properties['ok'] -and -not [bool]$summary[0].ok) {
-            $failureReasons.Add("summary ok should be true") | Out-Null
+        if ($null -eq $summary[0].PSObject.Properties['ok'] -or [bool]$summary[0].ok -ne ($Case.expected_exit_code -eq 0)) {
+            $failureReasons.Add("summary ok mismatch") | Out-Null
+        }
+        if ($Case.expected_stop_reason -and $summary[0].stop_reason -ne $Case.expected_stop_reason) {
+            $failureReasons.Add("stop reason mismatch") | Out-Null
+        }
+        if ($Case.expected_stop_reason -eq "overflow_detected" -and $summary[0].overflow_detected -ne $true) {
+            $failureReasons.Add("overflow not confirmed") | Out-Null
+        }
+        if ($Case.expected_stop_reason -eq "stop_requested" -and $summary[0].final_drain_complete -ne $true) {
+            $failureReasons.Add("final drain incomplete") | Out-Null
+        }
+        if ($Case.expected_stop_reason -eq "overflow_detected" -and $summary[0].final_drain_complete -isnot [bool]) {
+            $failureReasons.Add("final drain result missing") | Out-Null
+        }
+        if ($Case.expected_stop_reason) {
+            if ($summary[0].trigger_count_infinite -ne $true -or $summary[0].overflow_monitoring -ne "active") {
+                $failureReasons.Add("Infinity monitoring state mismatch") | Out-Null
+            }
+            if ($null -ne $summary[0].PSObject.Properties['fatal_error'] -and $summary[0].fatal_error) {
+                $failureReasons.Add("unexpected fatal error") | Out-Null
+            }
+            $expectedIntegrity = if ($Case.expected_stop_reason -eq "overflow_detected") { "incomplete" } else { "unknown" }
+            if ($summary[0].data_integrity -ne $expectedIntegrity) {
+                $failureReasons.Add("data integrity mismatch") | Out-Null
+            }
+            if ($Case.expected_stop_reason -eq "stop_requested" -and $summary[0].overflow_detected -ne $false) {
+                $failureReasons.Add("stream overflow state mismatch") | Out-Null
+            }
         }
     } else {
         $failureReasons.Add("summary event missing") | Out-Null
@@ -504,14 +570,26 @@ function Invoke-LiveCase {
         }
     }
     $rowCount = Test-CsvRowCount -Path $CsvPath
-    if ($rowCount -lt $Case.expected_captured) {
-        $failureReasons.Add("CSV row count mismatch: expected_at_least=$($Case.expected_captured) actual=$rowCount") | Out-Null
+    if ($null -ne $captured -and $rowCount -ne $captured) {
+        $failureReasons.Add("CSV row count mismatch: summary=$captured actual=$rowCount") | Out-Null
     }
     $measurementType = $null
     $unit = $null
     $value = $null
     if ($rowCount -gt 0) {
-        $firstRow = @(Import-Csv -LiteralPath $CsvPath)[0]
+        $csvRows = @(Import-Csv -LiteralPath $CsvPath)
+        $firstRow = $csvRows[0]
+        $samples = @($events | Where-Object { $_.event -eq "sample" })
+        if ($samples.Count -ne $rowCount) {
+            $failureReasons.Add("JSONL sample and CSV correlation mismatch") | Out-Null
+        } else {
+            for ($index = 0; $index -lt $rowCount; $index++) {
+                if ($samples[$index].run_id -ne $runId -or $samples[$index].trigger_id -ne $csvRows[$index].trigger_id) {
+                    $failureReasons.Add("JSONL sample and CSV correlation mismatch at row $index") | Out-Null
+                    break
+                }
+            }
+        }
         $measurementType = $firstRow.measurement_type
         $unit = $firstRow.unit
         $value = $firstRow.value
@@ -542,6 +620,9 @@ function Invoke-LiveCase {
         failure_reasons = @($failureReasons.ToArray())
         run_id = $runId
         expected_captured = $Case.expected_captured
+        expected_exit_code = $Case.expected_exit_code
+        expected_stop_reason = $Case.expected_stop_reason
+        planned_stop_after_seconds = $Case.planned_stop_after_seconds
         captured_count = $captured
         captured = $captured
         errors = $errors
@@ -748,6 +829,9 @@ $resolvedCliModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget
 $resolvedConnection = Resolve-Connection -Value $Connection
 $resolvedVisaLibrary = if ([string]::IsNullOrWhiteSpace($VisaLibrary)) { $null } else { $VisaLibrary.Trim() }
 $cases = @(Get-LiveCases -SelectedSuite $Suite -ResolvedTarget $resolvedTarget)
+if ($Suite -eq "overflow" -and -not $PlanOnly -and -not $AllowIntentionalOverflow) {
+    Fail-Usage "The overflow suite requires -AllowIntentionalOverflow."
+}
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runDir = Join-Path (Join-Path (Join-Path (Join-Path $LiveRoot $resolvedTarget) $resolvedConnection) $Suite) $timestamp

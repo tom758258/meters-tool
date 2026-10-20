@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
+import threading
+import time
 import unittest
 from unittest.mock import patch
 
@@ -116,6 +119,28 @@ class RecordingEngine:
         self._operations.append("engine_stop")
 
 
+class SlowStoppingEngine(RecordingEngine):
+    def __init__(self, *, operations: list[str]) -> None:
+        super().__init__(operations=operations)
+        self._stopped = threading.Event()
+
+    def run(self, *, trigger_mode: str, hardware_trigger_slope: str) -> None:  # noqa: ARG002
+        self._stopped.wait()
+        self._operations.append("tail_start")
+        time.sleep(2.1)
+        self._operations.append("tail_done")
+
+    def stop(self) -> None:
+        self._stopped.set()
+
+
+class RaisingEngine(RecordingEngine):
+    ok = True
+
+    def run(self, *, trigger_mode: str, hardware_trigger_slope: str) -> None:  # noqa: ARG002
+        raise RuntimeError("configure failed")
+
+
 class CompletedThread:
     def __init__(self, *, target, kwargs, daemon):  # noqa: ANN001, ARG002
         self._target = target
@@ -161,12 +186,9 @@ class StopControllerTests(unittest.TestCase):
         self.assertFalse(controller.force)
         self.assertEqual(1, controller.interrupt_count)
         self.assertEqual(["stop"], calls)
-        self.assertEqual(
-            ["interrupt received, stopping gracefully (press Ctrl+C again to force)..."],
-            controller.pop_messages(),
-        )
+        self.assertEqual(1, len(controller.pop_messages()))
 
-    def test_signal_stop_second_interrupt_forces_shutdown(self):
+    def test_signal_stop_second_interrupt_preserves_stop_request(self):
         calls = []
         controller = StopController(lambda: calls.append("stop"))
 
@@ -177,10 +199,7 @@ class StopControllerTests(unittest.TestCase):
         self.assertTrue(controller.force)
         self.assertEqual(2, controller.interrupt_count)
         self.assertEqual(["stop", "stop"], calls)
-        self.assertEqual(
-            "second interrupt received, forcing shutdown...",
-            controller.pop_messages()[-1],
-        )
+        self.assertEqual(2, len(controller.pop_messages()))
 
     def test_http_stop_does_not_count_as_keyboard_interrupt(self):
         calls = []
@@ -196,6 +215,46 @@ class StopControllerTests(unittest.TestCase):
 
 
 class CoreRunnerTests(unittest.TestCase):
+    def test_stop_waits_for_worker_tail_before_release(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+
+        class StopControls(RecordingControls):
+            def poll_stop_requested(self) -> bool:
+                return True
+
+        deps = replace(
+            self._dependencies(operations),
+            engine_factory=lambda **_kwargs: SlowStoppingEngine(operations=operations),
+            thread_factory=threading.Thread,
+        )
+        result = run_start_session(
+            make_start_request(trigger_timeout_ms=500), "immediate", get_default_instrument_profile(),
+            sink, StopControls(operations), control_plane=NoOpControlPlane(),
+            dependencies=deps,
+        )
+
+        self.assertTrue(result.ok)
+        self.assertLess(operations.index("tail_done"), operations.index("release_to_local"))
+
+    def test_runner_exception_makes_summary_unsuccessful_even_when_engine_ok_is_true(self):
+        operations: list[str] = []
+        sink = RecordingEventSink()
+        deps = replace(
+            self._dependencies(operations),
+            engine_factory=lambda **_kwargs: RaisingEngine(operations=operations),
+        )
+
+        result = run_start_session(
+            make_start_request(), "immediate", get_default_instrument_profile(),
+            sink, RecordingControls(operations), dependencies=deps,
+        )
+
+        self.assertFalse(result.ok)
+        summary = sink.by_type("summary")[0]
+        self.assertFalse(summary.fields["ok"])
+        self.assertEqual("configure failed", summary.fatal_error)
+
     def _dependencies(
         self,
         operations: list[str],

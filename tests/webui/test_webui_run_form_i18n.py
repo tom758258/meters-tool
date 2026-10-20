@@ -12,6 +12,7 @@ STATIC_DIR = REPO_ROOT / "src" / "meters_tool_webui" / "static"
 NODE = shutil.which("node")
 
 
+@pytest.mark.frontend_node
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for run-form runtime tests")
 def test_dynamic_run_form_localization_preserves_machine_contracts():
     script = r"""
@@ -112,6 +113,10 @@ globalThis.FormData = class {
     if (name === "auto_range") {
       return element("[name='auto_range']").checked ? "on" : null;
     }
+    if (["trigger_count_infinite", "monitor_overflow", "stop_on_overflow"].includes(name)) {
+      const control = element(`[name='${name}']`);
+      return control.checked && !control.disabled ? "on" : null;
+    }
     return selectors[name] ? element(selectors[name]).value : null;
   }
 };
@@ -127,6 +132,7 @@ const featureStatus = {
   },
   trigger_mode: {
     software: { validation_status: "live_validated_full_suite" },
+    "software-custom": { validation_status: "live_validated_full_suite" },
     external: { validation_status: "not_supported_by_model" },
     "future-trigger": { validation_status: "live_validated_full_suite" },
   },
@@ -229,7 +235,7 @@ const capabilities = {
     },
     { name: "future-measure", unit: "X", nplc_options: [], range_options: [], defaults: {} },
   ],
-  trigger_modes: ["software", "external", "future-trigger"],
+  trigger_modes: ["software", "software-custom", "external", "future-trigger"],
   trigger_mode_metadata: {
     software: { uses_trigger_timeout: false },
     external: { uses_trigger_timeout: true },
@@ -624,6 +630,33 @@ assert.equal(modelSelect.value, "34461A");
 assert.equal(runForm.formPayload().measurement, "current-dc");
 assert.equal(runForm.formPayload().trigger_mode, "software");
 assert.equal(runForm.formPayload().instrument_model, "34461A");
+
+triggerSelect.value = "software-custom";
+element("[name='trigger_count_infinite']").checked = true;
+runForm.updateTriggerModeUi();
+assert.equal(element("[name='monitor_overflow']").checked, true);
+assert.equal(element("[name='monitor_overflow']").disabled, true);
+assert.equal(runForm.formPayload().trigger_count_infinite, true);
+assert.equal(runForm.formPayload().monitor_overflow, true);
+assert.equal("trigger_count" in runForm.formPayload(), false);
+assert.equal(element("#start-run").disabled, true);
+featureStatus.custom_acquisition = {
+  "software-custom:infinite:monitor": { validation_status: "live_validated_full_suite" },
+};
+await runForm.loadCapabilities();
+triggerSelect.value = "software-custom";
+runForm.updateTriggerModeUi();
+assert.equal(element("#start-run").disabled, false);
+element("[name='stop_on_overflow']").checked = true;
+runForm.updateTriggerModeUi();
+assert.equal(runForm.formPayload().stop_on_overflow, true);
+assert.equal(element("#start-run").disabled, true);
+element("[name='stop_on_overflow']").checked = false;
+element("[name='trigger_count_infinite']").checked = false;
+runForm.updateTriggerModeUi();
+assert.equal(element("[name='monitor_overflow']").checked, false);
+assert.equal(element("[name='monitor_overflow']").disabled, false);
+triggerSelect.value = "software";
 
 element("#resource").value = "TCPIP0::SIM";
 runForm.updateFeatureAvailability();

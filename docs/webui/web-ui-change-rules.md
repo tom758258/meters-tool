@@ -171,6 +171,9 @@ Important payload fields currently sent by the UI include:
 - `csv_time_columns`
 - `timeout_ms`
 - `trigger_timeout_ms`
+- `trigger_count_infinite`
+- `monitor_overflow`
+- `stop_on_overflow`
 - `trigger_mode`
 - `measurement`
 - `nplc`

@@ -217,7 +217,7 @@ reading every second and stops after 60 readings:</p>
 </code></pre>
 <h3 id="custom-buffered-trigger-modes">Custom / Buffered Trigger Modes</h3>
 <p>The three <code>*-custom</code> modes are for buffered acquisition rather than the simple
-<code>--max-samples</code> workflow. They require both <code>--trigger-count</code> and
+<code>--max-samples</code> workflow. Finite runs require both <code>--trigger-count</code> and
 <code>--sample-count</code>.</p>
 <p>The planned number of readings is:</p>
 <pre><code class="language-text">trigger count x sample count
@@ -234,6 +234,14 @@ memory or remove the buffer-drain hard limit. The current reading-memory limits
 are 10000 readings for 34461A and 1000 readings for 34460A; see
 <a href="supported-models.html">Supported Models</a> for exact current limits and
 support scope.</p>
+<p>For an unbounded Custom run, use <code>--trigger-count-infinite</code> instead of
+<code>--trigger-count</code>, together with <code>--allow-buffer-overflow-risk</code>, then stop the
+run explicitly. Overflow monitoring is enabled
+automatically. <code>--monitor-overflow</code> also enables monitoring for finite Custom
+runs; <code>--stop-on-overflow</code> stops when overflow is detected. A detected overflow,
+monitoring failure, or incomplete final drain makes the final summary
+unsuccessful. Check <code>overflow_detected</code>, <code>final_drain_complete</code>, and
+<code>data_integrity</code> before trusting the CSV.</p>
 <p>Use <code>external</code> or <code>external-custom</code> only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.
 Hardware trigger timeout is a protective re-arm condition, not automatically a

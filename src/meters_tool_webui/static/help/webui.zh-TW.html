@@ -203,6 +203,10 @@ command，也不是可執行 script。</p>
 執行前所需的明確確認。它<strong>不會</strong>增加儀器記憶體，也不會解除 buffer drain 的
 硬限制。目前 34461A 的 reading memory 為 10000 筆，34460A 為 1000 筆。
 精確的目前支援與限制請參閱 <a href="supported-models.zh-TW.html">支援型號</a>。</p>
+<p><code>Infinite trigger count</code> 會讓 Custom 採集持續執行，直到要求 Stop 或發生錯誤，
+必須勾選接受緩衝區溢位風險，並自動啟用溢位監測。有限採集可用 <code>Monitor overflow</code> 啟用相同檢查；
+<code>Stop on overflow</code> 會在偵測到溢位時停止。狀態面板會在執行中及停止後顯示
+監測、溢位、最後排空與資料完整性狀態。使用 CSV 前請先檢查這些欄位。</p>
 <p>只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
 <code>External trigger slope</code> 選擇實體觸發邊緣，<code>Trigger delay</code> 設定觸發後到量測前
 的延遲，<code>Trigger timeout</code> 則控制保護性的等待／re-arm 路徑。硬體觸發逾時並不

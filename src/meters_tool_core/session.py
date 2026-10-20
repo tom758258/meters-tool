@@ -200,9 +200,9 @@ class StopController:
             self.stop = True
             if force:
                 self.force = True
-                message = "second interrupt received, forcing shutdown..."
+                message = "additional interrupt received, waiting for measurement worker before release..."
             else:
-                message = "interrupt received, stopping gracefully (press Ctrl+C again to force)..."
+                message = "interrupt received, waiting for measurement worker to stop..."
             self._messages.append(message)
         self._stop_engine()
 

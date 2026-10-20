@@ -99,7 +99,8 @@ export function buildRunPayload(values, context) {
     payload.trigger_count = payload.trigger_count_infinite
       ? null
       : numberOrNull(values.trigger_count);
-    payload.monitor_overflow = values.monitor_overflow === "on";
+    payload.monitor_overflow = values.monitor_overflow === "on"
+      || payload.trigger_count_infinite || values.stop_on_overflow === "on";
     payload.stop_on_overflow = values.stop_on_overflow === "on";
     payload.sample_count = numberOrNull(values.sample_count);
     payload.buffer_drain_size = numberOrNull(values.buffer_drain_size);

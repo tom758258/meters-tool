@@ -20,6 +20,17 @@ def ps_quote(value: str | Path) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def run_powershell(command: str) -> subprocess.CompletedProcess[str]:
+    try:
+        return subprocess.run(
+            [POWERSHELL, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+             "-Command", "$ErrorActionPreference='Stop'; " + command],
+            cwd=REPO_ROOT, text=True, capture_output=True, check=False, timeout=30,
+        )
+    except subprocess.TimeoutExpired as exc:
+        pytest.fail(f"PowerShell exceeded 30s; stdout={exc.stdout!r}; stderr={exc.stderr!r}")
+
+
 def test_invoke_captured_command_drains_stdout_and_stderr_without_deadlock(
     tmp_path: Path,
 ):
@@ -37,6 +48,7 @@ def test_invoke_captured_command_drains_stdout_and_stderr_without_deadlock(
     command = (
         f"$RepoRoot = {ps_quote(REPO_ROOT)}; "
         f". {ps_quote(HELPER)}; "
+        "[Console]::Error.WriteLine('helper loaded; starting child'); "
         f"$result = Invoke-CapturedCommand "
         f"-Name 'pipe_deadlock' "
         f"-FilePath {ps_quote(PYTHON)} "
@@ -44,22 +56,15 @@ def test_invoke_captured_command_drains_stdout_and_stderr_without_deadlock(
         f"-StdOutPath {ps_quote(stdout_path)} "
         f"-StdErrPath {ps_quote(stderr_path)} "
         f"-WorkingDirectory {ps_quote(REPO_ROOT)}; "
-        "$result | ConvertTo-Json -Compress"
+        "[Console]::Error.WriteLine('child output captured'); $result | ConvertTo-Json -Compress"
     )
 
-    result = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-Command", command],
-        cwd=REPO_ROOT,
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=10,
-    )
+    result = run_powershell(command)
 
     assert result.returncode == 0, result.stderr + result.stdout
     captured = json.loads(result.stdout)
     assert captured["exit_code"] == 0
-    assert captured["success"] is True
+    assert captured["success"] is True, captured
     assert Path(captured["stdout"]).resolve() == stdout_path.resolve()
     assert Path(captured["stderr"]).resolve() == stderr_path.resolve()
     assert stdout_path.is_file()
@@ -80,15 +85,13 @@ def test_invoke_captured_command_memory_mode_keeps_output_off_disk(tmp_path: Pat
     command = (
         f"$RepoRoot = {ps_quote(REPO_ROOT)}; "
         f". {ps_quote(HELPER)}; "
+        "[Console]::Error.WriteLine('helper loaded; starting child'); "
         "$r = Invoke-CapturedCommand -Name 'memory' "
         f"-FilePath {ps_quote(PYTHON)} -Arguments @('-c', {ps_quote(child_code)}) "
         f"-StdOutPath {ps_quote(stdout_path)} -StdErrPath {ps_quote(stderr_path)} "
-        "-CaptureInMemory; $r | ConvertTo-Json -Compress"
+        "-CaptureInMemory; [Console]::Error.WriteLine('child output captured'); $r | ConvertTo-Json -Compress"
     )
-    result = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-Command", command],
-        cwd=REPO_ROOT, text=True, capture_output=True, check=False, timeout=10,
-    )
+    result = run_powershell(command)
     assert result.returncode == 0, result.stderr + result.stdout
     payload = json.loads(result.stdout)
     assert payload["success"] is True
@@ -122,10 +125,7 @@ def test_minimal_redaction_preserves_json_array_shapes(tmp_path: Path, count: in
         f"-RepoRoot {ps_quote(REPO_ROOT)} -Resource 'SIM::34461A' -Connection 'usb'; "
         "ConvertTo-Json -InputObject $safe -Compress -Depth 20"
     )
-    result = subprocess.run(
-        [POWERSHELL, "-NoProfile", "-Command", command],
-        cwd=REPO_ROOT, text=True, capture_output=True, check=False, timeout=15,
-    )
+    result = run_powershell(command)
     assert result.returncode == 0, result.stderr + result.stdout
     payload = json.loads(result.stdout)
     assert payload["cases"] == []
@@ -139,3 +139,45 @@ def test_minimal_redaction_preserves_json_array_shapes(tmp_path: Path, count: in
         and item["plan"]["cleanup_steps"] == ["close"]
         for item in payload["dry_runs"]
     )
+
+
+@pytest.mark.parametrize("overflow", [False, True])
+def test_start_helper_checks_planned_stop_and_expected_failure(tmp_path: Path, overflow: bool):
+    if POWERSHELL is None or not PYTHON.exists():
+        pytest.skip("Windows PowerShell and venv Python are required")
+    mode_args = (
+        "'--trigger-count','1','--sample-count','1001','--monitor-overflow'"
+        if overflow else "'--trigger-count-infinite','--sample-count','1'"
+    )
+    command = (
+        f"$RepoRoot={ps_quote(REPO_ROOT)}; $Python={ps_quote(PYTHON)}; "
+        f". {ps_quote(HELPER)}; Add-RepoSrcToPythonPath -RepoRoot $RepoRoot; "
+        "$port=Get-AvailableTcpPort; "
+        "$args=@('-m','meters_tool_cli','start-trigger-record','--simulate',"
+        "'--model','34460A','--resource','SIM::34460A','--trigger-mode','software-custom',"
+        "'--allow-buffer-overflow-risk','--no-csv','--status-format','jsonl',"
+        f"'--sw-trigger-port',[string]$port,{mode_args}); "
+        "$r=Invoke-CapturedStartProcess -Name 'outcome' -Arguments $args "
+        f"-StdOutPath {ps_quote(tmp_path / 'run.jsonl')} "
+        f"-StdErrPath {ps_quote(tmp_path / 'run.stderr')} -OutDir {ps_quote(tmp_path)} "
+        f"-TimeoutSeconds 5 -PlannedStopAfterSeconds {0 if overflow else 1} "
+        f"-ExpectedExitCode {3 if overflow else 0} "
+        "-SoftTriggerPort $port -SoftTriggerCount 1 -SoftTriggerRetryCount 2 "
+        "-SoftTriggerRetryDelayMs 50 -InterTriggerDelayMs 0 -StopGracePeriodMs 5000 "
+        "-CaptureInMemory -CaptureClientCommandsInMemory; "
+        "$r | ConvertTo-Json -Depth 10 -Compress"
+    )
+
+    result = run_powershell(command)
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    captured = json.loads(result.stdout)
+    assert captured["success"] is True, captured
+    assert captured["timed_out"] is False
+    events = [json.loads(line) for line in captured["stdout_text"].splitlines()]
+    summary = next(event for event in events if event["event"] == "summary")
+    assert summary["ok"] is not overflow
+    assert summary["overflow_detected"] is overflow
+    names = [command["name"] for command in captured["client_commands"]]
+    assert ("outcome_planned_stop" in names) is not overflow
+    assert not any("timeout_soft_stop" in name for name in names)

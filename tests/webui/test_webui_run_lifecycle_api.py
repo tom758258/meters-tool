@@ -62,12 +62,40 @@ class WebUiRunLifecycleApiTests(unittest.TestCase):
                 "resource": "USB::FAKE",
                 "instrument_model": "34461A",
                 "simulate": True,
-                "trigger_mode": "immediate",
-                "max_samples": 1,
+                "trigger_mode": "software-custom",
+                "trigger_count_infinite": True,
+                "sample_count": 2,
+                "allow_buffer_overflow_risk": True,
+                "csv_enabled": False,
             },
         )
         self.assertEqual(200, started.status_code)
-        status = wait_until_inactive(client, timeout_s=1.0)
+        try:
+            deadline = time.monotonic() + 1.0
+            status = client.get("/api/runs/current").json()
+            while status["overflow_monitoring"] != "active" and time.monotonic() < deadline:
+                time.sleep(0.02)
+                status = client.get("/api/runs/current").json()
+            self.assertTrue(status["active"])
+            self.assertTrue(status["trigger_count_infinite"])
+            self.assertEqual("active", status["overflow_monitoring"])
+        finally:
+            client.post("/api/runs/current/stop")
+            wait_until_inactive(client)
+
+        manager._record_event(
+            StartRunEvent.status_event(
+                status["run_id"], "overflow detected",
+                trigger_count_infinite=True,
+                overflow_monitoring="active",
+                overflow_detected=True,
+                stop_reason="overflow_detected",
+            )
+        )
+        running_status = client.get("/api/runs/current").json()
+        self.assertTrue(running_status["trigger_count_infinite"])
+        self.assertTrue(running_status["overflow_detected"])
+        self.assertEqual("overflow_detected", running_status["stop_reason"])
 
         manager._record_event(
             StartRunEvent.summary_event(

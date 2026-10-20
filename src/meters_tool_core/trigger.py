@@ -43,12 +43,17 @@ class TriggerRouter:
             return False
 
     def wait(self, timeout_s: float) -> Optional[TriggerEvent]:
-        try:
-            return self._control_queue.get_nowait()
-        except Empty:
-            pass
+        control = self.poll_control()
+        if control is not None:
+            return control
         try:
             return self._queue.get(timeout=timeout_s)
+        except Empty:
+            return None
+
+    def poll_control(self) -> Optional[TriggerEvent]:
+        try:
+            return self._control_queue.get_nowait()
         except Empty:
             return None
 
@@ -313,6 +318,13 @@ class SoftwareTriggerAdapter:
             "captured": dynamic.get("captured"),
             "errors": dynamic.get("errors"),
             "fatal_error": dynamic.get("fatal_error"),
+            "trigger_count_infinite": dynamic.get("trigger_count_infinite", False),
+            "expected_readings": dynamic.get("expected_readings"),
+            "overflow_monitoring": dynamic.get("overflow_monitoring", "off"),
+            "overflow_detected": dynamic.get("overflow_detected"),
+            "stop_reason": dynamic.get("stop_reason", "unknown"),
+            "final_drain_complete": dynamic.get("final_drain_complete"),
+            "data_integrity": dynamic.get("data_integrity", "unknown"),
             "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         }
 

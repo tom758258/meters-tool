@@ -98,6 +98,9 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertIsNone(payload["errors"])
             self.assertIsNone(payload["fatal_error"])
             self.assertIsNone(payload["run_id"])
+            self.assertFalse(payload["trigger_count_infinite"])
+            self.assertEqual("off", payload["overflow_monitoring"])
+            self.assertEqual("unknown", payload["data_integrity"])
             self.assertIn("timestamp_utc", payload)
         finally:
             server.stop()
@@ -115,6 +118,13 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
                 "captured": 2,
                 "errors": 1,
                 "fatal_error": "capture failed",
+                "trigger_count_infinite": True,
+                "expected_readings": None,
+                "overflow_monitoring": "active",
+                "overflow_detected": True,
+                "stop_reason": "overflow_detected",
+                "final_drain_complete": False,
+                "data_integrity": "incomplete",
             },
         )
         _, port = server.start()
@@ -131,6 +141,13 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertEqual(1, payload["errors"])
             self.assertEqual("capture failed", payload["fatal_error"])
             self.assertEqual("run-123", payload["run_id"])
+            self.assertTrue(payload["trigger_count_infinite"])
+            self.assertIsNone(payload["expected_readings"])
+            self.assertEqual("active", payload["overflow_monitoring"])
+            self.assertTrue(payload["overflow_detected"])
+            self.assertEqual("overflow_detected", payload["stop_reason"])
+            self.assertFalse(payload["final_drain_complete"])
+            self.assertEqual("incomplete", payload["data_integrity"])
         finally:
             server.stop()
 

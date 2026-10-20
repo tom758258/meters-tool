@@ -388,11 +388,13 @@ class ScalarDmmMeasurement(MeasurementPlugin):
             instrument.query("STAT:QUES:EVEN?"),
             "STAT:QUES:EVEN?",
         )
+        if event_bits & 0x4000:
+            return True
         condition_bits = _parse_status_register(
             instrument.query("STAT:QUES:COND?"),
             "STAT:QUES:COND?",
         )
-        return bool((event_bits | condition_bits) & 0x4000)
+        return bool(condition_bits & 0x4000)
 
     def clear_standard_event(self, instrument: InstrumentBackend) -> None:
         instrument.query("*ESR?")

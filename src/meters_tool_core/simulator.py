@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from .models import InstrumentConfig
+from collections import deque
+from .models import InstrumentConfig, KEYSIGHT_34460A_PROFILE, KEYSIGHT_34461A_PROFILE
 
 
 def _format_ascii_float(value: float) -> str:
@@ -26,6 +27,9 @@ class SimulatedMeasurementState:
     overflow_condition: bool = False
     last_signal_voltage_v: float = 2.46
     last_reference_voltage_v: float = 2.0
+    standard_event_complete: bool = False
+    sequence_complete: bool = False
+    operation_complete_requested: bool = False
 
 
 class SimulatedVisaInstrument:
@@ -38,11 +42,16 @@ class SimulatedVisaInstrument:
     ):
         self._config = config
         self._closed = False
-        self._writes: list[str] = []
+        self._writes: deque[str] = deque(maxlen=1000)
         self._timeout_ms = config.timeout_ms
         self._overflow_after_samples = overflow_after_samples
         self._state = SimulatedMeasurementState(measurement_type=measurement_type)
         self._resource_id = config.resource_string
+        self._profile = (
+            KEYSIGHT_34460A_PROFILE
+            if config.expected_model == "34460A" or config.resource_string == "SIM::34460A"
+            else KEYSIGHT_34461A_PROFILE
+        )
 
     def connect(self) -> None:
         return None
@@ -66,45 +75,67 @@ class SimulatedVisaInstrument:
     def _finite_point_limit(self) -> int:
         return self._state.trigger_count * self._state.sample_count
 
+    def _add_points(self, count: int) -> None:
+        available = self._state.points_available + count
+        if available > self._profile.reading_memory_limit:
+            self._record_overflow()
+        self._state.points_available = min(available, self._profile.reading_memory_limit)
+
     def _operation_complete(self) -> bool:
-        if self._state.trigger_count_infinite:
-            return False
-        if self._state.source == "BUS":
-            return self._state.triggers_received >= self._state.trigger_count
-        return self._state.points_available == 0
+        complete = self._state.standard_event_complete
+        self._state.standard_event_complete = False
+        return complete
+
+    def _complete_sequence(self) -> None:
+        self._state.sequence_complete = True
+        if self._state.operation_complete_requested:
+            self._state.standard_event_complete = True
+            self._state.operation_complete_requested = False
 
     def write(self, command: str) -> None:
         self._writes.append(command)
         normalized = command.strip().upper()
         if normalized == "*CLS":
+            self._state.standard_event_complete = False
+            return
+        if normalized == "*OPC":
+            if self._state.sequence_complete or not self._state.armed:
+                self._state.standard_event_complete = True
+            else:
+                self._state.operation_complete_requested = True
             return
         if normalized.startswith("CONF:VOLT:DC:RAT"):
             self._state.measurement_type = "voltage_dc_ratio"
             return
         if normalized == "ABOR":
             self._state.armed = False
-            self._reset_overflow()
+            self._state.overflow_condition = False
             return
         if normalized == "INIT":
             self._state.armed = True
             self._state.triggers_received = 0
             self._state.samples_read = 0
+            self._state.standard_event_complete = False
+            self._state.sequence_complete = False
+            self._state.operation_complete_requested = False
             self._reset_overflow()
             if self._state.source in {"IMM", "EXT"}:
                 if self._state.trigger_count_infinite:
                     self._state.points_available = 0
                 else:
-                    self._state.points_available = self._finite_point_limit()
+                    self._state.points_available = 0
+                    self._add_points(self._finite_point_limit())
+                    self._complete_sequence()
             return
         if normalized == "*TRG":
             if self._state.trigger_count_infinite:
-                self._state.points_available += self._state.sample_count
+                self._add_points(self._state.sample_count)
             else:
-                self._state.points_available = min(
-                    self._finite_point_limit(),
-                    self._state.points_available + self._state.sample_count,
-                )
+                if self._state.triggers_received < self._state.trigger_count:
+                    self._add_points(self._state.sample_count)
             self._state.triggers_received += 1
+            if not self._state.trigger_count_infinite and self._state.triggers_received >= self._state.trigger_count:
+                self._complete_sequence()
             return
         if normalized.startswith("TRIG:SOUR"):
             if "IMM" in normalized:
@@ -139,7 +170,7 @@ class SimulatedVisaInstrument:
         normalized = command.strip().upper()
         self._writes.append(f"query:{command}")
         if normalized == "*IDN?":
-            return "Keysight Technologies,34461A,MYSIMULATED,1.0"
+            return f"Keysight Technologies,{self._profile.model},MYSIMULATED,1.0"
         if normalized == "SYST:ERR?":
             return "0,No error"
         if normalized == "*ESR?":
@@ -159,7 +190,7 @@ class SimulatedVisaInstrument:
                 and self._state.armed
                 and self._state.points_available == 0
             ):
-                self._state.points_available = self._state.sample_count
+                self._add_points(self._state.sample_count)
             return str(max(0, self._state.points_available))
         if normalized == "DATA2?":
             return ",".join(
@@ -215,6 +246,7 @@ class SimulatedVisaInstrument:
 
     def abort_measurement(self) -> bool:
         self._state.armed = False
+        self._state.overflow_condition = False
         return True
 
     def poll_system_error(self) -> str:

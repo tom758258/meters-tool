@@ -20,6 +20,29 @@ from .storage import CsvWriter
 from .trigger import HardwareTriggerAdapter, TriggerRouter
 
 
+class _DeadlineInstrument:
+    def __init__(self, instrument: InstrumentBackend, deadline: float) -> None:
+        self._instrument = instrument
+        self._deadline = deadline
+
+    def query(self, command: str) -> str:
+        remaining_ms = int((self._deadline - time.monotonic()) * 1000)
+        if remaining_ms <= 0:
+            raise TimeoutError("final drain budget exhausted")
+        set_timeout = getattr(self._instrument, "set_timeout_ms", None)
+        if callable(set_timeout):
+            set_timeout(remaining_ms)
+        if time.monotonic() >= self._deadline:
+            raise TimeoutError("final drain budget exhausted")
+        return self._instrument.query(command)
+
+    def query_ascii_float(self, command: str) -> float:
+        return float(self.query(command))
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._instrument, name)
+
+
 @dataclass
 class AcquisitionStats:
     captured: int = 0
@@ -429,7 +452,8 @@ class TriggerAcquisitionEngine:
         if self._stats.overflow_monitoring == "failed":
             return
         self._stats.overflow_monitoring = "failed"
-        self._stats.overflow_detected = None
+        if self._stats.overflow_detected is not True:
+            self._stats.overflow_detected = None
         self._stats.errors += 1
         self._emit(
             "overflow monitoring failed "
@@ -683,6 +707,9 @@ class TriggerAcquisitionEngine:
 
     def _wait_software_trigger_ready(self) -> bool:
         while self._running and not self._stop_event.is_set():
+            control = self._router.poll_control()
+            if control is not None and self._handle_control_event(control):
+                return False
             if not self._poll_overflow_due():
                 return False
             try:
@@ -831,14 +858,21 @@ class TriggerAcquisitionEngine:
                     if final:
                         self._emit("final drain budget exhausted")
                     return False
-                available = self._measurement.buffered_points_available(self._instrument)
+                drain_instrument = (
+                    _DeadlineInstrument(self._instrument, deadline)
+                    if deadline is not None else self._instrument
+                )
+                available = self._measurement.buffered_points_available(drain_instrument)
+                if deadline is not None and time.monotonic() >= deadline:
+                    self._emit("final drain budget exhausted")
+                    return False
                 if available <= 0:
                     return True
                 read_count = available
                 if self._config.buffer_drain_size is not None:
                     read_count = min(read_count, self._config.buffer_drain_size)
                 samples = self._measurement.read_buffered_samples(
-                    self._instrument,
+                    drain_instrument,
                     event,
                     read_count,
                     first_sample_index=self._stats.captured,
@@ -875,14 +909,18 @@ class TriggerAcquisitionEngine:
     def _finalize_custom_capture(self) -> None:
         if not self._custom_started:
             return
-        self._abort_measurement()
+        if not self._abort_measurement():
+            self._fatal_error = self._fatal_error or "measurement abort failed"
+            self._stats.final_drain_complete = False
+            self._set_data_integrity()
+            return
         if self._overflow_monitoring and self._stats.overflow_monitoring == "active":
             try:
                 if self._measurement.overflow_status_asserted(self._instrument):
                     self._latch_overflow()
             except Exception as exc:
                 self._mark_overflow_monitoring_failed(exc)
-        if self._custom_event is not None:
+        if self._custom_event is not None and self._overflow_monitoring:
             self._stats.final_drain_complete = self._drain_remaining_custom(
                 self._custom_event,
                 expected_readings=self._stats.expected_readings,
@@ -894,10 +932,10 @@ class TriggerAcquisitionEngine:
     def _set_data_integrity(self) -> None:
         if not self._custom_started:
             return
-        if self._stats.overflow_monitoring == "failed":
-            self._stats.data_integrity = "unknown"
-        elif self._stats.overflow_detected:
+        if self._stats.overflow_detected:
             self._stats.data_integrity = "incomplete"
+        elif self._stats.overflow_monitoring == "failed":
+            self._stats.data_integrity = "unknown"
         elif self._stats.expected_readings is None:
             self._stats.data_integrity = "unknown"
         elif self._stats.captured == self._stats.expected_readings:
@@ -928,7 +966,6 @@ class TriggerAcquisitionEngine:
         if event.metadata.get("control") != "stop":
             return False
         self._emit("stop request received")
-        self._abort_measurement()
         self.stop("stop_requested")
         return True
 
@@ -985,9 +1022,9 @@ class TriggerAcquisitionEngine:
             )
         return mode
 
-    def _abort_measurement(self) -> None:
+    def _abort_measurement(self) -> bool:
         # Keep VISA I/O on the worker side of the shutdown path.
         try:
-            self._instrument.abort_measurement()
+            return self._instrument.abort_measurement() is True
         except Exception:
-            pass
+            return False

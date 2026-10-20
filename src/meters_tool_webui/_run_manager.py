@@ -712,10 +712,7 @@ class WebRunManager:
                 payload = sample_payload(event.sample, handle.captured)
                 if payload is not None:
                     handle.recent_samples.append(payload)
-            if event.event == "summary":
-                handle.captured = int(event.captured or 0)
-                handle.errors = int(event.errors or 0)
-                handle.fatal_error = event.fatal_error
+            if event.event in {"status", "summary"}:
                 for name in (
                     "trigger_count_infinite",
                     "expected_readings",
@@ -727,6 +724,10 @@ class WebRunManager:
                 ):
                     if name in event.fields:
                         setattr(handle, name, event.fields[name])
+            if event.event == "summary":
+                handle.captured = int(event.captured or 0)
+                handle.errors = int(event.errors or 0)
+                handle.fatal_error = event.fatal_error
             if event.event == "error":
                 handle.fatal_error = event.message
                 handle.state = "error"

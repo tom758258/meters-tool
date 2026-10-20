@@ -157,7 +157,7 @@ Software mode 也可以依計時器自動觸發。Timer capture 並不是另一�
 ### Custom / Buffered 觸發模式
 
 三種 `*-custom` 模式使用 buffered acquisition，而不是一般
-`--max-samples` 工作流程。它們都需要 `--trigger-count` 與
+`--max-samples` 工作流程。有限採集需要 `--trigger-count` 與
 `--sample-count`。
 
 預期讀值總數為：
@@ -177,6 +177,14 @@ Custom mode 不使用 `--max-samples`。
 **不會**增加儀器記憶體，也不會解除 buffer drain 的硬限制。目前 34461A 的
 reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支援範圍請參閱
 [支援型號](../core/supported-models.zh-TW.md)。
+
+若要持續執行 Custom 採集，請使用 `--trigger-count-infinite` 取代
+`--trigger-count`，同時指定 `--allow-buffer-overflow-risk`，並在需要結束時
+明確停止。此模式會自動啟用溢位監測。
+有限 Custom 採集可用 `--monitor-overflow` 啟用監測；
+`--stop-on-overflow` 會在偵測到溢位時停止。若已偵測到溢位、監測失敗，
+或最後排空未完成，最終摘要會回報失敗。信任 CSV 前，請檢查
+`overflow_detected`、`final_drain_complete` 與 `data_integrity`。
 
 只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
 `external` 或 `external-custom`。硬體觸發逾時是一種保護性的重新準備

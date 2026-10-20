@@ -250,8 +250,8 @@ Fields:
 - `expected_readings`: finite Custom expected reading count, or `null` for
   infinite or non-Custom runs.
 - `overflow_monitoring`: `off`, `starting`, `active`, or `failed`.
-- `overflow_detected`: `null` when no monitoring ran, otherwise `false` or
-  `true`.
+- `overflow_detected`: `null` when monitoring is unavailable, otherwise `false`
+  or `true`. Once observed, `true` remains latched even if a later poll fails.
 - `stop_reason`: `stop_requested`, `completed`, `overflow_detected`,
   `overflow_monitor_failed`, `fatal_error`, `max_samples_reached`, or
   `unknown`.
@@ -407,7 +407,11 @@ Live case result objects include:
 - `name`
 - `status`
 - `run_id`
-- `expected_captured`
+- `expected_captured`: exact count, or `-1` for unbounded capture.
+- `expected_exit_code`: process exit code required by the case.
+- `expected_stop_reason`: required reason for stream/overflow cases.
+- `planned_stop_after_seconds`: acquisition interval before scheduled Stop;
+  `0` disables scheduled Stop. Watchdog expiry remains a failure.
 - `captured_count`
 - `captured`
 - `errors`
@@ -427,10 +431,16 @@ Live case result objects include:
 
 The live wrapper supports the `keysight-34461a` and `keysight-34460a` targets
 and passes the matching CLI model to every generated `start-trigger-record`
-command. Both targets support `minimal`, `basic`, `frequency-period`, and
-`full` suites. `keysight-34461a` also supports `external`; `keysight-34460a`
-rejects `external` because the base 34460A profile does not support external
+command. Both targets support `minimal`, `basic`, `frequency-period`, `stream`,
+and `full` suites. `keysight-34461a` also supports `external` and `overflow`;
+`keysight-34460a` rejects both because the base 34460A profile does not support external
 trigger modes.
+
+`stream` uses scheduled Stop for infinite immediate and software Custom
+acquisition, plus external Custom acquisition on 34461A. `overflow` requires
+the additional `-AllowIntentionalOverflow` opt-in for live execution and checks
+exit `3`, `summary.ok=false`, confirmed overflow, and incomplete data integrity.
+It records the bounded final drain outcome. Neither suite is included in `full`.
 
 The `frequency-period` suite runs one immediate Auto Range Frequency sample and
 one immediate Auto Range Period sample with a `20` Hz AC filter, `0.1` second

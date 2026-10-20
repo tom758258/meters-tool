@@ -3,8 +3,10 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from meters_tool_core.acquisition import TriggerAcquisitionEngine
+from meters_tool_core.measurement import VoltageDcRatioMeasurement
 from meters_tool_core.models import (
     AcquisitionConfig,
     InstrumentProfile,
@@ -115,6 +117,134 @@ class WaitingExternalBufferedMeasurement(FakeBufferedMeasurement):
 
 
 class AcquisitionEngineTests(unittest.TestCase):
+    def test_custom_abort_failure_cannot_report_successful_drain(self):
+        for failure in (None, RuntimeError("ABOR failed")):
+            with self.subTest(failure=failure), patch.object(
+                RecordingInstrument, "abort_measurement", return_value=False, side_effect=failure
+            ):
+                engine = make_acquisition_engine(
+                    instrument=RecordingInstrument(),
+                    measurement=FakeBufferedMeasurement(),
+                    config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=1),
+                )
+
+                engine.run(trigger_mode="immediate-custom")
+
+                self.assertFalse(engine.ok)
+                self.assertEqual("measurement abort failed", engine.fatal_error)
+                self.assertFalse(engine.stats.final_drain_complete)
+
+    def test_confirmed_overflow_remains_latched_after_monitor_failure(self):
+        class FailingAfterOverflow(FakeBufferedMeasurement):
+            polls = 0
+
+            def overflow_status_asserted(self, instrument):  # noqa: ANN001, ARG002
+                self.polls += 1
+                if self.polls == 1:
+                    return True
+                raise TimeoutError("monitor timed out")
+
+        engine = make_acquisition_engine(
+            measurement=FailingAfterOverflow(),
+            config=AcquisitionConfig(trigger_count_infinite=True, sample_count=1),
+        )
+
+        engine.run(trigger_mode="software-custom")
+
+        self.assertTrue(engine.stats.overflow_detected)
+        self.assertEqual("failed", engine.stats.overflow_monitoring)
+        self.assertEqual("incomplete", engine.stats.data_integrity)
+
+    def test_ratio_final_drain_applies_deadline_to_each_query(self):
+        now = [0.0]
+
+        class SlowRatioInstrument(RecordingInstrument):
+            def query(self, command: str) -> str:
+                self.commands.append(command)
+                now[0] += 0.6
+                return {"DATA:POINts?": "3", "DATA:REMove? 1": "1", "DATA2?": "1,1"}[command]
+
+            def set_timeout_ms(self, timeout_ms: int) -> None:
+                self.asserted_timeouts.append(timeout_ms)
+
+        instrument = SlowRatioInstrument()
+        instrument.asserted_timeouts = []
+        measurement = VoltageDcRatioMeasurement()
+        measurement.configure(instrument, AcquisitionConfig())
+        instrument.commands.clear()
+        engine = make_acquisition_engine(instrument=instrument, measurement=measurement)
+
+        with patch("meters_tool_core.acquisition.time.monotonic", side_effect=lambda: now[0]):
+            complete = engine._drain_remaining_custom(
+                TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+                expected_readings=None, final=True, deadline=1.0,
+            )
+
+        self.assertFalse(complete)
+        self.assertEqual(["DATA:POINts?", "DATA:REMove? 1"], instrument.commands)
+        self.assertEqual([1000, 400], instrument.asserted_timeouts)
+
+    def test_finite_custom_stop_preserves_captured_rows_without_monitoring(self):
+        storage = CapturingStorage()
+        engine = make_acquisition_engine(
+            instrument=RecordingInstrument(), measurement=FakeBufferedMeasurement(),
+            storage=storage,
+            config=AcquisitionConfig(trigger_count=1, sample_count=3, buffer_drain_size=1),
+            status_cb=lambda message: engine.stop() if message.startswith("captured=") else None,
+        )
+
+        engine.run(trigger_mode="immediate-custom")
+
+        self.assertEqual(1, engine.stats.captured)
+        self.assertEqual(1, len(storage.samples))
+        self.assertIsNone(engine.stats.final_drain_complete)
+
+    def test_priority_stop_interrupts_bus_readiness_wait(self):
+        readiness_checked = threading.Event()
+
+        class NotReadyMeasurement(FakeBufferedMeasurement):
+            def software_trigger_ready(self, instrument):  # noqa: ANN001, ARG002
+                readiness_checked.set()
+                return False
+
+        measurement = NotReadyMeasurement()
+        router = TriggerRouter()
+        engine = make_acquisition_engine(
+            instrument=RecordingInstrument(), measurement=measurement, router=router,
+            config=AcquisitionConfig(trigger_count=1, sample_count=1, monitor_overflow=True),
+        )
+        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "software-custom"})
+        worker.start()
+        try:
+            router.publish(TriggerEvent.new(TriggerSource.SOFTWARE))
+            self.assertTrue(readiness_checked.wait(1))
+            router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+            worker.join(timeout=1)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual(0, measurement.bus_triggers_sent)
+            self.assertEqual("stop_requested", engine.stats.stop_reason)
+        finally:
+            engine.stop()
+            worker.join(timeout=1)
+
+    def test_final_drain_does_not_read_after_points_query_uses_budget(self):
+        class SlowPoints(FakeBufferedMeasurement):
+            def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
+                time.sleep(0.02)
+                return 1
+
+            def read_buffered_samples(self, *args, **kwargs):  # noqa: ANN002, ANN003
+                raise AssertionError("read issued after deadline")
+
+        engine = make_acquisition_engine(measurement=SlowPoints())  # type: ignore[arg-type]
+        event = TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM)
+
+        complete = engine._drain_remaining_custom(
+            event, expected_readings=None, final=True, deadline=time.monotonic() + 0.005
+        )
+
+        self.assertFalse(complete)
+
     def test_storage_open_permission_error_sets_fatal_error(self):
         engine = make_acquisition_engine(
             storage=PermissionDeniedStorage(),  # type: ignore[arg-type]

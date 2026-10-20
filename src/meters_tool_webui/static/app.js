@@ -586,6 +586,15 @@ timerIntervalInput.addEventListener("input", () => {
 });
 timerTriggerCheckbox.addEventListener("change", updateTriggerModeUi);
 triggerCountInfiniteCheckbox.addEventListener("change", updateTriggerModeUi);
+for (const name of ["monitor_overflow", "stop_on_overflow"]) {
+  const checkbox = document.querySelector(`[name='${name}']`);
+  checkbox?.addEventListener("change", () => {
+    if (name === "monitor_overflow") {
+      checkbox.dataset.manualChecked = String(checkbox.checked);
+    }
+    updateTriggerModeUi();
+  });
+}
 autoRangeCheckbox.addEventListener("change", () => {
   updateRangeAndLiveChartScale(
     autoRangeCheckbox.checked

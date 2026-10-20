@@ -52,6 +52,29 @@ class PreloadedSoftwareTriggerControlPlane:
 
 
 class SimulatedVisaInstrumentTests(unittest.TestCase):
+    def test_model_memory_limit_latches_overflow(self):
+        instrument = SimulatedVisaInstrument(
+            InstrumentConfig(resource_string="SIM::34460A"),
+            measurement_type="current_dc",
+        )
+        instrument.write("TRIG:SOUR BUS")
+        instrument.write("TRIG:COUNT INF")
+        instrument.write("SAMP:COUNT 1000")
+        instrument.write("INIT")
+        instrument.write("*TRG")
+        instrument.write("*TRG")
+
+        self.assertEqual("1000", instrument.query("DATA:POINts?"))
+        self.assertEqual("16384", instrument.query("STAT:QUES:EVEN?"))
+        self.assertIn(",34460A,", instrument.query("*IDN?"))
+
+    def test_command_history_is_bounded(self):
+        instrument = SimulatedVisaInstrument(InstrumentConfig(resource_string="SIM::34461A"))
+        for _ in range(1100):
+            instrument.query("SYST:ERR?")
+
+        self.assertEqual(1000, len(instrument._writes))
+
     def test_read_path_returns_deterministic_values(self):
         instrument = SimulatedVisaInstrument(
             InstrumentConfig(resource_string="SIM::34461A"),
@@ -128,10 +151,24 @@ class SimulatedVisaInstrumentTests(unittest.TestCase):
         instrument.write("TRIG:COUNT 2")
         instrument.write("SAMP:COUNT 1")
         instrument.write("INIT")
+        instrument.write("*OPC")
         instrument.write("*TRG")
         self.assertEqual("0", instrument.query("*ESR?"))
         instrument.write("*TRG")
         self.assertEqual("1", instrument.query("*ESR?"))
+        self.assertEqual("0", instrument.query("*ESR?"))
+
+    def test_immediate_completion_event_does_not_depend_on_buffer_draining(self):
+        instrument = SimulatedVisaInstrument(InstrumentConfig(resource_string="SIM::34460A"))
+        instrument.write("TRIG:SOUR IMM")
+        instrument.write("TRIG:COUNT 2")
+        instrument.write("SAMP:COUNT 1000")
+        instrument.write("INIT")
+        self.assertEqual("0", instrument.query("*ESR?"))
+        instrument.write("*OPC")
+        self.assertEqual("1", instrument.query("*ESR?"))
+        self.assertEqual("1000", instrument.query("DATA:POINts?"))
+        self.assertEqual("16384", instrument.query("STAT:QUES:EVEN?"))
 
     def test_software_trigger_ready_status_tracks_armed_state(self):
         instrument = SimulatedVisaInstrument(

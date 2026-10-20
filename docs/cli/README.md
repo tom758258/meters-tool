@@ -380,9 +380,11 @@ Supported parameters:
   in plan-only mode.
 - `-VisaLibrary` (aliases: `-Backend`, `-visa-library`): optional PyVISA
   library/backend selector such as `@py`. Omit it to use System VISA.
-- `-Suite`: `minimal`, `basic`, `frequency-period`, `external`, or `full`.
+- `-Suite`: `minimal`, `basic`, `frequency-period`, `external`, `stream`,
+  `overflow`, or `full`.
 - `-PlanOnly`: validate and write dry-run plans without opening VISA.
 - `-SkipPreflight`: skip the separate preflight only in `-PlanOnly` mode.
+- `-AllowIntentionalOverflow`: required for live `overflow` runs.
 
 Suite scope:
 
@@ -395,9 +397,22 @@ Suite scope:
   SCPI diagnostic sessions before the formal CLI cases.
 - `external` covers simple and custom external-trigger acquisition and is not
   available for the 34460A base profile.
+- `stream` checks infinite immediate and software Custom capture, plus external
+  Custom capture on 34461A, planned Stop, live status, final drain, JSONL, and
+  CSV correlation.
+- `overflow` checks a deliberately induced overflow and unsuccessful structured
+  outcome. It requires explicit opt-in and external trigger edges on 34461A.
+  It uses a large batch at `0.02` NPLC with one-reading drains to provoke
+  overflow, and fails if overflow is not observed within 60 seconds. A confirmed
+  overflow requires exit `3`, `ok=false`, and `data_integrity=incomplete`;
+  the bounded final drain result is recorded even if it is incomplete.
 - `full` combines the applicable basic, Frequency/Period, and external suites.
   For `keysight-34460a`, external-trigger cases are omitted because the base
   profile does not support them.
+
+Stream cases use a scheduled Stop after the acquisition interval. The watchdog
+is a separate failure path; reaching it never counts as a successful planned
+Stop. Check the structured outcome and run correlation before accepting a case.
 
 For LAN validation, first set `METER_RESOURCE` to the exact operator-selected
 LAN VISA resource:
@@ -652,9 +667,9 @@ schemas as unsupported instead of negotiating.
 | `software` | `send-command` posts to the local HTTP endpoint, or `--timer-interval-s` creates automatic timed software events. | `READ?` | `software` or `timer` | Default when `--trigger-mode` is omitted. The timed software path uses fixed-delay spacing after each capture attempt. |
 | `external` | The instrument receives an external hardware trigger edge. | `FETC?` | `hardware` | Use `--trigger-mode external`. |
 | `immediate` | The worker captures without waiting for a trigger event. | `READ?` | `immediate` | Use `--max-samples` for bounded runs. |
-| `immediate-custom` | The instrument runs an explicit immediate trigger/sample sequence and stores readings in memory. | `INIT` + `DATA:POINts?` / `DATA:REMove?` | `immediate-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` is not valid. |
-| `software-custom` | The instrument is armed for bus triggers; each accepted `send-command` sends `*TRG`. | `INIT` + `*TRG` + `DATA:POINts?` / `DATA:REMove?` | `software-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` and `--timer-interval-s` are not valid. |
-| `external-custom` | The instrument is armed for external trigger edges and stores readings in memory. | `INIT` + external edge + `DATA:POINts?` / `DATA:REMove?` | `external-custom` | Requires `--trigger-count` and `--sample-count`; `--max-samples` and `--timer-interval-s` are not valid. |
+| `immediate-custom` | The instrument runs an explicit immediate trigger/sample sequence and stores readings in memory. | `INIT` + `DATA:POINts?` / `DATA:REMove?` | `immediate-custom` | Requires `--sample-count` and either `--trigger-count` or `--trigger-count-infinite`; `--max-samples` is not valid. |
+| `software-custom` | The instrument is armed for bus triggers; each accepted `send-command` sends `*TRG`. | `INIT` + `*TRG` + `DATA:POINts?` / `DATA:REMove?` | `software-custom` | Requires `--sample-count` and either `--trigger-count` or `--trigger-count-infinite`; `--max-samples` and `--timer-interval-s` are not valid. |
+| `external-custom` | The instrument is armed for external trigger edges and stores readings in memory. | `INIT` + external edge + `DATA:POINts?` / `DATA:REMove?` | `external-custom` | Requires `--sample-count` and either `--trigger-count` or `--trigger-count-infinite`; `--max-samples` and `--timer-interval-s` are not valid. |
 
 In `external` mode, accidental software triggers are ignored and should not
 break the hardware-trigger flow. In `immediate` mode, software triggers are also
@@ -689,7 +704,10 @@ after that many successful timed samples.
 | `--sw-queue-max N` | No | `0` | Maximum queued software triggers. Supported range: `0` to `10000`; `0` uses the default safety cap. |
 | `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | No | `software` | Select exactly one acquisition mode. Supported choices are profile-specific; 34460A base profile excludes `external` and `external-custom`. |
 | `--max-samples N` | Simple modes only | None | Stop simple modes automatically after N successful samples. Supported range: `1` to `1000000`. Not valid with custom modes. |
-| `--trigger-count N` | Custom modes only | None | Instrument trigger count. Supported range: `1` to `1000000`. Required with custom modes; not valid with simple modes. |
+| `--trigger-count N` | Custom modes only | None | Instrument trigger count. Supported range: `1` to `1000000`. Required for finite custom modes; mutually exclusive with `--trigger-count-infinite`. |
+| `--trigger-count-infinite` | Custom modes only | Off | Run until Stop or an error. Requires `--sample-count` and `--allow-buffer-overflow-risk`; enables overflow monitoring. |
+| `--monitor-overflow` | Custom modes only | Off | Monitor reading-memory overflow; automatically enabled for Infinity or Stop on overflow. |
+| `--stop-on-overflow` | Custom modes only | Off | Stop when overflow is detected. |
 | `--sample-count N` | Custom modes only | None | Instrument sample count per trigger. Supported range: `1` to `1000000`. Required with custom modes; not valid with simple modes. |
 | `--timer-interval-s SECONDS` | No | None | Enable fixed-delay software timer capture. Supported range: `0.5` to `86400` seconds. Valid only with `--trigger-mode software`; also valid when `--trigger-mode` is omitted because software is the default. May be combined with `--max-samples` for bounded timer runs. |
 | `--buffer-drain-size N` | Custom modes only | None | Maximum readings to remove per buffer drain. Supported range: `1` to `10000`, capped by the instrument profile reading memory. Advanced option valid only with custom modes; does not change `TRIG:COUNT`, `SAMP:COUNT`, or instrument reading memory capacity. |
@@ -974,8 +992,9 @@ Additional validation rules:
   `--current-terminal 10`, and `--current-terminal 10` requires the 10 A range.
   The 34460A profile rejects current terminal selection.
 - 34460A base profile rejects `external` and `external-custom` trigger modes.
-- Custom modes require both `--trigger-count` and `--sample-count`; simple modes
-  reject both options.
+- Custom modes require `--sample-count` and either `--trigger-count` or
+  `--trigger-count-infinite`; simple modes reject these options. Infinity also
+  requires `--allow-buffer-overflow-risk` and enables overflow monitoring.
 - Custom modes reject `--max-samples`; simple modes use `--max-samples` for
   bounded runs.
 - `--buffer-drain-size` and `--allow-buffer-overflow-risk` are valid only with

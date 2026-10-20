@@ -556,8 +556,9 @@ UI behavior:
 - Non-custom trigger modes show `max_samples`.
 - `software` mode can use an optional software timer.
 - Manual software-triggered modes show the `Trigger` button.
-- Custom trigger modes show trigger count, sample count, buffer drain size, and
-  buffer overflow risk.
+- Custom trigger modes show trigger count, infinite count, sample count, buffer
+  drain size, overflow monitoring, stop on overflow, and buffer overflow risk.
+  The Start button checks the exact Core Custom acquisition support scope.
 - External trigger modes show hardware slope, hardware delay, and trigger
   timeout.
 - Hardware trigger timeout is a protective re-arm condition, not a capture

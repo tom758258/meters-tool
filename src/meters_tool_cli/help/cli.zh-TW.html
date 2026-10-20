@@ -181,7 +181,7 @@ buffered custom acquisition。</p>
 </code></pre>
 <h3 id="custom-buffered-觸發模式">Custom / Buffered 觸發模式</h3>
 <p>三種 <code>*-custom</code> 模式使用 buffered acquisition，而不是一般
-<code>--max-samples</code> 工作流程。它們都需要 <code>--trigger-count</code> 與
+<code>--max-samples</code> 工作流程。有限採集需要 <code>--trigger-count</code> 與
 <code>--sample-count</code>。</p>
 <p>預期讀值總數為：</p>
 <pre><code class="language-text">trigger count x sample count
@@ -195,6 +195,13 @@ Custom mode 不使用 <code>--max-samples</code>。</p>
 <strong>不會</strong>增加儀器記憶體，也不會解除 buffer drain 的硬限制。目前 34461A 的
 reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支援範圍請參閱
 <a href="supported-models.zh-TW.html">支援型號</a>。</p>
+<p>若要持續執行 Custom 採集，請使用 <code>--trigger-count-infinite</code> 取代
+<code>--trigger-count</code>，同時指定 <code>--allow-buffer-overflow-risk</code>，並在需要結束時
+明確停止。此模式會自動啟用溢位監測。
+有限 Custom 採集可用 <code>--monitor-overflow</code> 啟用監測；
+<code>--stop-on-overflow</code> 會在偵測到溢位時停止。若已偵測到溢位、監測失敗，
+或最後排空未完成，最終摘要會回報失敗。信任 CSV 前，請檢查
+<code>overflow_detected</code>、<code>final_drain_complete</code> 與 <code>data_integrity</code>。</p>
 <p>只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
 <code>external</code> 或 <code>external-custom</code>。硬體觸發逾時是一種保護性的重新準備
 (re-arm) 條件，並非自動代表量測失敗。</p>

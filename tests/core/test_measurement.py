@@ -229,6 +229,14 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertIn("*OPC", inst.commands)
         self.assertIn("STAT:OPER:COND?", inst.commands)
 
+    def test_overflow_event_is_preserved_without_condition_query(self):
+        inst = FakeInstrument()
+        inst.responses["STAT:QUES:EVEN?"] = "16384"
+        measurement = CurrentMeasurement()
+
+        self.assertTrue(measurement.overflow_status_asserted(inst))
+        self.assertNotIn("STAT:QUES:COND?", inst.commands)
+
     def test_immediate_custom_reads_and_removes_available_points(self):
         inst = FakeInstrument()
         inst.responses["DATA:POINts?"] = "2"

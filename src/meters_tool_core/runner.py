@@ -98,7 +98,9 @@ def run_start_session(
         storage=storage,
         config=aconfig,
         router=router,
-        status_cb=lambda m: event_sink.emit(StartRunEvent.status_event(active_run_id, m)),
+        status_cb=lambda m: event_sink.emit(StartRunEvent.status_event(
+            active_run_id, m, **engine_result_fields()
+        )),
         sample_cb=lambda sample, captured: event_sink.emit(
             StartRunEvent.sample_event(active_run_id, sample, captured)
         ),
@@ -122,9 +124,11 @@ def run_start_session(
         return fields if isinstance(fields, dict) else {}
 
     def engine_ok() -> bool:
+        if engine.fatal_error or runtime_fatal_error:
+            return False
         value = getattr(engine, "ok", None)
         if value is None:
-            return not (engine.fatal_error or runtime_fatal_error)
+            return True
         return bool(value)
 
     def emit_summary() -> None:
@@ -255,13 +259,8 @@ def run_start_session(
             emit_message("main cleanup starting")
             engine.stop()
             if worker.is_alive():
-                join_timeout_s = max(request.trigger_timeout_ms / 1000.0 + 1.0, 2.0)
-                emit_message(f"waiting for measurement worker to stop, timeout_s={join_timeout_s:.1f}")
-                worker.join(timeout=join_timeout_s)
-            if worker.is_alive() or stop_controller.force:
-                emit_message(f"release_to_local before close: {instrument.release_to_local()}")
-                instrument.close()
-                worker.join(timeout=2)
+                emit_message("waiting for measurement worker to stop")
+                worker.join()
         emit_summary()
         if engine.fatal_error or runtime_fatal_error:
             return result(ok=False, reason="fatal_error", control=control_handle)
@@ -274,7 +273,7 @@ def run_start_session(
         # Ensure worker exits before final release/close.
         if worker is not None and worker.is_alive():
             emit_message("waiting worker to fully stop...")
-            worker.join(timeout=5)
+            worker.join()
 
         # Release instrument control before closing the session.
         if connected:

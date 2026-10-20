@@ -193,7 +193,7 @@ reading every second and stops after 60 readings:
 ### Custom / Buffered Trigger Modes
 
 The three `*-custom` modes are for buffered acquisition rather than the simple
-`--max-samples` workflow. They require both `--trigger-count` and
+`--max-samples` workflow. Finite runs require both `--trigger-count` and
 `--sample-count`.
 
 The planned number of readings is:
@@ -216,6 +216,15 @@ memory or remove the buffer-drain hard limit. The current reading-memory limits
 are 10000 readings for 34461A and 1000 readings for 34460A; see
 [Supported Models](../core/supported-models.md) for exact current limits and
 support scope.
+
+For an unbounded Custom run, use `--trigger-count-infinite` instead of
+`--trigger-count`, together with `--allow-buffer-overflow-risk`, then stop the
+run explicitly. Overflow monitoring is enabled
+automatically. `--monitor-overflow` also enables monitoring for finite Custom
+runs; `--stop-on-overflow` stops when overflow is detected. A detected overflow,
+monitoring failure, or incomplete final drain makes the final summary
+unsuccessful. Check `overflow_detected`, `final_drain_complete`, and
+`data_integrity` before trusting the CSV.
 
 Use `external` or `external-custom` only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.

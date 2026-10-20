@@ -245,6 +245,16 @@ surface capabilities for user convenience, but direct adapter calls must still
 delegate unsupported combinations to Core validation instead of trusting UI or
 CLI affordances.
 
+For Custom acquisition, set `sample_count` and either a finite `trigger_count`
+or `trigger_count_infinite=True`. Infinity also requires
+`allow_buffer_overflow_risk=True`. Infinity and `stop_on_overflow=True` enable
+overflow monitoring automatically; `monitor_overflow=True` enables it for a
+finite run. Forward structured acquisition fields from Core status events to
+consumers while the worker is running. Treat `StartRunResult.ok=False` as an
+unsuccessful run, including confirmed overflow, failed monitoring, failed abort,
+and incomplete final drain. See the [JSONL contract](../contracts/meters-cli-jsonl-contract.md)
+for outcome field meanings.
+
 `validate_start_workflow_support()` is the Core-owned live support policy gate
 for `start-trigger-record`. Call it after profile-specific request validation
 and before dry-run planning or `run_start_session(...)`. In live mode it uses
@@ -255,11 +265,12 @@ externally supplied profile as a feature unlock. In dry-run and simulate modes
 it leaves profile-supported planning/simulation open while hard profile limits
 remain enforced by `validate_start_request(...)`.
 
-Live policy evaluation has three required layers: the exact transport/backend
-connection scope, the normalized measurement feature, and the effective
-trigger-mode feature. Feature entries belong to one exact connection scope;
+Live policy evaluation checks the exact transport/backend connection scope,
+the normalized measurement feature, the effective trigger-mode feature, and
+the Custom acquisition feature when infinite count or overflow handling is
+requested. Feature entries belong to one exact connection scope;
 USB/system-VISA support does not open TCPIP/system-VISA or TCPIP/pyvisa-py.
-Product mode requires `live_validated_full_suite` at all three layers.
+Product mode requires `live_validated_full_suite` at every required layer.
 Validation mode additionally permits an explicitly registered
 `transport_pending` connection and explicitly registered `feature_pending`
 features. A missing connection or feature entry, an unknown status, or

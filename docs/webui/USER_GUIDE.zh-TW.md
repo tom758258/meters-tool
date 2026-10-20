@@ -191,6 +191,11 @@ trigger count x sample count
 硬限制。目前 34461A 的 reading memory 為 10000 筆，34460A 為 1000 筆。
 精確的目前支援與限制請參閱 [支援型號](../core/supported-models.zh-TW.md)。
 
+`Infinite trigger count` 會讓 Custom 採集持續執行，直到要求 Stop 或發生錯誤，
+必須勾選接受緩衝區溢位風險，並自動啟用溢位監測。有限採集可用 `Monitor overflow` 啟用相同檢查；
+`Stop on overflow` 會在偵測到溢位時停止。狀態面板會在執行中及停止後顯示
+監測、溢位、最後排空與資料完整性狀態。使用 CSV 前請先檢查這些欄位。
+
 只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
 `External trigger slope` 選擇實體觸發邊緣，`Trigger delay` 設定觸發後到量測前
 的延遲，`Trigger timeout` 則控制保護性的等待／re-arm 路徑。硬體觸發逾時並不

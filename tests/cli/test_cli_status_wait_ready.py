@@ -87,6 +87,28 @@ class CliStatusWaitReadyTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("2026-05-31T00:00:00+00:00", event["worker_timestamp_utc"])
 
     @patch("meters_tool_cli._client_commands.request.urlopen")
+    def test_soft_status_preserves_structured_acquisition_fields(self, mock_urlopen):
+        fields = {
+            "trigger_count_infinite": True,
+            "expected_readings": None,
+            "overflow_monitoring": "active",
+            "overflow_detected": True,
+            "stop_reason": "overflow_detected",
+            "final_drain_complete": False,
+            "data_integrity": "incomplete",
+        }
+        mock_urlopen.return_value = self._fake_json_response({**self._worker_status(), **fields})
+        stdout = io.StringIO()
+
+        with redirect_stdout(stdout):
+            rc = cmd_status(8765, output_format="json")
+
+        self.assertEqual(0, rc)
+        event = json.loads(stdout.getvalue())
+        for name, value in fields.items():
+            self.assertEqual(value, event[name])
+
+    @patch("meters_tool_cli._client_commands.request.urlopen")
     def test_soft_status_text_mode_prints_summary(self, mock_urlopen):
         mock_urlopen.return_value = self._fake_json_response(self._worker_status())
         stdout = io.StringIO()

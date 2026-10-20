@@ -292,6 +292,13 @@ def _normalized_status_payload(
         "captured": worker_status.get("captured"),
         "errors": worker_status.get("errors"),
         "fatal_error": fatal_error,
+        "trigger_count_infinite": worker_status.get("trigger_count_infinite", False),
+        "expected_readings": worker_status.get("expected_readings"),
+        "overflow_monitoring": worker_status.get("overflow_monitoring", "off"),
+        "overflow_detected": worker_status.get("overflow_detected"),
+        "stop_reason": worker_status.get("stop_reason", "unknown"),
+        "final_drain_complete": worker_status.get("final_drain_complete"),
+        "data_integrity": worker_status.get("data_integrity", "unknown"),
     }
     if extra is not None:
         payload.update(extra)

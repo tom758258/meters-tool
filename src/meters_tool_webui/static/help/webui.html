@@ -264,6 +264,13 @@ procedure requires a specific drain size.</p>
 The current reading-memory limits are 10000 readings for 34461A and 1000
 readings for 34460A. See <a href="supported-models.html">Supported Models</a> for
 exact current support and limits.</p>
+<p><code>Infinite trigger count</code> keeps a Custom run active until Stop is requested or
+an error occurs. It requires the buffer overflow risk acknowledgement and
+enables overflow monitoring automatically. <code>Monitor
+overflow</code> enables the same check for finite runs, and <code>Stop on overflow</code> stops
+when overflow is detected. The status panel shows monitoring, overflow, final
+drain, and data integrity while the run progresses and after it stops. Review
+those fields before relying on the CSV.</p>
 <p>Use External or External Custom only when a physical trigger signal is connected
 and configured for the instrument. <code>External trigger slope</code> selects the physical
 edge, <code>Trigger delay</code> waits after the edge before measurement, and <code>Trigger

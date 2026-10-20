@@ -889,6 +889,47 @@ def test_live_plan_only_34460a_rejects_external_suite():
     )
 
 
+@pytest.mark.parametrize("target,expected_cases", [
+    ("keysight-34461a", {"stream_immediate", "stream_software", "stream_external"}),
+    ("keysight-34460a", {"stream_immediate", "stream_software"}),
+])
+def test_live_stream_plan_only_uses_infinity_and_explicit_risk(target, expected_cases):
+    model = "34460A" if target == "keysight-34460a" else "34461A"
+    result = run_wrapper(
+        "scripts/live-cli-check.ps1", "-Target", target, "-Connection", "usb",
+        "-Resource", f"SIM::{model}", "-Suite", "stream", "-PlanOnly", "-SkipPreflight",
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    report = load_json(report_from_summary_output(result.stdout))
+    assert report["live_executed"] is False
+    assert {case["name"] for case in report["dry_runs"]} == expected_cases
+    for case in report["dry_runs"]:
+        args = case["command"]["arguments"]
+        assert "--trigger-count-infinite" in args
+        assert "--allow-buffer-overflow-risk" in args
+        assert "TRIG:COUNT INF" in case["plan"]["scpi_commands"]
+
+
+def test_live_overflow_requires_extra_opt_in_and_can_be_planned_without_it():
+    args = (
+        "-Target", "keysight-34461a", "-Connection", "usb",
+        "-Resource", "SIM::34461A", "-Suite", "overflow",
+    )
+    refused = run_wrapper("scripts/live-cli-check.ps1", *args)
+    assert refused.returncode == 2
+    assert "-AllowIntentionalOverflow" in refused.stderr
+
+    planned = run_wrapper("scripts/live-cli-check.ps1", *args, "-PlanOnly", "-SkipPreflight")
+    assert planned.returncode == 0, planned.stderr + planned.stdout
+    report = load_json(report_from_summary_output(planned.stdout))
+    assert report["live_executed"] is False
+    assert len(report["dry_runs"]) == 1
+    plan = report["dry_runs"][0]["plan"]
+    assert "TRIG:COUNT INF" in plan["scpi_commands"]
+    assert "SAMP:COUNT 1000000" in plan["scpi_commands"]
+
+
 def test_live_frequency_period_probe_args_include_selected_model():
     script = (REPO_ROOT / "scripts" / "live-cli-check.ps1").read_text(
         encoding="utf-8-sig"

@@ -306,6 +306,8 @@ function Invoke-CapturedStartProcess {
         [Parameter(Mandatory = $true)][int]$SoftTriggerRetryDelayMs,
         [Parameter(Mandatory = $true)][int]$InterTriggerDelayMs,
         [Parameter(Mandatory = $true)][int]$StopGracePeriodMs,
+        [int]$PlannedStopAfterSeconds = 0,
+        [int]$ExpectedExitCode = 0,
         [switch]$CaptureInMemory,
         [switch]$CaptureClientCommandsInMemory
     )
@@ -326,7 +328,7 @@ function Invoke-CapturedStartProcess {
     $clientFailure = $null
     $timedOut = $false
 
-    if ($SoftTriggerCount -gt 0) {
+    if ($SoftTriggerCount -gt 0 -or $PlannedStopAfterSeconds -gt 0 -or $ExpectedExitCode -ne 0) {
         $readinessResult = Invoke-ReadinessClientChecks `
             -Name $Name `
             -Port $SoftTriggerPort `
@@ -360,7 +362,40 @@ function Invoke-CapturedStartProcess {
         }
     }
 
-    $exited = $process.WaitForExit($TimeoutSeconds * 1000)
+    $exited = $false
+    if ($PlannedStopAfterSeconds -gt 0 -and $null -eq $clientFailure) {
+        $exited = $process.WaitForExit($PlannedStopAfterSeconds * 1000)
+        if (-not $exited) {
+            $statusOut = Join-Path $OutDir "$Name`_planned_stop_status.json"
+            $statusErr = Join-Path $OutDir "$Name`_planned_stop_status.stderr.txt"
+            $statusResult = Invoke-CapturedCommand `
+                -Name "$Name`_planned_stop_status" `
+                -FilePath $Python `
+                -Arguments @("-m", "meters_tool_cli", "status", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -StdOutPath $statusOut `
+                -StdErrPath $statusErr `
+                -CaptureInMemory:$CaptureClientCommandsInMemory
+            $clientResults.Add([pscustomobject]$statusResult) | Out-Null
+            if (-not $statusResult.success) {
+                $clientFailure = "status before planned stop failed"
+            }
+            $stopOut = Join-Path $OutDir "$Name`_planned_stop.json"
+            $stopErr = Join-Path $OutDir "$Name`_planned_stop.stderr.txt"
+            $stopResult = Invoke-CapturedCommand `
+                -Name "$Name`_planned_stop" `
+                -FilePath $Python `
+                -Arguments @("-m", "meters_tool_cli", "stop", "--format", "json", "--port", [string]$SoftTriggerPort) `
+                -StdOutPath $stopOut `
+                -StdErrPath $stopErr `
+                -CaptureInMemory:$CaptureClientCommandsInMemory
+            $clientResults.Add([pscustomobject]$stopResult) | Out-Null
+            if (-not $stopResult.success) {
+                $clientFailure = "planned stop failed"
+            }
+            $exited = $process.WaitForExit($StopGracePeriodMs)
+        }
+    }
+    if (-not $exited) { $exited = $process.WaitForExit($TimeoutSeconds * 1000) }
     if (-not $exited) {
         $timedOut = $true
         if ($SoftTriggerPort -gt 0) {
@@ -400,7 +435,7 @@ function Invoke-CapturedStartProcess {
         stderr = if ($CaptureInMemory) { $null } else { $StdErrPath }
         stdout_text = if ($CaptureInMemory) { $stdout } else { $null }
         stderr_text = if ($CaptureInMemory) { $stderr } else { $null }
-        success = (($process.ExitCode -eq 0) -and (-not $timedOut) -and ($null -eq $clientFailure))
+        success = (($process.ExitCode -eq $ExpectedExitCode) -and (-not $timedOut) -and ($null -eq $clientFailure))
         timed_out = $timedOut
         client_failure = $clientFailure
         client_commands = @($clientResults.ToArray())

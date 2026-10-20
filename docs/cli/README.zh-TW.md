@@ -295,10 +295,11 @@ wrapper 不會把它視為實機執行授權。
   模式下也必須提供。
 - `-VisaLibrary`（別名：`-Backend`、`-visa-library`）：選用的 PyVISA
   library/backend selector，例如 `@py`。省略時使用 System VISA。
-- `-Suite`：`minimal`、`basic`、`frequency-period`、`external` 或
-  `full`。
+- `-Suite`：`minimal`、`basic`、`frequency-period`、`external`、
+  `stream`、`overflow` 或 `full`。
 - `-PlanOnly`：只驗證並寫出 dry-run plan，不開啟 VISA。
 - `-SkipPreflight`：僅在 `-PlanOnly` 模式下略過獨立 preflight。
+- `-AllowIntentionalOverflow`：實機執行 `overflow` suite 時必須指定。
 
 各 suite 範圍：
 
@@ -311,9 +312,19 @@ wrapper 不會把它視為實機執行授權。
   SCPI diagnostic session。
 - `external`：涵蓋 simple 與 custom external-trigger acquisition；
   34460A base profile 不支援此 suite。
+- `stream`：檢查無限 immediate 與 software Custom 採集，以及 34461A 的
+  external Custom 採集、預定 Stop、執行中狀態、最後排空，以及 JSONL 與 CSV 的關聯。
+- `overflow`：檢查刻意造成的溢位及結構化失敗結果。僅供 34461A 使用，
+  需要明確 opt-in 與外部觸發邊緣。
+  此案例以 `0.02` NPLC 的大批次採集配合逐筆排空來造成溢位；若 60 秒內
+  未觀察到溢位則失敗。確認溢位時，必須得到退出碼 `3`、`ok=false` 與
+  `data_integrity=incomplete`；有時間限制的最後排空結果即使未完成也會記錄。
 - `full`：組合適用的 basic、Frequency/Period 與 external suites。
   對 `keysight-34460a` 而言，因 base profile 不支援 external trigger，
   因此會排除 external cases。
+
+Stream 案例會在採集期間結束後預定發送 Stop。Watchdog 是獨立的失敗處理路徑，
+觸發它不能算作成功的預定 Stop。接受案例前，請檢查結構化結果及執行關聯。
 
 驗證 LAN 前，先把 `METER_RESOURCE` 設成操作人員選定的確切 LAN VISA
 resource：
@@ -544,9 +555,9 @@ uv run meters-tool start-trigger-record `
 | `software` | `send-command` 發送至本機 HTTP 端點，或 `--timer-interval-s` 建立自動的計時軟體事件。 | `READ?` | `software` 或 `timer` | 省略 `--trigger-mode` 時的預設值。計時軟體路徑在每次擷取嘗試後使用固定延遲間隔。 |
 | `external` | 儀器接收到外接硬體觸發邊緣。 | `FETC?` | `hardware` | 使用 `--trigger-mode external`。 |
 | `immediate` | 工作器直接擷取而不等待觸發事件。 | `READ?` | `immediate` | 使用 `--max-samples` 來限制執行樣本數。 |
-| `immediate-custom` | 儀器執行明確的立即觸發/取樣序列並將讀值儲存在記憶體中。 | `INIT` + `DATA:POINts?` / `DATA:REMove?` | `immediate-custom` | 需要 `--trigger-count` 和 `--sample-count`；`--max-samples` 無效。 |
-| `software-custom` | 儀器準備接收匯流排觸發；每個接受的 `send-command` 會傳送 `*TRG`。 | `INIT` + `*TRG` + `DATA:POINts?` / `DATA:REMove?` | `software-custom` | 需要 `--trigger-count` 和 `--sample-count`；`--max-samples` 和 `--timer-interval-s` 無效。 |
-| `external-custom` | 儀器準備接收外接觸發邊緣並將讀值儲存在記憶體中。 | `INIT` + 外接邊緣 + `DATA:POINts?` / `DATA:REMove?` | `external-custom` | 需要 `--trigger-count` 和 `--sample-count`；`--max-samples` 和 `--timer-interval-s` 無效。 |
+| `immediate-custom` | 儀器執行明確的立即觸發/取樣序列並將讀值儲存在記憶體中。 | `INIT` + `DATA:POINts?` / `DATA:REMove?` | `immediate-custom` | 需要 `--sample-count` 及 `--trigger-count` 或 `--trigger-count-infinite`；`--max-samples` 無效。 |
+| `software-custom` | 儀器準備接收匯流排觸發；每個接受的 `send-command` 會傳送 `*TRG`。 | `INIT` + `*TRG` + `DATA:POINts?` / `DATA:REMove?` | `software-custom` | 需要 `--sample-count` 及 `--trigger-count` 或 `--trigger-count-infinite`；`--max-samples` 和 `--timer-interval-s` 無效。 |
+| `external-custom` | 儀器準備接收外接觸發邊緣並將讀值儲存在記憶體中。 | `INIT` + 外接邊緣 + `DATA:POINts?` / `DATA:REMove?` | `external-custom` | 需要 `--sample-count` 及 `--trigger-count` 或 `--trigger-count-infinite`；`--max-samples` 和 `--timer-interval-s` 無效。 |
 
 在 `external` 模式下，意外的軟體觸發會被忽略，且不應中斷硬體觸發流程。在 `immediate` 模式下，軟體觸發同樣會被忽略。
 
@@ -574,7 +585,10 @@ uv run meters-tool start-trigger-record `
 | `--sw-queue-max N` | 否 | `0` | 佇列軟體觸發的最大數量。支援範圍：`0` 到 `10000`；`0` 使用預設的安全限制。 |
 | `--trigger-mode software\|external\|immediate\|immediate-custom\|software-custom\|external-custom` | 否 | `software` | 精確選擇一種擷取模式。支援選項依設定檔而定；34460A 基礎設定檔排除 `external` 與 `external-custom`。 |
 | `--max-samples N` | 僅限簡單模式 | 無 | 在成功取得 N 個樣本後自動停止簡單模式。支援範圍：`1` 到 `1000000`。與自訂模式不相容。 |
-| `--trigger-count N` | 僅限自訂模式 | 無 | 儀器觸發計數。支援範圍：`1` 到 `1000000`。自訂模式下必要；與簡單模式不相容。 |
+| `--trigger-count N` | 僅限自訂模式 | 無 | 儀器觸發計數。支援範圍：`1` 到 `1000000`。有限自訂模式下必要；不可與 `--trigger-count-infinite` 同時使用。 |
+| `--trigger-count-infinite` | 僅限自訂模式 | 關閉 | 持續執行直到 Stop 或發生錯誤。需要 `--sample-count` 與 `--allow-buffer-overflow-risk`，並自動啟用溢位監測。 |
+| `--monitor-overflow` | 僅限自訂模式 | 關閉 | 監測讀值記憶體溢位；Infinity 或 Stop on overflow 會自動啟用。 |
+| `--stop-on-overflow` | 僅限自訂模式 | 關閉 | 偵測到溢位時停止。 |
 | `--sample-count N` | 僅限自訂模式 | 無 | 每次觸發的儀器樣本計數。支援範圍：`1` 到 `1000000`。自訂模式下必要；與簡單模式不相容。 |
 | `--timer-interval-s SECONDS` | 否 | 無 | 啟用固定延遲的軟體計時器擷取。支援範圍：`0.5` 到 `86400` 秒。僅在 `--trigger-mode software` 時有效；當省略 `--trigger-mode` 時也有效（因為預設為 software）。可與 `--max-samples` 結合以限制計時器執行次數。 |
 | `--buffer-drain-size N` | 僅限自訂模式 | 無 | 每次緩衝區排空移除的最大讀值。支援範圍：`1` 到 `10000`，受儀器設定檔讀值記憶體限制。進階選項，僅在自訂模式下有效；不會變更 `TRIG:COUNT`、`SAMP:COUNT` 或儀器讀值記憶體容量。 |
@@ -787,7 +801,9 @@ CLI 在開啟儀器前會驗證使用者輸入。超出這些範圍的值將快�
 - `--freq-period-timeout` 僅在 `frequency` 下有效。
 - `--current-terminal` 僅在公開端子選擇的設定檔之電流量測下有效。34461A 的 10 A 範圍需要 `--current-terminal 10`，而 `--current-terminal 10` 需要 10 A 範圍。34460A 設定檔拒絕電流端子選擇。
 - 34460A 基礎設定檔拒絕 `external` 與 `external-custom` 觸發模式。
-- 自訂模式需要同時提供 `--trigger-count` 和 `--sample-count`；簡單模式會拒絕這兩個選項。
+- 自訂模式需要 `--sample-count`，以及 `--trigger-count` 或
+  `--trigger-count-infinite`；簡單模式會拒絕這些選項。Infinity 還需要
+  `--allow-buffer-overflow-risk`，並自動啟用溢位監測。
 - 自訂模式拒絕 `--max-samples`；簡單模式使用 `--max-samples` 進行有限的執行。
 - `--buffer-drain-size` 和 `--allow-buffer-overflow-risk` 僅在自訂模式下有效。
 - 除非設定了 `--allow-buffer-overflow-risk`，否則自訂模式拒絕超過選定設定檔讀值記憶體的 `trigger_count * sample_count`；34461A 的限制為 10000，34460A 的限制為 1000。
