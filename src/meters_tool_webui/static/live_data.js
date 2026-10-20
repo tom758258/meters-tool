@@ -30,7 +30,7 @@ import {
   toggleLiveSamplesButton,
   toggleLiveStatsButton,
 } from "./dom.js";
-import { setTranslatedText, setTranslatedAriaLabel } from "./dom_i18n.js";
+import { applyStaticTranslations, setTranslatedText, setTranslatedAriaLabel } from "./dom_i18n.js";
 import { t } from "./i18n.js";
 import {
   clamp,
@@ -39,6 +39,7 @@ import {
 } from "./live_chart_math.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
+const LIVE_RENDER_INTERVAL_MS = 100;
 let selectedLiveSampleSequence = null;
 let liveSampleDetailsVisible = false;
 let liveChartBaselineRunId = null;
@@ -49,6 +50,9 @@ let liveChartManualSpanInputInvalid = false;
 let liveChartScaleNoticeKey = "";
 let lastLiveChartSamples = [];
 let latestLiveStatus = null;
+let liveRenderTimer = null;
+let lastLiveRenderTime = -Infinity;
+let liveSamplesRunId = null;
 
 function setRawText(element, text) {
   element.removeAttribute("data-i18n");
@@ -165,11 +169,34 @@ export function refreshLiveChartScaleAvailability(notice = null) {
 }
 
 export function renderLiveData(status) {
+  const previousStatus = latestLiveStatus;
   latestLiveStatus = status || null;
+  const samples = Array.isArray(status?.recent_samples) ? status.recent_samples : [];
+  updateLiveChartBaseline(status, samples);
+
+  // Run/preview resets and the first sample must not wait behind an older frame.
+  const reset = !previousStatus
+    || status?.run_id !== previousStatus?.run_id
+    || Boolean(samples.length) !== Boolean(previousStatus?.recent_samples?.length);
+  const remaining = LIVE_RENDER_INTERVAL_MS - (performance.now() - lastLiveRenderTime);
+  if (reset || remaining <= 0) {
+    paintLiveData();
+  } else if (liveRenderTimer === null) {
+    // Keep one trailing update; it always reads the latest snapshot.
+    liveRenderTimer = setTimeout(paintLiveData, Math.ceil(remaining));
+  }
+}
+
+function paintLiveData() {
+  if (liveRenderTimer !== null) {
+    clearTimeout(liveRenderTimer);
+    liveRenderTimer = null;
+  }
+  lastLiveRenderTime = performance.now();
+  const status = latestLiveStatus;
   const samples = Array.isArray(status?.recent_samples) ? status.recent_samples : [];
   const latest = status?.latest_sample || samples[samples.length - 1] || null;
   const capacity = Number(status?.sample_capacity || 100);
-  updateLiveChartBaseline(status, samples);
 
   if (samples.length === 0) {
     selectedLiveSampleSequence = null;
@@ -184,11 +211,8 @@ export function renderLiveData(status) {
 }
 
 export function refreshLiveDataPresentation() {
-  const status = latestLiveStatus || {};
-  const samples = Array.isArray(status.recent_samples) ? status.recent_samples : [];
-  const latest = status.latest_sample || samples[samples.length - 1] || null;
-  const capacity = Number(status.sample_capacity || 100);
-  renderLiveDataPresentation(samples, latest, capacity);
+  paintLiveData();
+  applyStaticTranslations(liveSamplesBody);
 }
 
 function renderLiveDataPresentation(samples, latest, capacity) {
@@ -463,6 +487,11 @@ function scaleModeLabelKey(mode) {
 }
 
 function renderLiveSamplesTable(samples) {
+  const runId = latestLiveStatus?.run_id || null;
+  if (runId !== liveSamplesRunId) {
+    liveSamplesRunId = runId;
+    liveSamplesBody.replaceChildren();
+  }
   if (samples.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
@@ -473,8 +502,30 @@ function renderLiveSamplesTable(samples) {
     return;
   }
 
-  liveSamplesBody.replaceChildren(
-    ...[...samples].reverse().map((sample) => {
+  const rows = new Map(
+    [...liveSamplesBody.querySelectorAll("tr[data-sequence]")]
+      .map((row) => [row.dataset.sequence, row])
+  );
+  const sequences = new Set(samples.map((sample) => String(sample.sequence)));
+  if (rows.size === 0) {
+    liveSamplesBody.replaceChildren();
+  }
+  for (const [sequence, row] of rows) {
+    if (!sequences.has(sequence)) {
+      row.remove();
+    } else {
+      const selected = sameSequence(sequence, selectedLiveSampleSequence);
+      row.classList.toggle("is-selected", selected);
+      row.querySelector(".live-detail-button")?.setAttribute(
+        "aria-expanded",
+        String(liveSampleDetailsVisible && selected)
+      );
+    }
+  }
+  const newRows = samples
+    .filter((sample) => !rows.has(String(sample.sequence)))
+    .reverse()
+    .map((sample) => {
       const row = document.createElement("tr");
       row.dataset.sequence = String(sample.sequence);
       row.classList.toggle(
@@ -517,8 +568,8 @@ function renderLiveSamplesTable(samples) {
       detailsCell.appendChild(detailsButton);
       row.appendChild(detailsCell);
       return row;
-    })
-  );
+    });
+  liveSamplesBody.prepend(...newRows);
 }
 
 function renderLiveSampleDetails(sample) {
