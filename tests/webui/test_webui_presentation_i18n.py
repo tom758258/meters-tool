@@ -607,7 +607,30 @@ assert.equal(buttonFor(1).getAttribute("aria-expanded"), "false");
 assert.equal(buttonFor(2).getAttribute("aria-expanded"), "true");
 element("#close-live-sample-details").click();
 assert.equal(element("#live-sample-metadata").classList.contains("is-hidden"), true);
+const rowsBeforeLocaleRefresh = [...body.children];
+const sourceBeforeLocaleRefresh = source;
+const pollingBeforeLocaleRefresh = [...clock.intervals.entries()];
+for (const locale of ["zh-TW", "en"]) {
+  i18n.setLocale(locale);
+  status.refreshStatusPresentation();
+  assertFrame(1, 38);
+  assert.equal(element("#live-sample-metadata").classList.contains("is-hidden"), true);
+  assert.equal(element("#live-sample-details").textContent, "");
+  for (const row of body.children) {
+    const sequence = Number(row.dataset.sequence);
+    assert.equal(row.classList.contains("is-selected"), false);
+    assert.equal(buttonFor(sequence).getAttribute("aria-expanded"), "false");
+    assert.equal(buttonFor(sequence).textContent, i18n.t("live_data.column_details"));
+    assert.equal(buttonFor(sequence).getAttribute("aria-label"), i18n.t("accessibility.toggle_sample_details", { sequence }));
+  }
+  for (const row of rowsBeforeLocaleRefresh) assert.strictEqual(rowFor(Number(row.dataset.sequence)), row);
+  assert.equal(fetchCalls, 0);
+  assert.strictEqual(source, sourceBeforeLocaleRefresh);
+  assert.deepEqual([...clock.intervals.entries()], pollingBeforeLocaleRefresh);
+  assert.equal(status.isRunActive(), true);
+}
 buttonFor(2).click();
+const detailsBeforeLocaleRefresh = element("#live-sample-details").textContent;
 for (const locale of ["zh-TW", "en"]) {
   i18n.setLocale(locale);
   status.refreshStatusPresentation();
@@ -616,6 +639,16 @@ for (const locale of ["zh-TW", "en"]) {
   assert.equal(buttonFor(2).textContent, i18n.t("live_data.column_details"));
   assert.equal(buttonFor(2).getAttribute("aria-label"), i18n.t("accessibility.toggle_sample_details", { sequence: 2 }));
   assert.equal(JSON.parse(element("#live-sample-details").textContent).sequence, 2);
+  assert.equal(element("#live-sample-details").textContent, detailsBeforeLocaleRefresh);
+  assert.equal(element("#live-sample-metadata").classList.contains("is-hidden"), false);
+  for (const row of body.children) {
+    const selected = row.dataset.sequence === "2";
+    assert.equal(row.classList.contains("is-selected"), selected);
+    assert.equal(buttonFor(Number(row.dataset.sequence)).getAttribute("aria-expanded"), String(selected));
+  }
+  assert.equal(fetchCalls, 0);
+  assert.strictEqual(source, sourceBeforeLocaleRefresh);
+  assert.deepEqual([...clock.intervals.entries()], pollingBeforeLocaleRefresh);
 }
 
 clock.advance(10);

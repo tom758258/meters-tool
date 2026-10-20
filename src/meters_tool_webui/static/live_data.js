@@ -187,7 +187,7 @@ export function renderLiveData(status) {
   }
 }
 
-function paintLiveData() {
+function paintLiveData(updateSelection = true) {
   if (liveRenderTimer !== null) {
     clearTimeout(liveRenderTimer);
     liveRenderTimer = null;
@@ -201,8 +201,10 @@ function paintLiveData() {
   if (samples.length === 0) {
     selectedLiveSampleSequence = null;
   } else if (
-    selectedLiveSampleSequence === null ||
-    !samples.some((sample) => sameSequence(sample.sequence, selectedLiveSampleSequence))
+    updateSelection && (
+      selectedLiveSampleSequence === null ||
+      !samples.some((sample) => sameSequence(sample.sequence, selectedLiveSampleSequence))
+    )
   ) {
     selectedLiveSampleSequence = latest.sequence;
   }
@@ -211,7 +213,8 @@ function paintLiveData() {
 }
 
 export function refreshLiveDataPresentation() {
-  paintLiveData();
+  // A presentation-only refresh must preserve an explicitly cleared selection.
+  paintLiveData(false);
   applyStaticTranslations(liveSamplesBody);
 }
 
