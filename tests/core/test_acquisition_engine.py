@@ -3,12 +3,15 @@ from __future__ import annotations
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from meters_tool_core.acquisition import TriggerAcquisitionEngine
-from meters_tool_core.measurement import VoltageDcRatioMeasurement
+from meters_tool_core.instrument import VisaInstrument
+from meters_tool_core.measurement import CurrentMeasurement, VoltageDcRatioMeasurement
 from meters_tool_core.models import (
     AcquisitionConfig,
+    InstrumentConfig,
     InstrumentProfile,
     TriggerEvent,
     TriggerSource,
@@ -122,9 +125,11 @@ class AcquisitionEngineTests(unittest.TestCase):
             with self.subTest(failure=failure), patch.object(
                 RecordingInstrument, "abort_measurement", return_value=False, side_effect=failure
             ):
+                storage = CapturingStorage()
                 engine = make_acquisition_engine(
                     instrument=RecordingInstrument(),
                     measurement=FakeBufferedMeasurement(),
+                    storage=storage,
                     config=AcquisitionConfig(trigger_timeout_ms=50, trigger_count=1, sample_count=1),
                 )
 
@@ -133,6 +138,80 @@ class AcquisitionEngineTests(unittest.TestCase):
                 self.assertFalse(engine.ok)
                 self.assertEqual("measurement abort failed", engine.fatal_error)
                 self.assertFalse(engine.stats.final_drain_complete)
+                self.assertEqual(1, engine.stats.captured)
+                self.assertEqual(1, len(storage.samples))
+                self.assertNotEqual("no_loss_detected", engine.stats.data_integrity)
+
+    def test_finalization_budget_covers_abort_status_and_drain_without_changing_visa_timeout(self):
+        for slow_command, latched, expected_commands in (
+            ("ABOR", False, ["ABOR"]),
+            ("STAT:QUES:EVEN?", False, ["ABOR", "STAT:QUES:EVEN?"]),
+            ("STAT:QUES:COND?", False, ["ABOR", "STAT:QUES:EVEN?", "STAT:QUES:COND?"]),
+            ("STAT:QUES:EVEN?", True, ["ABOR", "STAT:QUES:EVEN?"]),
+            ("DATA:POINts?", False, ["ABOR", "STAT:QUES:EVEN?", "STAT:QUES:COND?", "DATA:POINts?"]),
+        ):
+            with self.subTest(slow_command=slow_command, latched=latched):
+                now = [0.0]
+
+                class Session:
+                    def __init__(self):
+                        self.commands = []
+                        self.timeouts = []
+                        self.aborted = False
+
+                    @property
+                    def timeout(self):
+                        return self.timeouts[-1]
+
+                    @timeout.setter
+                    def timeout(self, value):
+                        self.timeouts.append(value)
+
+                    def write(self, command):
+                        if command == "ABOR":
+                            self.aborted = True
+                        self.commands.append(command)
+                        if self.aborted and command == slow_command:
+                            now[0] += 2.1
+
+                    def query(self, command):
+                        self.write(command)
+                        if self.aborted:
+                            now[0] += 0.1
+                        if command == "*IDN?":
+                            return "Keysight Technologies,34461A,FAKE,1.0"
+                        return "1" if command == "DATA:POINts?" else "0"
+
+                session = Session()
+                instrument = VisaInstrument(
+                    InstrumentConfig(resource_string="SIM::34461A", timeout_ms=1000),
+                    resource_manager_factory=lambda: SimpleNamespace(open_resource=lambda _: session),
+                )
+                instrument.connect()
+
+                def stop_when_armed(message):
+                    if message == "software custom capture armed":
+                        if latched:
+                            engine._latch_overflow()
+                        engine.stop()
+
+                engine = make_acquisition_engine(
+                    instrument=instrument, measurement=CurrentMeasurement(),
+                    config=AcquisitionConfig(trigger_count_infinite=True, sample_count=1),
+                    status_cb=stop_when_armed,
+                )
+                with patch("meters_tool_core.acquisition.time.monotonic", side_effect=lambda: now[0]):
+                    engine.run(trigger_mode="software-custom")
+
+                self.assertEqual(expected_commands, session.commands[session.commands.index("ABOR"):])
+                self.assertEqual([1000], session.timeouts)
+                self.assertEqual(1000, session.timeout)
+                self.assertFalse(engine.ok)
+                self.assertFalse(engine.stats.final_drain_complete)
+                self.assertNotEqual("no_loss_detected", engine.stats.data_integrity)
+                if slow_command in ("ABOR", "STAT:QUES:EVEN?"):
+                    self.assertEqual("failed", engine.stats.overflow_monitoring)
+                    self.assertIs(engine.stats.overflow_detected, True if latched else None)
 
     def test_confirmed_overflow_remains_latched_after_monitor_failure(self):
         class FailingAfterOverflow(FakeBufferedMeasurement):
@@ -154,6 +233,7 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertTrue(engine.stats.overflow_detected)
         self.assertEqual("failed", engine.stats.overflow_monitoring)
         self.assertEqual("incomplete", engine.stats.data_integrity)
+        self.assertEqual("overflow_monitor_failed", engine.result_reason)
 
     def test_ratio_final_drain_applies_deadline_to_each_query(self):
         now = [0.0]
@@ -198,8 +278,7 @@ class AcquisitionEngineTests(unittest.TestCase):
                 self.assertEqual(storage.samples, [sample for sample, _ in emitted])
                 self.assertEqual(captured, len(storage.samples))
                 self.assertEqual(list(range(1, captured + 1)), [count for _, count in emitted])
-                if not captured:
-                    self.assertEqual([1000, 400], instrument.asserted_timeouts)
+                self.assertEqual([], instrument.asserted_timeouts)
 
     def test_finite_custom_stop_preserves_captured_rows_without_monitoring(self):
         storage = CapturingStorage()
@@ -331,9 +410,11 @@ class AcquisitionEngineTests(unittest.TestCase):
             worker.join(timeout=1)
 
     def test_final_drain_does_not_read_after_points_query_uses_budget(self):
+        now = [0.0]
+
         class SlowPoints(FakeBufferedMeasurement):
             def buffered_points_available(self, instrument):  # noqa: ANN001, ARG002
-                time.sleep(0.02)
+                now[0] += 2.1
                 return 1
 
             def read_buffered_samples(self, *args, **kwargs):  # noqa: ANN002, ANN003
@@ -342,9 +423,10 @@ class AcquisitionEngineTests(unittest.TestCase):
         engine = make_acquisition_engine(measurement=SlowPoints())  # type: ignore[arg-type]
         event = TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM)
 
-        complete = engine._drain_remaining_custom(
-            event, expected_readings=None, final=True, deadline=time.monotonic() + 0.005
-        )
+        with patch("meters_tool_core.acquisition.time.monotonic", side_effect=lambda: now[0]):
+            complete = engine._drain_remaining_custom(
+                event, expected_readings=None, final=True, deadline=2.0
+            )
 
         self.assertFalse(complete)
 
@@ -1090,36 +1172,56 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertEqual("overflow_detected", engine.result_reason)
 
     def test_overflow_detection_without_stop_finishes_but_marks_incomplete(self):
-        engine = TriggerAcquisitionEngine(
-            instrument=RecordingInstrument(),  # type: ignore[arg-type]
-            measurement=OverflowAssertingMeasurement(),  # type: ignore[arg-type]
-            storage=CapturingStorage(),  # type: ignore[arg-type]
-            config=AcquisitionConfig(
-                trigger_timeout_ms=50,
-                trigger_count=1,
-                sample_count=2,
-                monitor_overflow=True,
-            ),
-            router=TriggerRouter(),
-        )
+        for stop_after_capture in (False, True):
+            with self.subTest(stop_after_capture=stop_after_capture):
+                engine = TriggerAcquisitionEngine(
+                    instrument=RecordingInstrument(),  # type: ignore[arg-type]
+                    measurement=OverflowAssertingMeasurement(),  # type: ignore[arg-type]
+                    storage=CapturingStorage(),  # type: ignore[arg-type]
+                    config=AcquisitionConfig(
+                        trigger_timeout_ms=50,
+                        trigger_count=1,
+                        sample_count=2,
+                        monitor_overflow=True,
+                        buffer_drain_size=1,
+                    ),
+                    router=TriggerRouter(),
+                    status_cb=lambda message: engine.stop() if (
+                        stop_after_capture and message.startswith("captured=")
+                    ) else None,
+                )
 
-        worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-custom"})
-        worker.start()
-        worker.join(timeout=1)
+                worker = threading.Thread(target=engine.run, kwargs={"trigger_mode": "immediate-custom"})
+                worker.start()
+                worker.join(timeout=1)
 
-        self.assertFalse(worker.is_alive())
-        self.assertEqual(2, engine.stats.captured)
-        self.assertTrue(engine.stats.overflow_detected)
-        self.assertEqual("completed", engine.stats.stop_reason)
-        self.assertTrue(engine.stats.final_drain_complete)
-        self.assertEqual("incomplete", engine.stats.data_integrity)
-        self.assertFalse(engine.ok)
-        self.assertEqual("overflow_detected", engine.result_reason)
+                self.assertFalse(worker.is_alive())
+                self.assertEqual(2, engine.stats.captured)
+                self.assertTrue(engine.stats.overflow_detected)
+                self.assertEqual(
+                    "stop_requested" if stop_after_capture else "completed", engine.stats.stop_reason
+                )
+                self.assertTrue(engine.stats.final_drain_complete)
+                self.assertEqual("incomplete", engine.stats.data_integrity)
+                self.assertFalse(engine.ok)
+                self.assertEqual("data_loss", engine.result_reason)
 
     def test_overflow_monitoring_failure_stops_run_once(self):
+        class InvalidStatusInstrument(RecordingInstrument):
+            polls = 0
+
+            def query(self, command):
+                self.commands.append(command)
+                if command == "STAT:QUES:EVEN?":
+                    self.polls += 1
+                    return "0" if self.polls == 1 else "16384.9"
+                if command == "DATA:POINts?":
+                    return "0"
+                raise AssertionError(command)
+
         engine = TriggerAcquisitionEngine(
-            instrument=RecordingInstrument(),  # type: ignore[arg-type]
-            measurement=OverflowFailingMeasurement(),  # type: ignore[arg-type]
+            instrument=InvalidStatusInstrument(),  # type: ignore[arg-type]
+            measurement=CurrentMeasurement(),
             storage=FakeStorage(),  # type: ignore[arg-type]
             config=AcquisitionConfig(
                 trigger_timeout_ms=50,

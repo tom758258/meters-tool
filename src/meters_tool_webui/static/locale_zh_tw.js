@@ -219,6 +219,7 @@ export const ZH_TW_MESSAGES = Object.freeze({
   "status.overflow": "溢位",
   "status.overflow_clear": "未偵測到溢位",
   "status.overflow_detected": "已偵測到溢位",
+  "status.overflow_detected_monitor_failed": "已偵測到溢位；後續監測失敗",
   "status.overflow_failed": "監測失敗",
   "status.overflow_off": "未監測",
   "status.overflow_starting": "監測啟動中",

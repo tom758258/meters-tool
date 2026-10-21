@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 import math
 from typing import List
 
@@ -76,16 +77,18 @@ def _trigger_count_command_value(trigger_count: int | None) -> str:
 
 def _parse_status_register(raw: str, command: str) -> int:
     try:
-        value = int(float(raw))
-    except (TypeError, ValueError) as exc:
+        value = Decimal(raw)
+    except (TypeError, InvalidOperation) as exc:
         raise RuntimeError(
             f"Failed to parse {command} status register response from '{raw}'"
         ) from exc
-    if value < 0:
+    # Bit 15 is unused in the SCPI Questionable and Operation registers.
+    maximum = 0xFF if command == "*ESR?" else 0x7FFF
+    if not value.is_finite() or not 0 <= value <= maximum or value != value.to_integral_value():
         raise RuntimeError(
             f"Invalid {command} status register response from '{raw}'"
         )
-    return value
+    return int(value)
 
 
 def _write_auto_or_manual_range(

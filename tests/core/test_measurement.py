@@ -237,6 +237,36 @@ class CurrentMeasurementTests(unittest.TestCase):
         self.assertTrue(measurement.overflow_status_asserted(inst))
         self.assertNotIn("STAT:QUES:COND?", inst.commands)
 
+        for raw in ("16384", "16384.0", "1.6384E4", " +16384.000\n"):
+            with self.subTest(raw=raw):
+                inst.responses["STAT:QUES:EVEN?"] = raw
+                self.assertTrue(measurement.overflow_status_asserted(inst))
+
+    def test_status_registers_reject_invalid_values_and_enforce_register_ranges(self):
+        measurement = CurrentMeasurement()
+        cases = (
+            ("STAT:QUES:EVEN?", measurement.overflow_status_asserted, 32767),
+            ("STAT:QUES:COND?", measurement.overflow_status_asserted, 32767),
+            ("*ESR?", measurement.standard_event_complete, 255),
+            ("STAT:OPER:COND?", measurement.software_trigger_ready, 32767),
+        )
+        for command, read, maximum in cases:
+            for raw in ("16384.9", "0.9", "-0.5", "-1", "NaN", "Infinity", "-Infinity",
+                        "1E1000", "16384.0000000000001", str(maximum + 1), "invalid"):
+                with self.subTest(command=command, raw=raw):
+                    inst = FakeInstrument()
+                    inst.responses["STAT:QUES:EVEN?"] = "0"
+                    inst.responses[command] = raw
+                    with self.assertRaises(RuntimeError):
+                        read(inst)
+            for raw in ("0", str(maximum), f"{maximum}.0", f"{maximum}E0"):
+                with self.subTest(command=command, raw=raw):
+                    inst = FakeInstrument()
+                    inst.responses["STAT:QUES:EVEN?"] = "0"
+                    inst.responses["STAT:QUES:COND?"] = "0"
+                    inst.responses[command] = raw
+                    self.assertEqual(raw != "0", read(inst))
+
     def test_immediate_custom_reads_and_removes_available_points(self):
         inst = FakeInstrument()
         inst.responses["DATA:POINts?"] = "2"

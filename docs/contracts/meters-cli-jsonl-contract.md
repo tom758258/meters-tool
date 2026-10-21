@@ -85,11 +85,17 @@ a boolean. `expected_readings` is
 `null` for infinite runs. `overflow_monitoring` is `off`, `starting`, `active`,
 or `failed`. `overflow_detected` is `null` when monitoring is unavailable,
 otherwise `false` or `true`. Once observed, `true` remains latched even if a
-later poll fails. `stop_reason` is one of `stop_requested`, `completed`,
+later poll fails. A final status that cannot be verified within the finalization
+budget is not evidence of no overflow: monitoring becomes `failed`, and
+`overflow_detected` remains `true` if previously confirmed
+or becomes `null` otherwise. `stop_reason` is one of `stop_requested`, `completed`,
 `overflow_detected`, `overflow_monitor_failed`, `fatal_error`,
 `max_samples_reached`, or `unknown`. `final_drain_complete` is `null` when no
-final drain ran, otherwise a boolean. `data_integrity` is `unknown`,
-`no_loss_detected`, or `incomplete`. Non-Custom modes report
+final drain outcome applies, otherwise a boolean. `false` includes failed abort
+or insufficient budget to begin draining. `data_integrity` is `unknown`,
+`no_loss_detected`, or `incomplete`. Failed abort or final drain cannot establish
+`no_loss_detected`; integrity is `incomplete` after confirmed overflow and
+otherwise `unknown`. Non-Custom modes report
 `overflow_monitoring: "off"`, `overflow_detected: null`,
 `final_drain_complete: null`, and `data_integrity: "unknown"`.
 
@@ -105,6 +111,12 @@ treat a missing final summary as an incomplete or failed runtime. A `false`
 `summary.ok` exits `3`; this includes structured overflow and incomplete-capture
 outcomes as well as fatal worker failures. Meters fatal acquisition failures are
 fatal worker failures for the common envelope contract and must exit `3`.
+
+Continuing after confirmed overflow does not restore integrity: the Core result
+reason is `data_loss`, while `stop_reason` records the actual termination cause.
+An automatic Stop on overflow retains `overflow_detected`. Fatal errors and
+monitoring failures take priority. Core result reasons are not serialized as
+an additional JSONL summary `reason` field.
 
 The `ready` event is emitted only by non-dry-run
 `start-trigger-record --status-format jsonl` and the `--json` alias after the

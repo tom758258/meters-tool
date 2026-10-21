@@ -294,7 +294,9 @@ function markWebUiStateError() {
 
 function overflowStatusKey(status) {
   if (status.overflow_monitoring === "failed") {
-    return "status.overflow_failed";
+    return status.overflow_detected === true
+      ? "status.overflow_detected_monitor_failed"
+      : "status.overflow_failed";
   }
   if (status.overflow_detected === true) {
     return "status.overflow_detected";

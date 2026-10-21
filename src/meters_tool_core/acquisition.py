@@ -26,14 +26,8 @@ class _DeadlineInstrument:
         self._deadline = deadline
 
     def query(self, command: str) -> str:
-        remaining_ms = int((self._deadline - time.monotonic()) * 1000)
-        if remaining_ms <= 0:
-            raise TimeoutError("final drain budget exhausted")
-        set_timeout = getattr(self._instrument, "set_timeout_ms", None)
-        if callable(set_timeout):
-            set_timeout(remaining_ms)
         if time.monotonic() >= self._deadline:
-            raise TimeoutError("final drain budget exhausted")
+            raise TimeoutError("finalization budget exhausted")
         return self._instrument.query(command)
 
     def query_ascii_float(self, command: str) -> float:
@@ -176,7 +170,11 @@ class TriggerAcquisitionEngine:
         if self._stats.overflow_monitoring == "failed":
             return "overflow_monitor_failed"
         if self._stats.overflow_detected:
-            return "overflow_detected"
+            return (
+                "overflow_detected"
+                if self._stats.stop_reason == "overflow_detected"
+                else "data_loss"
+            )
         if self._stats.final_drain_complete is False:
             return "final_drain_incomplete"
         if (
@@ -233,10 +231,8 @@ class TriggerAcquisitionEngine:
         enable_hardware_trigger: bool = False,
         hardware_trigger_slope: str = "NEG",
     ) -> None:
-        self._running = True
-        self._stop_event.clear()
+        self._running = not self._stop_event.is_set()
         self._fatal_error = None
-        self._stats = AcquisitionStats()
         self._custom_started = False
         self._custom_event = None
         self._last_overflow_poll = 0.0
@@ -295,6 +291,9 @@ class TriggerAcquisitionEngine:
                 raise ValueError("timer_interval_s must be > 0")
             if mode != "software":
                 raise ValueError("timer_interval_s requires software trigger mode")
+        if self._stop_event.is_set():
+            self._running = False
+            return
         self._measurement.configure(self._instrument, self._config)
         hw = None
         if mode == "external":
@@ -570,6 +569,8 @@ class TriggerAcquisitionEngine:
         )
         if self._completion_poll and not self._prepare_completion_poll():
             return
+        if self._stop_event.is_set():
+            return
         self._measurement.start_buffered_capture(self._instrument)
         self._custom_started = True
         if self._completion_poll and not self._request_operation_complete():
@@ -604,6 +605,8 @@ class TriggerAcquisitionEngine:
             f"expected_readings={self._format_expected_readings(expected_readings)}"
         )
         if self._completion_poll and not self._prepare_completion_poll():
+            return
+        if self._stop_event.is_set():
             return
         self._measurement.start_buffered_capture(self._instrument)
         self._custom_started = True
@@ -753,6 +756,8 @@ class TriggerAcquisitionEngine:
             f"delay_s={self._config.hw_trigger_delay_s}"
         )
         if self._completion_poll and not self._prepare_completion_poll():
+            return
+        if self._stop_event.is_set():
             return
         self._measurement.start_buffered_capture(self._instrument)
         self._custom_started = True
@@ -919,6 +924,13 @@ class TriggerAcquisitionEngine:
     def _finalize_custom_capture(self) -> None:
         if not self._custom_started:
             return
+        deadline = time.monotonic() + 2.0
+        if self._overflow_monitoring and time.monotonic() >= deadline:
+            self._stats.final_drain_complete = False
+            if self._stats.overflow_monitoring == "active":
+                self._mark_overflow_monitoring_failed(TimeoutError("finalization budget exhausted"))
+            self._set_data_integrity()
+            return
         if not self._abort_measurement():
             self._fatal_error = self._fatal_error or "measurement abort failed"
             self._stats.final_drain_complete = False
@@ -926,7 +938,9 @@ class TriggerAcquisitionEngine:
             return
         if self._overflow_monitoring and self._stats.overflow_monitoring == "active":
             try:
-                if self._measurement.overflow_status_asserted(self._instrument):
+                if self._measurement.overflow_status_asserted(
+                    _DeadlineInstrument(self._instrument, deadline)
+                ):
                     self._latch_overflow()
             except Exception as exc:
                 self._mark_overflow_monitoring_failed(exc)
@@ -935,7 +949,7 @@ class TriggerAcquisitionEngine:
                 self._custom_event,
                 expected_readings=self._stats.expected_readings,
                 final=True,
-                deadline=time.monotonic() + 2.0,
+                deadline=deadline,
             )
         self._set_data_integrity()
 
@@ -944,6 +958,8 @@ class TriggerAcquisitionEngine:
             return
         if self._stats.overflow_detected:
             self._stats.data_integrity = "incomplete"
+        elif self._stats.final_drain_complete is False:
+            self._stats.data_integrity = "unknown"
         elif self._stats.overflow_monitoring == "failed":
             self._stats.data_integrity = "unknown"
         elif self._stats.expected_readings is None:

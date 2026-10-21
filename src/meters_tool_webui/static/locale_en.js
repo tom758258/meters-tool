@@ -219,6 +219,7 @@ export const EN_MESSAGES = Object.freeze({
   "status.overflow": "Overflow",
   "status.overflow_clear": "No overflow detected",
   "status.overflow_detected": "Overflow detected",
+  "status.overflow_detected_monitor_failed": "Overflow detected; subsequent monitoring failed",
   "status.overflow_failed": "Monitoring failed",
   "status.overflow_off": "Not monitored",
   "status.overflow_starting": "Monitoring starting",

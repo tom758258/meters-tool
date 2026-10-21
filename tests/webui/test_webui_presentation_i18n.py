@@ -310,6 +310,25 @@ const running = {
 };
 status.renderStatus(running);
 
+for (const [monitoring, detected, english, chinese] of [
+  ["failed", true, "Overflow detected; subsequent monitoring failed", "已偵測到溢位；後續監測失敗"],
+  ["active", true, "Overflow detected", "已偵測到溢位"],
+  ["failed", null, "Monitoring failed", "監測失敗"],
+  ["active", false, "No overflow detected", "未偵測到溢位"],
+]) {
+  const raw = { ...running, overflow_monitoring: monitoring, overflow_detected: detected };
+  const before = JSON.stringify(raw);
+  status.renderStatus(raw);
+  for (const [locale, expected] of [["zh-TW", chinese], ["en", english]]) {
+    i18n.setLocale(locale);
+    status.refreshStatusPresentation();
+    assert.equal(element("#status-overflow").textContent, expected);
+    assert.equal(JSON.stringify(raw), before);
+    assert.equal(element("#raw-status").textContent, JSON.stringify(raw, null, 2));
+  }
+}
+status.renderStatus(running);
+
 assert.equal(element("#status-state").getAttribute("data-i18n"), "status.running");
 assert.equal(element("#fatal-error").textContent, "raw fatal TYPE_X");
 assert.equal(element("#cleanup-status").textContent, "raw cleanup CODE_Y");

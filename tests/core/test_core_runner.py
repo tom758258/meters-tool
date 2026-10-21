@@ -7,6 +7,7 @@ import time
 import unittest
 from unittest.mock import patch
 
+from meters_tool_core.acquisition import TriggerAcquisitionEngine
 from meters_tool_core.instrument import InstrumentError
 from meters_tool_core.models import (
     KEYSIGHT_34460A_PROFILE,
@@ -21,6 +22,7 @@ from meters_tool_core.runner import (
 )
 from meters_tool_core.session import NoOpControlPlane, StartRunEvent
 from meters_tool_core.support_policy import SUPPORT_POLICY_MODE_VALIDATION
+from meters_tool_core.simulator import SimulatedVisaInstrument
 
 
 def make_start_request(**overrides) -> StartRequest:  # noqa: ANN003
@@ -215,6 +217,70 @@ class StopControllerTests(unittest.TestCase):
 
 
 class CoreRunnerTests(unittest.TestCase):
+    def test_stop_before_worker_preserves_reason_and_skips_instrument_setup(self):
+        for mode in ("immediate-custom", "software-custom", "external-custom"):
+            with self.subTest(mode=mode):
+                gate = threading.Event()
+                entered = threading.Event()
+                operations = []
+                controls = RecordingControls(operations)
+                engines = []
+
+                class GatedThread(threading.Thread):
+                    def run(self):
+                        entered.set()
+                        if not gate.wait(1):
+                            return
+                        super().run()
+
+                    def start(self):
+                        super().start()
+                        self_test.assertTrue(entered.wait(1))
+                        controls._stop_controller.request_signal_stop()
+                        gate.set()
+
+                def engine_factory(**kwargs):
+                    engine = TriggerAcquisitionEngine(**kwargs)
+                    engines.append(engine)
+                    return engine
+
+                simulator_write = SimulatedVisaInstrument.write
+
+                def write_command(instrument, command):
+                    simulator_write(instrument, command)
+                    if command == "INIT":
+                        # Bound the regression path if a stopped worker starts acquisition.
+                        engines[0].stop("probe_bound")
+
+                self_test = self
+                with (
+                    patch.object(
+                        SimulatedVisaInstrument, "write", autospec=True,
+                        side_effect=write_command,
+                    ) as write,
+                    patch.object(SimulatedVisaInstrument, "release_to_local", return_value="ok") as release,
+                    patch.object(SimulatedVisaInstrument, "close") as close,
+                ):
+                    result = run_start_session(
+                        make_start_request(
+                            trigger_mode=mode, max_samples=None, csv_enabled=False,
+                            trigger_count_infinite=True, sample_count=1,
+                            allow_buffer_overflow_risk=True,
+                        ),
+                        mode, KEYSIGHT_34461A_PROFILE, RecordingEventSink(), controls,
+                        control_plane=NoOpControlPlane(),
+                        dependencies=StartRunnerDependencies(
+                            engine_factory=engine_factory, thread_factory=GatedThread,
+                        ),
+                    )
+
+                self.assertEqual("stop_requested", result.stop_reason)
+                self.assertEqual(0, result.captured)
+                self.assertTrue(result.ok)
+                write.assert_not_called()
+                release.assert_called_once()
+                close.assert_called_once()
+
     def test_stop_waits_for_worker_tail_before_release(self):
         operations: list[str] = []
         sink = RecordingEventSink()

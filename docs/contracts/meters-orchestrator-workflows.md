@@ -317,8 +317,12 @@ reaching the requested count.
 For an infinite stream, send cooperative `stop --json` or `POST /stop` when the
 orchestrator's acquisition interval ends, then keep consuming stdout until the
 final summary and process exit. Stop signals state; the worker performs ABOR,
-final status, and bounded final drain before release/local and close. Complete
-readings obtained before a later query failure remain persisted and emitted.
+final status, and final drain before release/local and close. These finalization
+operations share a two-second soft budget beginning before ABOR. No new
+finalization I/O starts after expiry; an in-progress I/O keeps the existing VISA
+timeout and may outlast the budget. Release/local and close are outside this
+budget. Complete readings obtained before a later query failure remain
+persisted and emitted.
 An incomplete final drain is still an unsuccessful outcome. A scheduler
 watchdog is a separate failure boundary and must not be reported as a normal
 scheduled Stop.

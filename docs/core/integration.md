@@ -255,6 +255,26 @@ unsuccessful run, including confirmed overflow, failed monitoring, failed abort,
 and incomplete final drain. See the [JSONL contract](../contracts/meters-cli-jsonl-contract.md)
 for outcome field meanings.
 
+After confirmed overflow, continuing acquisition without an overflow-triggered
+stop yields `StartRunResult.reason="data_loss"`. `stop_reason` still records
+the actual termination cause, such as `completed` or `stop_requested`. An
+automatic Stop on overflow retains `reason="overflow_detected"`. Fatal errors
+and failed overflow monitoring retain priority over these overflow outcomes.
+These Core result reasons do not add a `reason` field to JSONL summaries.
+
+Monitored Custom finalization shares a two-second soft budget starting before
+ABOR and covering the final overflow status queries and reading-memory drain.
+Each new I/O checks the remaining budget, including individual Ratio queries.
+The VISA session timeout is unchanged: an I/O already in progress may finish or
+time out after the budget. Exhaustion prevents further finalization I/O and
+reports an incomplete final drain while preserving acquired samples. If the
+final overflow status cannot be checked within the budget, monitoring fails
+and the status becomes unavailable unless overflow was already confirmed;
+confirmed overflow remains latched. Abort or drain failure
+cannot establish `data_integrity="no_loss_detected"`. Release-to-local, close,
+cleanup release, and control-server shutdown remain outside this budget and
+keep their existing order.
+
 `validate_start_workflow_support()` is the Core-owned live support policy gate
 for `start-trigger-record`. Call it after profile-specific request validation
 and before dry-run planning or `run_start_session(...)`. In live mode it uses
