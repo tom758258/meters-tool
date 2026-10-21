@@ -10,7 +10,7 @@ param(
     [Alias("Backend", "visa-library")]
     [string]$VisaLibrary,
 
-    [ValidateSet("minimal", "basic", "frequency-period", "external", "stream", "overflow", "full")]
+    [ValidateSet("minimal", "basic", "frequency-period", "external", "finite-custom", "stream", "overflow", "full")]
     [string]$Suite = "minimal",
 
     [switch]$PlanOnly,
@@ -84,7 +84,9 @@ function New-LiveCase {
         [int]$PlannedStopAfterSeconds = 0,
         [int]$ExpectedExitCode = 0,
         [string]$ExpectedStopReason = "",
-        [int]$MinCaptured = 0
+        [int]$MinCaptured = 0,
+        [bool]$ExpectOverflow = $false,
+        [bool]$RequireContinuedDrain = $false
     )
 
     return [pscustomobject]@{
@@ -101,6 +103,8 @@ function New-LiveCase {
         expected_exit_code = $ExpectedExitCode
         expected_stop_reason = $ExpectedStopReason
         min_captured = $MinCaptured
+        expect_overflow = $ExpectOverflow
+        require_continued_drain = $RequireContinuedDrain
     }
 }
 
@@ -172,18 +176,44 @@ function Get-LiveCases {
     $external += New-LiveCase -Name "external_simple" -ModeArgs @("--trigger-mode", "external", "--measurement", "current-dc", "--max-samples", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
     $external += New-LiveCase -Name "external_custom" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
 
+    $finiteCustom = @()
     $stream = @()
-    $stream += New-LiveCase -Name "stream_immediate" -ModeArgs @("--trigger-mode", "immediate-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1", "--monitor-overflow", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -MinCaptured 1 -PlannedStopAfterSeconds 3 -ExpectedStopReason "stop_requested"
-    $stream += New-LiveCase -Name "stream_software" -ModeArgs @("--trigger-mode", "software-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1", "--monitor-overflow", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -MinCaptured 2 -SoftTriggerCount 2 -PlannedStopAfterSeconds 3 -ExpectedStopReason "stop_requested"
-
-    if ($ResolvedTarget -eq "keysight-34461a") {
-        $stream += New-LiveCase -Name "stream_external" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1", "--monitor-overflow", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -MinCaptured 2 -ExternalEdges 2 -PlannedStopAfterSeconds 10 -ExpectedStopReason "stop_requested"
+    $overflow = @()
+    $customModes = @("immediate", "software")
+    if ($ResolvedTarget -eq "keysight-34461a") { $customModes += "external" }
+    foreach ($mode in $customModes) {
+        $softTriggers = if ($mode -eq "software") { 1 } else { 0 }
+        $externalEdges = if ($mode -eq "external") { 1 } else { 0 }
+        foreach ($handling in @("monitor", "stop_on_overflow")) {
+            $monitorArg = if ($handling -eq "monitor") { "--monitor-overflow" } else { "--stop-on-overflow" }
+            $modeArgs = @("--trigger-mode", "$mode-custom", "--measurement", "current-dc", $monitorArg)
+            $finiteCustom += New-LiveCase -Name "finite_${mode}_${handling}" `
+                -ModeArgs @($modeArgs + @("--trigger-count", "1", "--sample-count", "2")) `
+                -ExpectedCaptured 2 -SoftTriggerCount $softTriggers -ExternalEdges $externalEdges `
+                -ExpectedStopReason "completed"
+            $streamName = if ($handling -eq "monitor") { "stream_$mode" } else { "stream_${mode}_stop_on_overflow" }
+            $streamTriggers = if ($mode -eq "software") { 2 } else { 0 }
+            $streamEdges = if ($mode -eq "external") { 2 } else { 0 }
+            $streamMinimum = if ($mode -eq "immediate") { 1 } else { 2 }
+            $streamStop = if ($mode -eq "external") { 10 } else { 3 }
+            $stream += New-LiveCase -Name $streamName `
+                -ModeArgs @($modeArgs + @("--trigger-count-infinite", "--sample-count", "1", "--allow-buffer-overflow-risk")) `
+                -ExpectedCaptured -1 -MinCaptured $streamMinimum -SoftTriggerCount $streamTriggers -ExternalEdges $streamEdges `
+                -PlannedStopAfterSeconds $streamStop -ExpectedStopReason "stop_requested"
+            foreach ($count in @("finite", "infinite")) {
+                $countArgs = if ($count -eq "finite") { @("--trigger-count", "1") } else { @("--trigger-count-infinite") }
+                $plannedStop = if ($handling -eq "monitor") { 30 } else { 0 }
+                $stopReason = if ($handling -eq "monitor") { "stop_requested" } else { "overflow_detected" }
+                $overflow += New-LiveCase -Name "overflow_${mode}_${count}_${handling}" `
+                    -ModeArgs @($modeArgs + $countArgs + @("--sample-count", "1000000", "--nplc", "0.02", "--buffer-drain-size", "1", "--allow-buffer-overflow-risk")) `
+                    -ExpectedCaptured -1 -MinCaptured 1 -SoftTriggerCount $softTriggers -ExternalEdges $externalEdges `
+                    -TimeoutSeconds 60 -PlannedStopAfterSeconds $plannedStop -ExpectedExitCode 3 `
+                    -ExpectedStopReason $stopReason -ExpectOverflow $true -RequireContinuedDrain ($handling -eq "monitor")
+            }
+        }
     }
 
-    $overflow = @()
-    $overflow += New-LiveCase -Name "intentional_overflow" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count-infinite", "--sample-count", "1000000", "--nplc", "0.02", "--stop-on-overflow", "--buffer-drain-size", "1", "--allow-buffer-overflow-risk") -ExpectedCaptured -1 -ExternalEdges 1 -TimeoutSeconds 60 -ExpectedExitCode 3 -ExpectedStopReason "overflow_detected"
-
-    if ($ResolvedTarget -eq "keysight-34460a" -and $SelectedSuite -in @("external", "overflow")) {
+    if ($ResolvedTarget -eq "keysight-34460a" -and $SelectedSuite -eq "external") {
         Fail-Usage "Suite '$SelectedSuite' is not supported for keysight-34460a because the base 34460A profile does not support external trigger modes."
     }
 
@@ -192,6 +222,7 @@ function Get-LiveCases {
         "basic" { return $basic }
         "frequency-period" { return $frequencyPeriod }
         "external" { return $external }
+        "finite-custom" { return $finiteCustom }
         "stream" { return $stream }
         "overflow" { return $overflow }
         "full" {
@@ -434,6 +465,12 @@ function Invoke-LiveCase {
         -CaptureClientCommandsInMemory:(-not $DebugArtifacts)
 
     $failureReasons = [System.Collections.Generic.List[string]]::new()
+    $infinite = $Case.mode_args -contains "--trigger-count-infinite"
+    $expectedReadings = $null
+    if ($Case.expected_stop_reason -and -not $infinite) {
+        $expectedReadings = [int]$Case.mode_args[[array]::IndexOf($Case.mode_args, "--trigger-count") + 1] *
+            [int]$Case.mode_args[[array]::IndexOf($Case.mode_args, "--sample-count") + 1]
+    }
     if (-not $result.success) {
         $failureReasons.Add("live command failed or timed out") | Out-Null
     }
@@ -446,9 +483,9 @@ function Invoke-LiveCase {
     $ready = @(Select-LastJsonEvent -Events $events -EventName "ready")
     $summary = @(Select-LastJsonEvent -Events $events -EventName "summary")
     $runId = $null
-    if ($ready.Count -eq 1) {
+    if ($ready.Count -eq 1 -and $null -ne $ready[0].PSObject.Properties['run_id']) {
         $runId = $ready[0].run_id
-    } elseif ($summary.Count -eq 1) {
+    } elseif ($summary.Count -eq 1 -and $null -ne $summary[0].PSObject.Properties['run_id']) {
         $runId = $summary[0].run_id
     }
     if ($Case.soft_trigger_count -gt 0 -or $Case.planned_stop_after_seconds -gt 0 -or $Case.expected_exit_code -ne 0) {
@@ -461,21 +498,24 @@ function Invoke-LiveCase {
         } elseif ($ready.Count -eq 1) {
             $statusText = if ($DebugArtifacts) { Get-Content -LiteralPath $statusCommand[0].stdout -Raw } else { $statusCommand[0].stdout_text }
             $statusPayload = $statusText | ConvertFrom-Json -ErrorAction Stop
-            if ($statusPayload.run_id -ne $ready[0].run_id) {
+            if ($null -eq $statusPayload.PSObject.Properties['run_id'] -or $statusPayload.run_id -ne $runId) {
                 $failureReasons.Add("status run_id mismatch") | Out-Null
             }
+            $statusFieldsValid = $true
             foreach ($field in @("trigger_count_infinite", "expected_readings", "overflow_monitoring", "overflow_detected", "stop_reason", "final_drain_complete", "data_integrity")) {
                 if ($null -eq $statusPayload.PSObject.Properties[$field]) {
                     $failureReasons.Add("status field missing: $field") | Out-Null
+                    $statusFieldsValid = $false
                 }
             }
-            if ($Case.planned_stop_after_seconds -gt 0 -and ($statusPayload.trigger_count_infinite -ne $true -or $statusPayload.overflow_monitoring -ne "active")) {
-                $failureReasons.Add("running Infinity monitoring state mismatch") | Out-Null
+            if ($statusFieldsValid -and $Case.expected_stop_reason -and
+                ($statusPayload.trigger_count_infinite -ne $infinite -or $statusPayload.overflow_monitoring -ne "active")) {
+                $failureReasons.Add("running Custom monitoring state mismatch") | Out-Null
             }
         }
     }
     if ($summary.Count -eq 1) {
-        if ($null -eq $runId -or $summary[0].run_id -ne $runId) {
+        if ($null -eq $runId -or $null -eq $summary[0].PSObject.Properties['run_id'] -or $summary[0].run_id -ne $runId) {
             $failureReasons.Add("summary run_id mismatch") | Out-Null
         }
         $captured = [int]$summary[0].captured
@@ -492,35 +532,62 @@ function Invoke-LiveCase {
         if ($null -eq $summary[0].PSObject.Properties['ok'] -or [bool]$summary[0].ok -ne ($Case.expected_exit_code -eq 0)) {
             $failureReasons.Add("summary ok mismatch") | Out-Null
         }
-        if ($Case.expected_stop_reason -and $summary[0].stop_reason -ne $Case.expected_stop_reason) {
-            $failureReasons.Add("stop reason mismatch") | Out-Null
-        }
-        if ($Case.expected_stop_reason -eq "overflow_detected" -and $summary[0].overflow_detected -ne $true) {
-            $failureReasons.Add("overflow not confirmed") | Out-Null
-        }
-        if ($Case.expected_stop_reason -eq "stop_requested" -and $summary[0].final_drain_complete -ne $true) {
-            $failureReasons.Add("final drain incomplete") | Out-Null
-        }
-        if ($Case.expected_stop_reason -eq "overflow_detected" -and $summary[0].final_drain_complete -isnot [bool]) {
-            $failureReasons.Add("final drain result missing") | Out-Null
-        }
         if ($Case.expected_stop_reason) {
-            if ($summary[0].trigger_count_infinite -ne $true -or $summary[0].overflow_monitoring -ne "active") {
-                $failureReasons.Add("Infinity monitoring state mismatch") | Out-Null
+            $summaryFieldsValid = $true
+            foreach ($field in @("trigger_count_infinite", "expected_readings", "overflow_monitoring", "overflow_detected", "stop_reason", "final_drain_complete", "data_integrity")) {
+                if ($null -eq $summary[0].PSObject.Properties[$field]) {
+                    $failureReasons.Add("summary field missing: $field") | Out-Null
+                    $summaryFieldsValid = $false
+                }
+            }
+            if ($summaryFieldsValid) {
+                if ($summary[0].stop_reason -ne $Case.expected_stop_reason) {
+                    $failureReasons.Add("stop reason mismatch") | Out-Null
+                }
+                if ($summary[0].overflow_detected -ne $Case.expect_overflow) {
+                    $failureReasons.Add("overflow state mismatch") | Out-Null
+                }
+                if ($summary[0].final_drain_complete -isnot [bool]) {
+                    $failureReasons.Add("final drain result missing") | Out-Null
+                } elseif (-not $Case.expect_overflow -and -not $summary[0].final_drain_complete) {
+                    $failureReasons.Add("final drain incomplete") | Out-Null
+                }
+                if ($summary[0].trigger_count_infinite -ne $infinite -or
+                    $summary[0].expected_readings -ne $expectedReadings -or
+                    $summary[0].overflow_monitoring -ne "active") {
+                    $failureReasons.Add("Custom monitoring state mismatch") | Out-Null
+                }
+                $expectedIntegrity = if ($Case.expect_overflow) { "incomplete" } elseif ($infinite) { "unknown" } else { "no_loss_detected" }
+                if ($summary[0].data_integrity -ne $expectedIntegrity) {
+                    $failureReasons.Add("data integrity mismatch") | Out-Null
+                }
             }
             if ($null -ne $summary[0].PSObject.Properties['fatal_error'] -and $summary[0].fatal_error) {
                 $failureReasons.Add("unexpected fatal error") | Out-Null
             }
-            $expectedIntegrity = if ($Case.expected_stop_reason -eq "overflow_detected") { "incomplete" } else { "unknown" }
-            if ($summary[0].data_integrity -ne $expectedIntegrity) {
-                $failureReasons.Add("data integrity mismatch") | Out-Null
-            }
-            if ($Case.expected_stop_reason -eq "stop_requested" -and $summary[0].overflow_detected -ne $false) {
-                $failureReasons.Add("stream overflow state mismatch") | Out-Null
-            }
         }
     } else {
         $failureReasons.Add("summary event missing") | Out-Null
+    }
+    $overflowObserved = $false
+    $sampleAfterOverflow = $false
+    $continuedDrain = $false
+    if ($Case.require_continued_drain) {
+        foreach ($event in $events) {
+            if ($event.event -eq "status" -and
+                $null -ne $event.PSObject.Properties['run_id'] -and $event.run_id -eq $runId -and
+                $null -ne $event.PSObject.Properties['overflow_detected'] -and $event.overflow_detected -eq $true) {
+                if ($sampleAfterOverflow -and $null -ne $event.PSObject.Properties['stop_reason'] -and $event.stop_reason -eq "unknown") {
+                    $continuedDrain = $true
+                }
+                $overflowObserved = $true
+            } elseif ($overflowObserved -and $event.event -eq "sample") {
+                $sampleAfterOverflow = $true
+            }
+        }
+        if (-not $continuedDrain) {
+            $failureReasons.Add("continued drain after overflow not observed before Stop") | Out-Null
+        }
     }
     # Keep only review evidence; status/sample events can contain measurement values.
     $runtimeErrors = @(
@@ -543,6 +610,7 @@ function Invoke-LiveCase {
     }
     $runtimeEvidence = [ordered]@{
         source = "cli_jsonl"
+        continued_drain_after_overflow = if ($Case.require_continued_drain) { $continuedDrain } else { $null }
         summary = if ($summary.Count -eq 1) {
             [ordered]@{
                 ok = $summary[0].ok
@@ -584,6 +652,12 @@ function Invoke-LiveCase {
             $failureReasons.Add("JSONL sample and CSV correlation mismatch") | Out-Null
         } else {
             for ($index = 0; $index -lt $rowCount; $index++) {
+                if ($null -eq $samples[$index].PSObject.Properties['run_id'] -or
+                    $null -eq $samples[$index].PSObject.Properties['trigger_id'] -or
+                    $null -eq $csvRows[$index].PSObject.Properties['trigger_id']) {
+                    $failureReasons.Add("JSONL sample and CSV correlation fields missing at row $index") | Out-Null
+                    break
+                }
                 if ($samples[$index].run_id -ne $runId -or $samples[$index].trigger_id -ne $csvRows[$index].trigger_id) {
                     $failureReasons.Add("JSONL sample and CSV correlation mismatch at row $index") | Out-Null
                     break
@@ -623,6 +697,8 @@ function Invoke-LiveCase {
         expected_exit_code = $Case.expected_exit_code
         expected_stop_reason = $Case.expected_stop_reason
         planned_stop_after_seconds = $Case.planned_stop_after_seconds
+        expect_overflow = $Case.expect_overflow
+        require_continued_drain = $Case.require_continued_drain
         captured_count = $captured
         captured = $captured
         errors = $errors

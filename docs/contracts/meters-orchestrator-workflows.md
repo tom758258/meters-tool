@@ -274,6 +274,64 @@ If the process has already exited, `stop` may return
 `status: "already_stopped"` with exit code `0`; this remains a successful
 cleanup result for orchestrators.
 
+## Custom Count And Overflow Workflows
+
+Custom modes require `--sample-count` and either `--trigger-count N` or
+`--trigger-count-infinite`. Infinity also requires
+`--allow-buffer-overflow-risk`. For example, a simulator-only immediate stream
+can use these acquisition arguments with the subprocess lifecycle above:
+
+```python
+acquisition_args = [
+    "start-trigger-record", "--resource", "SIM::34461A", "--simulate",
+    "--trigger-mode", "immediate-custom", "--measurement", "current-dc",
+    "--trigger-count-infinite", "--sample-count", "2",
+    "--allow-buffer-overflow-risk", "--status-format", "jsonl", "--no-csv",
+    "--sw-trigger-port", "8765",
+]
+```
+
+IMM runs continuously after one INIT. BUS requires software commands and
+produces `sample_count` readings per instrument trigger. On a profile that
+supports EXT, each external edge produces `sample_count` readings. Infinity
+does not introduce finite automatic re-arm cycles. Simulator-only EXT does not
+provide a complete external-edge injection workflow; it cannot establish live
+EXT timing or edge behavior.
+
+Infinity and `--stop-on-overflow` force monitoring; `--monitor-overflow` also
+enables it for finite Custom acquisition. Status and summary carry
+`trigger_count_infinite`, `expected_readings`, `overflow_monitoring`,
+`overflow_detected`, `stop_reason`, `final_drain_complete`, and `data_integrity`.
+Check these fields with the matching `run_id`. A readiness response means the
+control endpoints are available; it does not mean BUS is ready for another
+instrument trigger or that an EXT edge has occurred.
+
+Without Stop on overflow, confirmed overflow remains latched while acquisition
+continues draining. With Stop on overflow, the worker stops and reports
+`overflow_detected`. Both outcomes are unsuccessful and exit `3`; continuing
+after overflow does not restore data integrity. Failed monitoring must not be
+interpreted as no overflow. A finite monitored run uses instrument completion
+as well as draining, since overflow can prevent the captured count from ever
+reaching the requested count.
+
+For an infinite stream, send cooperative `stop --json` or `POST /stop` when the
+orchestrator's acquisition interval ends, then keep consuming stdout until the
+final summary and process exit. Stop signals state; the worker performs ABOR,
+final status, and bounded final drain before release/local and close. Complete
+readings obtained before a later query failure remain persisted and emitted.
+An incomplete final drain is still an unsuccessful outcome. A scheduler
+watchdog is a separate failure boundary and must not be reported as a normal
+scheduled Stop.
+
+For finite Custom runs with all new options disabled, a normal early Stop
+retains legacy success and exit `0`, while `data_integrity: "incomplete"`
+truthfully reports a short capture. Count-sensitive orchestrators must inspect
+`captured` and `expected_readings` as well as `ok`.
+
+Dry-run plans may show `TRIG:COUNT INF` and overflow notes, but are not a trace
+of executed runtime queries or proof of completion, overflow, or final drain.
+Live support remains subject to the exact Core support-policy scope.
+
 ## Live Mode Resource Rule
 
 Live mode must use an explicit `--resource` selected by the operator or by a

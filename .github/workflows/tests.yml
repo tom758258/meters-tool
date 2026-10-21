@@ -41,6 +41,7 @@ jobs:
               - 'scripts/preflight-cli.ps1'
               - 'scripts/release-acceptance.ps1'
               - 'tests/cli/test_cli_wrappers.py'
+              - 'tests/cli/test_live_artifact_privacy.py'
               - 'tests/packaging/test_validation_helpers.py'
               - 'tests/packaging/test_release_acceptance.py'
               - 'pyproject.toml'
@@ -237,6 +238,7 @@ jobs:
           -m "not hardware and windows_powershell"
           --basetemp .tmp_tests/ci-windows-validation
           tests/cli/test_cli_wrappers.py
+          tests/cli/test_live_artifact_privacy.py
 
   packaging-validation:
     name: Packaging validation

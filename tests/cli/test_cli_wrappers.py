@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 from meters_tool_cli.cli import FALLBACK_CLI_VERSION
 from meters_tool_core.models import INSTRUMENT_PROFILES, find_instrument_profile_by_model
+from meters_tool_core.support_policy import supported_custom_acquisition_features
 
 
 pytestmark = pytest.mark.windows_powershell
@@ -889,45 +890,158 @@ def test_live_plan_only_34460a_rejects_external_suite():
     )
 
 
-@pytest.mark.parametrize("target,expected_cases", [
-    ("keysight-34461a", {"stream_immediate", "stream_software", "stream_external"}),
-    ("keysight-34460a", {"stream_immediate", "stream_software"}),
-])
-def test_live_stream_plan_only_uses_infinity_and_explicit_risk(target, expected_cases):
-    model = "34460A" if target == "keysight-34460a" else "34461A"
+@pytest.mark.parametrize("target", ["keysight-34461a", "keysight-34460a"])
+@pytest.mark.parametrize("suite", ["finite-custom", "stream", "overflow"])
+def test_live_custom_plan_only_matches_registered_scopes(target, suite):
+    profile = find_instrument_profile_by_model(target)
     result = run_wrapper(
         "scripts/live-cli-check.ps1", "-Target", target, "-Connection", "usb",
-        "-Resource", f"SIM::{model}", "-Suite", "stream", "-PlanOnly", "-SkipPreflight",
+        "-Resource", f"SIM::{profile.model}", "-Suite", suite, "-PlanOnly", "-SkipPreflight",
     )
 
     assert result.returncode == 0, result.stderr + result.stdout
     report = load_json(report_from_summary_output(result.stdout))
     assert report["live_executed"] is False
-    assert {case["name"] for case in report["dry_runs"]} == expected_cases
+    expected = set(supported_custom_acquisition_features(profile))
+    if suite != "overflow":
+        count = "finite" if suite == "finite-custom" else "infinite"
+        expected = {scope for scope in expected if scope.split(":")[1] == count}
+    actual = set()
     for case in report["dry_runs"]:
         args = case["command"]["arguments"]
-        assert "--trigger-count-infinite" in args
-        assert "--allow-buffer-overflow-risk" in args
-        assert "TRIG:COUNT INF" in case["plan"]["scpi_commands"]
+        mode = args[args.index("--trigger-mode") + 1]
+        count = "infinite" if "--trigger-count-infinite" in args else "finite"
+        handling = "stop_on_overflow" if "--stop-on-overflow" in args else "monitor"
+        actual.add(f"{mode}:{count}:{handling}")
+        if count == "infinite":
+            assert "--allow-buffer-overflow-risk" in args
+            assert "TRIG:COUNT INF" in case["plan"]["scpi_commands"]
+        if suite == "overflow":
+            assert "SAMP:COUNT 1000000" in case["plan"]["scpi_commands"]
+            assert "--allow-buffer-overflow-risk" in args
+    assert actual == expected
+    assert len(report["dry_runs"]) == len(expected)
 
 
-def test_live_overflow_requires_extra_opt_in_and_can_be_planned_without_it():
+@pytest.mark.parametrize("target", ["keysight-34461a", "keysight-34460a"])
+def test_live_overflow_requires_extra_opt_in(target):
+    profile = find_instrument_profile_by_model(target)
     args = (
-        "-Target", "keysight-34461a", "-Connection", "usb",
-        "-Resource", "SIM::34461A", "-Suite", "overflow",
+        "-Target", target, "-Connection", "usb",
+        "-Resource", f"SIM::{profile.model}", "-Suite", "overflow",
     )
     refused = run_wrapper("scripts/live-cli-check.ps1", *args)
     assert refused.returncode == 2
     assert "-AllowIntentionalOverflow" in refused.stderr
 
-    planned = run_wrapper("scripts/live-cli-check.ps1", *args, "-PlanOnly", "-SkipPreflight")
-    assert planned.returncode == 0, planned.stderr + planned.stdout
-    report = load_json(report_from_summary_output(planned.stdout))
-    assert report["live_executed"] is False
-    assert len(report["dry_runs"]) == 1
-    plan = report["dry_runs"][0]["plan"]
-    assert "TRIG:COUNT INF" in plan["scpi_commands"]
-    assert "SAMP:COUNT 1000000" in plan["scpi_commands"]
+
+def test_live_custom_outcomes_require_matching_state_and_active_continued_drain(tmp_path: Path):
+    source = (REPO_ROOT / "scripts/live-cli-check.ps1").read_text(encoding="utf-8")
+    functions = []
+    for name in ("New-LiveCase", "Get-LiveCases", "New-StartArgs", "Invoke-LiveCase"):
+        match = re.search(rf"(?ms)^function {name} \{{.*?(?=^function |\Z)", source)
+        assert match, name
+        functions.append(match.group())
+    results_path = tmp_path / "outcomes.json"
+    script = tmp_path / "outcomes.ps1"
+    script.write_text(
+        "$ErrorActionPreference = 'Stop'\nSet-StrictMode -Version Latest\n"
+        f"$RepoRoot = {ps_quote(REPO_ROOT)}\n$Python = {ps_quote(PYTHON)}\n"
+        "$Resource = 'USB0::1::2::SYNTHETIC::INSTR'\n$DebugArtifacts = $false\n$resolvedVisaLibrary = ''\n"
+        f"$caseRoot = {ps_quote(tmp_path)}\n$resultsPath = {ps_quote(results_path)}\n"
+        f". {ps_quote(REPO_ROOT / 'scripts/_validation_helpers.ps1')}\n"
+        + "\n".join(functions)
+        + r'''
+function Read-Host { param($Prompt) return '' }
+function Invoke-CapturedStartProcess {
+    param($Name, $Arguments, $StdOutPath, $StdErrPath, $TimeoutSeconds,
+        $SoftTriggerCount, $SoftTriggerPort, $OutDir, $SoftTriggerRetryCount,
+        $SoftTriggerRetryDelayMs, $InterTriggerDelayMs, $StopGracePeriodMs,
+        $PlannedStopAfterSeconds, $ExpectedExitCode, [switch]$CaptureClientCommandsInMemory)
+    $infinite = $Arguments -contains '--trigger-count-infinite'
+    $expected = if ($infinite) { $null } else {
+        [int]$Arguments[[array]::IndexOf($Arguments, '--trigger-count') + 1] *
+            [int]$Arguments[[array]::IndexOf($Arguments, '--sample-count') + 1]
+    }
+    $overflow = $Case.expect_overflow -and $script:fault -ne 'no_overflow'
+    $state = [ordered]@{
+        event = 'status'; run_id = 'synthetic-run'; message = 'synthetic status'
+        trigger_count_infinite = $infinite; expected_readings = $expected
+        overflow_monitoring = 'active'; overflow_detected = $overflow
+        stop_reason = 'unknown'; final_drain_complete = $null; data_integrity = 'unknown'
+    }
+    $events = @([ordered]@{event = 'ready'; run_id = 'synthetic-run'}, $state)
+    foreach ($index in 1..2) {
+        $events += [ordered]@{
+            event = 'sample'; run_id = 'synthetic-run'; trigger_id = 'synthetic-trigger'; value = $index
+        }
+    }
+    $afterSample = [ordered]@{}
+    foreach ($key in $state.Keys) { $afterSample[$key] = $state[$key] }
+    if ($script:fault -eq 'final_drain_only') { $afterSample.stop_reason = 'stop_requested' }
+    $events += $afterSample
+    $summary = [ordered]@{
+        event = 'summary'; run_id = 'synthetic-run'; captured = 2; errors = 0
+        ok = ($ExpectedExitCode -eq 0); fatal_error = $null
+        trigger_count_infinite = $infinite; expected_readings = $expected
+        overflow_monitoring = 'active'; overflow_detected = $overflow
+        stop_reason = $Case.expected_stop_reason; final_drain_complete = $true
+        data_integrity = if ($Case.expect_overflow) { 'incomplete' } elseif ($infinite) { 'unknown' } else { 'no_loss_detected' }
+    }
+    if ($script:fault -eq 'missing_summary_field') { $summary.Remove('overflow_detected') }
+    if ($script:fault -eq 'wrong_count') { $summary.expected_readings = 123 }
+    $events += $summary
+    Write-Utf8NoBomLines -LiteralPath $StdOutPath -Lines @($events | ForEach-Object { $_ | ConvertTo-Json -Compress -Depth 8 })
+    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text ''
+    $csvPath = $Arguments[[array]::IndexOf($Arguments, '--csv') + 1]
+    Write-Utf8NoBomLines -LiteralPath $csvPath -Lines @(
+        'timestamp_utc_plus_8,measurement_type,value,unit,trigger_id,trigger_metadata,resource_id,status',
+        '2026-01-01T00:00:00+08:00,current_dc,1,A,synthetic-trigger,,SYNTHETIC,ok',
+        '2026-01-01T00:00:01+08:00,current_dc,2,A,synthetic-trigger,,SYNTHETIC,ok')
+    if ($script:fault -eq 'missing_status_field') { $state.Remove('overflow_monitoring') }
+    return [ordered]@{
+        name = $Name; success = $true; exit_code = $ExpectedExitCode
+        client_commands = @([pscustomobject]@{
+            name = "$Name`_soft_status"; stdout_text = ($state | ConvertTo-Json -Compress)
+        })
+    }
+}
+$outcomes = @()
+foreach ($target in @('keysight-34461a', 'keysight-34460a')) {
+    $resolvedCliModel = if ($target -eq 'keysight-34461a') { '34461A' } else { '34460A' }
+    foreach ($suite in @('finite-custom', 'stream', 'overflow')) {
+        foreach ($case in @(Get-LiveCases -SelectedSuite $suite -ResolvedTarget $target)) {
+            $faults = @('none', 'missing_summary_field', 'wrong_count')
+            if ($case.planned_stop_after_seconds -gt 0 -or $case.soft_trigger_count -gt 0 -or $case.expected_exit_code -ne 0) {
+                $faults += 'missing_status_field'
+            }
+            if ($case.expect_overflow) { $faults += 'no_overflow' }
+            if ($case.require_continued_drain) { $faults += 'final_drain_only' }
+            foreach ($fault in $faults) {
+                $script:fault = $fault
+                $result = Invoke-LiveCase -Case $case -CaseDir $caseRoot -Port 0 -CsvPath (Join-Path $caseRoot 'case.csv')
+                $outcomes += [ordered]@{
+                    target = $target; case = $case.name; fault = $fault; status = $result.status
+                    reasons = $result.failure_reasons
+                    continued = $result.runtime_evidence.continued_drain_after_overflow
+                }
+            }
+        }
+    }
+}
+Write-Utf8NoBomText -LiteralPath $resultsPath -Text ($outcomes | ConvertTo-Json -Depth 8)
+''',
+        encoding="utf-8",
+    )
+    result = run_wrapper_path(script)
+    assert result.returncode == 0, result.stderr + result.stdout
+    outcomes = load_json(results_path)
+    assert len([case for case in outcomes if case["fault"] == "none"]) == 40
+    for case in outcomes:
+        assert case["status"] == ("passed" if case["fault"] == "none" else "failed"), case
+        if case["fault"] == "final_drain_only":
+            assert case["continued"] is False
+            assert any("continued drain" in reason for reason in case["reasons"])
 
 
 def test_live_frequency_period_probe_args_include_selected_model():
@@ -1099,7 +1213,8 @@ def synthetic_confirmed_live_wrapper(timestamp: str) -> str:
     return wrapper_text
 
 
-def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path):
+@pytest.mark.parametrize("missing_field", [None, "sample_run_id", "sample_trigger_id", "csv_trigger_id"])
+def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, missing_field):
     resource = "USB0::1::2::SERIAL12345::INSTR"
     value = "98765.4321"
     failure = f"capture failure: VisaIOError at {tmp_path} for {resource}"
@@ -1107,7 +1222,7 @@ def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path):
     cleanup = [{"step": "release_to_local", "result": "SYST:LOC:failed:VisaIOError"}]
     events = [
         {"event": "ready", "run_id": run_id},
-        {"event": "sample", "run_id": run_id, "value": value,
+        {"event": "sample", "run_id": run_id, "trigger_id": "synthetic-trigger", "value": value,
          "trigger_metadata": {"secret": "private"}},
         {"event": "status", "message": f"captured=1 value={value} A"},
         {"event": "message", "message": "KEYSIGHT,34461A,SERIAL12345,A.03.03"},
@@ -1117,15 +1232,19 @@ def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path):
         {"event": "error", "message": failure, "exit_code": 3},
         {"event": "message", "message": "release_to_local: SYST:LOC:failed:VisaIOError"},
     ]
+    if missing_field in ("sample_run_id", "sample_trigger_id"):
+        del events[1][missing_field.removeprefix("sample_")]
     events_path = tmp_path / "events.jsonl"
     events_path.write_text("\n".join(json.dumps(e) for e in events), encoding="utf-8")
     timestamp = f"synthetic-{uuid4().hex}"
     wrapper = tmp_path / "synthetic-live.ps1"
     wrapper.write_text(synthetic_confirmed_live_wrapper(timestamp), encoding="utf-8")
     csv = (
-        "timestamp_utc_plus_8,measurement_type,value,unit,trigger_metadata,resource_id,status\n"
-        f"2026-01-01T00:00:00+08:00,current_dc,{value},A,private,{resource},ok\n"
+        "timestamp_utc_plus_8,measurement_type,value,unit,trigger_id,trigger_metadata,resource_id,status\n"
+        f"2026-01-01T00:00:00+08:00,current_dc,{value},A,synthetic-trigger,private,{resource},ok\n"
     )
+    if missing_field == "csv_trigger_id":
+        csv = csv.replace("trigger_id,", "").replace("synthetic-trigger,", "")
     setup = (
         "function Invoke-SyntheticStartProcess { "
         "param($Name,$Arguments,$StdOutPath,$StdErrPath,$TimeoutSeconds,$SoftTriggerCount,"
@@ -1151,6 +1270,10 @@ def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path):
     case = report["cases"][0]
     assert case["status"] == "failed"
     assert case["run_id"] == run_id
+    if missing_field:
+        assert any("correlation" in reason for reason in case["failure_reasons"])
+    else:
+        assert not any("correlation" in reason for reason in case["failure_reasons"])
     evidence = case["runtime_evidence"]
     assert evidence["identity"]["status"] == "not_available"
     assert evidence["cleanup"] == {

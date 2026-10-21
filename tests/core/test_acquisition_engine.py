@@ -167,22 +167,39 @@ class AcquisitionEngineTests(unittest.TestCase):
             def set_timeout_ms(self, timeout_ms: int) -> None:
                 self.asserted_timeouts.append(timeout_ms)
 
-        instrument = SlowRatioInstrument()
-        instrument.asserted_timeouts = []
-        measurement = VoltageDcRatioMeasurement()
-        measurement.configure(instrument, AcquisitionConfig())
-        instrument.commands.clear()
-        engine = make_acquisition_engine(instrument=instrument, measurement=measurement)
+        for deadline, captured in ((1.0, 0), (3.0, 2)):
+            with self.subTest(deadline=deadline):
+                now[0] = 0.0
+                instrument = SlowRatioInstrument()
+                instrument.asserted_timeouts = []
+                measurement = VoltageDcRatioMeasurement()
+                measurement.configure(instrument, AcquisitionConfig())
+                instrument.commands.clear()
+                storage = CapturingStorage()
+                emitted = []
+                engine = TriggerAcquisitionEngine(
+                    instrument=instrument, measurement=measurement, storage=storage,
+                    config=AcquisitionConfig(), router=TriggerRouter(),
+                    sample_cb=lambda sample, count: emitted.append((sample, count)),
+                )
 
-        with patch("meters_tool_core.acquisition.time.monotonic", side_effect=lambda: now[0]):
-            complete = engine._drain_remaining_custom(
-                TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
-                expected_readings=None, final=True, deadline=1.0,
-            )
+                with patch("meters_tool_core.acquisition.time.monotonic", side_effect=lambda: now[0]):
+                    complete = engine._drain_remaining_custom(
+                        TriggerEvent.new(TriggerSource.IMMEDIATE_CUSTOM),
+                        expected_readings=None, final=True, deadline=deadline,
+                    )
 
-        self.assertFalse(complete)
-        self.assertEqual(["DATA:POINts?", "DATA:REMove? 1"], instrument.commands)
-        self.assertEqual([1000, 400], instrument.asserted_timeouts)
+                self.assertFalse(complete)
+                expected_commands = ["DATA:POINts?", "DATA:REMove? 1"] if not captured else [
+                    "DATA:POINts?", "DATA:REMove? 1", "DATA2?", "DATA:REMove? 1", "DATA2?",
+                ]
+                self.assertEqual(expected_commands, instrument.commands)
+                self.assertEqual(captured, engine.stats.captured)
+                self.assertEqual(storage.samples, [sample for sample, _ in emitted])
+                self.assertEqual(captured, len(storage.samples))
+                self.assertEqual(list(range(1, captured + 1)), [count for _, count in emitted])
+                if not captured:
+                    self.assertEqual([1000, 400], instrument.asserted_timeouts)
 
     def test_finite_custom_stop_preserves_captured_rows_without_monitoring(self):
         storage = CapturingStorage()
@@ -198,6 +215,92 @@ class AcquisitionEngineTests(unittest.TestCase):
         self.assertEqual(1, engine.stats.captured)
         self.assertEqual(1, len(storage.samples))
         self.assertIsNone(engine.stats.final_drain_complete)
+        self.assertTrue(engine.ok)
+        self.assertEqual("stop_requested", engine.stats.stop_reason)
+        self.assertEqual("incomplete", engine.stats.data_integrity)
+
+    def test_ratio_final_drain_persists_completed_pairs_before_later_query_failure(self):
+        for failed_command, expected in ((None, 2), ("DATA:REMove? 1", 1), ("DATA2?", 1)):
+            with self.subTest(failed_command=failed_command):
+                now = [0.0]
+
+                class RatioInstrument(RecordingInstrument):
+                    remaining = 3
+                    removes = 0
+
+                    def query(self, command):
+                        self.commands.append(command)
+                        if command.startswith("STAT:QUES:"):
+                            return "0"
+                        if command == "DATA:POINts?":
+                            return str(self.remaining)
+                        if command == "DATA:REMove? 1":
+                            self.removes += 1
+                        if command == failed_command and self.removes == 2:
+                            raise OSError("synthetic ratio query failure")
+                        now[0] += 0.5
+                        if command == "DATA:REMove? 1":
+                            self.remaining -= 1
+                            return "2"
+                        if command == "DATA2?":
+                            return "4,2"
+                        raise AssertionError(command)
+
+                storage = CapturingStorage()
+                emitted = []
+                engine = TriggerAcquisitionEngine(
+                    instrument=RatioInstrument(), measurement=VoltageDcRatioMeasurement(),
+                    storage=storage,
+                    config=AcquisitionConfig(trigger_count_infinite=True, sample_count=1),
+                    router=TriggerRouter(),
+                    status_cb=lambda message: engine.stop() if message == "software custom capture armed" else None,
+                    sample_cb=lambda sample, count: emitted.append((sample, count)),
+                )
+                with patch("meters_tool_core.acquisition.time.monotonic", side_effect=lambda: now[0]):
+                    engine.run(trigger_mode="software-custom")
+
+                self.assertFalse(engine.ok)
+                self.assertFalse(engine.stats.final_drain_complete)
+                self.assertEqual(expected, engine.stats.captured)
+                self.assertEqual([2.0] * expected, [sample.value for sample in storage.samples])
+                self.assertEqual(storage.samples, [sample for sample, _ in emitted])
+                self.assertEqual(list(range(1, expected + 1)), [count for _, count in emitted])
+
+    def test_priority_stop_interrupts_continuous_custom_drain(self):
+        for mode in ("immediate-custom", "software-custom", "external-custom"):
+            with self.subTest(mode=mode):
+                instrument = RecordingInstrument()
+
+                class ContinuousMeasurement(FakeBufferedMeasurement):
+                    def buffered_points_available(self, backend):
+                        return 0 if instrument.abort_count else 1
+
+                router = TriggerRouter()
+                pending = TriggerEvent.new(TriggerSource.SOFTWARE)
+                router.publish(pending)
+                storage = CapturingStorage()
+
+                def stop_after_first(message):
+                    if not message.startswith("captured="):
+                        return
+                    if engine.stats.captured == 1:
+                        router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"control": "stop"}))
+                    elif engine.stats.captured == 5:
+                        engine.stop("probe_bound")
+
+                engine = make_acquisition_engine(
+                    instrument=instrument, measurement=ContinuousMeasurement(),
+                    storage=storage, router=router,
+                    config=AcquisitionConfig(trigger_count_infinite=True, sample_count=1),
+                    status_cb=stop_after_first,
+                )
+                engine.run(trigger_mode=mode)
+
+                self.assertEqual("stop_requested", engine.stats.stop_reason)
+                self.assertEqual(1, engine.stats.captured)
+                self.assertIsNone(router.poll_control())
+                if mode == "software-custom":
+                    self.assertIs(pending, router.wait(0))
 
     def test_priority_stop_interrupts_bus_readiness_wait(self):
         readiness_checked = threading.Event()

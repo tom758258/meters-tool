@@ -75,6 +75,7 @@ def test_path_filters_cover_safety_changes_without_building_for_simple_docs():
         "scripts/build_desktop.ps1": (False, True, False),
         "scripts/build_release.ps1": (False, True, True),
         "scripts/meters-tool-windows.spec": (False, True, False),
+        "tests/cli/test_live_artifact_privacy.py": (True, False, False),
         "tests/packaging/test_validation_helpers.py": (True, False, False),
         "tests/packaging/test_release_acceptance.py": (True, False, False),
         "docs/help/README.md": (False, True, False),

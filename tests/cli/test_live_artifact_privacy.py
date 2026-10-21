@@ -8,6 +8,8 @@ from pathlib import Path
 import pytest
 
 
+pytestmark = pytest.mark.windows_powershell
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 POWERSHELL = shutil.which("powershell.exe")
 VALIDATION_HELPER = REPO_ROOT / "scripts" / "_validation_helpers.ps1"

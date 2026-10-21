@@ -380,8 +380,8 @@ Supported parameters:
   in plan-only mode.
 - `-VisaLibrary` (aliases: `-Backend`, `-visa-library`): optional PyVISA
   library/backend selector such as `@py`. Omit it to use System VISA.
-- `-Suite`: `minimal`, `basic`, `frequency-period`, `external`, `stream`,
-  `overflow`, or `full`.
+- `-Suite`: `minimal`, `basic`, `frequency-period`, `external`, `finite-custom`,
+  `stream`, `overflow`, or `full`.
 - `-PlanOnly`: validate and write dry-run plans without opening VISA.
 - `-SkipPreflight`: skip the separate preflight only in `-PlanOnly` mode.
 - `-AllowIntentionalOverflow`: required for live `overflow` runs.
@@ -397,14 +397,20 @@ Suite scope:
   SCPI diagnostic sessions before the formal CLI cases.
 - `external` covers simple and custom external-trigger acquisition and is not
   available for the 34460A base profile.
-- `stream` checks infinite immediate and software Custom capture, plus external
-  Custom capture on 34461A, planned Stop, live status, final drain, JSONL, and
-  CSV correlation.
+- `finite-custom` checks normal finite completion in immediate and software
+  Custom modes, plus external Custom on 34461A, with monitoring alone and with
+  Stop on overflow enabled.
+- `stream` covers the same mode/monitoring combinations with infinite count,
+  planned Stop, live status, final drain, JSONL, and CSV correlation.
 - `overflow` checks a deliberately induced overflow and unsuccessful structured
-  outcome. It requires explicit opt-in and external trigger edges on 34461A.
+  outcome for both finite and infinite counts, in each model's supported Custom
+  modes, with monitoring alone and with Stop on overflow. It requires explicit
+  opt-in; only EXT cases require external trigger edges.
   It uses a large batch at `0.02` NPLC with one-reading drains to provoke
-  overflow, and fails if overflow is not observed within 60 seconds. A confirmed
-  overflow requires exit `3`, `ok=false`, and `data_integrity=incomplete`;
+  overflow. Stop-on-overflow cases have a 60-second watchdog; monitor-only cases
+  schedule Stop after 30 seconds and must observe overflow and continued drain
+  before Stop. Missing overflow or continued-drain evidence fails the case.
+  Confirmed overflow requires exit `3`, `ok=false`, and `data_integrity=incomplete`;
   the bounded final drain result is recorded even if it is incomplete.
 - `full` combines the applicable basic, Frequency/Period, and external suites.
   For `keysight-34460a`, external-trigger cases are omitted because the base
@@ -413,6 +419,11 @@ Suite scope:
 Stream cases use a scheduled Stop after the acquisition interval. The watchdog
 is a separate failure path; reaching it never counts as a successful planned
 Stop. Check the structured outcome and run correlation before accepting a case.
+
+The `finite-custom`, `stream`, and `overflow` suites are selected separately and
+are excluded from `full`. Their DC-current results apply only to the selected
+model, connection, backend, and exact Custom options. PlanOnly and synthetic
+validation do not establish real-instrument support.
 
 For LAN validation, first set `METER_RESOURCE` to the exact operator-selected
 LAN VISA resource:

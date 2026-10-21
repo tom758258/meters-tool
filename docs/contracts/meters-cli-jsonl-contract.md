@@ -93,11 +93,14 @@ final drain ran, otherwise a boolean. `data_integrity` is `unknown`,
 `overflow_monitoring: "off"`, `overflow_detected: null`,
 `final_drain_complete: null`, and `data_integrity: "unknown"`.
 
-`summary.ok` is `true` when the runtime completed without a fatal error, an
-overflow outcome, or an incomplete finite Custom capture. It is `false` when
-`fatal_error` is present, overflow monitoring failed, overflow was detected, the
-final drain did not complete, or a finite Custom capture stopped before its
-expected reading count. Consumers should still check the process exit code and
+`summary.ok` is `false` when `fatal_error` is present, overflow monitoring
+failed, overflow was detected, the final drain did not complete, or a finite
+Custom capture with overflow monitoring enabled stopped before its expected
+reading count. With Infinity, monitor, and Stop on overflow all disabled, a
+normal early Stop preserves the legacy successful result and exit `0`, even
+when `data_integrity` is `incomplete` because fewer than the requested readings
+were captured. This does not claim that the requested count was acquired.
+Consumers should still check the process exit code and
 treat a missing final summary as an incomplete or failed runtime. A `false`
 `summary.ok` exits `3`; this includes structured overflow and incomplete-capture
 outcomes as well as fatal worker failures. Meters fatal acquisition failures are

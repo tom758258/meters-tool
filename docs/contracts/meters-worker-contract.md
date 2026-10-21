@@ -407,11 +407,14 @@ Live case result objects include:
 - `name`
 - `status`
 - `run_id`
-- `expected_captured`: exact count, or `-1` for unbounded capture.
+- `expected_captured`: exact count, or `-1` when no exact row count is required.
 - `expected_exit_code`: process exit code required by the case.
-- `expected_stop_reason`: required reason for stream/overflow cases.
+- `expected_stop_reason`: required reason for monitored Custom cases.
 - `planned_stop_after_seconds`: acquisition interval before scheduled Stop;
   `0` disables scheduled Stop. Watchdog expiry remains a failure.
+- `expect_overflow`: whether confirmed overflow is required.
+- `require_continued_drain`: whether samples must continue after overflow while
+  the run is still active, before Stop or final drain.
 - `captured_count`
 - `captured`
 - `errors`
@@ -431,16 +434,25 @@ Live case result objects include:
 
 The live wrapper supports the `keysight-34461a` and `keysight-34460a` targets
 and passes the matching CLI model to every generated `start-trigger-record`
-command. Both targets support `minimal`, `basic`, `frequency-period`, `stream`,
-and `full` suites. `keysight-34461a` also supports `external` and `overflow`;
-`keysight-34460a` rejects both because the base 34460A profile does not support external
-trigger modes.
+command. Both targets support `minimal`, `basic`, `frequency-period`,
+`finite-custom`, `stream`, `overflow`, and `full` suites. `keysight-34461a` also
+supports `external`; the base 34460A profile rejects that suite and omits EXT
+cases from all Custom suites.
 
-`stream` uses scheduled Stop for infinite immediate and software Custom
-acquisition, plus external Custom acquisition on 34461A. `overflow` requires
-the additional `-AllowIntentionalOverflow` opt-in for live execution and checks
-exit `3`, `summary.ok=false`, confirmed overflow, and incomplete data integrity.
-It records the bounded final drain outcome. Neither suite is included in `full`.
+The Custom suites use DC current and cover each supported IMM/BUS/EXT mode
+with monitoring alone and Stop on overflow. `finite-custom` checks normal finite
+completion; `stream` checks infinite acquisition with scheduled Stop. `overflow`
+covers both finite and infinite counts and requires the additional
+`-AllowIntentionalOverflow` opt-in for live execution. Every overflow case
+requires exit `3`, `summary.ok=false`, confirmed overflow, and incomplete data
+integrity. Monitor-only cases also require a sample after overflow followed by
+an active status before scheduled Stop; samples obtained only during final
+drain cannot satisfy this check. The boolean result is retained as
+`runtime_evidence.continued_drain_after_overflow`. The bounded final drain
+outcome is recorded even when incomplete. None of these suites is included in
+`full`. Plans and synthetic results do not establish real-instrument support;
+evidence applies only to the model, transport, backend, measurement, and exact
+Custom scope actually exercised.
 
 The `frequency-period` suite runs one immediate Auto Range Frequency sample and
 one immediate Auto Range Period sample with a `20` Hz AC filter, `0.1` second

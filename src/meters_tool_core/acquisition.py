@@ -7,7 +7,7 @@ import time
 from typing import Callable, Optional
 
 from .instrument_backend import InstrumentBackend
-from .measurement import MeasurementPlugin
+from .measurement import BufferedReadError, MeasurementPlugin
 from .models import (
     AcquisitionConfig,
     InstrumentProfile,
@@ -151,7 +151,8 @@ class TriggerAcquisitionEngine:
         if self._stats.final_drain_complete is False:
             return False
         if (
-            self._stats.expected_readings is not None
+            self._overflow_monitoring
+            and self._stats.expected_readings is not None
             and self._stats.data_integrity == "incomplete"
         ):
             return False
@@ -179,7 +180,8 @@ class TriggerAcquisitionEngine:
         if self._stats.final_drain_complete is False:
             return "final_drain_incomplete"
         if (
-            self._stats.expected_readings is not None
+            self._overflow_monitoring
+            and self._stats.expected_readings is not None
             and self._stats.data_integrity == "incomplete"
         ):
             return "incomplete"
@@ -621,6 +623,9 @@ class TriggerAcquisitionEngine:
             )
         ):
             try:
+                control = self._router.poll_control()
+                if control is not None and self._handle_control_event(control):
+                    return
                 if not self._poll_overflow_due():
                     return
                 available = self._measurement.buffered_points_available(self._instrument)
@@ -634,18 +639,11 @@ class TriggerAcquisitionEngine:
                 if self._config.buffer_drain_size is not None:
                     read_count = min(read_count, self._config.buffer_drain_size)
                 if read_count > 0:
-                    samples = self._measurement.read_buffered_samples(
+                    self._capture_buffered_samples(
                         self._instrument,
                         event,
                         read_count,
-                        first_sample_index=self._stats.captured,
                     )
-                    for sample in samples:
-                        if self._storage is not None:
-                            self._storage.write(sample)
-                        self._stats.captured += 1
-                        self._emit_sample(sample)
-                    self._emit_capture_status(samples[-1])
                     continue
 
                 if (
@@ -785,6 +783,9 @@ class TriggerAcquisitionEngine:
             )
         ):
             try:
+                control = self._router.poll_control()
+                if control is not None and self._handle_control_event(control):
+                    return
                 if not self._poll_overflow_due():
                     return
                 available = self._measurement.buffered_points_available(self._instrument)
@@ -813,18 +814,11 @@ class TriggerAcquisitionEngine:
                         return
                     self._stop_event.wait(0.05)
                     continue
-                samples = self._measurement.read_buffered_samples(
+                self._capture_buffered_samples(
                     self._instrument,
                     event,
                     read_count,
-                    first_sample_index=self._stats.captured,
                 )
-                for sample in samples:
-                    if self._storage is not None:
-                        self._storage.write(sample)
-                    self._stats.captured += 1
-                    self._emit_sample(sample)
-                self._emit_capture_status(samples[-1])
             except Exception as exc:
                 if not self._running:
                     return
@@ -834,6 +828,26 @@ class TriggerAcquisitionEngine:
                 return
         if expected_readings is not None and self._stats.captured >= expected_readings:
             self._finish_custom_run(expected_readings)
+
+    def _capture_buffered_samples(
+        self, instrument: InstrumentBackend, event: TriggerEvent, count: int,
+    ) -> None:
+        samples = []
+        try:
+            samples = self._measurement.read_buffered_samples(
+                instrument, event, count, first_sample_index=self._stats.captured,
+            )
+        except BufferedReadError as exc:
+            samples = exc.samples
+            raise
+        finally:
+            for sample in samples:
+                if self._storage is not None:
+                    self._storage.write(sample)
+                self._stats.captured += 1
+                self._emit_sample(sample)
+            if samples:
+                self._emit_capture_status(samples[-1])
 
     def _drain_remaining_custom(
         self,
@@ -847,6 +861,10 @@ class TriggerAcquisitionEngine:
     ) -> bool:
         _ = expected_readings
         while final or (self._running and not self._stop_event.is_set()):
+            if not final:
+                control = self._router.poll_control()
+                if control is not None and self._handle_control_event(control):
+                    return False
             if deadline is not None and time.monotonic() >= deadline:
                 if final:
                     self._emit("final drain budget exhausted")
@@ -871,19 +889,11 @@ class TriggerAcquisitionEngine:
                 read_count = available
                 if self._config.buffer_drain_size is not None:
                     read_count = min(read_count, self._config.buffer_drain_size)
-                samples = self._measurement.read_buffered_samples(
+                self._capture_buffered_samples(
                     drain_instrument,
                     event,
                     read_count,
-                    first_sample_index=self._stats.captured,
                 )
-                for sample in samples:
-                    if self._storage is not None:
-                        self._storage.write(sample)
-                    self._stats.captured += 1
-                    self._emit_sample(sample)
-                if samples:
-                    self._emit_capture_status(samples[-1])
             except Exception as exc:
                 if final:
                     self._emit(

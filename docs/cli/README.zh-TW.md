@@ -296,7 +296,7 @@ wrapper 不會把它視為實機執行授權。
 - `-VisaLibrary`（別名：`-Backend`、`-visa-library`）：選用的 PyVISA
   library/backend selector，例如 `@py`。省略時使用 System VISA。
 - `-Suite`：`minimal`、`basic`、`frequency-period`、`external`、
-  `stream`、`overflow` 或 `full`。
+  `finite-custom`、`stream`、`overflow` 或 `full`。
 - `-PlanOnly`：只驗證並寫出 dry-run plan，不開啟 VISA。
 - `-SkipPreflight`：僅在 `-PlanOnly` 模式下略過獨立 preflight。
 - `-AllowIntentionalOverflow`：實機執行 `overflow` suite 時必須指定。
@@ -312,12 +312,17 @@ wrapper 不會把它視為實機執行授權。
   SCPI diagnostic session。
 - `external`：涵蓋 simple 與 custom external-trigger acquisition；
   34460A base profile 不支援此 suite。
-- `stream`：檢查無限 immediate 與 software Custom 採集，以及 34461A 的
-  external Custom 採集、預定 Stop、執行中狀態、最後排空，以及 JSONL 與 CSV 的關聯。
-- `overflow`：檢查刻意造成的溢位及結構化失敗結果。僅供 34461A 使用，
-  需要明確 opt-in 與外部觸發邊緣。
-  此案例以 `0.02` NPLC 的大批次採集配合逐筆排空來造成溢位；若 60 秒內
-  未觀察到溢位則失敗。確認溢位時，必須得到退出碼 `3`、`ok=false` 與
+- `finite-custom`：在 immediate 與 software Custom，以及 34461A 的 external
+  Custom 模式，分別開啟僅監測與 Stop on overflow，檢查有限次數正常完成。
+- `stream`：以無限次數涵蓋相同的模式與監測組合，檢查預定 Stop、執行中狀態、
+  最後排空，以及 JSONL 與 CSV 的關聯。
+- `overflow`：在各機型支援的 Custom 模式，以有限與無限次數、僅監測與
+  Stop on overflow，檢查刻意造成的溢位及結構化失敗結果。需要明確 opt-in；
+  只有 EXT 案例需要外部觸發邊緣。
+  此案例以 `0.02` NPLC 的大批次採集配合逐筆排空來造成溢位。
+  Stop on overflow 案例有 60 秒 watchdog；僅監測案例在 30 秒後預定 Stop，
+  並須在 Stop 前觀察到溢位及持續排空。缺少溢位或持續排空證據則案例失敗。
+  確認溢位時，必須得到退出碼 `3`、`ok=false` 與
   `data_integrity=incomplete`；有時間限制的最後排空結果即使未完成也會記錄。
 - `full`：組合適用的 basic、Frequency/Period 與 external suites。
   對 `keysight-34460a` 而言，因 base profile 不支援 external trigger，
@@ -325,6 +330,10 @@ wrapper 不會把它視為實機執行授權。
 
 Stream 案例會在採集期間結束後預定發送 Stop。Watchdog 是獨立的失敗處理路徑，
 觸發它不能算作成功的預定 Stop。接受案例前，請檢查結構化結果及執行關聯。
+
+`finite-custom`、`stream` 與 `overflow` 都須分別選用，不包含於 `full`。
+其 DC current 結果只適用於選定的機型、連線、backend 與確切 Custom 選項。
+PlanOnly 與 synthetic 驗證不能證明實機支援。
 
 驗證 LAN 前，先把 `METER_RESOURCE` 設成操作人員選定的確切 LAN VISA
 resource：

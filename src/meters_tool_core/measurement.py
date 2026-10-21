@@ -140,6 +140,14 @@ def _measurement_metadata_from_data2(instrument: InstrumentBackend) -> dict[str,
     }
 
 
+class BufferedReadError(RuntimeError):
+    """Carry completed readings when a later query in the batch fails."""
+
+    def __init__(self, message: str, samples: List[MeasurementSample]) -> None:
+        super().__init__(message)
+        self.samples = samples
+
+
 class MeasurementPlugin(ABC):
     @abstractmethod
     def configure(self, instrument: InstrumentBackend, config: AcquisitionConfig) -> None:
@@ -533,41 +541,44 @@ class VoltageDcRatioMeasurement(ScalarDmmMeasurement):
         if count <= 0:
             return []
         samples = []
-        for offset in range(count):
-            raw = instrument.query("DATA:REMove? 1")
-            try:
-                values = _parse_ascii_floats(raw)
-            except ValueError as exc:
-                raise RuntimeError(
-                    f"Failed to parse DATA:REMove? 1 response from '{raw}'"
-                ) from exc
-            if len(values) != 1:
-                raise RuntimeError(f"Expected 1 buffered ratio reading, got {len(values)}")
-            fetch_time_utc = datetime.now(timezone.utc)
-            metadata = dict(trigger.metadata)
-            metadata.update(
-                {
-                    "buffered": "true",
-                    "buffer_index": str(first_sample_index + offset),
-                    "buffer_batch_size": "1",
-                    "fetch_time_utc": fetch_time_utc.isoformat(),
-                    "time_basis": "pc_data_remove_time_not_instrument_sample_time",
-                }
-            )
-            samples.append(
-                MeasurementSample(
-                    timestamp_utc=fetch_time_utc,
-                    measurement_type=self.measurement_type(),
-                    value=values[0],
-                    unit=self.unit(),
-                    status="ok",
-                    resource_id=instrument.resource_id,
-                    trigger_id=trigger.id,
-                    trigger_source=trigger.source.value,
-                    trigger_metadata=metadata,
-                    measurement_metadata=_measurement_metadata_from_data2(instrument),
+        try:
+            for offset in range(count):
+                raw = instrument.query("DATA:REMove? 1")
+                try:
+                    values = _parse_ascii_floats(raw)
+                except ValueError as exc:
+                    raise RuntimeError(
+                        f"Failed to parse DATA:REMove? 1 response from '{raw}'"
+                    ) from exc
+                if len(values) != 1:
+                    raise RuntimeError(f"Expected 1 buffered ratio reading, got {len(values)}")
+                fetch_time_utc = datetime.now(timezone.utc)
+                metadata = dict(trigger.metadata)
+                metadata.update(
+                    {
+                        "buffered": "true",
+                        "buffer_index": str(first_sample_index + offset),
+                        "buffer_batch_size": "1",
+                        "fetch_time_utc": fetch_time_utc.isoformat(),
+                        "time_basis": "pc_data_remove_time_not_instrument_sample_time",
+                    }
                 )
-            )
+                samples.append(
+                    MeasurementSample(
+                        timestamp_utc=fetch_time_utc,
+                        measurement_type=self.measurement_type(),
+                        value=values[0],
+                        unit=self.unit(),
+                        status="ok",
+                        resource_id=instrument.resource_id,
+                        trigger_id=trigger.id,
+                        trigger_source=trigger.source.value,
+                        trigger_metadata=metadata,
+                        measurement_metadata=_measurement_metadata_from_data2(instrument),
+                    )
+                )
+        except Exception as exc:
+            raise BufferedReadError(str(exc), samples) from exc
         return samples
 
 
