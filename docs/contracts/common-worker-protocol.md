@@ -2,7 +2,7 @@
 
 Schema version: `2`
 
-Contract revision: `2.1`
+Contract revision: `2.2`
 
 Compatibility policy: `v2-only`
 
@@ -46,6 +46,33 @@ not create a runtime session.
 Consumers must ignore unknown fields in JSON output objects. Workers may add
 optional output fields under schema version `2`; removing required fields or
 changing required field types requires a major schema version bump.
+
+## Optional Streaming Extension
+
+The [Common Optional Streaming Extension](common-streaming-extension.md)
+defines an opt-in contract for one logical data stream per runtime. It adds
+source readiness and termination semantics without changing the base Worker
+lifecycle, command envelope, or exit code meanings. Publishing this document
+revision does not establish that a Worker implements the extension.
+
+A runtime must explicitly opt in at startup through a Worker-specific setting.
+Opt-in selects the contract; the Worker-specific contract defines whether and
+when the data source starts. Without opt-in, existing behavior and output
+remain unchanged. Workers must not advertise the extension without satisfying
+its requirements.
+
+An opted-in runtime declares `stream.lifecycle` in `ready` and supplies
+`stream.lifecycle` and `stream.state` in JSONL status events and HTTP status
+responses, as specified in the
+[Common CLI JSON / JSONL Contract](common-cli-jsonl-contract.md#optional-streaming-fields).
+Control-plane readiness is distinct from source readiness: `ready` does not
+establish that the stream is `active`.
+
+The extension adds no endpoint or generic stream start/stop command. Optional
+deferred source startup uses a Worker-specific command through the existing
+`POST /command` envelope. `POST /stop` retains the Worker's cleanup behavior;
+a successful stop response does not establish that data output or cleanup has
+finished.
 
 ## HTTP Endpoints
 

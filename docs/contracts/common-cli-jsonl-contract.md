@@ -2,7 +2,7 @@
 
 Schema version: `2`
 
-Contract revision: `2.1`
+Contract revision: `2.2`
 
 Compatibility policy: `v2-only`
 
@@ -65,6 +65,75 @@ contracts may add fields.
 
 Worker-specific contracts may define additional event values and fields.
 
+## Optional Streaming Fields
+
+These fields apply only to runtimes explicitly adopting the
+[Common Optional Streaming Extension](common-streaming-extension.md). Presence
+of the `stream` object declares adoption for this runtime, not merely an
+available capability. No separate enabled flag or extension version is added.
+Absence of `stream` must not be interpreted as adoption.
+
+| Output | Required extension fields |
+| --- | --- |
+| `ready` | `stream.lifecycle` |
+| JSONL `status` and `GET /status` | `stream.lifecycle`, `stream.state` |
+
+`stream` is a JSON object. `lifecycle` is the string `run_bound` or
+`deferred_start` and remains fixed for the runtime. `state` is the string
+`waiting`, `active`, or `ended`; its meaning and event ordering are defined in
+the [extension lifecycle](common-streaming-extension.md#lifecycle-and-state).
+`ready.stream` declares only the lifecycle, without a state field. Every JSONL
+status event and HTTP status response in an opted-in runtime carries the
+current stream snapshot, together with the same non-empty top-level `run_id`.
+This does not replace any Worker-specific top-level `status` field.
+
+The extension adds no `stream` object to data events or `summary`. Existing
+event names, payloads, counts, and quality fields remain Worker-specific.
+Data events retain the runtime's `run_id`; the extension adds no stream ID,
+sequence, or last-sequence field. Workers and consumers continue to follow the
+Common unknown-field compatibility rule.
+
+The following examples show complete Common envelopes; Worker-specific
+contracts may require additional fields. Endpoint URLs are illustrative.
+An opted-in `ready` declaration does not assert source readiness:
+
+```json
+{
+  "event": "ready",
+  "schema_version": 2,
+  "timestamp_utc": "2026-01-01T00:00:00Z",
+  "run_id": "example-run",
+  "status_url": "http://localhost:8000/status",
+  "command_url": "http://localhost:8000/command",
+  "stop_url": "http://localhost:8000/stop",
+  "stream": {"lifecycle": "run_bound"}
+}
+```
+
+A subsequent JSONL status reports source readiness before the first data event:
+
+```json
+{
+  "event": "status",
+  "schema_version": 2,
+  "timestamp_utc": "2026-01-01T00:00:01Z",
+  "run_id": "example-run",
+  "stream": {"lifecycle": "run_bound", "state": "active"}
+}
+```
+
+While HTTP is still available, a later `GET /status` response can report the
+terminal source state. This does not assert successful cleanup:
+
+```json
+{
+  "schema_version": 2,
+  "timestamp_utc": "2026-01-01T00:00:02Z",
+  "run_id": "example-run",
+  "stream": {"lifecycle": "run_bound", "state": "ended"}
+}
+```
+
 ## Parsing Guidance
 
 For one runtime session, all non-dry-run runtime events should use the same
@@ -75,6 +144,12 @@ A final summary with `ok: true` indicates normal command-level completion. A
 summary with `ok: false`, a structured error object, a non-zero process exit
 code, or a missing final summary should be treated as failed or incomplete by
 orchestrators.
+
+A summary is a result report, not an assertion that Worker cleanup has
+completed or that stdout has ended. Cleanup may emit further structured
+messages. Consumers must continue reading through stdout EOF and also observe
+the process exit code. The extension's terminal `status` event does not replace
+these checks; see its [event ordering](common-streaming-extension.md#event-ordering-and-shutdown).
 
 Usage and validation failures should exit `2`. Runtime, connection, request,
 and fatal Worker failures should exit `3`. Success, accepted requests, and

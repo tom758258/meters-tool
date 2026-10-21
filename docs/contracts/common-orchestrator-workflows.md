@@ -2,7 +2,7 @@
 
 Schema version: `2`
 
-Contract revision: `2.1`
+Contract revision: `2.2`
 
 Compatibility policy: `v2-only`
 
@@ -40,6 +40,50 @@ When a Worker-specific contract defines an alternative deterministic planning
 or simulation identity, orchestrators must use that identity and must not
 synthesize a physical `planning_model_id`.
 
+## Optional Streaming Workflows
+
+Use the [Common Optional Streaming Extension](common-streaming-extension.md)
+only when the runtime explicitly declares adoption through the
+[stream fields](common-cli-jsonl-contract.md#optional-streaming-fields). Select
+it through the Worker's documented startup setting. A document revision,
+ordinary data event, or missing declaration does not establish adoption; use
+the existing Worker-specific contract for runs without the extension.
+
+Keep consuming stdout independently of foreground jobs or recording windows.
+Use `run_id` to correlate the one logical stream, and the Worker-specific
+contract to distinguish data events from job and control events. Job IDs keep
+their existing meaning. Dataset and recording-window identities belong to the
+consumer and need not be known to the Worker. Closing a recording window must
+not stop stdout consumption or block draining the pipe.
+
+### Waiting for source readiness
+
+For `run_bound`, source startup follows the Worker-specific startup behavior.
+For `deferred_start`, send the documented source-start command through
+`POST /command` after control-plane readiness. An accepted command response
+is not confirmation that the source is active.
+
+A workflow step that requires source readiness must wait for
+`stream.state: "active"` for the intended `run_id`, using JSONL status or
+non-mutating HTTP status. Other steps need not wait. Neither `ready` nor thread
+creation establishes this condition, and no first data event is required.
+
+Bound the wait by an orchestrator-selected timeout and simultaneously observe
+source termination, Worker/source errors, and process exit. If the source ends
+before becoming active, startup fails, the process exits, or the timeout
+expires, stop waiting and do not release the dependent step as ready. Interpret
+error scope using the Worker-specific contract; an unrelated ordinary job
+failure does not automatically mean source failure. Common specifies no shared
+timeout value.
+
+JSONL and HTTP report snapshots of the same in-memory state, but delivery and
+observation times can differ. For one `run_id`, do not regress an observed state
+from `ended` to `active` or `waiting`, or from `active` to `waiting`, because of
+a delayed snapshot. A known stop, relevant failure, or process exit must not
+be overridden by an earlier active observation. Active is an observation of
+readiness, not an atomic guarantee that the source will remain ready for a
+later workflow step.
+
 ## Failure Handling
 
 Treat failure to establish control-plane readiness through the documented
@@ -63,3 +107,22 @@ Prefer cooperative stop before terminating a Worker process. If a process has
 already exited, client-side cleanup may report that the endpoint is no longer
 listening; Worker-specific contracts define whether that is a successful
 cleanup result.
+
+For an opted-in stream, keep reading tail data and the terminal JSONL
+`status` with `stream.state: "ended"`, followed by the summary on paths where
+structured output remains possible. The Worker need not keep HTTP alive for
+a terminal status poll. Ended closes the logical data stream; it does not
+prove that tail handling, hardware stop, or cleanup succeeded.
+
+Continue consuming stdout through EOF even after the summary, and confirm
+process exit independently. Neither EOF alone nor process exit alone proves
+successful completion. A crash or output failure can omit terminal status or
+the summary; do not wait indefinitely for missing events or infer success from
+the last active status.
+
+Combine terminal stream observations, Worker-specific errors and quality
+fields, the summary, and process exit when assessing the result. Preserve data
+already received even when the run fails or is incomplete. Independently
+account for losses in consumer reception, buffering, and persistence: Worker
+quality reports do not establish end-to-end completeness. This contract does
+not prescribe dataset formats, artifact paths, or storage layouts.
