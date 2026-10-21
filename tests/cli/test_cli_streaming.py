@@ -39,6 +39,32 @@ def test_streaming_dry_run_csv_defaults_are_independent_of_jsonl(options, enable
     assert "run_id" not in result
 
 
+@pytest.mark.parametrize("csv_path,options", [
+    ("", []),
+    ("   ", ["--dry-run"]),
+    ("   ", ["--streaming"]),
+    ("", ["--streaming", "--dry-run"]),
+])
+def test_blank_csv_rejected_before_profile_resolution(csv_path, options, monkeypatch, capsys, tmp_path):
+    def unexpected(*args, **kwargs):
+        raise AssertionError("must reject before resolving a live profile")
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("meters_tool_cli.cli.resolve_start_profile", unexpected)
+    args = build_parser().parse_args([
+        "start-trigger-record", "--resource", "FAKE::UNOPENED", "--json",
+        "--csv", csv_path, *options,
+    ])
+    assert cmd_start(args) == 2
+    output = capsys.readouterr()
+    error = json.loads(output.out)
+    assert error["event"] == "error"
+    assert error["exit_code"] == 2
+    assert "--csv" in error["message"]
+    assert "run_id" not in error
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_streaming_text_rejected_before_profile_resolution(monkeypatch, capsys):
     def unexpected(*args, **kwargs):
         raise AssertionError("must reject before resolving a live profile")

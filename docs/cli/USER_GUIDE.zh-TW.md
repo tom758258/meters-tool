@@ -198,7 +198,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 
 `list-resources --verify` 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。
 
-`--csv` 是輸出檔案路徑。未使用 `--streaming` 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。
+`--csv` 是輸出檔案路徑。明確指定空字串或僅含空白的路徑，會在連線或建立檔案前以結束碼 `2` 拒絕，Dry-run 亦同。未使用 `--streaming` 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。
 
 `--max-samples` 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。
 

@@ -161,11 +161,14 @@ def _normalize_serial_termination(value: str | None) -> str | None:
     raise ValueError("serial termination must be CRLF, LF, CR, or NONE")
 
 def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
+    csv_path = _optional_text(args.csv)
+    if args.csv is not None and csv_path is None:
+        raise ValueError("--csv requires a non-empty output path")
     return StartRequest(
         resource=args.resource,
         instrument_model=_optional_text(args.instrument_model),
         visa_library=_optional_text(args.visa_library),
-        csv=_optional_text(args.csv),
+        csv=csv_path,
         dry_run=args.dry_run,
         simulate=args.simulate,
         timeout_ms=args.timeout_ms,
@@ -199,7 +202,7 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
         vm_comp_slope=args.vm_comp_slope,
         csv_enabled=(
             not args.no_csv
-            and (not args.streaming or _optional_text(args.csv) is not None)
+            and (not args.streaming or csv_path is not None)
         ),
         csv_format=args.csv_format,
         csv_time_columns=tuple(filter(None, (value.strip() for value in args.csv_time_columns.split(",")))),

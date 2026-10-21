@@ -156,6 +156,7 @@ jobs:
           tests/core/test_capabilities.py
           tests/core/test_model_profile_validation.py
           tests/core/test_start_resolution.py
+          tests/core/test_streaming.py
           tests/core/test_support_policy.py
           tests/core/test_trigger_router.py
           tests/core/test_acquisition_engine.py
@@ -164,6 +165,7 @@ jobs:
           tests/cli/test_cli_parser.py
           tests/cli/test_cli_start_runtime.py
           tests/cli/test_cli_worker_subprocess.py
+          tests/cli/test_cli_streaming.py
           tests/cli/test_cli_client_contracts.py
           tests/webui/test_webui_api.py
           tests/webui/test_webui_run_lifecycle_api.py
@@ -201,8 +203,10 @@ jobs:
           --basetemp .tmp_tests/ci-windows-py${{ matrix.python-version }}
           tests/core/test_support_policy.py
           tests/core/test_start_resolution.py
+          tests/core/test_streaming.py
           tests/cli/test_cli_client_contracts.py
           tests/cli/test_cli_worker_subprocess.py
+          tests/cli/test_cli_streaming.py
           tests/webui/test_desktop_host.py
           tests/webui/test_launcher.py
           tests/webui/test_webui_run_lifecycle_api.py

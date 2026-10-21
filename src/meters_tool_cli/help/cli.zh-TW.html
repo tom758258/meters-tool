@@ -209,7 +209,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 <p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
 <p><code>--visa-library</code> 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 <code>"@py"</code>。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</p>
 <p><code>list-resources --verify</code> 會開啟偵測到的 VISA 資源並查詢 <code>*IDN?</code>。<code>list-resources --live-only</code> 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 <code>--serial-read-termination</code> 與 <code>--serial-write-termination</code> 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。</p>
-<p><code>--csv</code> 是輸出檔案路徑。未使用 <code>--streaming</code> 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。預設 CSV 格式是 <code>data</code>；選擇 <code>--csv-format full</code> 可保留原有十欄，並可選用 <code>--csv-time-columns elapsed,delta</code>。</p>
+<p><code>--csv</code> 是輸出檔案路徑。明確指定空字串或僅含空白的路徑，會在連線或建立檔案前以結束碼 <code>2</code> 拒絕，Dry-run 亦同。未使用 <code>--streaming</code> 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。預設 CSV 格式是 <code>data</code>；選擇 <code>--csv-format full</code> 可保留原有十欄，並可選用 <code>--csv-time-columns elapsed,delta</code>。</p>
 <p><code>--max-samples</code> 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。</p>
 <p><code>--auto-range</code>（自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。</p>
 <p>當自動量程停用時，使用 <code>--range</code> 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。</p>

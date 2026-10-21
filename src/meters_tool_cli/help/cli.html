@@ -261,7 +261,9 @@ does not block later USB or TCPIP resources. The serial termination options
 <code>--serial-read-termination</code> and <code>--serial-write-termination</code> are CLI discovery
 compatibility settings for ASRL verification only; they are not acquisition
 settings.</p>
-<p><code>--csv</code> is the output file path. Without <code>--streaming</code>, if omitted, the CLI creates a timestamped CSV
+<p><code>--csv</code> is the output file path. An explicitly empty or whitespace-only path
+is rejected with exit code <code>2</code> before connecting or creating files, including
+dry-run. Without <code>--streaming</code>, if omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
 or automation. Use <code>--no-csv</code> to disable CSV output for a run; it cannot be combined with <code>--csv</code>. The default CSV format is <code>data</code>; choose <code>--csv-format full</code> for the original ten columns, and optionally add <code>--csv-time-columns elapsed,delta</code>.</p>
 <p><code>--max-samples</code> bounds simple runs. Use it during smoke tests and validation so

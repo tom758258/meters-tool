@@ -250,7 +250,9 @@ does not block later USB or TCPIP resources. The serial termination options
 compatibility settings for ASRL verification only; they are not acquisition
 settings.
 
-`--csv` is the output file path. Without `--streaming`, if omitted, the CLI creates a timestamped CSV
+`--csv` is the output file path. An explicitly empty or whitespace-only path
+is rejected with exit code `2` before connecting or creating files, including
+dry-run. Without `--streaming`, if omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
 or automation. Use `--no-csv` to disable CSV output for a run; it cannot be combined with `--csv`. The default CSV format is `data`; choose `--csv-format full` for the original ten columns, and optionally add `--csv-time-columns elapsed,delta`.
 

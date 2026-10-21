@@ -579,7 +579,7 @@ uv run meters-tool start-trigger-record `
 | `--resource RESOURCE` | 是 | 無 | VISA 資源字串，例如 USB 或 TCPIP HiSLIP。 |
 | `--model MODEL`、`--instrument-model MODEL` | 否 | live 為 auto；非確定性 dry-run/simulate 必要 | 接受 canonical model token 或已註冊的穩定型號 ID。它是 live 執行的預期型號防護，也是 dry-run/simulate 的規劃設定檔選擇器。Core 設定檔邏輯會標準化並驗證 `34460A`、`34461A`、`keysight-34460a` 與 `keysight-34461a` 等值。 |
 | `--visa-library TEXT`、`--backend TEXT` | 否 | 系統預設 | 已安裝環境中的選用 PyVISA library/backend 引數，例如 `@py`；backend 套件必須已安裝且可載入。Dry-run 與 simulator 執行會接受此選項，但不會開啟 VISA。 |
-| `--csv PATH` | 否 | Streaming 停用；其他情況為 `data/YYYY-MM-DD-HH-MM-SS.csv` | 明確指定 CSV 輸出路徑。未啟用 Streaming 時，省略此項會在 `data` 下建立 UTC+8 時間戳記檔案。只有啟用 CSV 才會建立父目錄。 |
+| `--csv PATH` | 否 | Streaming 停用；其他情況為 `data/YYYY-MM-DD-HH-MM-SS.csv` | 明確指定 CSV 輸出路徑。空字串或僅含空白的路徑會以結束碼 `2` 拒絕，Dry-run 亦同。未啟用 Streaming 時，省略此項會在 `data` 下建立 UTC+8 時間戳記檔案。只有啟用 CSV 才會建立父目錄。 |
 | `--no-csv` | 否 | 關閉 | 當外部 orchestrator 保存 JSONL `sample` events 時，停用本次執行的 CSV 輸出。不可與 `--csv` 同時使用。 |
 | `--csv-format data\|full` | 否 | `data` | `data` 僅輸出時間戳記、數值與單位；`full` 保留原有十欄及 metadata。 |
 | `--csv-time-columns elapsed,delta` | 否 | 無 | 可獨立或同時選擇 `elapsed_s` 與 `delta_t_s`，單位秒、三位小數。 |

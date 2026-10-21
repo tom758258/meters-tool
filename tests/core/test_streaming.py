@@ -267,6 +267,128 @@ def test_external_waiting_evidence_precedes_completion_and_stops_observations():
     assert engine.ok
 
 
+def test_external_timeout_after_active_rearms_without_error(monkeypatch):
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr("meters_tool_core.trigger.time.monotonic", lambda: clock.now)
+    state = RunBoundStreamState("external-rearm")
+    events, statuses = [], []
+
+    class RearmedInstrument(StreamingInstrument):
+        polls = 0
+
+        def read_status_byte(self):
+            self.polls += 1
+            if self.commands.count("INIT") == 1:
+                clock.now = 0.1 if self.polls == 1 else 2.0
+                return 0
+            return 0x20
+
+    class ArmedMeasurement(FakeMeasurement):
+        def waiting_for_trigger(self, instrument):
+            instrument.write("STAT:OPER:COND?")
+            return True
+
+    def active():
+        assert state.activate()
+        events.append("active")
+
+    instrument = RearmedInstrument()
+    engine = TriggerAcquisitionEngine(
+        instrument, ArmedMeasurement(), None,
+        AcquisitionConfig(trigger_timeout_ms=1000, max_samples=1), TriggerRouter(),
+        active_cb=active, sample_cb=lambda *_: events.append("sample"),
+        status_cb=lambda message: statuses.append((message, state.status_fields())),
+    )
+    engine.run("external")
+    assert events == ["active", "sample"]
+    rearmed = [snapshot for message, snapshot in statuses if "re-armed" in message]
+    assert len(rearmed) == 1
+    assert rearmed[0]["stream"]["state"] == "active"
+    states = [snapshot["stream"]["state"] for _, snapshot in statuses]
+    assert "waiting" not in states[states.index("active"):]
+    assert instrument.commands.count("INIT") == 2
+    assert instrument.commands.count("STAT:OPER:COND?") == 1
+    assert instrument.abort_count >= 1
+    assert engine.stats.captured == 1
+    assert engine.stats.errors == 0
+    assert engine.ok
+
+
+@pytest.mark.parametrize("waiting", [False, True])
+def test_external_trigger_during_successful_observation_keeps_sample(waiting):
+    events, samples = [], []
+
+    class TriggerDuringQuery(StreamingInstrument):
+        triggered = False
+
+        def read_status_byte(self):
+            return 0x20 if self.triggered else 0
+
+    class ObservedMeasurement(FakeMeasurement):
+        def waiting_for_trigger(self, instrument):
+            instrument.write("STAT:OPER:COND?")
+            instrument.triggered = True
+            return waiting
+
+        def read_sample(self, instrument, trigger):
+            assert instrument.triggered
+            instrument.triggered = False
+            return super().read_sample(instrument, trigger)
+
+    def sample(value, count):
+        samples.append((value.value, count))
+        events.append("sample")
+
+    instrument = TriggerDuringQuery()
+    engine = TriggerAcquisitionEngine(
+        instrument, ObservedMeasurement(value=42.0), None,
+        AcquisitionConfig(trigger_timeout_ms=1000, max_samples=1), TriggerRouter(),
+        active_cb=lambda: events.append("active"), sample_cb=sample,
+    )
+    engine.run("external")
+    assert events == ["active", "sample"]
+    assert samples == [(42.0, 1)]
+    assert not instrument.triggered
+    assert instrument.commands.count("STAT:OPER:COND?") == 1
+    assert instrument.commands.count("INIT") == 1
+    assert engine.stats.captured == 1
+    assert engine.stats.errors == 0
+    assert engine.ok
+
+
+@pytest.mark.parametrize("waiting", [False, True])
+def test_external_custom_trigger_during_successful_observation_keeps_buffer(waiting):
+    events, samples = [], []
+
+    class TriggerDuringQuery(WaitingMeasurement):
+        def waiting_for_trigger(self, instrument):
+            instrument.write("STAT:OPER:COND?")
+            self.sample_count = 2
+            return waiting
+
+    def sample(value, count):
+        samples.append((value.value, count))
+        events.append("sample")
+
+    instrument = StreamingInstrument()
+    measurement = TriggerDuringQuery()
+    engine = TriggerAcquisitionEngine(
+        instrument, measurement, None,
+        AcquisitionConfig(trigger_count=1, sample_count=2, buffer_drain_size=1), TriggerRouter(),
+        active_cb=lambda: events.append("active"), sample_cb=sample,
+    )
+    engine.run("external-custom")
+    assert events == ["active", "sample", "sample"]
+    assert samples == [(0.0, 1), (1.0, 2)]
+    assert measurement.sample_count == 0
+    assert measurement.read_counts == [1, 1]
+    assert instrument.commands.count("STAT:OPER:COND?") == 1
+    assert instrument.commands.count("INIT") == 1
+    assert engine.stats.captured == 2
+    assert engine.stats.errors == 0
+    assert engine.ok
+
+
 def test_external_short_budget_skips_observation_and_preserves_timeout():
     instrument = StreamingInstrument()
     observations = []

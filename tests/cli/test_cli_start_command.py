@@ -1098,7 +1098,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("CliStartRunControls", type(controls).__name__)
         self.assertIn("run_id", mock_runner.call_args.kwargs)
 
-    def test_start_normalizes_blank_optional_text_before_runner(self):
+    def test_start_normalizes_optional_text_before_runner(self):
         parser = build_parser()
         args = parser.parse_args(
             [
@@ -1108,7 +1108,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
                 "--visa-library",
                 "   ",
                 "--csv",
-                "   ",
+                "  chosen.csv  ",
                 "--trigger-mode",
                 "immediate",
                 "--measurement",
@@ -1134,7 +1134,7 @@ class CliStartCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, rc)
         request_model = mock_runner.call_args.args[0]
         self.assertIsNone(request_model.visa_library)
-        self.assertIsNone(request_model.csv)
+        self.assertEqual("chosen.csv", request_model.csv)
         self.assertTrue(request_model.csv_enabled)
 
     def test_start_dry_run_conflicts_with_simulate(self):

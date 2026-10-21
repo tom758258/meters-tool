@@ -146,6 +146,10 @@ cleanup output to EOF and separately inspect process exit. Early connection
 failure does not manufacture ready or ended events.
 
 With streaming, CSV is disabled unless `--csv PATH` is explicit.
+An explicitly empty or whitespace-only CSV path is a parameter error
+(exit code `2`) in both ordinary and Streaming runs, including dry-run.
+It is rejected before profile resolution, instrument connection, HTTP
+startup, or file creation.
 `--streaming --no-csv` is accepted; `--csv` and `--no-csv` remain mutually
 exclusive. CSV format options do not enable saving. Without streaming, existing
 default CSV behavior remains. Dry-run validates these rules and previews CSV
