@@ -81,12 +81,14 @@ class HardwareTriggerAdapter:
         stop_event: Optional[threading.Event] = None,
         poll_interval_ms: int = 200,
         status_poll_timeout_cb: Optional[Callable[[int, Exception], None]] = None,
+        readiness_cb: Optional[Callable[[], None]] = None,
     ) -> Optional[TriggerEvent]:
         # Arm once, then poll the status byte so shutdown can interrupt the wait.
         timeout_s = max(0, timeout_ms) / 1000.0
         poll_s = max(0.05, poll_interval_ms / 1000.0)
         deadline = time.monotonic() + timeout_s
-        self._instrument.set_timeout_ms(max(100, min(timeout_ms, poll_interval_ms)))
+        io_timeout_ms = max(100, min(timeout_ms, poll_interval_ms))
+        self._instrument.set_timeout_ms(io_timeout_ms)
         self._instrument.write("*CLS")
         self._instrument.write("*ESE 1")
         self._instrument.write("INIT")
@@ -114,6 +116,8 @@ class HardwareTriggerAdapter:
             consecutive_status_timeouts = 0
             if status_byte & 0x20:
                 return TriggerEvent.new(TriggerSource.HARDWARE)
+            if readiness_cb is not None and deadline - time.monotonic() >= io_timeout_ms / 1000.0:
+                readiness_cb()
         # Unreachable, loop exits via timeout/stop/trigger.
 
     def recover_from_timeout(self) -> None:
@@ -308,6 +312,7 @@ class SoftwareTriggerAdapter:
             "schema_version": COMMAND_SCHEMA_VERSION,
             "service": "keysight-meter",
             "run_id": dynamic.get("run_id"),
+            **({"stream": dynamic["stream"]} if "stream" in dynamic else {}),
             "status": status,
             "command_url": f"{base_url}/command",
             "stop_url": f"{base_url}/stop",

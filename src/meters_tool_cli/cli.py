@@ -31,6 +31,7 @@ from meters_tool_core._version import (
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
 from meters_tool_core.session import new_run_id
 from meters_tool_core.start_resolution import resolve_start_profile
+from meters_tool_core.streaming import RunBoundStreamState
 from meters_tool_core.validation import (
     BUFFER_DRAIN_SIZE_RANGE,
     HW_TRIGGER_DELAY_S_RANGE,
@@ -196,7 +197,10 @@ def _start_request_from_args(args: argparse.Namespace) -> StartRequest:
         current_terminal=args.current_terminal,
         dcv_input_impedance=args.dcv_input_impedance,
         vm_comp_slope=args.vm_comp_slope,
-        csv_enabled=not args.no_csv,
+        csv_enabled=(
+            not args.no_csv
+            and (not args.streaming or _optional_text(args.csv) is not None)
+        ),
         csv_format=args.csv_format,
         csv_time_columns=tuple(filter(None, (value.strip() for value in args.csv_time_columns.split(",")))),
     )
@@ -537,6 +541,8 @@ def cmd_start(args: argparse.Namespace) -> int:
     )
     request_model: StartRequest
     try:
+        if args.streaming and args.status_format != "jsonl":
+            raise ValueError("--streaming requires --status-format jsonl or --json")
         request_model = _start_request_from_args(args)
         request_model, instrument_profile = resolve_start_profile(request_model)
         trigger_mode = resolve_trigger_mode(request_model)
@@ -572,9 +578,13 @@ def cmd_start(args: argparse.Namespace) -> int:
 
     event_sink = CliStartRunEventSink(emitter)
     assert runtime_run_id is not None
+    stream_state = RunBoundStreamState(runtime_run_id) if args.streaming else None
     for warning in warnings:
         if args.status_format == "jsonl":
-            event_sink.emit(StartRunEvent.status_event(runtime_run_id, warning))
+            event_sink.emit(StartRunEvent.status_event(
+                runtime_run_id, warning,
+                **(stream_state.status_fields() if stream_state is not None else {}),
+            ))
         else:
             emitter.line(warning)
 
@@ -587,6 +597,7 @@ def cmd_start(args: argparse.Namespace) -> int:
             CliStartRunControls(),
             run_id=runtime_run_id,
             support_policy_mode=support_policy_mode,
+            **({"stream_state": stream_state} if stream_state is not None else {}),
         )
     except ValueError as exc:
         emitter.error(str(exc), rc=2)

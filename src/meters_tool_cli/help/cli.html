@@ -261,7 +261,7 @@ does not block later USB or TCPIP resources. The serial termination options
 <code>--serial-read-termination</code> and <code>--serial-write-termination</code> are CLI discovery
 compatibility settings for ASRL verification only; they are not acquisition
 settings.</p>
-<p><code>--csv</code> is the output file path. If omitted, the CLI creates a timestamped CSV
+<p><code>--csv</code> is the output file path. Without <code>--streaming</code>, if omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
 or automation. Use <code>--no-csv</code> to disable CSV output for a run; it cannot be combined with <code>--csv</code>. The default CSV format is <code>data</code>; choose <code>--csv-format full</code> for the original ten columns, and optionally add <code>--csv-time-columns elapsed,delta</code>.</p>
 <p><code>--max-samples</code> bounds simple runs. Use it during smoke tests and validation so
@@ -309,8 +309,22 @@ intentionally waits longer.</p>
 <code>.\meters-tool.exe start-trigger-record --help</code>).
 Model-specific support and limits remain subject to Core validation and the
 Supported Models scope described above.</p>
+<h2 id="streaming-for-automation">Streaming For Automation</h2>
+<p>Use <code>--streaming --json</code> (or <code>--streaming --status-format jsonl</code>) for a
+run-bound stream of measurement events and lifecycle status. Streaming is off
+by default and requires JSONL. Each Worker runs one acquisition, retaining
+the selected mode's trigger and stop behavior. Existing instrument support
+limits still apply.</p>
+<p>Streaming does not write CSV unless you explicitly pass <code>--csv PATH</code>.
+<code>--streaming --no-csv</code> is also accepted; CSV format options alone do not enable
+saving. The Orchestrator can display or save the received Sample Events.</p>
+<p><code>ready</code> means the control endpoint is available. <code>active</code> reports the selected
+mode's acquisition readiness; it does not promise remaining measurement time.
+Some modes issue an additional readiness query, whose failure stops the run
+and performs existing safe finalization. After <code>ended</code> and summary, continue
+reading until process exit and check the reported outcome.</p>
 <h2 id="csv-output">CSV Output</h2>
-<p>CSV is enabled by default. The <code>data</code> layout writes <code>timestamp_utc_plus_8,value,unit</code>.
+<p>CSV is enabled by default outside Streaming. The <code>data</code> layout writes <code>timestamp_utc_plus_8,value,unit</code>.
 Choose <code>--csv-format full</code> to preserve the original ten fields, including metadata.
 After a smoke run, check the CSV for:</p>
 <ul>

@@ -255,7 +255,7 @@ def _add_start_parser(
     csv_output.add_argument(
         "--csv",
         default=None,
-        help="CSV output path; default: data/YYYY-MM-DD-HH-MM-SS.csv in UTC+8",
+        help="CSV output path; default: disabled with --streaming, otherwise data/YYYY-MM-DD-HH-MM-SS.csv in UTC+8",
     )
     csv_output.add_argument(
         "--no-csv",
@@ -283,6 +283,11 @@ def _add_start_parser(
         help="status output format for start-trigger-record; default: text",
     )
     start.add_argument("--json", action="store_true", help="alias for --status-format jsonl")
+    start.add_argument(
+        "--streaming",
+        action="store_true",
+        help="opt in to run-bound streaming; requires JSONL and disables default CSV",
+    )
     start.add_argument("--dry-run", action="store_true", help="validate and print the execution plan")
     start.add_argument("--simulate", action="store_true", help="run against a deterministic simulator")
     start.add_argument(

@@ -155,6 +155,7 @@ class CliStartRunEventSink:
         if event.event == "ready":
             if event.host is not None and event.port is not None:
                 ready_fields = dict(fields)
+                ready_fields.update(event.fields)
                 if event.command_url is not None:
                     ready_fields["command_url"] = event.command_url
                 if event.stop_url is not None:

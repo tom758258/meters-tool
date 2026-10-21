@@ -4,7 +4,7 @@
 
 Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀錄工具。Meters Tool 支援 Keysight 34460A 與 34461A；確切的產品支援範圍請參閱 [支援型號文件](docs/core/supported-models.md)。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
 
-本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。預設會將每筆擷取樣本寫入 Data CSV 的一行，包含時間戳記、數值與單位；選擇 Full 可保留原有觸發與量測 metadata，也可獨立附加時間欄位。CLI 呼叫端可使用 `--no-csv`，WebUI 使用者則可取消勾選 `CSV 輸出`；兩者都映射到同一個 Core `csv_enabled` 設定。
+本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。預設會將每筆擷取樣本寫入 Data CSV 的一行，包含時間戳記、數值與單位；選擇 Full 可保留原有觸發與量測 metadata，也可獨立附加時間欄位。CLI 呼叫端可使用 `--no-csv`，WebUI 使用者則可取消勾選 `CSV 輸出`；兩者都映射到同一個 Core `csv_enabled` 設定。CLI `--streaming --json` 則預設不寫入 CSV，只有明確加入 `--csv PATH` 才保存。
 
 System VISA 需要另外安裝相容的執行環境。Meters Tool 隨程式提供 PyVISA-py，可用於正式支援的 34461A TCPIP 連線；dry-run 與模擬模式不需要 VISA 執行環境。
 

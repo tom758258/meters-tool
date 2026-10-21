@@ -220,6 +220,9 @@ class MeasurementPlugin(ABC):
     def software_trigger_ready(self, instrument: InstrumentBackend) -> bool:
         raise NotImplementedError
 
+    def waiting_for_trigger(self, instrument: InstrumentBackend) -> bool:
+        raise NotImplementedError
+
     def read_buffered_samples(
         self,
         instrument: InstrumentBackend,
@@ -418,6 +421,9 @@ class ScalarDmmMeasurement(MeasurementPlugin):
         instrument.write("*OPC")
 
     def software_trigger_ready(self, instrument: InstrumentBackend) -> bool:
+        return self.waiting_for_trigger(instrument)
+
+    def waiting_for_trigger(self, instrument: InstrumentBackend) -> bool:
         bits = _parse_status_register(
             instrument.query("STAT:OPER:COND?"),
             "STAT:OPER:COND?",

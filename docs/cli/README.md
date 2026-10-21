@@ -700,7 +700,7 @@ after that many successful timed samples.
 | `--resource RESOURCE` | Yes | None | VISA resource string, for example USB or TCPIP HiSLIP. |
 | `--model MODEL`, `--instrument-model MODEL` | No | auto for live; required for non-deterministic dry-run/simulate | Accepts a canonical model token or registered stable model ID. It is an expected-model guard for live runs and a planning profile selector for dry-run/simulate. Core profile logic normalizes and validates values such as `34460A`, `34461A`, `keysight-34460a`, and `keysight-34461a`. |
 | `--visa-library TEXT`, `--backend TEXT` | No | system default | Optional installed-environment PyVISA library/backend argument, such as `@py`. The backend package must be installed and loadable. Dry-run and simulator runs accept the option but do not open VISA. |
-| `--csv PATH` | No | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV output path. If omitted, a UTC+8 timestamped file is created under `data`. Parent directories are created automatically. |
+| `--csv PATH` | No | Disabled with Streaming; otherwise `data/YYYY-MM-DD-HH-MM-SS.csv` | Explicit CSV output path. Without Streaming, omission creates a UTC+8 timestamped file under `data`. Parent directories are created only when CSV is enabled. |
 | `--no-csv` | No | Off | Disable CSV output for this run when an external orchestrator persists JSONL `sample` events. Mutually exclusive with `--csv`. |
 | `--csv-format full\|data` | No | `data` | `data` writes timestamp, value and unit; `full` preserves the old 10-column CSV with trigger and measurement metadata. |
 | `--csv-time-columns elapsed,delta` | No | None | Add one or both relative timing columns in seconds with 3 decimal places. |
@@ -708,6 +708,7 @@ after that many successful timed samples.
 | `--dry-run` | No | Off | Validate arguments and print the planned measurement, SCPI, read path, and cleanup contract without opening VISA, writing CSV, or starting the HTTP server. |
 | `--simulate` | No | Off | Run against a deterministic simulated instrument backend instead of opening a real VISA session. Simple modes require bounded runs such as `--max-samples`. |
 | `--json` | No | Off | Alias for `--status-format jsonl`. |
+| `--streaming` | No | Off | Select Run-bound Streaming; requires JSONL. CSV is disabled unless `--csv PATH` is explicit. |
 | `--timeout-ms N` | No | `5000` | VISA session timeout in milliseconds. Supported range: `100` to `600000`. |
 | `--trigger-timeout-ms N` | No | `10000` | External/custom trigger wait timeout. Supported range: `500` to `600000`. Timeout re-arms hardware mode and is not itself a capture error. Values that are too short for the expected external edge timing will repeatedly re-arm instead of capturing. |
 | `--sw-trigger-port N` | No | `8765` | Local HTTP port for `/command`, `/stop`, and `/status`. Use `0` to let the server choose a port, or use `1024` to `65535`. |
@@ -1908,16 +1909,25 @@ PC writer-arrival time, not an instrument ADC clock; multiple buffered readings
 returned together share one time and subsequent rows in that batch report
 `delta_t_s=0.000`.
 
-If `--csv` is omitted, the logger writes to a UTC+8 timestamped file under
+Without `--streaming`, if `--csv` is omitted, the logger writes to a UTC+8 timestamped file under
 `data`, for example `data/2026-05-11-14-30-05.csv`. Passing `--csv PATH`
 continues to write to that exact path. Passing `--no-csv` explicitly disables
 the CSV writer, file, and CSV-only parent-directory creation; it is mutually
 exclusive with `--csv`.
 
-CSV output is a Meters-specific artifact that remains enabled by default.
-When an external orchestrator owns persistence, use `--no-csv` together with
-`--status-format jsonl` and store the emitted `sample` events. This does not
-change acquisition, status, summary, exit codes, HTTP control, or cleanup.
+CSV output is a Meters-specific artifact. `--streaming --json` selects
+run-bound Streaming and disables CSV unless `--csv PATH` is explicit.
+`--streaming --no-csv` is also valid; format options do not enable saving.
+Without Streaming, use `--no-csv --status-format jsonl` when the Orchestrator
+owns persistence. JSONL alone does not change the CSV default.
+
+Streaming covers existing acquisition workflows subject to Core capability and
+live-support checks; it does not require endless measurement. Core emits
+active before samples and ended after tail handling, before summary.
+`wait-ready` still checks the control endpoint. Some modes perform additional
+readiness observations; an observation failure terminates the run using
+existing finalization. See the [Worker contract](../contracts/meters-worker-contract.md#optional-run-bound-streaming)
+for mode boundaries, I/O behavior, validation requirements, and error policy.
 
 The `full` layout fields (in the original order) are:
 

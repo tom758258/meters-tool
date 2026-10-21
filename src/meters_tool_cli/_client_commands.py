@@ -300,6 +300,8 @@ def _normalized_status_payload(
         "final_drain_complete": worker_status.get("final_drain_complete"),
         "data_integrity": worker_status.get("data_integrity", "unknown"),
     }
+    if "stream" in worker_status:
+        payload["stream"] = worker_status["stream"]
     if extra is not None:
         payload.update(extra)
     if payload.get("timeout_ms") is None:

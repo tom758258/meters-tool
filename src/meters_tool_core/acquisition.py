@@ -20,6 +20,10 @@ from .storage import CsvWriter
 from .trigger import HardwareTriggerAdapter, TriggerRouter
 
 
+class _StreamObservationError(RuntimeError):
+    """A startup observation failure, distinct from protective trigger timeouts."""
+
+
 class _DeadlineInstrument:
     def __init__(self, instrument: InstrumentBackend, deadline: float) -> None:
         self._instrument = instrument
@@ -104,6 +108,7 @@ class TriggerAcquisitionEngine:
         status_cb: Optional[Callable[[str], None]] = None,
         sample_cb: Optional[Callable[[MeasurementSample, int], None]] = None,
         instrument_profile: InstrumentProfile | None = None,
+        active_cb: Optional[Callable[[], None]] = None,
     ):
         self._instrument = instrument
         self._measurement = measurement
@@ -112,6 +117,9 @@ class TriggerAcquisitionEngine:
         self._router = router
         self._status_cb = status_cb
         self._sample_cb = sample_cb
+        self._active_cb = active_cb
+        self._active_notified = False
+        self._last_active_observation: float | None = None
         self._instrument_profile = instrument_profile or get_default_instrument_profile()
         self._running = False
         self._stop_event = threading.Event()
@@ -191,6 +199,42 @@ class TriggerAcquisitionEngine:
 
     def _emit_capture_status(self, sample: MeasurementSample) -> None:
         self._emit(f"captured={self._stats.captured} {_format_status_value(sample)}")
+
+    def _notify_active(self) -> None:
+        if self._active_cb is not None and not self._active_notified:
+            self._active_cb()
+            self._active_notified = True
+
+    def _observe_stream_readiness(self) -> None:
+        if (
+            self._active_cb is None
+            or self._active_notified
+            or not self._running
+            or self._stop_event.is_set()
+        ):
+            return
+        if (
+            self._last_active_observation is not None
+            and time.monotonic() - self._last_active_observation < 0.2
+        ):
+            return
+        try:
+            ready = self._measurement.waiting_for_trigger(self._instrument)
+        except Exception as exc:
+            raise _StreamObservationError(
+                f"stream readiness observation failed: {type(exc).__name__}: {exc}"
+            ) from exc
+        finally:
+            self._last_active_observation = time.monotonic()
+        if ready and self._running and not self._stop_event.is_set():
+            self._notify_active()
+
+    def _record_stream_observation_failure(self, exc: _StreamObservationError) -> None:
+        # Do not issue another query on a possibly unsynchronized session.
+        self._stats.errors += 1
+        self._fatal_error = str(exc)
+        self.stop("fatal_error")
+        self._emit(self._fatal_error)
 
     def _emit_sample(self, sample: MeasurementSample) -> None:
         if self._sample_cb is not None:
@@ -344,6 +388,8 @@ class TriggerAcquisitionEngine:
                 return
             waiting_trigger_emitted = False
             while self._running and not self._stop_event.is_set():
+                if mode == "software":
+                    self._notify_active()
                 wait_s = min(self._config.trigger_timeout_ms / 1000.0, 0.2)
                 if timer_active:
                     if not self._drain_timer_control_events():
@@ -361,7 +407,14 @@ class TriggerAcquisitionEngine:
                             self._config.trigger_timeout_ms,
                             stop_event=self._stop_event,
                             status_poll_timeout_cb=self._handle_hardware_status_poll_timeout,
+                            **(
+                                {"readiness_cb": self._observe_stream_readiness}
+                                if self._active_cb is not None else {}
+                            ),
                         )
+                    except _StreamObservationError as exc:
+                        self._record_stream_observation_failure(exc)
+                        break
                     except TimeoutError:
                         # No external edge within the timeout window; keep waiting.
                         if self._running:
@@ -662,6 +715,9 @@ class TriggerAcquisitionEngine:
                     self._finish_custom_run(expected_readings)
                     return
 
+                self._observe_stream_readiness()
+                if self._active_cb is not None and self._stop_event.is_set():
+                    return
                 ready_for_next_trigger = (
                     True
                     if self._overflow_monitoring
@@ -698,6 +754,9 @@ class TriggerAcquisitionEngine:
                     continue
 
                 self._stop_event.wait(0.05)
+            except _StreamObservationError as exc:
+                self._record_stream_observation_failure(exc)
+                return
             except Exception as exc:
                 if not self._running:
                     return
@@ -817,6 +876,8 @@ class TriggerAcquisitionEngine:
                         ignored_software_trigger_status
                     ):
                         return
+                    if self._mode == "external-custom":
+                        self._observe_stream_readiness()
                     self._stop_event.wait(0.05)
                     continue
                 self._capture_buffered_samples(
@@ -824,6 +885,9 @@ class TriggerAcquisitionEngine:
                     event,
                     read_count,
                 )
+            except _StreamObservationError as exc:
+                self._record_stream_observation_failure(exc)
+                return
             except Exception as exc:
                 if not self._running:
                     return
@@ -837,6 +901,9 @@ class TriggerAcquisitionEngine:
     def _capture_buffered_samples(
         self, instrument: InstrumentBackend, event: TriggerEvent, count: int,
     ) -> None:
+        # The caller has already observed available buffered readings.
+        if count > 0:
+            self._notify_active()
         samples = []
         try:
             samples = self._measurement.read_buffered_samples(
@@ -972,6 +1039,7 @@ class TriggerAcquisitionEngine:
     def _capture(self, event: TriggerEvent) -> None:
         try:
             sample = self._measurement.read_sample(self._instrument, event)
+            self._notify_active()
             if self._storage is not None:
                 self._storage.write(sample)
             self._stats.captured += 1

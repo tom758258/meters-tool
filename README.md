@@ -17,6 +17,7 @@ timestamp, value, and unit. Select the `full` CSV format for the original
 trigger and measurement metadata fields, or add optional elapsed and sample
 interval columns. CLI callers can use `--no-csv`; WebUI users can clear the
 `CSV output` checkbox. Both opt-outs map to the same Core `csv_enabled` setting.
+CLI `--streaming --json` instead defaults to no CSV; add `--csv PATH` to save explicitly.
 
 System VISA requires a separately installed runtime. Meters Tool bundles
 PyVISA-py for supported 34461A TCPIP sessions; dry-run and simulation require

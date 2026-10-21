@@ -250,7 +250,7 @@ does not block later USB or TCPIP resources. The serial termination options
 compatibility settings for ASRL verification only; they are not acquisition
 settings.
 
-`--csv` is the output file path. If omitted, the CLI creates a timestamped CSV
+`--csv` is the output file path. Without `--streaming`, if omitted, the CLI creates a timestamped CSV
 path. Use an explicit path when you need predictable file locations for review
 or automation. Use `--no-csv` to disable CSV output for a run; it cannot be combined with `--csv`. The default CSV format is `data`; choose `--csv-format full` for the original ten columns, and optionally add `--csv-time-columns elapsed,delta`.
 
@@ -314,9 +314,27 @@ For command options and CLI-level accepted values, ranges, and defaults, run
 Model-specific support and limits remain subject to Core validation and the
 Supported Models scope described above.
 
+## Streaming For Automation
+
+Use `--streaming --json` (or `--streaming --status-format jsonl`) for a
+run-bound stream of measurement events and lifecycle status. Streaming is off
+by default and requires JSONL. Each Worker runs one acquisition, retaining
+the selected mode's trigger and stop behavior. Existing instrument support
+limits still apply.
+
+Streaming does not write CSV unless you explicitly pass `--csv PATH`.
+`--streaming --no-csv` is also accepted; CSV format options alone do not enable
+saving. The Orchestrator can display or save the received Sample Events.
+
+`ready` means the control endpoint is available. `active` reports the selected
+mode's acquisition readiness; it does not promise remaining measurement time.
+Some modes issue an additional readiness query, whose failure stops the run
+and performs existing safe finalization. After `ended` and summary, continue
+reading until process exit and check the reported outcome.
+
 ## CSV Output
 
-CSV is enabled by default. The `data` layout writes `timestamp_utc_plus_8,value,unit`.
+CSV is enabled by default outside Streaming. The `data` layout writes `timestamp_utc_plus_8,value,unit`.
 Choose `--csv-format full` to preserve the original ten fields, including metadata.
 After a smoke run, check the CSV for:
 

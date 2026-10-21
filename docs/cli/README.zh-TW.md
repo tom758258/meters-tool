@@ -579,7 +579,7 @@ uv run meters-tool start-trigger-record `
 | `--resource RESOURCE` | 是 | 無 | VISA 資源字串，例如 USB 或 TCPIP HiSLIP。 |
 | `--model MODEL`、`--instrument-model MODEL` | 否 | live 為 auto；非確定性 dry-run/simulate 必要 | 接受 canonical model token 或已註冊的穩定型號 ID。它是 live 執行的預期型號防護，也是 dry-run/simulate 的規劃設定檔選擇器。Core 設定檔邏輯會標準化並驗證 `34460A`、`34461A`、`keysight-34460a` 與 `keysight-34461a` 等值。 |
 | `--visa-library TEXT`、`--backend TEXT` | 否 | 系統預設 | 已安裝環境中的選用 PyVISA library/backend 引數，例如 `@py`；backend 套件必須已安裝且可載入。Dry-run 與 simulator 執行會接受此選項，但不會開啟 VISA。 |
-| `--csv PATH` | 否 | `data/YYYY-MM-DD-HH-MM-SS.csv` | CSV 輸出路徑。若省略，則在 `data` 下建立帶有 UTC+8 時間戳記的檔案。父目錄會自動建立。 |
+| `--csv PATH` | 否 | Streaming 停用；其他情況為 `data/YYYY-MM-DD-HH-MM-SS.csv` | 明確指定 CSV 輸出路徑。未啟用 Streaming 時，省略此項會在 `data` 下建立 UTC+8 時間戳記檔案。只有啟用 CSV 才會建立父目錄。 |
 | `--no-csv` | 否 | 關閉 | 當外部 orchestrator 保存 JSONL `sample` events 時，停用本次執行的 CSV 輸出。不可與 `--csv` 同時使用。 |
 | `--csv-format data\|full` | 否 | `data` | `data` 僅輸出時間戳記、數值與單位；`full` 保留原有十欄及 metadata。 |
 | `--csv-time-columns elapsed,delta` | 否 | 無 | 可獨立或同時選擇 `elapsed_s` 與 `delta_t_s`，單位秒、三位小數。 |
@@ -587,6 +587,7 @@ uv run meters-tool start-trigger-record `
 | `--dry-run` | 否 | 關閉 | 驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。 |
 | `--simulate` | 否 | 關閉 | 針對確定的模擬儀器後端執行，而不開啟實機 VISA 工作階段。簡單模式需要有界限的執行，例如 `--max-samples`。 |
 | `--json` | 否 | 關閉 | `--status-format jsonl` 的別名。 |
+| `--streaming` | 否 | 關閉 | 選用 Run-bound Streaming，必須搭配 JSONL；只有明確指定 `--csv PATH` 才保存 CSV。 |
 | `--timeout-ms N` | 否 | `5000` | VISA 工作階段逾時（毫秒）。支援範圍：`100` 到 `600000`。 |
 | `--trigger-timeout-ms N` | 否 | `10000` | 外接/自訂觸發等待逾時。支援範圍：`500` 到 `600000`。逾時會重新 arm 硬體模式，其本身並非擷取錯誤。對於預期的外接邊緣時間而言太短的值將會重複 arm 而不進行擷取。 |
 | `--sw-trigger-port N` | 否 | `8765` | 用於 `/command`、`/stop` 和 `/status` 的本機 HTTP 連接埠。使用 `0` 讓伺服器選擇連接埠，或使用 `1024` 到 `65535`。 |
@@ -1582,9 +1583,11 @@ already stopped (endpoint not listening)
 
 ## CSV 輸出
 
-如果省略 `--csv`，記錄器會寫入 `data` 下的 UTC+8 時間戳記檔案，例如 `data/2026-05-11-14-30-05.csv`。傳送 `--csv PATH` 會繼續寫入該確切路徑。傳送 `--no-csv` 會明確停用 CSV writer、CSV 檔案及僅供 CSV 使用的父目錄建立；此選項不可與 `--csv` 同時使用。
+未使用 `--streaming` 時，如果省略 `--csv`，記錄器會寫入 `data` 下的 UTC+8 時間戳記檔案，例如 `data/2026-05-11-14-30-05.csv`。傳送 `--csv PATH` 會繼續寫入該確切路徑。傳送 `--no-csv` 會明確停用 CSV writer、CSV 檔案及僅供 CSV 使用的父目錄建立；此選項不可與 `--csv` 同時使用。
 
-CSV 是 Meters-specific artifact，預設仍會產生。當外部 orchestrator 統一保存資料時，請搭配 `--no-csv` 與 `--status-format jsonl`，並保存輸出的 `sample` events。這不會改變量測、status、summary、exit code、HTTP control 或 cleanup。
+CSV 是 Meters-specific artifact。`--streaming --json` 選用 Run-bound Streaming，只有明確指定 `--csv PATH` 才會保存 CSV。也允許 `--streaming --no-csv`；格式參數不會啟用存檔。未使用 Streaming 而由 Orchestrator 保存資料時，可使用 `--no-csv --status-format jsonl`。JSONL 本身不改變 CSV 預設。
+
+Streaming 涵蓋既有擷取流程，仍受 Core Capability 與實機支援限制，並不要求永久量測。Core 在 Sample 前輸出 active，尾端處理結束後、Summary 前輸出 ended。`wait-ready` 仍只檢查控制端點。部分模式會增加就緒觀測；觀測錯誤將終止 Run 並執行既有收尾。模式邊界、I/O 行為、驗證要求與錯誤政策詳見 [Worker 合約](../contracts/meters-worker-contract.md#optional-run-bound-streaming)。
 
 預設 Data CSV 欄位為 `timestamp_utc_plus_8,value,unit`。指定 `--csv-format full` 保留原有十欄；`--csv-time-columns elapsed,delta` 可在兩種格式後附加 `elapsed_s,delta_t_s`，也可單獨選用。第一筆 Elapsed 為 `0.000`、Δt 留空；相對時間使用 PC Writer 的單調時鐘，同一 Buffered 批次共用 PC 接收時間，不代表 ADC 取樣間隔。
 

@@ -48,6 +48,29 @@ performs no live identity detection or VISA I/O. A requested capability profile
 does not become a live runtime driver override; live runs still use detected
 identity and Core Product support policy.
 
+## Streaming Consumer Workflow
+
+Select `--streaming --json` explicitly. The Worker defaults to no CSV in this
+mode; pass `--csv PATH` only when a Worker-owned CSV is required. The
+Orchestrator owns persistence of the received Sample Events. JSONL without
+`--streaming` retains the existing CSV default.
+
+Observe adoption through `ready.stream.lifecycle` or the HTTP status fallback,
+then wait for `stream.state: "active"` before issuing a trigger when the
+workflow needs that readiness milestone. `wait-ready` alone confirms only the
+control endpoint. Use the mode-specific Active meaning in the
+[Meters Worker Contract](meters-worker-contract.md#optional-run-bound-streaming);
+Active does not provide synchronization before measurement starts.
+
+The Orchestrator should impose its own configurable Active deadline. If it
+expires while the stream remains waiting, request the existing graceful Stop,
+record that Streaming readiness was not reached, and still consume tail data,
+ended, summary, EOF, and process exit. Do not modify Meters hardware timeouts
+to implement this scheduling policy. An Active event during final drain does
+not retroactively satisfy the earlier orchestration deadline or erase a
+Worker failure. Do not treat a rapidly ended stream as still active merely
+because an earlier Active event was received.
+
 ## Simulator Software Trigger Workflow
 
 Use a simulator-only worker for automated orchestration tests. The worker emits

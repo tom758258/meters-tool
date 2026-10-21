@@ -42,7 +42,9 @@ class StartRunEvent:
         return StartRunEvent(event="sample", run_id=run_id, sample=sample, captured=captured)
 
     @staticmethod
-    def ready_event(run_id: str, handle: "StartControlPlaneHandle") -> "StartRunEvent":
+    def ready_event(
+        run_id: str, handle: "StartControlPlaneHandle", **fields: object,
+    ) -> "StartRunEvent":
         return StartRunEvent(
             event="ready",
             run_id=run_id,
@@ -51,6 +53,7 @@ class StartRunEvent:
             command_url=handle.command_url,
             stop_url=handle.stop_url,
             status_url=handle.status_url,
+            fields=fields,
         )
 
     @staticmethod

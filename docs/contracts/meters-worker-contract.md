@@ -9,8 +9,8 @@ Implementation status: `Common v2-only conformant`
 This document defines the operational contract for the Meters worker
 used by agents and orchestration tools. It follows the lifecycle shape in
 [Common Worker Protocol](common-worker-protocol.md) and covers Meters-specific
-process modes, local control HTTP, runtime JSONL, and wrapper artifacts. It
-does not change instrument behavior.
+process modes, local control HTTP, runtime JSONL, and wrapper artifacts. Instrument operations remain
+Meters-specific, including the optional readiness observations defined below.
 
 The current implementation enforces Common schema `2` for Worker command
 requests and responses, status responses, and CLI JSON/JSONL output. Schema
@@ -50,8 +50,8 @@ HTTP control server, start the acquisition worker, or write to the instrument.
 
 `start-trigger-record --simulate` runs the normal acquisition engine against
 the deterministic simulator. It starts the local HTTP control server and emits
-normal runtime output. CSV is written by default and may be disabled with
-`--no-csv`. Simple simulate modes require a finite bound such as
+normal runtime output. Without `--streaming`, CSV is written by default and
+may be disabled with `--no-csv`. Simple simulate modes require a finite bound such as
 `--max-samples`.
 
 Live `start-trigger-record` is the default mode. It opens the explicit VISA
@@ -76,6 +76,81 @@ is omitted, live mode uses System VISA through `pyvisa.ResourceManager("@ivi")`,
 without automatic pyvisa-py fallback or a `PYVISA_LIBRARY` override. This option
 does not change the worker JSONL, CSV, HTTP control, or
 cleanup contracts.
+
+## Optional Run-Bound Streaming
+
+`start-trigger-record --streaming --json` opts in to the
+[Common Optional Streaming Extension](common-streaming-extension.md).
+`--streaming` defaults off and requires `--status-format jsonl` (or the start
+command's `--json` alias). Text output is rejected before profile resolution
+or connection. JSONL alone does not select the extension.
+
+The lifecycle is `run_bound`: one Worker owns one acquisition, including its
+tail handling. There is no deferred start or reusable acquisition. The six
+existing trigger modes retain their capture and stop behavior; Software Timer
+remains an option of Software. Finite Custom runs end naturally, while Infinity
+Custom runs continue until an existing stop condition. Capability, parameter,
+and exact live-support checks still apply; opting in grants no additional
+instrument or connection support.
+
+Core owns one in-memory stream state shared by JSONL and HTTP. `ready` declares
+only `stream.lifecycle: "run_bound"`. Every JSONL `status` and `GET /status`
+contains `stream: {"lifecycle": "run_bound", "state": "waiting|active|ended"}`
+and the runtime's `run_id`. HTTP status performs no instrument I/O. The state
+advances once through `waiting -> active -> ended`, or `waiting -> ended`.
+
+| Mode | Active evidence |
+| --- | --- |
+| Immediate | A successful measurement read, before its Sample Event. |
+| Software | Initialization succeeded and execution entered the software-trigger handling loop. This is host readiness to handle a trigger, not a claim that hardware is already armed. |
+| Software + Timer | Initialization succeeded and execution entered the existing timer workflow; this is host scheduling readiness. |
+| Immediate Custom | Existing buffered-data availability or successful data retrieval. |
+| Software Custom | A waiting-for-trigger observation before the first trigger, or buffered-data evidence. |
+| External | A waiting-for-trigger observation, or existing completion handling followed by successful data retrieval. |
+| External Custom | A waiting-for-trigger observation or buffered-data evidence. |
+
+Active is a historical readiness milestone, not a promise of remaining
+measurement time or immediate acceptance of another trigger. Fast runs may
+emit active and ended close together. Worker readiness, an `INIT` write,
+thread creation, and status message text are not acquisition evidence.
+
+Software Custom and External Custom observe `STAT:OPER:COND?` in their existing
+no-data execution paths; External observes it after a successful, incomplete
+Status Byte poll. The operation-condition waiting bit (`0x0020`) is distinct
+from the Status Byte completion indication. Queries run only when streaming
+is selected, before active, and before stop. The first eligible query can run
+immediately; subsequent queries start at least 200 ms after the previous query
+finishes. There is no new polling thread or VISA timeout. External skips a
+query if its existing remaining wait budget cannot accommodate the current
+I/O timeout. Existing INIT, ABOR, trigger, timeout/re-arm, and per-trigger
+Software Custom safety checks remain unchanged.
+
+A valid not-ready reply leaves the stream waiting. A new observation timeout,
+communication failure, or invalid register reply is a fatal acquisition error:
+stop the run and perform existing finalization, without retry, fallback, or an
+additional error-queue query. It is not a normal hardware-trigger timeout.
+This is a Meters fail-closed policy, not a Common requirement. A synchronous
+query can delay trigger handling even with the rate limit; model-appropriate
+validation must establish waiting-bit meaning and acceptable behavior when a
+trigger arrives during a query, including timeout/re-arm and stop handling.
+Simulator behavior is not evidence of real-instrument timing or live support.
+
+Emit active before the first Sample Event. Stop disables new observations,
+but retained final-drain data can still establish active. Emit ended only after
+the worker and its existing tail handling terminate, before summary. A failed
+observation remains a failure even when tail data establishes active:
+`waiting -> failure -> stop/drain -> active -> sample -> ended -> summary(ok=false)`.
+Ended does not certify data integrity or successful cleanup. Sample and summary
+payloads do not gain stream fields. Consumers must continue reading structured
+cleanup output to EOF and separately inspect process exit. Early connection
+failure does not manufacture ready or ended events.
+
+With streaming, CSV is disabled unless `--csv PATH` is explicit.
+`--streaming --no-csv` is accepted; `--csv` and `--no-csv` remain mutually
+exclusive. CSV format options do not enable saving. Without streaming, existing
+default CSV behavior remains. Dry-run validates these rules and previews CSV
+selection but does not declare a runtime stream. The CLI does not create
+additional JSONL, report, or log artifacts; wrappers retain their own rules.
 
 ## Orchestrator Quickstart
 

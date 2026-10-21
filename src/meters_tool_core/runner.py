@@ -25,6 +25,7 @@ from .session import (
 )
 from .start_resolution import resolve_start_profile
 from .storage import CsvWriter
+from .streaming import RunBoundStreamState
 from .support_policy import SUPPORT_POLICY_MODE_PRODUCT, validate_start_workflow_support
 from .trigger import SoftwareTriggerAdapter, TriggerRouter
 from .validation import resolve_csv_path, resolve_trigger_mode, validate_start_request
@@ -53,7 +54,14 @@ def run_start_session(
     dependencies: StartRunnerDependencies | None = None,
     *,
     support_policy_mode: str = SUPPORT_POLICY_MODE_PRODUCT,
+    stream_state: RunBoundStreamState | None = None,
 ) -> StartRunResult:
+    active_run_id = run_id or (stream_state.run_id if stream_state is not None else new_run_id())
+    if stream_state is not None:
+        if stream_state.run_id != active_run_id:
+            raise ValueError("stream state run_id must match the acquisition run")
+        if stream_state.status_fields()["stream"]["state"] != "waiting":
+            raise ValueError("stream state cannot be reused for another acquisition")
     request, profile = resolve_start_profile(request)
     # `trigger_mode` is retained for public API compatibility; the runner
     # recomputes the effective mode from the resolved request.
@@ -69,7 +77,6 @@ def run_start_session(
     deps = dependencies or StartRunnerDependencies()
     active_controls = controls or NoOpStartRunControls()
     active_control_plane = control_plane or SoftwareTriggerControlPlane(deps.server_factory)
-    active_run_id = run_id or new_run_id()
     measurement_type = normalize_measurement_type(request.measurement)
     resolved_csv_path = resolve_csv_path(request.csv) if request.csv_enabled else None
     csv_path = str(resolved_csv_path) if resolved_csv_path is not None else None
@@ -92,19 +99,31 @@ def run_start_session(
     if callable(getattr(storage, "configure_output", None)):
         storage.configure_output(request.csv_format, request.csv_time_columns)
     measurement = deps.measurement_factory(measurement_type)
+
+    def stream_fields() -> dict[str, object]:
+        return stream_state.status_fields() if stream_state is not None else {}
+
+    def emit_status(message: str) -> None:
+        event_sink.emit(StartRunEvent.status_event(
+            active_run_id, message, **engine_result_fields(), **stream_fields()
+        ))
+
+    def activate_stream() -> None:
+        if stream_state is not None and stream_state.activate():
+            emit_status("stream active")
+
     engine = deps.engine_factory(
         instrument=instrument,
         measurement=measurement,
         storage=storage,
         config=aconfig,
         router=router,
-        status_cb=lambda m: event_sink.emit(StartRunEvent.status_event(
-            active_run_id, m, **engine_result_fields()
-        )),
+        status_cb=emit_status,
         sample_cb=lambda sample, captured: event_sink.emit(
             StartRunEvent.sample_event(active_run_id, sample, captured)
         ),
         instrument_profile=profile,
+        **({"active_cb": activate_stream} if stream_state is not None else {}),
     )
 
     stop_controller = StopController(engine.stop)
@@ -174,6 +193,7 @@ def run_start_session(
     def worker_status() -> dict[str, object]:
         return {
             **engine_result_fields(),
+            **stream_fields(),
             "run_id": active_run_id,
             "status": "stopping" if stop_controller.stop else "running",
             "captured": engine.stats.captured,
@@ -211,7 +231,10 @@ def run_start_session(
             emit_message(f"software stop endpoint: {control_handle.stop_url}")
             emit_message(f"software status endpoint: {control_handle.status_url}")
             emit_message("local stop keys: Ctrl+C, Ctrl+Break, q")
-            event_sink.emit(StartRunEvent.ready_event(active_run_id, control_handle))
+            event_sink.emit(StartRunEvent.ready_event(
+                active_run_id, control_handle,
+                **(stream_state.ready_fields() if stream_state is not None else {}),
+            ))
 
         def run_worker() -> None:
             nonlocal runtime_fatal_error
@@ -261,6 +284,8 @@ def run_start_session(
             if worker.is_alive():
                 emit_message("waiting for measurement worker to stop")
                 worker.join()
+        if stream_state is not None and stream_state.end():
+            emit_status("stream ended")
         emit_summary()
         if engine.fatal_error or runtime_fatal_error:
             return result(ok=False, reason="fatal_error", control=control_handle)

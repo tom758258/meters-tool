@@ -198,7 +198,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 
 `list-resources --verify` 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。
 
-`--csv` 是輸出檔案路徑。若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。
+`--csv` 是輸出檔案路徑。未使用 `--streaming` 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。
 
 `--max-samples` 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。
 
@@ -230,9 +230,17 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 
 若需要指令選項及 CLI 層級的可接受值、範圍與預設值，請執行 `meters-tool <command> --help`（例如 `.\meters-tool.exe start-trigger-record --help`）。型號特定的支援與限制仍以 Core 驗證及前述「支援型號」範圍為準。
 
+## 自動化 Streaming
+
+使用 `--streaming --json`（或 `--streaming --status-format jsonl`）選用 Run-bound 量測事件與生命週期狀態輸出。Streaming 預設關閉，且必須搭配 JSONL。每個 Worker 執行一次擷取，保留所選模式的觸發及停止行為，既有儀器支援限制仍適用。
+
+Streaming 只有明確指定 `--csv PATH` 才保存 CSV。也接受 `--streaming --no-csv`；單獨設定 CSV 格式不會啟用存檔。Orchestrator 可以顯示或保存接收的 Sample Events。
+
+`ready` 代表控制端點可用；`active` 代表已達所選模式的擷取就緒條件，不保證剩餘量測時間。部分模式會增加就緒查詢；查詢錯誤會停止 Run 並執行既有安全收尾。收到 `ended` 與 Summary 後，仍須持續讀取直到程序退出，並檢查回報結果。
+
 ## CSV 輸出
 
-CSV 預設啟用，`data` 格式輸出 `timestamp_utc_plus_8,value,unit`。使用 `--csv-format full` 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：
+非 Streaming 模式預設啟用 CSV，`data` 格式輸出 `timestamp_utc_plus_8,value,unit`。使用 `--csv-format full` 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：
 
 - 至少有一筆資料列；
 - 預期的 `value` (數值)；

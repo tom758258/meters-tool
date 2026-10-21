@@ -124,6 +124,30 @@ HTTP control plane starts. It means `/command`, `/stop`, and `/status` can
 accept local HTTP requests. It does not mean the acquisition worker has
 captured a first sample.
 
+## Optional Streaming Fields
+
+`start-trigger-record --streaming --json` selects the Common Streaming
+Extension with lifecycle `run_bound`. The mode-specific Active boundaries,
+observation failure policy, and file defaults are defined in
+[Meters Worker Contract](meters-worker-contract.md#optional-run-bound-streaming).
+Opt-out output is unchanged. This additive extension keeps `schema_version: 2`.
+
+- `ready.stream` is `{"lifecycle":"run_bound"}`, without state.
+- Every runtime `status` and HTTP status snapshot includes
+  `stream: {"lifecycle":"run_bound","state":"waiting"}`, with state advancing
+  to `active` and then `ended`, or directly to `ended`.
+- CLI `status --json` and `wait-ready --json` preserve the HTTP `stream` object
+  when present. `wait-ready` still checks endpoint reachability, not Active.
+- `sample`, `summary`, and `dry_run` have no stream metadata. Existing counters,
+  quality fields, run correlation, summary success, and exit codes retain
+  their meanings.
+
+On a controllable startup, ready precedes active, and active precedes the
+first sample. Ended follows final tail handling and precedes summary. A failed
+run can have active and retained samples; neither active nor ended overrides
+`fatal_error`, `summary.ok`, or integrity results. Cleanup messages may follow
+summary. Consumers must read to EOF and confirm exit separately.
+
 ## Single-Response JSON
 
 These commands accept `--format json` and the `--json` alias:
