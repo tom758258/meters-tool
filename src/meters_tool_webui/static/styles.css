@@ -860,6 +860,10 @@ button:focus {
   gap: 12px;
 }
 
+.live-data-header {
+  min-width: 0;
+}
+
 .live-header-actions {
   display: flex;
   align-items: start;
@@ -875,10 +879,11 @@ button:focus {
 /* ─── Live Data Metrics ──────────────────────────────────────────────────── */
 .live-data-metrics {
   display: grid;
-  grid-template-columns: repeat(3, minmax(76px, 1fr));
+  grid-template-columns: repeat(5, minmax(max-content, 1fr));
   gap: 1px;
-  overflow: hidden;
-  min-width: 290px;
+  overflow-x: auto;
+  min-width: 0;
+  max-width: 100%;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--line);
@@ -893,6 +898,7 @@ button:focus {
 
 .live-data-metrics span {
   display: block;
+  white-space: nowrap;
   color: var(--accent);
   font-size: 10px;
   font-weight: 600;
@@ -902,12 +908,10 @@ button:focus {
 
 .live-data-metrics strong {
   display: block;
-  overflow: hidden;
   margin-top: 4px;
   color: var(--ink);
   font-size: 14px;
   font-weight: 700;
-  text-overflow: ellipsis;
   white-space: nowrap;
   letter-spacing: -0.2px;
 }
@@ -1348,8 +1352,7 @@ pre:empty {
   .status-strip,
   .live-status-row,
   .live-latest-grid,
-  .live-stats-grid,
-  .live-data-metrics {
+  .live-stats-grid {
     grid-template-columns: 1fr;
   }
 
