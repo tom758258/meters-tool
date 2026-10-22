@@ -71,7 +71,7 @@
 Dry-run 與 simulation 可使用所選的 planning model。</p>
 <h2 id="精確範圍實機支援">精確範圍實機支援</h2>
 <p>live Product 支援採精確範圍制。Meters 目前提供一個獨立支援的 Product workflow，<code>start-trigger-record</code>。
-只有在偵測到的 model、workflow、精確 transport/backend 連線範圍、量測與觸發模式同時受支援時，live 執行才是 Product-open。
+只有在偵測到的 model、workflow、精確 transport/backend 連線範圍、量測、觸發模式與要求的 Custom acquisition 功能同時受支援時，live 執行才是 Product-open。
 支援不會在 USB/system-VISA、TCPIP/system-VISA 與 TCPIP/pyvisa-py 之間轉移。
 硬性 model/profile 限制仍會強制執行。</p>
 <p>不在目前 Product-open matrix 內的要求，包括未知 model、不支援的連線或功能組合，以及硬性安全限制，都會 fail closed。</p>
@@ -104,8 +104,8 @@ Dry-run 與 simulator 執行使用 selected/no-hardware planning profile，不�
 </tr>
 <tr>
 <td>Custom buffered workflows</td>
-<td>支援</td>
-<td>支援，受限於 1000-reading memory</td>
+<td>下列連線範圍支援</td>
+<td>USB/system-VISA 範圍支援，受限於 1000-reading memory</td>
 </tr>
 <tr>
 <td>Frequency</td>
@@ -155,6 +155,52 @@ Dry-run 與 simulator 執行使用 selected/no-hardware planning profile，不�
 <li><strong>讀值記憶體限制</strong>：34461A custom runs 超過 10,000 readings、34460A custom runs 超過 1,000 readings 時，都需要明確確認 overflow-risk。Buffer drain 仍受限於 model reading-memory limit。</li>
 <li><strong>Fail-Closed Policy</strong>：上方 matrix 中未明確標示為 open 的任何 model、transport、backend、量測或觸發組合，均為未支援並 fail closed。</li>
 </ul>
+<h3 id="custom-acquisition">Custom Acquisition</h3>
+<p>Custom acquisition 在以下精確連線範圍為 Product-open：</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>Transport</th>
+<th>Backend</th>
+<th>Custom 觸發模式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>34460A</td>
+<td>USB</td>
+<td>System VISA</td>
+<td>Immediate / Software Custom</td>
+</tr>
+<tr>
+<td>34461A</td>
+<td>USB</td>
+<td>System VISA</td>
+<td>Immediate / Software / External Custom</td>
+</tr>
+<tr>
+<td>34461A</td>
+<td>TCPIP</td>
+<td>System VISA</td>
+<td>Immediate / Software / External Custom</td>
+</tr>
+<tr>
+<td>34461A</td>
+<td>TCPIP</td>
+<td>PyVISA-py（<code>@py</code>）</td>
+<td>Immediate / Software / External Custom</td>
+</tr>
+</tbody>
+</table>
+<p>每個列出的 Custom 觸發模式皆支援 Finite 與 Infinite 計數，搭配 Monitor 或
+Stop-on-Overflow。34460A TCPIP 無論使用 System VISA 或 PyVISA-py，
+在 Product mode 仍不可用，包含 Custom acquisition。
+Streaming 沿用相同 workflow 與精確範圍支援規則。</p>
+<p>Infinite Custom 需要明確確認 overflow-risk 並指定 sample count。
+Finite 執行超過 model reading-memory limit 時，也需要該確認，
+但不會提高 buffer-drain limit。Monitor 觀察 overflow；Stop-on-Overflow
+在偵測到 overflow 時要求停止。兩者都不保證擷取過程完全沒有資料遺失。</p>
 <h2 id="visa-backend-支援">VISA Backend 支援</h2>
 <p>VISA backend 支援是精確連線範圍的一部分，而不是 model capability。
 除非介面明確提供另一個受支援 backend，正常 Product 作業使用電腦的 System VISA runtime。
@@ -163,6 +209,10 @@ WebUI 與 Desktop 可在裝置設定選擇 System VISA（預設）或 PyVISA-py�
 PyVISA-py 預設安裝並隨 Windows 成品提供，僅支援 34461A TCPIP；
 USB/<code>@py</code>、34460A TCPIP 及其他 backend 不在正式支援範圍。
 System VISA 明確載入 <code>@ivi</code>；即使設定 <code>PYVISA_LIBRARY</code>，也不會自動改用其他 backend。</p>
+<p>34461A TCPIP 使用 PyVISA-py 時，<code>control_ren(6)</code> 與 <code>control_ren(0)</code>
+可能因已知相容性限制而發生 <code>VisaIOError</code>。Cleanup 結果會保留原始錯誤；
+這些結果不代表 REN 控制成功，也無法獨立確認儀器實際的 Local 狀態。
+需要手動操作時，請先在儀器上確認 Local 狀態。</p>
 <h2 id="量測能力">量測能力</h2>
 <p>34460A 與 34461A profiles 目前提供相同的量測名稱，順序如下：</p>
 <ul>

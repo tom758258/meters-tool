@@ -23,7 +23,8 @@ support scope. Dry-run and simulation may use the selected planning model.
 Live Product support is exact-scope based. Meters currently exposes one
 independently supported Product workflow, `start-trigger-record`. A live run is
 Product-open only when the detected model, workflow, exact transport/backend
-connection scope, measurement, and trigger mode are supported together. Support
+connection scope, measurement, trigger mode, and requested Custom acquisition
+features are supported together. Support
 does not transfer between USB/system-VISA, TCPIP/system-VISA, and
 TCPIP/pyvisa-py. Hard model/profile limits remain enforced.
 
@@ -42,7 +43,7 @@ do not query live hardware.
 | Immediate DC/AC voltage/current | Open | Open on USB/system-VISA |
 | 2W/4W resistance | Open | Open on USB/system-VISA |
 | Software trigger/timer | Open | Open on USB/system-VISA |
-| Custom buffered workflows | Open | Open, limited by 1000-reading memory |
+| Custom buffered workflows | Open on the connections listed below | Open on USB/system-VISA, limited by 1000-reading memory |
 | Frequency | Open | Open on USB/system-VISA |
 | Period | Open, no Period timeout option | Open, no Period timeout option |
 | External simple/custom | Open | Not open in base 34460A profile |
@@ -58,6 +59,28 @@ do not query live hardware.
 - **Reading Memory Limits**: 34461A custom runs above 10,000 readings and 34460A custom runs above 1,000 readings require explicit overflow-risk acknowledgement. Buffer drain remains capped at the model reading-memory limit.
 - **Fail-Closed Policy**: Any model, transport, backend, measurement, or trigger combination not explicitly marked as open in the matrix above is unsupported and fails closed.
 
+### Custom Acquisition
+
+Custom acquisition is Product-open for these exact connection scopes:
+
+| Model | Transport | Backend | Custom trigger modes |
+| --- | --- | --- | --- |
+| 34460A | USB | System VISA | Immediate / Software Custom |
+| 34461A | USB | System VISA | Immediate / Software / External Custom |
+| 34461A | TCPIP | System VISA | Immediate / Software / External Custom |
+| 34461A | TCPIP | PyVISA-py (`@py`) | Immediate / Software / External Custom |
+
+Each listed Custom trigger mode supports Finite and Infinite counts with
+Monitor or Stop-on-Overflow. 34460A TCPIP with either System VISA or PyVISA-py
+remains unavailable in Product mode, including Custom acquisition.
+Streaming uses the same workflow and exact-scope support rules.
+
+Infinite Custom requires an explicit overflow-risk acknowledgement and a sample
+count. Finite runs above the model reading-memory limit also require that
+acknowledgement. It does not increase the buffer-drain limit. Monitor observes
+overflow; Stop-on-Overflow requests a stop when overflow is detected. Neither
+option guarantees loss-free acquisition.
+
 ## VISA Backend Support
 
 VISA backend support is part of the exact connection scope, not a model
@@ -70,6 +93,12 @@ Device options. PyVISA-py is installed by default and bundled on Windows. It
 supports 34461A TCPIP only; USB/`@py`, 34460A TCPIP, and other backends are
 not Product-open. System VISA explicitly loads `@ivi` and fails if its runtime
 is unavailable, even when `PYVISA_LIBRARY` requests another backend.
+
+For 34461A TCPIP with PyVISA-py, `control_ren(6)` and `control_ren(0)` may fail
+with a known `VisaIOError` compatibility limitation. The original errors remain
+in cleanup results; they do not establish successful REN control or independently
+confirm the instrument's physical Local state. Confirm Local at the instrument
+before manual operation when needed.
 
 ## Measurement Capability
 

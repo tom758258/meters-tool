@@ -277,7 +277,7 @@ class StartSupportPolicyTests(unittest.TestCase):
                 if feature.feature_kind == FEATURE_KIND_CUSTOM_ACQUISITION
             }
             self.assertEqual(
-                {VALIDATION_STATUS_FEATURE_PENDING},
+                {VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE},
                 custom_acquisition_statuses,
             )
 
@@ -563,7 +563,71 @@ class StartSupportPolicyTests(unittest.TestCase):
                         requirements[-1],
                     )
 
-    def test_custom_acquisition_features_are_pending_in_product_mode(self):
+    def test_custom_acquisition_product_support_matches_exact_reviewed_scopes(self):
+        cases = (
+            (KEYSIGHT_34460A_PROFILE, TRANSPORT_USB, None, 8, True),
+            (KEYSIGHT_34461A_PROFILE, TRANSPORT_USB, None, 12, True),
+            (KEYSIGHT_34461A_PROFILE, TRANSPORT_TCPIP, None, 12, True),
+            (KEYSIGHT_34461A_PROFILE, TRANSPORT_TCPIP, "@py", 12, True),
+            (KEYSIGHT_34460A_PROFILE, TRANSPORT_TCPIP, None, 8, False),
+            (KEYSIGHT_34460A_PROFILE, TRANSPORT_TCPIP, "@py", 8, False),
+        )
+        for profile, transport, visa_library, count, product_open in cases:
+            live = start_workflow_support(profile)["start-trigger-record"]["live"]
+            scope = next(
+                scope for scope in live.scopes
+                if scope.transport_scope == transport
+                and scope.backend_scope == infer_backend_scope(visa_library)
+            )
+            features = [
+                feature for feature in scope.feature_scopes
+                if feature.feature_kind == FEATURE_KIND_CUSTOM_ACQUISITION
+            ]
+            self.assertEqual(count, len(features))
+            self.assertEqual(
+                VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE if product_open
+                else VALIDATION_STATUS_TRANSPORT_PENDING,
+                scope.validation_status,
+            )
+            for feature in features:
+                with self.subTest(
+                    model=profile.model, transport=transport,
+                    backend=scope.backend_scope, feature=feature.feature_value,
+                ):
+                    self.assertEqual(
+                        VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE if product_open
+                        else VALIDATION_STATUS_FEATURE_PENDING,
+                        feature.validation_status,
+                    )
+                    trigger_mode, count_mode, monitoring = feature.feature_value.split(":")
+                    infinite = count_mode == "infinite"
+                    request = make_request(
+                        instrument_model=profile.model,
+                        resource=("USB0::FAKE::INSTR" if transport == TRANSPORT_USB
+                                  else "TCPIP0::host::inst0::INSTR"),
+                        visa_library=visa_library,
+                        max_samples=None,
+                        trigger_mode=trigger_mode,
+                        trigger_count=None if infinite else 1,
+                        trigger_count_infinite=infinite,
+                        sample_count=1,
+                        buffer_drain_size=1,
+                        allow_buffer_overflow_risk=infinite,
+                        monitor_overflow=monitoring == "monitor",
+                        stop_on_overflow=monitoring == "stop_on_overflow",
+                    )
+                    if product_open:
+                        self.assert_policy_allows(request, profile)
+                    else:
+                        self.assert_policy_rejects(
+                            request, "start-trigger-record is pending", profile,
+                        )
+                    self.assert_policy_allows(
+                        request, profile,
+                        support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
+                    )
+
+    def test_custom_acquisition_metadata_remains_fail_closed(self):
         request = make_request(
             max_samples=None,
             trigger_mode="immediate-custom",
@@ -571,23 +635,51 @@ class StartSupportPolicyTests(unittest.TestCase):
             sample_count=1,
             monitor_overflow=True,
         )
-        for profile in (KEYSIGHT_34460A_PROFILE, KEYSIGHT_34461A_PROFILE):
-            with self.subTest(profile=profile.model):
-                with self.assertRaisesRegex(
-                    ValueError,
-                    "custom-acquisition=immediate-custom:finite:monitor is pending validation",
-                ):
-                    validate_start_workflow_support(
-                        request,
-                        resolve_trigger_mode(request),
-                        profile,
+        live = start_workflow_support(KEYSIGHT_34460A_PROFILE)["start-trigger-record"]["live"]
+        scope = live.scopes[0]
+        feature = find_feature_support(
+            scope, FEATURE_KIND_CUSTOM_ACQUISITION, "immediate-custom:finite:monitor",
+        )
+        remaining = tuple(item for item in scope.feature_scopes if item != feature)
+        cases = (
+            (remaining, "not registered for custom-acquisition", False),
+            (scope.feature_scopes + (feature,), "duplicate live feature support", False),
+            (remaining + (replace(feature, validation_status="unknown"),),
+             "unknown validation status", False),
+            (remaining + (replace(feature, validation_status=VALIDATION_STATUS_FEATURE_PENDING),),
+             "is pending validation", True),
+        )
+        for features, expected, validation_allowed in cases:
+            support = replace(live, scopes=(replace(scope, feature_scopes=features),))
+            for policy_mode in (SUPPORT_POLICY_MODE_PRODUCT, SUPPORT_POLICY_MODE_VALIDATION):
+                with self.subTest(expected=expected, policy_mode=policy_mode):
+                    if validation_allowed and policy_mode == SUPPORT_POLICY_MODE_VALIDATION:
+                        self.validate_with_support(
+                            support, request=request, support_policy_mode=policy_mode,
+                        )
+                    else:
+                        with self.assertRaisesRegex(ValueError, expected):
+                            self.validate_with_support(
+                                support, request=request, support_policy_mode=policy_mode,
+                            )
+
+    def test_custom_acquisition_rejects_unregistered_models_and_backends(self):
+        request = make_request(
+            max_samples=None, trigger_mode="immediate-custom",
+            trigger_count=1, sample_count=1, monitor_overflow=True,
+        )
+        for policy_mode in (SUPPORT_POLICY_MODE_PRODUCT, SUPPORT_POLICY_MODE_VALIDATION):
+            for visa_library in ("@py", "@bt", "custom"):
+                with self.subTest(policy_mode=policy_mode, visa_library=visa_library):
+                    self.assert_policy_rejects(
+                        replace(request, visa_library=visa_library), "not registered",
+                        support_policy_mode=policy_mode,
                     )
-                validate_start_workflow_support(
-                    request,
-                    resolve_trigger_mode(request),
-                    profile,
-                    support_policy_mode=SUPPORT_POLICY_MODE_VALIDATION,
-                )
+            self.assert_policy_rejects(
+                request, "live is not supported by UNKNOWN",
+                replace(KEYSIGHT_34460A_PROFILE, model="UNKNOWN"),
+                support_policy_mode=policy_mode,
+            )
 
     def test_feature_pending_trigger_mode_obeys_product_and_validation_modes(self):
         support = make_live_support(

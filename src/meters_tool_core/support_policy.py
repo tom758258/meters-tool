@@ -144,10 +144,14 @@ def _custom_acquisition_feature_values(
 
 
 _FEATURE_STATUSES_34461A_CUSTOM_ACQUISITION = tuple(
-    (value, VALIDATION_STATUS_FEATURE_PENDING)
+    (value, VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE)
     for value in _custom_acquisition_feature_values(_34461A_CUSTOM_ACQUISITION_FEATURES)
 )
-_FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION = tuple(
+_FEATURE_STATUSES_34460A_USB_CUSTOM_ACQUISITION = tuple(
+    (value, VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE)
+    for value in _custom_acquisition_feature_values(_34460A_CUSTOM_ACQUISITION_FEATURES)
+)
+_FEATURE_STATUSES_34460A_PENDING_CUSTOM_ACQUISITION = tuple(
     (value, VALIDATION_STATUS_FEATURE_PENDING)
     for value in _custom_acquisition_feature_values(_34460A_CUSTOM_ACQUISITION_FEATURES)
 )
@@ -238,7 +242,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34460A_USB_MEASUREMENTS,
                     _FEATURE_STATUSES_34460A_USB_TRIGGER_MODES,
-                    _FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION,
+                    _FEATURE_STATUSES_34460A_USB_CUSTOM_ACQUISITION,
                 ),
             ),
             StartWorkflowSupportScope(
@@ -249,7 +253,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34460A_PENDING_MEASUREMENTS,
                     _FEATURE_STATUSES_34460A_PENDING_TRIGGER_MODES,
-                    _FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION,
+                    _FEATURE_STATUSES_34460A_PENDING_CUSTOM_ACQUISITION,
                 ),
             ),
             StartWorkflowSupportScope(
@@ -260,7 +264,7 @@ def start_workflow_support(profile: InstrumentProfile) -> dict[str, dict[str, St
                 feature_scopes=_feature_scopes(
                     _FEATURE_STATUSES_34460A_PENDING_MEASUREMENTS,
                     _FEATURE_STATUSES_34460A_PENDING_TRIGGER_MODES,
-                    _FEATURE_STATUSES_34460A_CUSTOM_ACQUISITION,
+                    _FEATURE_STATUSES_34460A_PENDING_CUSTOM_ACQUISITION,
                 ),
             ),
         )
