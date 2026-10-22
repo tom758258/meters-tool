@@ -381,49 +381,95 @@ Supported parameters:
 - `-VisaLibrary` (aliases: `-Backend`, `-visa-library`): optional PyVISA
   library/backend selector such as `@py`. Omit it to use System VISA.
 - `-Suite`: `minimal`, `basic`, `frequency-period`, `external`, `finite-custom`,
-  `stream`, `overflow`, or `full`.
+  `infinite-custom`, `overflow`, `worker-streaming`, or `full`. The former `stream`
+  name is rejected; it has no compatibility alias.
 - `-PlanOnly`: validate and write dry-run plans without opening VISA.
 - `-SkipPreflight`: skip the separate preflight only in `-PlanOnly` mode.
-- `-AllowIntentionalOverflow`: required for live `overflow` runs.
 
-Suite scope:
+Suite coverage matrix (case counts are shown as 34460A / 34461A):
 
-- `minimal` runs one bounded immediate DC-current case.
-- `basic` covers bounded immediate DC/AC current and voltage, 2-wire and
-  4-wire resistance, software trigger, software timer, immediate custom, and
-  software custom paths.
-- `frequency-period` validates Frequency and Period immediate acquisition,
-  including the expected SCPI setup. Live execution also performs isolated
-  SCPI diagnostic sessions before the formal CLI cases.
-- `external` covers simple and custom external-trigger acquisition and is not
-  available for the 34460A base profile.
-- `finite-custom` checks normal finite completion in immediate and software
-  Custom modes, plus external Custom on 34461A, with monitoring alone and with
-  Stop on overflow enabled.
-- `stream` covers the same mode/monitoring combinations with infinite count,
-  planned Stop, live status, final drain, JSONL, and CSV correlation.
-- `overflow` checks a deliberately induced overflow and unsuccessful structured
-  outcome for both finite and infinite counts, in each model's supported Custom
-  modes, with monitoring alone and with Stop on overflow. It requires explicit
-  opt-in; only EXT cases require external trigger edges.
-  It uses a large batch at `0.02` NPLC with one-reading drains to provoke
-  overflow. Stop-on-overflow cases have a 60-second watchdog; monitor-only cases
-  schedule Stop after 30 seconds and must observe overflow and continued drain
-  before Stop. Missing overflow or continued-drain evidence fails the case.
-  Confirmed overflow requires exit `3`, `ok=false`, and `data_integrity=incomplete`;
-  the bounded final drain result is recorded even if it is incomplete.
-- `full` combines the applicable basic, Frequency/Period, and external suites.
-  For `keysight-34460a`, external-trigger cases are omitted because the base
-  profile does not support them.
+| Suite | Cases | Coverage | Included in `full` | Completion and risks |
+| --- | --- | --- | --- | --- |
+| `minimal` | 1 / 1 | Immediate DC current | Equivalent case in `basic` | Natural completion after one sample |
+| `basic` | 10 / 10 | Immediate DC/AC current and voltage, 2-wire/4-wire resistance; software trigger/timer; immediate/software Custom | Yes | Bounded natural completion; measurement setup changes |
+| `frequency-period` | 2 / 2 | Immediate Frequency and Period, including isolated SCPI diagnostics before the CLI cases | Yes | Bounded natural completion; diagnostic sessions use the same explicit resource |
+| `external` | Unsupported / 2 | Simple and Custom external trigger | 34461A only | Natural completion; operator supplies trigger edges |
+| `finite-custom` | 4 / 6 | Finite IMM/BUS/EXT Custom, monitoring alone and Stop on overflow | Yes | Natural completion and final drain; no intentional overflow |
+| `infinite-custom` | 4 / 6 | Infinite Custom, continuous drain, monitoring alone and Stop on overflow | No | Planned HTTP Stop and final drain; infinite count requires the CLI overflow-risk acknowledgement |
+| `overflow` | 8 / 12 | Finite/infinite Custom, monitoring alone and Stop on overflow | No | Intentional reading-memory overflow; overflow stop or planned Stop |
+| `worker-streaming` | 7 / 10 | `--streaming --json` lifecycle, trigger gates, finite and infinite Custom | No | Natural completion or planned HTTP Stop; external cases need operator input |
+| `full` | 16 / 20 | Basic + Frequency/Period + applicable External + Finite Custom | Aggregate | Uses the component cases and their completion rules |
 
-Stream cases use a scheduled Stop after the acquisition interval. The watchdog
-is a separate failure path; reaching it never counts as a successful planned
-Stop. Check the structured outcome and run correlation before accepting a case.
+Custom cases use DC current. IMM/BUS are included on both models; EXT is included
+only on 34461A. `infinite-custom` preserves the former `stream` acquisition,
+monitoring, Stop and cleanup behavior and does not enable `--streaming`.
+Its scheduled Stop is separate from the watchdog: reaching the watchdog fails
+the case and cannot count as a successful planned Stop.
 
-The `finite-custom`, `stream`, and `overflow` suites are selected separately and
-are excluded from `full`. Their DC-current results apply only to the selected
-model, connection, backend, and exact Custom options. PlanOnly and synthetic
-validation do not establish real-instrument support.
+Selecting `-Suite overflow` explicitly selects intentional overflow testing; no
+additional script opt-in flag is required. The warning and interactive Enter
+confirmation remain mandatory, and redirected stdin cannot approve a live run.
+The CLI/Core `--allow-buffer-overflow-risk` safety acknowledgement is retained.
+Overflow cases use a large batch at `0.02` NPLC with one-reading drains to provoke
+overflow. Stop-on-overflow cases have a 60-second watchdog; monitor-only cases
+schedule Stop after 30 seconds and must observe overflow and continued drain
+before Stop. Missing either observation fails the case. Confirmed overflow
+requires exit `3`, `ok=false`, and `data_integrity=incomplete`; the bounded final
+drain result is recorded even if incomplete.
+
+#### Worker Streaming validation
+
+Use the same entry point with `-Suite worker-streaming`; add `-PlanOnly` to
+inspect the plan without opening VISA. Cases use explicit CSV output for the
+existing JSONL/CSV correlation checks. Both models cover immediate acquisition,
+software trigger, software timer, and finite/infinite immediate/software Custom.
+34461A adds simple external trigger and finite/infinite external Custom. Custom
+Streaming cases use monitoring alone; this suite does not deliberately induce
+overflow or repeat the full measurement matrix.
+
+The harness reads JSONL while the worker runs. Ready is not Active. The first
+software trigger and the external-trigger prompt are gated by observed Active
+and a correlated HTTP status response without a known failure or stopping state.
+The external prompt states the required edge count; wait for that prompt before
+applying the first edge. Software Timer is scheduled by the existing runtime;
+the harness verifies its Active-before-Sample output without sending a manual
+trigger. A separate Waiting event is optional. Ordered JSONL must progress to
+Ended, with samples only during Active and a matching Summary. HTTP and JSONL
+snapshots are not atomic, so identical instantaneous states are not required.
+Fast finite cases may finish before HTTP status can be queried; HTTP correlation
+is required for cases using harness triggers or planned Stop.
+
+Infinite Custom uses planned Stop 3 seconds after observed Active for IMM/BUS,
+and 10 seconds for EXT. Required samples, final drain, data integrity, run IDs,
+CSV counts and exit code must match the case. After Summary the harness continues
+to drain output through EOF and waits for process exit. It records cleanup
+messages without treating them as proof that instrument close succeeded.
+
+Active has a 15-second deadline. The run watchdog is 45 seconds, or 60 seconds
+for simple external acquisition. HTTP clients use a 1-second request timeout and
+a 5-second process deadline. On a failure or deadline, the harness requests HTTP
+Stop, allows a 10-second grace period, and may terminate the worker if necessary.
+Output draining is also bounded. Forced termination always fails and marks
+cleanup unconfirmed; subsequent cases stop and the operator must check the
+instrument before continuing. Missing triggers, terminal events or cleanup
+evidence cannot pass.
+
+The nondeterministic live Stop Before Active race is excluded from this suite
+and reported as `not_run`. No-hardware tests check the harness's acceptance of a
+zero-sample Ended/Summary/normal-exit outcome without Active. There are no race
+retries, artificial runtime delays or debug hooks.
+
+The report also lists observations outside the suite: raw `STAT:OPER:COND?`
+replies need a non-interfering instrument trace; exact query/trigger overlap and
+query latency need correlated timestamps; observation-query timeouts need a
+separately authorized bounded fault validation. JSONL Active alone proves none
+of these. No extra VISA session is opened to obtain them. `report.json` and
+`summary.md` retain these unverified items and list cases not run after an early
+failure; default privacy and artifact retention remain unchanged.
+
+Results apply only to the selected model, connection, backend and exact options.
+PlanOnly, simulator and synthetic checks do not establish real-instrument
+validation or promote product support.
 
 For LAN validation, first set `METER_RESOURCE` to the exact operator-selected
 LAN VISA resource:

@@ -296,44 +296,81 @@ wrapper 不會把它視為實機執行授權。
 - `-VisaLibrary`（別名：`-Backend`、`-visa-library`）：選用的 PyVISA
   library/backend selector，例如 `@py`。省略時使用 System VISA。
 - `-Suite`：`minimal`、`basic`、`frequency-period`、`external`、
-  `finite-custom`、`stream`、`overflow` 或 `full`。
+  `finite-custom`、`infinite-custom`、`overflow`、`worker-streaming` 或 `full`。
+  舊名稱 `stream` 會被拒絕，不保留相容別名。
 - `-PlanOnly`：只驗證並寫出 dry-run plan，不開啟 VISA。
 - `-SkipPreflight`：僅在 `-PlanOnly` 模式下略過獨立 preflight。
-- `-AllowIntentionalOverflow`：實機執行 `overflow` suite 時必須指定。
 
-各 suite 範圍：
+Suite 涵蓋矩陣（案例數依序為 34460A／34461A）：
 
-- `minimal`：執行一個有界限的 immediate DC current case。
-- `basic`：涵蓋有界限的 immediate DC/AC 電流與電壓、2 線與 4 線電阻、
-  software trigger、software timer、immediate custom 與 software custom
-  路徑。
-- `frequency-period`：驗證 Frequency 與 Period 的 immediate acquisition
-  以及預期 SCPI setup。真正實機執行時，formal CLI case 前還會執行隔離的
-  SCPI diagnostic session。
-- `external`：涵蓋 simple 與 custom external-trigger acquisition；
-  34460A base profile 不支援此 suite。
-- `finite-custom`：在 immediate 與 software Custom，以及 34461A 的 external
-  Custom 模式，分別開啟僅監測與 Stop on overflow，檢查有限次數正常完成。
-- `stream`：以無限次數涵蓋相同的模式與監測組合，檢查預定 Stop、執行中狀態、
-  最後排空，以及 JSONL 與 CSV 的關聯。
-- `overflow`：在各機型支援的 Custom 模式，以有限與無限次數、僅監測與
-  Stop on overflow，檢查刻意造成的溢位及結構化失敗結果。需要明確 opt-in；
-  只有 EXT 案例需要外部觸發邊緣。
-  此案例以 `0.02` NPLC 的大批次採集配合逐筆排空來造成溢位。
-  Stop on overflow 案例有 60 秒 watchdog；僅監測案例在 30 秒後預定 Stop，
-  並須在 Stop 前觀察到溢位及持續排空。缺少溢位或持續排空證據則案例失敗。
-  確認溢位時，必須得到退出碼 `3`、`ok=false` 與
-  `data_integrity=incomplete`；有時間限制的最後排空結果即使未完成也會記錄。
-- `full`：組合適用的 basic、Frequency/Period 與 external suites。
-  對 `keysight-34460a` 而言，因 base profile 不支援 external trigger，
-  因此會排除 external cases。
+| Suite | 案例數 | 驗證範圍 | 包含於 `full` | 完成方式與風險 |
+| --- | --- | --- | --- | --- |
+| `minimal` | 1／1 | Immediate DC 電流 | `basic` 有等效案例 | 一筆樣本後自然完成 |
+| `basic` | 10／10 | Immediate DC/AC 電流與電壓、2 線／4 線電阻；Software Trigger／Timer；Immediate／Software Custom | 是 | 有限擷取自然完成；會改變量測設定 |
+| `frequency-period` | 2／2 | Immediate Frequency 與 Period，包含 CLI 案例前的隔離 SCPI 診斷 | 是 | 有限擷取自然完成；診斷使用相同的明確 resource |
+| `external` | 不支援／2 | Simple 與 Custom External Trigger | 僅 34461A | 自然完成；由操作人員提供觸發邊緣 |
+| `finite-custom` | 4／6 | 有限 IMM／BUS／EXT Custom，僅監測與 Stop on overflow | 是 | 自然完成與最後排空；不刻意造成溢位 |
+| `infinite-custom` | 4／6 | 無限 Custom、持續排空，僅監測與 Stop on overflow | 否 | 預定 HTTP Stop 與最後排空；無限次數須保留 CLI 溢位風險確認 |
+| `overflow` | 8／12 | 有限／無限 Custom，僅監測與 Stop on overflow | 否 | 刻意造成 reading-memory overflow；溢位停止或預定 Stop |
+| `worker-streaming` | 7／10 | `--streaming --json` 生命週期、觸發閘門、有限與無限 Custom | 否 | 自然完成或預定 HTTP Stop；External 案例需要人工操作 |
+| `full` | 16／20 | Basic + Frequency/Period + 適用的 External + Finite Custom | 組合套件 | 沿用各組案例與完成規則 |
 
-Stream 案例會在採集期間結束後預定發送 Stop。Watchdog 是獨立的失敗處理路徑，
-觸發它不能算作成功的預定 Stop。接受案例前，請檢查結構化結果及執行關聯。
+Custom 案例使用 DC 電流。兩款機型都包含 IMM／BUS；只有 34461A 包含 EXT。
+`infinite-custom` 保留原 `stream` 的採集、監測、Stop 與清理行為，不啟用
+`--streaming`。預定 Stop 與 watchdog 各自獨立：觸發 watchdog 即為失敗，
+不能算作成功的預定 Stop。
 
-`finite-custom`、`stream` 與 `overflow` 都須分別選用，不包含於 `full`。
-其 DC current 結果只適用於選定的機型、連線、backend 與確切 Custom 選項。
-PlanOnly 與 synthetic 驗證不能證明實機支援。
+選擇 `-Suite overflow` 即表示選用刻意溢位驗證，不再需要額外的 Script
+opt-in 旗標。警告及人工 Enter 確認仍不可省略，重新導向 stdin 不能授權實機執行。
+CLI／Core 的 `--allow-buffer-overflow-risk` 安全確認仍保留。
+溢位案例以 `0.02` NPLC 的大批次採集配合逐筆排空來造成溢位。
+Stop on overflow 案例有 60 秒 watchdog；僅監測案例在 30 秒後預定 Stop，
+並須在 Stop 前觀察到溢位及持續排空。缺少任一觀測即為失敗。確認溢位時，
+必須得到退出碼 `3`、`ok=false` 與 `data_integrity=incomplete`；
+有時間限制的最後排空結果即使未完成也會記錄。
+
+#### Worker Streaming 驗證
+
+沿用相同入口並指定 `-Suite worker-streaming`；加上 `-PlanOnly` 可在不開啟
+VISA 的情況下檢查計畫。案例明確指定 CSV 輸出，以沿用 JSONL／CSV 關聯檢查。
+兩款機型都包含 Immediate 擷取、Software Trigger、Software Timer，以及有限／
+無限 Immediate／Software Custom。34461A 另含 Simple External Trigger 及
+有限／無限 External Custom。Custom Streaming 案例只開啟監測；此 Suite
+不刻意造成溢位，也不重跑完整量測矩陣。
+
+Harness 在 Worker 執行期間讀取 JSONL。Ready 不等於 Active。首次 Software
+Trigger 及 External Trigger 提示，都必須先觀察到 Active，並取得具有相同
+Run ID、未回報已知失敗或停止狀態的 HTTP Status。External 提示會列出所需
+邊緣數；請等提示出現後才施加第一個邊緣。Software Timer 由既有 Runtime 排程；
+Harness 檢查其 Active 先於 Sample 的輸出，不另送人工觸發。
+不要求獨立的 Waiting 事件。JSONL 順序必須前進至 Ended，樣本只能出現在
+Active 區間，且 Summary 計數須相符。HTTP 與 JSONL 快照並非原子操作，
+因此不要求瞬間狀態完全一致。快速的有限案例可能在 HTTP Status 查詢前完成；
+使用 Harness Trigger 或預定 Stop 的案例必須檢查 HTTP 關聯。
+
+無限 Custom 在觀察到 Active 後預定 Stop：IMM／BUS 為 3 秒，EXT 為 10 秒。
+必要樣本、最後排空、資料完整性、Run ID、CSV 計數及退出碼都須符合案例要求。
+Summary 後仍持續讀取至 EOF，並等待程序退出。清理訊息會被記錄，但不能當作
+儀器 close 成功的證據。
+
+Active 期限為 15 秒。執行 watchdog 為 45 秒，Simple External 擷取則為
+60 秒。HTTP Client 的請求逾時為 1 秒，程序期限為 5 秒。失敗或超過期限時，
+Harness 先要求 HTTP Stop，給予 10 秒寬限期，必要時可強制終止 Worker。
+尾端輸出讀取也有期限。強制終止一律失敗並標示清理未確認；後續案例停止，
+操作人員必須先確認儀器狀態。缺少觸發、結束事件或清理證據均不得通過。
+
+非決定性的實機 Stop Before Active 競速不包含於此 Suite，報告標示為
+`not_run`。無硬體測試檢查 Harness 接受沒有 Active、零樣本且正常
+Ended／Summary／退出的結果。不加入競速重試、Runtime 人工延遲或 Debug Hook。
+
+報告另列出 Suite 無法證明的觀測：原始 `STAT:OPER:COND?` 回覆需要不干擾
+儀器的 Trace；精確 Query／Trigger 重疊與查詢延遲需要關聯時間戳；觀測 Query
+Timeout 需要另行授權且有界限的故障驗證。僅有 JSONL Active 不能證明這些項目，
+也不會為此另開 VISA Session。`report.json` 與 `summary.md` 保留這些未驗證
+項目，並列出提早失敗後未執行的案例；預設隱私與產物保留規則維持不變。
+
+結果僅適用於選定機型、連線、Backend 與確切選項。PlanOnly、Simulator 與
+Synthetic 檢查不能當作實機驗證，也不會提升產品支援狀態。
 
 驗證 LAN 前，先把 `METER_RESOURCE` 設成操作人員選定的確切 LAN VISA
 resource：

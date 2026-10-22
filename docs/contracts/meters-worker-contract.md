@@ -514,30 +514,72 @@ Live case result objects include:
 The live wrapper supports the `keysight-34461a` and `keysight-34460a` targets
 and passes the matching CLI model to every generated `start-trigger-record`
 command. Both targets support `minimal`, `basic`, `frequency-period`,
-`finite-custom`, `stream`, `overflow`, and `full` suites. `keysight-34461a` also
-supports `external`; the base 34460A profile rejects that suite and omits EXT
-cases from all Custom suites.
+`finite-custom`, `infinite-custom`, `overflow`, `worker-streaming`, and `full`
+suites. `keysight-34461a` also supports `external`; the base 34460A profile rejects
+that suite and omits EXT cases from all Custom and Streaming selections. The old
+`stream` suite name is rejected without an alias.
 
 The Custom suites use DC current and cover each supported IMM/BUS/EXT mode
 with monitoring alone and Stop on overflow. `finite-custom` checks normal finite
-completion; `stream` checks infinite acquisition with scheduled Stop. `overflow`
-covers both finite and infinite counts and requires the additional
-`-AllowIntentionalOverflow` opt-in for live execution. Every overflow case
-requires exit `3`, `summary.ok=false`, confirmed overflow, and incomplete data
-integrity. Monitor-only cases also require a sample after overflow followed by
-an active status before scheduled Stop; samples obtained only during final
-drain cannot satisfy this check. The boolean result is retained as
-`runtime_evidence.continued_drain_after_overflow`. The bounded final drain
-outcome is recorded even when incomplete. None of these suites is included in
-`full`. Plans and synthetic results do not establish real-instrument support;
-evidence applies only to the model, transport, backend, measurement, and exact
-Custom scope actually exercised.
+completion; `infinite-custom` preserves infinite acquisition with scheduled Stop,
+continuous drain and cleanup without enabling `--streaming`. `overflow` covers
+both finite and infinite counts. Selecting it supplies the script-level opt-in;
+there is no additional script flag. The intentional-overflow warning, interactive
+Enter confirmation, redirected-stdin refusal and CLI `--allow-buffer-overflow-risk`
+acknowledgement remain in effect. Every overflow case requires exit `3`,
+`summary.ok=false`, confirmed overflow, and incomplete data integrity. Monitor-only
+cases also require a sample after overflow followed by an active status before
+scheduled Stop; samples obtained only during final drain cannot satisfy this
+check. The boolean result is retained as
+`runtime_evidence.continued_drain_after_overflow`. The bounded final drain outcome
+is recorded even when incomplete.
 
 The `frequency-period` suite runs one immediate Auto Range Frequency sample and
 one immediate Auto Range Period sample with a `20` Hz AC filter, `0.1` second
 gate time, automatic Frequency timeout, and no Period timeout command.
-`keysight-34461a` `full` includes the basic, Frequency/Period, and external
-cases. `keysight-34460a` `full` is basic plus Frequency/Period only.
+`keysight-34461a` `full` includes basic, Frequency/Period, external and finite
+Custom (20 cases). `keysight-34460a` `full` includes basic, Frequency/Period and
+finite Custom (16 cases). Infinite Custom, intentional overflow and Worker
+Streaming are excluded from `full`.
+
+`worker-streaming` starts the CLI with `--streaming --json` and explicit CSV
+output. It selects representative DC-current cases: immediate, software trigger,
+software timer, and finite/infinite IMM/BUS Custom on both models (7 cases).
+34461A adds simple external and finite/infinite EXT Custom (10 cases total).
+Custom Streaming cases monitor overflow without intentionally inducing it.
+During execution the wrapper observes ordered JSONL Active before sending a
+software trigger or prompting for the stated number of external trigger edges.
+It checks HTTP run correlation for cases needing harness control; HTTP Ready is
+not an Active observation. Known errors, stopping or Ended observations withhold
+further triggers. HTTP and JSONL snapshots need not have identical instantaneous
+states. Software Timer remains runtime-scheduled; the wrapper checks Active
+before Sample and does not send its trigger.
+
+The wrapper accepts an omitted Waiting event, checks monotonic states and samples
+only during Active, then requires Ended, matching Summary/sample/CSV counts and
+exit status. Infinite cases require planned HTTP Stop and complete final drain.
+Output is drained through EOF even after Summary or failure. Active, run, control
+client, Stop grace and output-drain waits are bounded. A failed run requests HTTP
+Stop before any forced termination. Forced termination always fails and marks
+cleanup unconfirmed; subsequent cases stop and require operator inspection.
+Cleanup messages are evidence of reported release results, not proof of close.
+These checks do not change the worker lifecycle, HTTP protocol or product schemas.
+
+The wrapper records `runtime_evidence.streaming` for lifecycle observations,
+trigger counts, control gates, EOF and failures, plus cleanup/exit observations.
+Its report and summary list `not_run_cases` and `unverified_observations`. The
+live Stop Before Active race is excluded from routine execution and marked
+`not_run`; no-hardware checks validate acceptance of the zero-sample, no-Active,
+Ended/Summary/normal-exit outcome. Raw `STAT:OPER:COND?` replies, precise
+query/trigger overlap and latency, and observation-query timeouts remain
+unverified. They require non-interfering raw traces, correlated timestamps or
+separately authorized bounded fault validation, respectively. The wrapper neither
+opens another VISA session for these observations nor adds runtime hooks.
+
+Plans, simulator and synthetic results do not establish real-instrument support;
+evidence applies only to the model, transport, backend, measurement and exact
+scope exercised. The [CLI suite matrix](../cli/README.md#cli-validation-scripts)
+describes case selection, deadlines and operator requirements.
 
 Before each live Frequency/Period CLI case, the wrapper runs a private probe
 against the explicit `-Resource` and validates identity against the selected

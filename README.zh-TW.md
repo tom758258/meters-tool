@@ -268,6 +268,15 @@ wrapper contract tests 建立 `.tmp_tests\cli_live\...`；看到該目錄不代�
 
 ## 測試
 
+CLI 驗證維持兩個入口：`scripts/preflight-cli.ps1` 執行無硬體檢查，
+`scripts/live-cli-check.ps1` 執行操作人員明確核准的實機驗證。
+涵蓋範圍與風險請見 [CLI 驗證 Suite 矩陣](docs/cli/README.zh-TW.md#cli-驗證腳本)。
+`full` 包含 Finite Custom（34460A 為 16 案例，34461A 為 20 案例）；
+`infinite-custom`、刻意溢位的 `overflow` 與 `worker-streaming` 分別選用。
+`worker-streaming` 啟用 `--streaming --json`，在執行期間檢查 Active 邊界。
+使用 `-PlanOnly` 可在不開啟 VISA 的情況下檢查實機 Suite；實機執行需要
+明確指定 Resource 並完成人工確認。
+
 開發迭代時可先跑 focused tests：
 
 ```powershell

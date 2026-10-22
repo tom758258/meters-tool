@@ -408,6 +408,14 @@ function New-ShareableSummaryLines {
         }
     }
     $lines += @('', '## Shareable Artifacts', '- Report: shareable/report.json', '- Summary: shareable/summary.md')
+    if ($Report.Contains('unverified_observations')) {
+        $lines += @('', '## Observations Outside This Suite')
+        foreach ($item in $Report.unverified_observations) {
+            $lines += "- $($item.name): $($item.status). Required evidence: $($item.evidence_needed)"
+        }
+        $lines += @('', '## Cases Not Run')
+        foreach ($name in $Report.not_run_cases) { $lines += "- $name" }
+    }
     return $lines
 }
 

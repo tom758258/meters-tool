@@ -585,6 +585,9 @@ def test_live_plan_only_full_report_contract():
         "external_simple",
         "external_custom",
     ]
+    expected_names += [f"finite_{mode}_{handling}" for mode in ("immediate", "software", "external")
+                       for handling in ("monitor", "stop_on_overflow")]
+    assert len(report["dry_runs"]) == 20
     assert {dry_run["name"] for dry_run in report["dry_runs"]} == set(expected_names)
 
     expected_read_paths = {
@@ -603,6 +606,8 @@ def test_live_plan_only_full_report_contract():
         "external_simple": "FETC?",
         "external_custom": "DATA:POINts? / DATA:REMove?",
     }
+    expected_read_paths.update({name: "DATA:POINts? / DATA:REMove?"
+                                for name in expected_names if name.startswith("finite_")})
     for dry_run in report["dry_runs"]:
         assert dry_run["plan"]["read_path"] == expected_read_paths[dry_run["name"]]
         command = dry_run["command"]
@@ -865,7 +870,9 @@ def test_live_plan_only_34460a_full_excludes_external_cases():
         "basic_software_custom",
         "frequency_period_frequency_immediate",
         "frequency_period_period_immediate",
-    }
+    } | {f"finite_{mode}_{handling}" for mode in ("immediate", "software")
+         for handling in ("monitor", "stop_on_overflow")}
+    assert len(report["dry_runs"]) == 16
     assert "external_simple" not in names
     assert "external_custom" not in names
 
@@ -891,7 +898,7 @@ def test_live_plan_only_34460a_rejects_external_suite():
 
 
 @pytest.mark.parametrize("target", ["keysight-34461a", "keysight-34460a"])
-@pytest.mark.parametrize("suite", ["finite-custom", "stream", "overflow"])
+@pytest.mark.parametrize("suite", ["finite-custom", "infinite-custom", "overflow"])
 def test_live_custom_plan_only_matches_registered_scopes(target, suite):
     profile = find_instrument_profile_by_model(target)
     result = run_wrapper(
@@ -924,15 +931,17 @@ def test_live_custom_plan_only_matches_registered_scopes(target, suite):
 
 
 @pytest.mark.parametrize("target", ["keysight-34461a", "keysight-34460a"])
-def test_live_overflow_requires_extra_opt_in(target):
+def test_live_overflow_still_requires_interactive_confirmation(target):
     profile = find_instrument_profile_by_model(target)
     args = (
         "-Target", target, "-Connection", "usb",
         "-Resource", f"SIM::{profile.model}", "-Suite", "overflow",
     )
     refused = run_wrapper("scripts/live-cli-check.ps1", *args)
-    assert refused.returncode == 2
-    assert "-AllowIntentionalOverflow" in refused.stderr
+    assert refused.returncode != 0
+    report = load_json(report_from_summary_output(refused.stdout))
+    assert report["status"] == "confirmation_required"
+    assert report["live_executed"] is False
 
 
 def test_live_custom_outcomes_require_matching_state_and_active_continued_drain(tmp_path: Path):
@@ -1009,7 +1018,7 @@ function Invoke-CapturedStartProcess {
 $outcomes = @()
 foreach ($target in @('keysight-34461a', 'keysight-34460a')) {
     $resolvedCliModel = if ($target -eq 'keysight-34461a') { '34461A' } else { '34460A' }
-    foreach ($suite in @('finite-custom', 'stream', 'overflow')) {
+    foreach ($suite in @('finite-custom', 'infinite-custom', 'overflow')) {
         foreach ($case in @(Get-LiveCases -SelectedSuite $suite -ResolvedTarget $target)) {
             $faults = @('none', 'missing_summary_field', 'wrong_count')
             if ($case.planned_stop_after_seconds -gt 0 -or $case.soft_trigger_count -gt 0 -or $case.expected_exit_code -ne 0) {
@@ -1213,8 +1222,11 @@ def synthetic_confirmed_live_wrapper(timestamp: str) -> str:
     return wrapper_text
 
 
-@pytest.mark.parametrize("missing_field", [None, "sample_run_id", "sample_trigger_id", "csv_trigger_id"])
-def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, missing_field):
+@pytest.mark.parametrize("suite,missing_field", [
+    ("minimal", None), ("minimal", "sample_run_id"), ("minimal", "sample_trigger_id"),
+    ("minimal", "csv_trigger_id"), ("worker-streaming", None),
+])
+def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, suite, missing_field):
     resource = "USB0::1::2::SERIAL12345::INSTR"
     value = "98765.4321"
     failure = f"capture failure: VisaIOError at {tmp_path} for {resource}"
@@ -1249,19 +1261,21 @@ def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, missing
         "function Invoke-SyntheticStartProcess { "
         "param($Name,$Arguments,$StdOutPath,$StdErrPath,$TimeoutSeconds,$SoftTriggerCount,"
         "$SoftTriggerPort,$OutDir,$SoftTriggerRetryCount,$SoftTriggerRetryDelayMs,"
-        "$InterTriggerDelayMs,$StopGracePeriodMs,[switch]$CaptureClientCommandsInMemory); "
+        "$InterTriggerDelayMs,$StopGracePeriodMs,[switch]$CaptureClientCommandsInMemory,$Case,$Port); "
         f"Write-Utf8NoBomText -LiteralPath $StdOutPath -Text ([IO.File]::ReadAllText({ps_quote(events_path)})); "
         "Write-Utf8NoBomText -LiteralPath $StdErrPath -Text 'private stderr'; "
         f"Write-Utf8NoBomText -LiteralPath $Arguments[[array]::IndexOf($Arguments,'--csv')+1] -Text {ps_quote(csv)}; "
         "return [ordered]@{name=$Name;command=$Python;arguments=$Arguments;"
         "exit_code=3;success=$false;"
         "duration_seconds=0;stdout=$StdOutPath;stderr=$StdErrPath;client_commands=@();"
-        "timed_out=$false;client_failure=$null} }; "
+        "timed_out=$false;client_failure=$null;forced_termination=$true;cleanup_unconfirmed=$true;"
+        "streaming_evidence=@{active=$true;stdout_eof=$true;failure_reasons=@('Stop grace period exceeded')}} }; "
         "Set-Alias Invoke-CapturedStartProcess Invoke-SyntheticStartProcess; "
+        "Set-Alias Invoke-StreamingStartProcess Invoke-SyntheticStartProcess; "
     )
     result = run_powershell_command(
         setup + f"& {ps_quote(wrapper)} -Target keysight-34461a -Connection usb "
-        + f"-Resource {ps_quote(resource)} -Suite minimal; exit $LASTEXITCODE"
+        + f"-Resource {ps_quote(resource)} -Suite {suite}; exit $LASTEXITCODE"
     )
     assert result.returncode == 1, result.stderr + result.stdout
     report_path = report_from_summary_output(result.stdout + result.stderr)
@@ -1276,9 +1290,16 @@ def test_live_runtime_evidence_survives_artifact_cleanup(tmp_path: Path, missing
         assert not any("correlation" in reason for reason in case["failure_reasons"])
     evidence = case["runtime_evidence"]
     assert evidence["identity"]["status"] == "not_available"
-    assert evidence["cleanup"] == {
+    expected_cleanup = {
         "status": "observed", "results": cleanup, "close_status": "not_reported",
     }
+    if suite == "worker-streaming":
+        expected_cleanup.update(process_exit_observed=True, forced_termination=True, unconfirmed=True)
+        assert evidence["streaming"]["active"] and evidence["streaming"]["stdout_eof"]
+        assert len(report["cases"]) == 1 and len(report["not_run_cases"]) == 9
+        assert report["unverified_observations"]
+        assert any("operator must check" in reason for reason in case["failure_reasons"])
+    assert evidence["cleanup"] == expected_cleanup
     assert evidence["summary"]["ok"] is False
     assert "VisaIOError" in evidence["summary"]["fatal_error"]
     assert case["captured"] == case["csv_rows"] == 1
@@ -1517,3 +1538,228 @@ def test_live_minimal_confirmation_required_retains_two_reports():
     assert report["status"] == "confirmation_required"
     assert report["live_executed"] is False
     assert report["artifact_mode"] == "minimal"
+
+
+def test_live_rejects_removed_stream_suite():
+    result = run_wrapper("scripts/live-cli-check.ps1", "-Target", "keysight-34461a",
+                         "-Connection", "usb", "-Resource", "SIM::34461A",
+                         "-Suite", "stream", "-PlanOnly", "-SkipPreflight")
+    assert result.returncode != 0
+
+
+@pytest.mark.parametrize("target,count", [("keysight-34460a", 7), ("keysight-34461a", 10)])
+def test_worker_streaming_plan_only_scopes_and_privacy(target, count):
+    profile = find_instrument_profile_by_model(target)
+    result = run_wrapper("scripts/live-cli-check.ps1", "-Target", target,
+                         "-Connection", "usb", "-Resource", f"SIM::{profile.model}",
+                         "-Suite", "worker-streaming", "-PlanOnly", "-SkipPreflight")
+    assert result.returncode == 0, result.stdout + result.stderr
+    path = report_from_summary_output(result.stdout)
+    report = load_json(path)
+    assert report["status"] == "planned" and report["live_executed"] is False
+    assert report["cases"] == []
+    assert len(report["dry_runs"]) == count
+    assert len(report["not_run_cases"]) == count
+    modes = set()
+    for case in report["dry_runs"]:
+        args = case["command"]["arguments"]
+        assert "--streaming" in args and "--json" in args and "--dry-run" in args
+        assert "--csv" in args
+        assert case["plan"]["dry_run_writes_csv"] is False
+        modes.add(args[args.index("--trigger-mode") + 1])
+    expected = {"immediate", "software", "immediate-custom", "software-custom"}
+    if target == "keysight-34461a":
+        expected |= {"external", "external-custom"}
+    assert modes == expected
+    assert {item["status"] for item in report["unverified_observations"]} == {"not_run", "not_verified"}
+    files = {p.relative_to(path.parents[1]).as_posix() for p in path.parents[1].rglob("*") if p.is_file()}
+    assert files == {"shareable/report.json", "shareable/summary.md"}
+    assert f"SIM::{profile.model}" not in path.read_text(encoding="utf-8")
+
+
+def streaming_test_script(tmp_path: Path, body: str) -> Path:
+    source = (REPO_ROOT / "scripts/live-cli-check.ps1").read_text(encoding="utf-8")
+    functions = []
+    for name in ("New-LiveCase", "Get-LiveCases", "New-StartArgs", "Add-StreamingObservation",
+                 "Invoke-StreamingClient", "Invoke-StreamingStartProcess", "Invoke-LiveCase"):
+        match = re.search(rf"(?ms)^function {name} \{{.*?(?=^function |\Z)", source)
+        assert match, name
+        functions.append(match.group())
+    script = tmp_path / "streaming.ps1"
+    script.write_text(
+        "$ErrorActionPreference = 'Stop'\nSet-StrictMode -Version Latest\n"
+        f"$RepoRoot = {ps_quote(REPO_ROOT)}\n$Python = {ps_quote(PYTHON)}\n"
+        "$Resource = 'SIM::34461A'\n$DebugArtifacts = $false\n$resolvedVisaLibrary = ''\n"
+        "$resolvedCliModel = '34461A'\n"
+        f"$caseRoot = {ps_quote(tmp_path)}\n"
+        f". {ps_quote(REPO_ROOT / 'scripts/_validation_helpers.ps1')}\n"
+        "Add-RepoSrcToPythonPath -RepoRoot $RepoRoot\n"
+        + "\n".join(functions) + "\n" + body,
+        encoding="utf-8",
+    )
+    return script
+
+
+@pytest.mark.parametrize("name", ["basic_immediate_current_dc", "basic_software_timer",
+                                  "basic_software_trigger", "finite_software_monitor",
+                                  "infinite_custom_software"])
+def test_worker_streaming_simulated_control_and_finalization(tmp_path: Path, name):
+    script = streaming_test_script(tmp_path, f"$selectedName = 'worker_streaming_{name}'\n" + r"""
+$case = @(Get-LiveCases -SelectedSuite 'worker-streaming' -ResolvedTarget 'keysight-34461a' |
+    Where-Object { $_.name -eq $selectedName })[0]
+$case.mode_args += '--simulate'
+$result = Invoke-LiveCase -Case $case -CaseDir $caseRoot -Port (Get-AvailableTcpPort) -CsvPath (Join-Path $caseRoot 'live.csv')
+Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'result.json') -Text ($result | ConvertTo-Json -Depth 20)
+""")
+    result = run_wrapper_path(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    case = load_json(tmp_path / "result.json")
+    assert case["status"] == "passed", case
+    evidence = case["runtime_evidence"]["streaming"]
+    assert evidence["transitions"] == ["active", "ended"]
+    assert evidence["stdout_eof"]
+    needs_manual_control = name not in ("basic_immediate_current_dc", "basic_software_timer")
+    assert evidence["http_status_checked"] is needs_manual_control
+    assert (evidence["software_triggers_sent"] > 0) is needs_manual_control
+    assert evidence["sample_count"] == case["captured"] == case["csv_rows"]
+    assert case["runtime_evidence"]["cleanup"]["unconfirmed"] is False
+    if "infinite" in name:
+        assert evidence["stop_requested"]
+        assert case["runtime_evidence"]["summary"]["final_drain_complete"] is True
+        assert case["runtime_evidence"]["summary"]["data_integrity"] == "unknown"
+
+
+def test_worker_streaming_event_acceptance_including_stop_before_active(tmp_path: Path):
+    ready = {"event": "ready", "stream": {"lifecycle": "run_bound"}}
+    active = {"event": "status", "stream": {"lifecycle": "run_bound", "state": "active"}}
+    ended = {"event": "status", "stream": {"lifecycle": "run_bound", "state": "ended"}}
+    waiting = {"event": "status", "stream": {"lifecycle": "run_bound", "state": "waiting"}}
+    sample = {"event": "sample", "captured": 1}
+    summary = {"event": "summary", "captured": 1}
+    scenarios = {
+        "no_waiting_event": ([ready, active, sample, ended, summary], True),
+        "stop_before_active": ([ready, waiting, ended, {**summary, "captured": 0}], True),
+        "early_sample": ([ready, sample, active, ended, summary], False),
+        "late_sample": ([ready, active, ended, sample, summary], False),
+        "regression": ([ready, active, waiting], False),
+        "wrong_run": ([ready, {**active, "run_id": "other"}], False),
+        "missing_ended": ([ready, active, sample, summary], False),
+        "wrong_count": ([ready, active, sample, ended, {**summary, "captured": 2}], False),
+        "failure_with_tail": ([ready, {"event": "error"}, active, sample, ended, summary], False),
+    }
+    payload = [
+        {"name": name, "events": [{"schema_version": 2, "run_id": "test-run", **event}
+                                  for event in events]}
+        for name, (events, _) in scenarios.items()
+    ]
+    (tmp_path / "events.json").write_text(json.dumps(payload), encoding="utf-8")
+    script = streaming_test_script(tmp_path, r"""
+$results = @()
+foreach ($case in (Get-Content -LiteralPath (Join-Path $caseRoot 'events.json') -Raw | ConvertFrom-Json)) {
+    $state = @{ run_id = $null; ready = $false; active = $false; phase = 'waiting'
+        summary = $false; samples = 0; transitions = [System.Collections.Generic.List[string]]::new() }
+    $accepted = $true
+    foreach ($event in $case.events) {
+        try { Add-StreamingObservation -State $state -Event $event }
+        catch { $accepted = $false }
+    }
+    $results += @{ name = $case.name; accepted = $accepted; active = $state.active; phase = $state.phase }
+}
+Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'results.json') -Text ($results | ConvertTo-Json -Depth 8)
+""")
+    result = run_wrapper_path(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    for case in load_json(tmp_path / "results.json"):
+        assert case["accepted"] is scenarios[case["name"]][1], case
+        if case["name"] == "stop_before_active":
+            assert case["active"] is False and case["phase"] == "ended"
+
+
+@pytest.mark.parametrize("fault", ["missing_active", "forced", "malformed", "wrong_http_run",
+                                  "http_failure", "http_stopping", "large_tail", "stopped_before_active",
+                                  "missing_ended", "missing_summary", "exit_failure", "external"])
+def test_worker_streaming_controlled_process_failures_and_external_gate(tmp_path: Path, fault):
+    # The child never imports VISA. File signals stand in for control responses;
+    # simulator tests above exercise the actual CLI HTTP clients.
+    child = tmp_path / "worker.py"
+    child.write_text(r'''
+import json
+from pathlib import Path
+import sys
+import time
+
+fault, root = sys.argv[1], Path(sys.argv[2])
+def emit(event, **fields):
+    print(json.dumps(dict(schema_version=2, run_id="test-run", event=event, **fields)), flush=True)
+def state(phase):
+    emit("status", stream=dict(lifecycle="run_bound", state=phase))
+emit("ready", stream=dict(lifecycle="run_bound"))
+if fault == "malformed":
+    print("invalid-json", flush=True)
+if fault not in ("missing_active", "stopped_before_active"):
+    state("active")
+if fault == "forced":
+    time.sleep(30)
+elif fault in ("missing_active", "malformed", "wrong_http_run", "http_failure", "http_stopping", "large_tail"):
+    deadline = time.monotonic() + 10
+    while not (root / "stop").exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+elif fault == "external":
+    time.sleep(0.3)
+count = 1 if fault in ("external", "missing_ended", "missing_summary", "exit_failure") else 0
+if fault == "large_tail":
+    for _ in range(128):
+        emit("message", message="x" * 1024)
+if count:
+    emit("sample", captured=1)
+if fault != "missing_ended":
+    state("ended")
+if fault != "missing_summary":
+    emit("summary", captured=count)
+emit("message", message="cleanup tail")
+sys.exit(3 if fault == "exit_failure" else 0)
+''', encoding="utf-8")
+    script = streaming_test_script(tmp_path, f"$fault = '{fault}'\n" + r"""
+function Invoke-StreamingClient {
+    param($Command, $Name, $Port, $OutDir)
+    if ($Command -eq 'stop') { Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'stop') -Text 'stop' }
+    $payload = @{ event = $Command; status = 'accepted'; run_id = 'test-run'
+        ok = $true; fatal_error = $null; errors = 0; stopping = $false
+        stream = @{ lifecycle = 'run_bound'; state = 'active' } }
+    if ($fault -eq 'wrong_http_run') { $payload.run_id = 'other-run' }
+    if ($fault -in @('http_failure', 'large_tail')) { $payload.ok = $false; $payload.fatal_error = 'test failure' }
+    if ($fault -eq 'http_stopping') { $payload.stopping = $true }
+    return @{ name = $Name; success = $true; stdout_text = ($payload | ConvertTo-Json -Compress -Depth 5) }
+}
+$case = New-LiveCase -Name 'controlled' -ModeArgs @('--trigger-mode', 'software') -ExpectedCaptured 1 -SoftTriggerCount 1 -Streaming $true -TimeoutSeconds 1
+if ($fault -eq 'external') { $case.soft_trigger_count = 0; $case.external_edges = 1 }
+if ($fault -eq 'stopped_before_active') { $case.soft_trigger_count = 0; $case.expected_captured = 0 }
+$graceMs = if ($fault -eq 'large_tail') { 5000 } else { 300 }
+$result = Invoke-StreamingStartProcess -Case $case -Arguments @('-u', (Join-Path $caseRoot 'worker.py'), $fault, $caseRoot) `
+    -StdOutPath (Join-Path $caseRoot 'live.jsonl') -StdErrPath (Join-Path $caseRoot 'live.stderr.txt') `
+    -Port 0 -OutDir $caseRoot -ActiveTimeoutMs 300 -StopGracePeriodMs $graceMs
+Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'result.json') -Text ($result | ConvertTo-Json -Depth 20)
+""")
+    result = run_wrapper_path(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    case = load_json(tmp_path / "result.json")
+    assert case["success"] is (fault in ("external", "stopped_before_active")), case
+    evidence = case["streaming_evidence"]
+    if fault in ("missing_active", "malformed", "wrong_http_run", "http_failure", "http_stopping", "large_tail"):
+        assert evidence["software_triggers_sent"] == 0
+        assert evidence["stop_requested"]
+        assert (tmp_path / "stop").exists()
+        assert "cleanup tail" in (tmp_path / "live.jsonl").read_text(encoding="utf-8")
+        assert not case["forced_termination"]
+    if fault == "missing_active":
+        assert case["timed_out"] and not case["forced_termination"]
+    if fault == "forced":
+        assert case["forced_termination"] and case["cleanup_unconfirmed"]
+        assert case["duration_seconds"] < 10
+    if fault == "external":
+        assert evidence["external_prompt_after_active"]
+        assert "Apply 1 external trigger edge(s) now" in result.stdout
+    if fault == "stopped_before_active":
+        assert not evidence["active"] and evidence["sample_count"] == 0
+        assert evidence["ended"] and evidence["summary"] and evidence["stdout_eof"]
+        assert case["exit_code"] == 0

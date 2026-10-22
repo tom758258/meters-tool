@@ -306,6 +306,15 @@ long PyInstaller build should not be mistaken for waiting for an external trigge
 
 ## Test
 
+CLI validation uses two entry scripts: `scripts/preflight-cli.ps1` for no-hardware
+checks and `scripts/live-cli-check.ps1` for explicit operator-approved live runs.
+See the [CLI validation suite matrix](docs/cli/README.md#cli-validation-scripts)
+for coverage and risks. `full` includes Finite Custom (16 cases on 34460A, 20 on
+34461A); `infinite-custom`, intentional `overflow`, and `worker-streaming` are
+separate suites. `worker-streaming` enables `--streaming --json` and checks the
+Active boundary during execution. Use `-PlanOnly` to inspect a live suite without
+opening VISA; live runs require an explicit resource and interactive confirmation.
+
 Run focused tests while iterating:
 
 ```powershell

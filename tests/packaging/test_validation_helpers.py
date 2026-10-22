@@ -74,7 +74,8 @@ def test_invoke_captured_command_drains_stdout_and_stderr_without_deadlock(
 
 
 
-def test_invoke_captured_command_memory_mode_keeps_output_off_disk(tmp_path: Path):
+@pytest.mark.parametrize("timeout_ms", [0, 5000, 200])
+def test_invoke_captured_command_memory_mode_keeps_output_off_disk(tmp_path: Path, timeout_ms):
     if POWERSHELL is None:
         pytest.skip("powershell.exe is required")
     if not PYTHON.exists():
@@ -82,6 +83,8 @@ def test_invoke_captured_command_memory_mode_keeps_output_off_disk(tmp_path: Pat
     stdout_path = tmp_path / "should_not_exist.stdout.txt"
     stderr_path = tmp_path / "should_not_exist.stderr.txt"
     child_code = 'import sys; print("test-json"); sys.stderr.write("test-error")'
+    if timeout_ms == 200:
+        child_code += '; import time; time.sleep(30)'
     command = (
         f"$RepoRoot = {ps_quote(REPO_ROOT)}; "
         f". {ps_quote(HELPER)}; "
@@ -89,15 +92,18 @@ def test_invoke_captured_command_memory_mode_keeps_output_off_disk(tmp_path: Pat
         "$r = Invoke-CapturedCommand -Name 'memory' "
         f"-FilePath {ps_quote(PYTHON)} -Arguments @('-c', {ps_quote(child_code)}) "
         f"-StdOutPath {ps_quote(stdout_path)} -StdErrPath {ps_quote(stderr_path)} "
-        "-CaptureInMemory; [Console]::Error.WriteLine('child output captured'); $r | ConvertTo-Json -Compress"
+        f"-CaptureInMemory -ProcessTimeoutMs {timeout_ms}; "
+        "[Console]::Error.WriteLine('child output captured'); $r | ConvertTo-Json -Compress"
     )
     result = run_powershell(command)
     assert result.returncode == 0, result.stderr + result.stdout
     payload = json.loads(result.stdout)
-    assert payload["success"] is True
+    assert payload["success"] is (timeout_ms != 200)
+    assert payload["timed_out"] is (timeout_ms == 200)
     assert payload["stdout"] is None and payload["stderr"] is None
-    assert payload["stdout_text"].strip() == "test-json"
-    assert payload["stderr_text"] == "test-error"
+    if timeout_ms != 200:
+        assert payload["stdout_text"].strip() == "test-json"
+        assert payload["stderr_text"] == "test-error"
     assert not stdout_path.exists()
     assert not stderr_path.exists()
 

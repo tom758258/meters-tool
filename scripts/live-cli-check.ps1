@@ -10,13 +10,11 @@ param(
     [Alias("Backend", "visa-library")]
     [string]$VisaLibrary,
 
-    [ValidateSet("minimal", "basic", "frequency-period", "external", "finite-custom", "stream", "overflow", "full")]
+    [ValidateSet("minimal", "basic", "frequency-period", "external", "finite-custom", "infinite-custom", "overflow", "worker-streaming", "full")]
     [string]$Suite = "minimal",
 
     [switch]$PlanOnly,
     [switch]$DebugArtifacts,
-
-    [switch]$AllowIntentionalOverflow,
 
     [switch]$SkipPreflight
 )
@@ -86,7 +84,8 @@ function New-LiveCase {
         [string]$ExpectedStopReason = "",
         [int]$MinCaptured = 0,
         [bool]$ExpectOverflow = $false,
-        [bool]$RequireContinuedDrain = $false
+        [bool]$RequireContinuedDrain = $false,
+        [bool]$Streaming = $false
     )
 
     return [pscustomobject]@{
@@ -105,6 +104,7 @@ function New-LiveCase {
         min_captured = $MinCaptured
         expect_overflow = $ExpectOverflow
         require_continued_drain = $RequireContinuedDrain
+        streaming = $Streaming
     }
 }
 
@@ -177,7 +177,7 @@ function Get-LiveCases {
     $external += New-LiveCase -Name "external_custom" -ModeArgs @("--trigger-mode", "external-custom", "--measurement", "current-dc", "--trigger-count", "1", "--sample-count", "1", "--trigger-timeout-ms", "10000") -ExpectedCaptured 1 -ExternalEdges 1 -TimeoutSeconds 60
 
     $finiteCustom = @()
-    $stream = @()
+    $infiniteCustom = @()
     $overflow = @()
     $customModes = @("immediate", "software")
     if ($ResolvedTarget -eq "keysight-34461a") { $customModes += "external" }
@@ -191,12 +191,12 @@ function Get-LiveCases {
                 -ModeArgs @($modeArgs + @("--trigger-count", "1", "--sample-count", "2")) `
                 -ExpectedCaptured 2 -SoftTriggerCount $softTriggers -ExternalEdges $externalEdges `
                 -ExpectedStopReason "completed"
-            $streamName = if ($handling -eq "monitor") { "stream_$mode" } else { "stream_${mode}_stop_on_overflow" }
+            $streamName = if ($handling -eq "monitor") { "infinite_custom_$mode" } else { "infinite_custom_${mode}_stop_on_overflow" }
             $streamTriggers = if ($mode -eq "software") { 2 } else { 0 }
             $streamEdges = if ($mode -eq "external") { 2 } else { 0 }
             $streamMinimum = if ($mode -eq "immediate") { 1 } else { 2 }
             $streamStop = if ($mode -eq "external") { 10 } else { 3 }
-            $stream += New-LiveCase -Name $streamName `
+            $infiniteCustom += New-LiveCase -Name $streamName `
                 -ModeArgs @($modeArgs + @("--trigger-count-infinite", "--sample-count", "1", "--allow-buffer-overflow-risk")) `
                 -ExpectedCaptured -1 -MinCaptured $streamMinimum -SoftTriggerCount $streamTriggers -ExternalEdges $streamEdges `
                 -PlannedStopAfterSeconds $streamStop -ExpectedStopReason "stop_requested"
@@ -223,13 +223,24 @@ function Get-LiveCases {
         "frequency-period" { return $frequencyPeriod }
         "external" { return $external }
         "finite-custom" { return $finiteCustom }
-        "stream" { return $stream }
+        "infinite-custom" { return $infiniteCustom }
         "overflow" { return $overflow }
+        "worker-streaming" {
+            $selected = @($basic | Where-Object { $_.name -in @(
+                "basic_immediate_current_dc", "basic_software_trigger", "basic_software_timer"
+            ) }) + @($finiteCustom + $infiniteCustom | Where-Object { $_.name -notlike '*stop_on_overflow' })
+            if ($ResolvedTarget -eq "keysight-34461a") { $selected += $external[0] }
+            foreach ($case in $selected) {
+                $case.name = "worker_streaming_" + $case.name
+                $case.streaming = $true
+            }
+            return $selected
+        }
         "full" {
             if ($ResolvedTarget -eq "keysight-34460a") {
-                return @($basic + $frequencyPeriod)
+                return @($basic + $frequencyPeriod + $finiteCustom)
             }
-            return @($basic + $frequencyPeriod + $external)
+            return @($basic + $frequencyPeriod + $external + $finiteCustom)
         }
     }
 }
@@ -258,6 +269,7 @@ function New-StartArgs {
     if (-not [string]::IsNullOrWhiteSpace($resolvedVisaLibrary)) {
         $args += @("--visa-library", $resolvedVisaLibrary)
     }
+    if ($Case.streaming) { $args += @("--streaming", "--json") }
     return $args + $Case.mode_args
 }
 
@@ -426,6 +438,268 @@ function New-ScpiProbeFailureCaseResult {
     }
 }
 
+function Add-StreamingObservation {
+    param([Parameter(Mandatory = $true)][hashtable]$State, [Parameter(Mandatory = $true)]$Event)
+
+    # Validate ordered stdout independently of non-atomic HTTP snapshots.
+    if ($null -eq $Event.PSObject.Properties['schema_version'] -or
+        $Event.schema_version -isnot [int] -or $Event.schema_version -ne 2 -or
+        $null -eq $Event.PSObject.Properties['event']) { throw 'Invalid streaming event envelope.' }
+    if ($Event.event -in @('ready', 'status', 'sample', 'summary')) {
+        if ($null -eq $Event.PSObject.Properties['run_id'] -or
+            $Event.run_id -isnot [string] -or [string]::IsNullOrWhiteSpace($Event.run_id)) {
+            throw 'Missing streaming run_id.'
+        }
+        if ($null -eq $State.run_id) { $State.run_id = $Event.run_id }
+        if ($Event.run_id -ne $State.run_id) { throw 'Streaming run_id mismatch.' }
+    }
+    if ($Event.event -in @('ready', 'status')) {
+        if ($null -eq $Event.PSObject.Properties['stream'] -or
+            $null -eq $Event.stream -or $Event.stream.lifecycle -ne 'run_bound') {
+            throw 'Missing run_bound stream declaration.'
+        }
+    }
+    switch ($Event.event) {
+        'ready' {
+            if ($State.ready -or $State.phase -ne 'waiting' -or
+                $null -ne $Event.stream.PSObject.Properties['state']) { throw 'Invalid streaming ready order.' }
+            $State.ready = $true
+        }
+        'status' {
+            $phase = $Event.stream.state
+            $ranks = @{ waiting = 0; active = 1; ended = 2 }
+            if ($phase -notin @('waiting', 'active', 'ended') -or
+                $ranks[$phase] -lt $ranks[$State.phase]) { throw 'Streaming state regressed or is invalid.' }
+            if ($phase -ne 'waiting' -and -not $State.ready) { throw 'Streaming transition before ready.' }
+            if ($phase -ne $State.phase) { $State.transitions.Add($phase) | Out-Null }
+            $State.phase = $phase
+            if ($phase -eq 'active') { $State.active = $true }
+            if ($null -ne $Event.PSObject.Properties['stopping'] -and $Event.stopping) { $State.stopping = $true }
+            if (($null -ne $Event.PSObject.Properties['fatal_error'] -and $Event.fatal_error) -or
+                ($null -ne $Event.PSObject.Properties['errors'] -and $Event.errors -gt 0)) {
+                throw 'Worker reported an acquisition failure.'
+            }
+        }
+        'sample' {
+            if ($State.phase -ne 'active') { throw 'Sample outside the Active interval.' }
+            $State.samples++
+            if ($Event.captured -ne $State.samples) { throw 'Streaming sample counter mismatch.' }
+        }
+        'summary' {
+            if ($State.phase -ne 'ended' -or $State.summary) { throw 'Missing Ended or duplicate Summary.' }
+            $State.summary = $true
+            if ($Event.captured -ne $State.samples) { throw 'Summary and JSONL sample count mismatch.' }
+        }
+        'error' { throw 'Worker emitted an error event.' }
+    }
+}
+
+function Invoke-StreamingClient {
+    param([string]$Command, [string]$Name, [int]$Port, [string]$OutDir)
+
+    # Client processes also have a deadline; an HTTP timeout alone is insufficient.
+    return Invoke-CapturedCommand -Name $Name -FilePath $Python `
+        -Arguments @('-m', 'meters_tool_cli', $Command, '--json', '--port', [string]$Port, '--timeout-ms', '1000') `
+        -StdOutPath (Join-Path $OutDir "$Name.json") -StdErrPath (Join-Path $OutDir "$Name.stderr.txt") `
+        -CaptureInMemory -ProcessTimeoutMs 5000
+}
+
+function Invoke-StreamingStartProcess {
+    param(
+        [Parameter(Mandatory = $true)]$Case,
+        [string[]]$Arguments, [string]$StdOutPath, [string]$StdErrPath,
+        [int]$Port, [string]$OutDir,
+        [int]$ActiveTimeoutMs = 15000, [int]$StopGracePeriodMs = 10000
+    )
+
+    $state = @{
+        run_id = $null; ready = $false; active = $false; stopping = $false; phase = 'waiting'
+        summary = $false; samples = 0; transitions = [System.Collections.Generic.List[string]]::new()
+    }
+    $lines = [System.Collections.Generic.List[string]]::new()
+    $failures = [System.Collections.Generic.List[string]]::new()
+    $clients = [System.Collections.Generic.List[object]]::new()
+    $statusChecked = $false
+    $httpEnded = $false
+    $triggerCount = 0
+    $externalPrompted = $false
+    $stopSent = $false
+    $forced = $false
+    $timedOut = $false
+    $eof = $false
+    $activeAt = $null
+    $nextTriggerAt = 0
+    $stopAt = $null
+    $exitAt = $null
+    $clock = [System.Diagnostics.Stopwatch]::StartNew()
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = $Python
+    $psi.WorkingDirectory = $RepoRoot
+    $psi.UseShellExecute = $false
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.Arguments = Join-ProcessArguments -Arguments $Arguments
+    $process = [System.Diagnostics.Process]::Start($psi)
+    $stderrTask = $process.StandardError.ReadToEndAsync()
+    $lineTask = $process.StandardOutput.ReadLineAsync()
+    try {
+        while ($true) {
+            # Drain complete lines before deciding whether a dependent trigger is safe.
+            $batch = 0
+            while (-not $eof -and $lineTask.IsCompleted -and $batch -lt 1000) {
+                $line = $lineTask.GetAwaiter().GetResult()
+                if ($null -eq $line) { $eof = $true; break }
+                $lines.Add($line) | Out-Null
+                try {
+                    if ([string]::IsNullOrWhiteSpace($line)) { throw 'Empty JSONL line.' }
+                    Add-StreamingObservation -State $state -Event ($line | ConvertFrom-Json -ErrorAction Stop)
+                } catch {
+                    if ($failures.Count -eq 0) { $failures.Add('Invalid or unsuccessful streaming JSONL event.') | Out-Null }
+                }
+                $lineTask = $process.StandardOutput.ReadLineAsync()
+                $batch++
+            }
+            $now = $clock.ElapsedMilliseconds
+            if ($state.active -and $null -eq $activeAt) { $activeAt = $now }
+            if ($process.HasExited) {
+                if ($eof) { break }
+                if ($null -eq $exitAt) { $exitAt = $now }
+                if ($now - $exitAt -ge 2000) { $failures.Add('Stdout EOF deadline exceeded.') | Out-Null; break }
+                Start-Sleep -Milliseconds 10
+                continue
+            }
+            if ($null -ne $stopAt -and $now - $stopAt -ge $StopGracePeriodMs) {
+                $forced = $true
+                $failures.Add('Stop grace period exceeded; cleanup unconfirmed.') | Out-Null
+                $process.Kill()
+                if (-not $process.WaitForExit(2000)) { break }
+                continue
+            }
+            if (-not $stopSent -and $now -ge $Case.timeout_seconds * 1000) {
+                $timedOut = $true
+                $failures.Add('Run deadline exceeded.') | Out-Null
+            } elseif (-not $stopSent -and -not $state.active -and $now -ge $ActiveTimeoutMs) {
+                $timedOut = $true
+                $failures.Add('Active deadline exceeded; dependent triggers were withheld.') | Out-Null
+            }
+            $plannedStop = $null -ne $activeAt -and $Case.planned_stop_after_seconds -gt 0 -and
+                $now - $activeAt -ge $Case.planned_stop_after_seconds * 1000
+            if (-not $stopSent -and ($failures.Count -gt 0 -or $plannedStop)) {
+                $stopSent = $true
+                $stopAt = $clock.ElapsedMilliseconds
+                $stop = Invoke-StreamingClient -Command 'stop' -Name "$($Case.name)_stop" -Port $Port -OutDir $OutDir
+                $clients.Add([pscustomobject]$stop) | Out-Null
+                $response = $stop.stdout_text | ConvertFrom-Json -ErrorAction Stop
+                if (-not $stop.success -or $response.event -ne 'stop' -or $response.status -ne 'accepted') {
+                    $failures.Add('HTTP Stop was not accepted.') | Out-Null
+                }
+                continue
+            }
+            $needsControl = $Case.soft_trigger_count -gt 0 -or $Case.external_edges -gt 0 -or $Case.planned_stop_after_seconds -gt 0
+            if (-not $stopSent -and $failures.Count -eq 0 -and $state.ready -and $state.active -and
+                $state.phase -ne 'ended' -and -not $state.stopping -and -not $httpEnded -and $needsControl) {
+                if (-not $statusChecked) {
+                    $status = Invoke-StreamingClient -Command 'status' -Name "$($Case.name)_live_soft_status" -Port $Port -OutDir $OutDir
+                    $clients.Add([pscustomobject]$status) | Out-Null
+                    $snapshot = $status.stdout_text | ConvertFrom-Json -ErrorAction Stop
+                    if (-not $status.success -or $snapshot.event -ne 'status' -or
+                        $snapshot.run_id -ne $state.run_id -or $snapshot.stream.lifecycle -ne 'run_bound' -or
+                        $snapshot.stream.state -notin @('waiting', 'active', 'ended') -or
+                        -not $snapshot.ok -or $snapshot.fatal_error -or $snapshot.errors -gt 0 -or $snapshot.stopping) {
+                        throw 'HTTP streaming status correlation failed.'
+                    }
+                    $httpEnded = $snapshot.stream.state -eq 'ended'
+                    $statusChecked = $true
+                    continue
+                }
+                if ($batch -eq 1000) { continue }
+                if ($Case.external_edges -gt 0 -and -not $externalPrompted) {
+                    Write-Host "Streaming Active confirmed: $($Case.name). Apply $($Case.external_edges) external trigger edge(s) now."
+                    $externalPrompted = $true
+                }
+                if ($triggerCount -lt $Case.soft_trigger_count -and $now -ge $nextTriggerAt) {
+                    $trigger = Invoke-StreamingClient -Command 'send-command' -Name "$($Case.name)_trigger_$($triggerCount + 1)" -Port $Port -OutDir $OutDir
+                    $clients.Add([pscustomobject]$trigger) | Out-Null
+                    $response = $trigger.stdout_text | ConvertFrom-Json -ErrorAction Stop
+                    if (-not $trigger.success -or $response.event -ne 'send-command' -or $response.status -ne 'accepted') {
+                        throw 'Software trigger was not accepted.'
+                    }
+                    $triggerCount++
+                    $nextTriggerAt = $clock.ElapsedMilliseconds + 250
+                }
+            }
+            Start-Sleep -Milliseconds 10
+        }
+    } catch {
+        $failures.Add('Streaming control or output observation failed.') | Out-Null
+    } finally {
+        # Unexpected exceptions still use cooperative Stop before forced termination.
+        if (-not $process.HasExited) {
+            if (-not $stopSent) {
+                $stopSent = $true
+                try {
+                    $clients.Add([pscustomobject](Invoke-StreamingClient -Command 'stop' -Name "$($Case.name)_cleanup_stop" -Port $Port -OutDir $OutDir)) | Out-Null
+                } catch { $failures.Add('Cleanup Stop failed.') | Out-Null }
+            }
+            $cleanupDeadline = $clock.ElapsedMilliseconds + $StopGracePeriodMs
+            while (-not $process.HasExited -and $clock.ElapsedMilliseconds -lt $cleanupDeadline) {
+                # Keep stdout flowing while Stop cleanup runs, including after client failures.
+                if ($eof -or -not $lineTask.IsCompleted) { Start-Sleep -Milliseconds 10; continue }
+                $line = $lineTask.GetAwaiter().GetResult()
+                if ($null -eq $line) { $eof = $true; continue }
+                $lines.Add($line) | Out-Null
+                try { Add-StreamingObservation -State $state -Event ($line | ConvertFrom-Json -ErrorAction Stop) }
+                catch { $failures.Add('Invalid or unsuccessful cleanup event.') | Out-Null }
+                $lineTask = $process.StandardOutput.ReadLineAsync()
+            }
+            if (-not $process.HasExited) {
+                $forced = $true
+                try { $process.Kill() }
+                catch { $failures.Add('Forced termination could not be confirmed.') | Out-Null }
+                [void]$process.WaitForExit(2000)
+            }
+        }
+        $tailDeadline = $clock.ElapsedMilliseconds + 2000
+        while (-not $eof -and $clock.ElapsedMilliseconds -lt $tailDeadline) {
+            if (-not $lineTask.IsCompleted) { Start-Sleep -Milliseconds 10; continue }
+            $line = $lineTask.GetAwaiter().GetResult()
+            if ($null -eq $line) { $eof = $true; break }
+            $lines.Add($line) | Out-Null
+            try { Add-StreamingObservation -State $state -Event ($line | ConvertFrom-Json -ErrorAction Stop) }
+            catch { $failures.Add('Invalid or unsuccessful tail event.') | Out-Null }
+            $lineTask = $process.StandardOutput.ReadLineAsync()
+        }
+        $stderrComplete = $stderrTask.Wait(2000)
+        Write-Utf8NoBomLines -LiteralPath $StdOutPath -Lines @($lines.ToArray())
+        Write-Utf8NoBomText -LiteralPath $StdErrPath -Text $(if ($stderrComplete) { $stderrTask.GetAwaiter().GetResult() } else { '' })
+    }
+    if (-not $state.ready -or -not $state.summary -or $state.phase -ne 'ended') { $failures.Add('Missing Ready, Ended or Summary.') | Out-Null }
+    if (($Case.expected_captured -ne 0 -or $Case.min_captured -gt 0) -and -not $state.active) { $failures.Add('Active was not observed.') | Out-Null }
+    if ($triggerCount -ne $Case.soft_trigger_count) { $failures.Add('Required software triggers were not sent.') | Out-Null }
+    if ($Case.external_edges -gt 0 -and -not $externalPrompted) { $failures.Add('External trigger gate was not released.') | Out-Null }
+    if ($Case.planned_stop_after_seconds -gt 0 -and -not $stopSent) { $failures.Add('Planned Stop was not sent.') | Out-Null }
+    if (-not $eof -or -not $stderrComplete) { $failures.Add('Output drain incomplete.') | Out-Null }
+    $exited = $process.HasExited
+    $exitCode = if ($exited) { $process.ExitCode } else { $null }
+    $process.Dispose()
+    return [ordered]@{
+        name = "$($Case.name)_live"; command = $Python; arguments = $Arguments
+        exit_code = $exitCode; duration_seconds = [math]::Round($clock.Elapsed.TotalSeconds, 3)
+        stdout = $StdOutPath; stderr = $StdErrPath; client_commands = @($clients.ToArray())
+        success = $exited -and $exitCode -eq $Case.expected_exit_code -and $failures.Count -eq 0 -and -not $forced
+        timed_out = $timedOut; forced_termination = $forced
+        cleanup_unconfirmed = $forced -or -not $exited -or -not $eof -or -not $stderrComplete
+        streaming_evidence = [ordered]@{
+            run_id = $state.run_id; ready = $state.ready; active = $state.active
+            transitions = @($state.transitions.ToArray()); sample_count = $state.samples
+            ended = $state.phase -eq 'ended'; summary = $state.summary; stdout_eof = $eof
+            http_status_checked = $statusChecked; software_triggers_sent = $triggerCount
+            external_prompt_after_active = $externalPrompted; stop_requested = $stopSent
+            failure_reasons = @($failures.ToArray())
+        }
+    }
+}
+
 function Invoke-LiveCase {
     param(
         [Parameter(Mandatory = $true)][object]$Case,
@@ -440,14 +714,22 @@ function Invoke-LiveCase {
         Write-Host ""
         Write-Host "External trigger case: $($Case.name)"
         Write-Host "Required external trigger edges: $($Case.external_edges)"
-        Write-Host "After pressing Enter, the logger will arm the instrument. Apply the trigger edge after the run starts."
+        if ($Case.streaming) {
+            Write-Host "Do not apply triggers until the Streaming Active prompt appears."
+        } else {
+            Write-Host "After pressing Enter, the logger will arm the instrument. Apply the trigger edge after the run starts."
+        }
         [void](Read-Host "Press Enter to start this external trigger case, or Ctrl+C to cancel")
     }
 
     $jsonl = Join-Path $CaseDir "live.jsonl"
     $stderr = Join-Path $CaseDir "live.stderr.txt"
     $args = New-StartArgs -Case $Case -CsvPath $CsvPath -Port $Port
-    $result = Invoke-CapturedStartProcess `
+    if ($Case.streaming) {
+        $result = Invoke-StreamingStartProcess -Case $Case -Arguments $args `
+            -StdOutPath $jsonl -StdErrPath $stderr -Port $Port -OutDir $CaseDir
+    } else {
+        $result = Invoke-CapturedStartProcess `
         -Name "$($Case.name)_live" `
         -Arguments $args `
         -StdOutPath $jsonl `
@@ -463,6 +745,7 @@ function Invoke-LiveCase {
         -PlannedStopAfterSeconds $Case.planned_stop_after_seconds `
         -ExpectedExitCode $Case.expected_exit_code `
         -CaptureClientCommandsInMemory:(-not $DebugArtifacts)
+    }
 
     $failureReasons = [System.Collections.Generic.List[string]]::new()
     $infinite = $Case.mode_args -contains "--trigger-count-infinite"
@@ -478,7 +761,11 @@ function Invoke-LiveCase {
     $errors = $null
     $events = @()
     if (Test-Path -LiteralPath $jsonl) {
-        $events = @(Read-JsonLines -Path $jsonl)
+        try { $events = @(Read-JsonLines -Path $jsonl) }
+        catch {
+            if (-not $Case.streaming) { throw }
+            $failureReasons.Add("Streaming JSONL could not be parsed") | Out-Null
+        }
     }
     $ready = @(Select-LastJsonEvent -Events $events -EventName "ready")
     $summary = @(Select-LastJsonEvent -Events $events -EventName "summary")
@@ -488,7 +775,7 @@ function Invoke-LiveCase {
     } elseif ($summary.Count -eq 1 -and $null -ne $summary[0].PSObject.Properties['run_id']) {
         $runId = $summary[0].run_id
     }
-    if ($Case.soft_trigger_count -gt 0 -or $Case.planned_stop_after_seconds -gt 0 -or $Case.expected_exit_code -ne 0) {
+    if ($Case.soft_trigger_count -gt 0 -or $Case.planned_stop_after_seconds -gt 0 -or $Case.expected_exit_code -ne 0 -or ($Case.streaming -and $Case.external_edges -gt 0)) {
         if ($ready.Count -ne 1) {
             $failureReasons.Add("ready event missing") | Out-Null
         }
@@ -496,8 +783,14 @@ function Invoke-LiveCase {
         if ($statusCommand.Count -ne 1) {
             $failureReasons.Add("status client command missing") | Out-Null
         } elseif ($ready.Count -eq 1) {
-            $statusText = if ($DebugArtifacts) { Get-Content -LiteralPath $statusCommand[0].stdout -Raw } else { $statusCommand[0].stdout_text }
-            $statusPayload = $statusText | ConvertFrom-Json -ErrorAction Stop
+            $statusText = if ($DebugArtifacts -and -not $Case.streaming) { Get-Content -LiteralPath $statusCommand[0].stdout -Raw } else { $statusCommand[0].stdout_text }
+            try { $statusPayload = $statusText | ConvertFrom-Json -ErrorAction Stop }
+            catch {
+                if (-not $Case.streaming) { throw }
+                $statusPayload = [pscustomobject]@{}
+                $failureReasons.Add('Streaming HTTP status could not be parsed') | Out-Null
+            }
+            if ($null -eq $statusPayload -and $Case.streaming) { $statusPayload = [pscustomobject]@{} }
             if ($null -eq $statusPayload.PSObject.Properties['run_id'] -or $statusPayload.run_id -ne $runId) {
                 $failureReasons.Add("status run_id mismatch") | Out-Null
             }
@@ -637,6 +930,17 @@ function Invoke-LiveCase {
             reason = "Runtime JSONL does not expose detected manufacturer, model or firmware."
         }
     }
+    if ($Case.streaming) {
+        $runtimeEvidence.streaming = $result.streaming_evidence
+        $runtimeEvidence.cleanup.process_exit_observed = ($null -ne $result.exit_code)
+        $runtimeEvidence.cleanup.forced_termination = $result.forced_termination
+        if ($cleanupResults.Count -eq 0 -or @($cleanupResults | Where-Object { $_.result -match 'failed|error' }).Count -gt 0) {
+            $result.cleanup_unconfirmed = $true
+        }
+        $runtimeEvidence.cleanup.unconfirmed = $result.cleanup_unconfirmed
+        foreach ($reason in $result.streaming_evidence.failure_reasons) { $failureReasons.Add($reason) | Out-Null }
+        if ($result.cleanup_unconfirmed) { $failureReasons.Add('Cleanup unconfirmed; operator must check the instrument before continuing.') | Out-Null }
+    }
     $rowCount = Test-CsvRowCount -Path $CsvPath
     if ($null -ne $captured -and $rowCount -ne $captured) {
         $failureReasons.Add("CSV row count mismatch: summary=$captured actual=$rowCount") | Out-Null
@@ -767,6 +1071,15 @@ function Write-LiveArtifacts {
         dry_runs = @($DryRunItems)
         scpi_diagnostics = @($ScpiDiagnosticItems)
         commands = @($CommandItems)
+    }
+    if ($Suite -eq 'worker-streaming') {
+        $report.not_run_cases = @($cases | Where-Object { $_.name -notin @($CaseItems | ForEach-Object { $_.name }) } | ForEach-Object { $_.name })
+        $report.unverified_observations = @(
+            [ordered]@{ name = 'raw_operation_condition'; status = 'not_verified'; evidence_needed = 'Non-interfering instrument I/O trace with raw replies.' },
+            [ordered]@{ name = 'query_trigger_overlap_and_latency'; status = 'not_verified'; evidence_needed = 'Correlated trigger and instrument I/O timestamps.' },
+            [ordered]@{ name = 'observation_query_timeout'; status = 'not_verified'; evidence_needed = 'Separately authorized, bounded hardware fault validation.' },
+            [ordered]@{ name = 'stop_before_active_race'; status = 'not_run'; evidence_needed = 'Separately controlled live race evidence; excluded from the routine suite.' }
+        )
     }
     if (-not [string]::IsNullOrWhiteSpace($FailureReason)) { $report.failure_reason = $FailureReason }
     if ($DebugArtifacts) { Write-JsonReport -LiteralPath $reportPath -Report $report -Depth 12 }
@@ -905,9 +1218,6 @@ $resolvedCliModel = Get-TargetCliModel -ResolvedTarget $resolvedTarget
 $resolvedConnection = Resolve-Connection -Value $Connection
 $resolvedVisaLibrary = if ([string]::IsNullOrWhiteSpace($VisaLibrary)) { $null } else { $VisaLibrary.Trim() }
 $cases = @(Get-LiveCases -SelectedSuite $Suite -ResolvedTarget $resolvedTarget)
-if ($Suite -eq "overflow" -and -not $PlanOnly -and -not $AllowIntentionalOverflow) {
-    Fail-Usage "The overflow suite requires -AllowIntentionalOverflow."
-}
 
 $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
 $runDir = Join-Path (Join-Path (Join-Path (Join-Path $LiveRoot $resolvedTarget) $resolvedConnection) $Suite) $timestamp
@@ -1076,6 +1386,9 @@ Write-Host "WARNING: Single-client instrument access required."
 Write-Host "Ensure no other Meters WebUI, CLI, logger, test process, or external VISA application"
 Write-Host "is using the same physical instrument during this live test."
 Write-Host "Concurrent control may interfere with SCPI command/response ordering or instrument state."
+if ($Suite -eq "overflow") {
+    Write-Host "WARNING: This suite intentionally causes Reading Memory Overflow and incomplete data."
+}
 [void](Read-Host "Press Enter to run suite '$Suite', or Ctrl+C to cancel")
 
 $liveExecuted = $true

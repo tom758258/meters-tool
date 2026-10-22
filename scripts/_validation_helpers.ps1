@@ -216,7 +216,8 @@ function Invoke-CapturedCommand {
         [Parameter(Mandatory = $true)][string]$StdOutPath,
         [Parameter(Mandatory = $true)][string]$StdErrPath,
         [string]$WorkingDirectory = $RepoRoot,
-        [switch]$CaptureInMemory
+        [switch]$CaptureInMemory,
+        [int]$ProcessTimeoutMs = 0
     )
 
     $psi = [System.Diagnostics.ProcessStartInfo]::new()
@@ -231,9 +232,20 @@ function Invoke-CapturedCommand {
     $process = [System.Diagnostics.Process]::Start($psi)
     $stdoutTask = $process.StandardOutput.ReadToEndAsync()
     $stderrTask = $process.StandardError.ReadToEndAsync()
-    $process.WaitForExit()
-    $stdout = $stdoutTask.GetAwaiter().GetResult()
-    $stderr = $stderrTask.GetAwaiter().GetResult()
+    $timedOut = $false
+    if ($ProcessTimeoutMs -gt 0) {
+        if (-not $process.WaitForExit($ProcessTimeoutMs)) {
+            $timedOut = $true
+            $process.Kill()
+            if (-not $process.WaitForExit(2000)) { throw 'Client process termination unconfirmed.' }
+        }
+        $outputComplete = $stdoutTask.Wait(2000) -and $stderrTask.Wait(2000)
+        if (-not $outputComplete) { $timedOut = $true }
+    } else {
+        $process.WaitForExit()
+    }
+    $stdout = if ($ProcessTimeoutMs -eq 0 -or $stdoutTask.IsCompleted) { $stdoutTask.GetAwaiter().GetResult() } else { '' }
+    $stderr = if ($ProcessTimeoutMs -eq 0 -or $stderrTask.IsCompleted) { $stderrTask.GetAwaiter().GetResult() } else { '' }
     $finishedAt = Get-Date
 
     if (-not $CaptureInMemory) {
@@ -251,7 +263,8 @@ function Invoke-CapturedCommand {
         stderr = if ($CaptureInMemory) { $null } else { $StdErrPath }
         stdout_text = if ($CaptureInMemory) { $stdout } else { $null }
         stderr_text = if ($CaptureInMemory) { $stderr } else { $null }
-        success = ($process.ExitCode -eq 0)
+        success = ($process.ExitCode -eq 0 -and -not $timedOut)
+        timed_out = $timedOut
     }
 }
 
