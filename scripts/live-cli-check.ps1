@@ -705,6 +705,35 @@ function Invoke-StreamingStartProcess {
     }
 }
 
+function Test-PyLanControlRenException {
+    param([Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$CleanupResults)
+
+    if ($resolvedTarget -ne 'keysight-34461a' -or $resolvedConnection -ne 'lan' -or
+        $resolvedVisaLibrary -ne '@py' -or $Suite -ne 'worker-streaming') { return $false }
+    foreach ($step in @('release_to_local', 'cleanup_release_to_local')) {
+        if (@($CleanupResults | Where-Object { $_.step -eq $step }).Count -eq 0) { return $false }
+    }
+
+    $release = 'visa_clear:ok, *CLS:ok, ABOR:ok, SYST:LOC:ok, '
+    $knownFailure = 'control_ren(6):failed:VisaIOError, control_ren(0):failed:VisaIOError'
+    $observedException = $false
+    foreach ($record in $CleanupResults) {
+        $prefix = $release
+        $suffix = ''
+        if ($record.step -eq 'cleanup_release_to_local') {
+            $prefix = 'cleanup_open:ok, ' + $release
+            $suffix = ', cleanup_close:ok, cleanup_rm_close:ok'
+        }
+        # Check every release record, including retries, without masking other failures.
+        if ($record.result -ceq ($prefix + $knownFailure + $suffix)) {
+            $observedException = $true
+        } elseif ($record.result -cne ($prefix + 'control_ren(6):ok' + $suffix)) {
+            return $false
+        }
+    }
+    return $observedException
+}
+
 function Invoke-LiveCase {
     param(
         [Parameter(Mandatory = $true)][object]$Case,
@@ -939,7 +968,12 @@ function Invoke-LiveCase {
         $runtimeEvidence.streaming = $result.streaming_evidence
         $runtimeEvidence.cleanup.process_exit_observed = ($null -ne $result.exit_code)
         $runtimeEvidence.cleanup.forced_termination = $result.forced_termination
-        if ($cleanupResults.Count -eq 0 -or @($cleanupResults | Where-Object { $_.result -match 'failed|error' }).Count -gt 0) {
+        $knownCleanupException = $result.success -and -not $result.timed_out -and
+            $result.exit_code -eq 0 -and -not $result.forced_termination -and
+            -not $result.cleanup_unconfirmed -and $result.streaming_evidence.stdout_eof -and
+            (Test-PyLanControlRenException -CleanupResults $cleanupResults)
+        if ($cleanupResults.Count -eq 0 -or
+            (-not $knownCleanupException -and @($cleanupResults | Where-Object { $_.result -match 'failed|error' }).Count -gt 0)) {
             $result.cleanup_unconfirmed = $true
         }
         $runtimeEvidence.cleanup.unconfirmed = $result.cleanup_unconfirmed
@@ -1170,6 +1204,17 @@ function Write-LiveArtifacts {
             $summaryLines += $line
         }
     }
+    $cleanupNote = $null
+    if ($Suite -eq 'worker-streaming') {
+        foreach ($result in $CaseItems) {
+            if (-not $result.runtime_evidence.cleanup.unconfirmed -and
+                (Test-PyLanControlRenException -CleanupResults $result.runtime_evidence.cleanup.results)) {
+                $cleanupNote = '- Note: Known @py LAN control_ren compatibility exception accepted; original failed:VisaIOError results retained. VISA error code and physical Local state are not independently verified.'
+                break
+            }
+        }
+    }
+    if ($cleanupNote) { $summaryLines += @('', $cleanupNote) }
     if ($DebugArtifacts) { Write-Utf8NoBomLines -LiteralPath $summaryPath -Lines $summaryLines }
 
     try {
@@ -1182,6 +1227,12 @@ function Write-LiveArtifacts {
             -Resource $Resource `
             -Connection $resolvedConnection `
             -MinimalArtifacts:(-not $DebugArtifacts))
+        if ($cleanupNote) {
+            $shareableSummary = Join-Path $shareableRoot 'summary.md'
+            Write-Utf8NoBomText -LiteralPath $shareableSummary -Text (
+                [System.IO.File]::ReadAllText($shareableSummary) + "`n" + $cleanupNote + "`n"
+            )
+        }
         foreach ($name in @("report.json", "summary.md")) {
             $file = Join-Path $shareableRoot $name
             if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or

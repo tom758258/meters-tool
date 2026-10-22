@@ -1581,8 +1581,9 @@ def streaming_test_script(tmp_path: Path, body: str) -> Path:
     source = (REPO_ROOT / "scripts/live-cli-check.ps1").read_text(encoding="utf-8")
     functions = []
     for name in ("New-LiveCase", "Get-LiveCases", "New-StartArgs", "Add-StreamingObservation",
-                 "Invoke-StreamingClient", "Invoke-StreamingStartProcess", "Invoke-LiveCase"):
-        match = re.search(rf"(?ms)^function {name} \{{.*?(?=^function |\Z)", source)
+                 "Invoke-StreamingClient", "Invoke-StreamingStartProcess", "Test-PyLanControlRenException",
+                 "Invoke-LiveCase", "Write-LiveArtifacts"):
+        match = re.search(rf"(?ms)^function {name} \{{.*?^\}}", source)
         assert match, name
         functions.append(match.group())
     script = tmp_path / "streaming.ps1"
@@ -1591,13 +1592,126 @@ def streaming_test_script(tmp_path: Path, body: str) -> Path:
         f"$RepoRoot = {ps_quote(REPO_ROOT)}\n$Python = {ps_quote(PYTHON)}\n"
         "$Resource = 'SIM::34461A'\n$DebugArtifacts = $false\n$resolvedVisaLibrary = ''\n"
         "$resolvedCliModel = '34461A'\n"
+        "$resolvedTarget = 'keysight-34461a'\n$resolvedConnection = 'usb'\n$Suite = 'worker-streaming'\n"
         f"$caseRoot = {ps_quote(tmp_path)}\n"
         f". {ps_quote(REPO_ROOT / 'scripts/_validation_helpers.ps1')}\n"
+        f". {ps_quote(REPO_ROOT / 'scripts/_artifact_privacy.ps1')}\n"
         "Add-RepoSrcToPythonPath -RepoRoot $RepoRoot\n"
         + "\n".join(functions) + "\n" + body,
         encoding="utf-8",
     )
     return script
+
+
+# Cover each scope gate and both release records; process lifecycle is tested below.
+@pytest.mark.parametrize("fault", [
+    "known", "system_ok", "system_error", "other_model", "usb", "other_suite",
+    "release_syst_loc", "close", "missing_release", "missing_cleanup", "ren6_only",
+])
+def test_worker_streaming_cleanup_compatibility_and_report(tmp_path: Path, fault):
+    release = (
+        "visa_clear:ok, *CLS:ok, ABOR:ok, SYST:LOC:ok, "
+        "control_ren(6):failed:VisaIOError, control_ren(0):failed:VisaIOError"
+    )
+    cleanup = [
+        {"step": "release_to_local", "result": release},
+        {"step": "cleanup_release_to_local", "result": (
+            f"cleanup_open:ok, {release}, cleanup_close:ok, cleanup_rm_close:ok"
+        )},
+    ]
+    if fault == "system_ok":
+        for record in cleanup:
+            record["result"] = record["result"].replace(
+                "control_ren(6):failed:VisaIOError, control_ren(0):failed:VisaIOError",
+                "control_ren(6):ok",
+            )
+    if fault == "release_syst_loc":
+        cleanup[0]["result"] = cleanup[0]["result"].replace(
+            "SYST:LOC:ok", "SYST:LOC:failed:VisaIOError"
+        )
+    if fault == "close":
+        cleanup[1]["result"] = cleanup[1]["result"].replace(
+            "cleanup_close:ok", "cleanup_close:failed:VisaIOError"
+        )
+    if fault in ("missing_release", "missing_cleanup"):
+        cleanup = [cleanup[1 if fault == "missing_release" else 0]]
+    if fault == "ren6_only":
+        cleanup[0]["result"] = cleanup[0]["result"].replace(
+            ", control_ren(0):failed:VisaIOError", ""
+        )
+    resource = "TCPIP0::synthetic-meter.invalid::inst0::INSTR"
+    value = "98765.4321"
+    events = [
+        {"event": "ready", "run_id": "test-run"},
+        {"event": "sample", "run_id": "test-run", "trigger_id": "test-trigger", "value": value},
+        {"event": "summary", "run_id": "test-run", "captured": 1, "errors": 0, "ok": True},
+        *[{"event": "message", "message": f"{r['step']}: {r['result']}"} for r in cleanup],
+    ]
+    (tmp_path / "events.jsonl").write_text(
+        "\n".join(json.dumps(e) for e in events), encoding="utf-8"
+    )
+    (tmp_path / "sample.csv").write_text(
+        "timestamp_utc_plus_8,measurement_type,value,unit,trigger_id,trigger_metadata,resource_id,status\n"
+        f"2026-01-01T00:00:00+08:00,current_dc,{value},A,test-trigger,private,{resource},ok\n",
+        encoding="utf-8",
+    )
+    script = streaming_test_script(tmp_path, f"$fault = '{fault}'\n$Resource = {ps_quote(resource)}\n" + r"""
+$resolvedTarget = if ($fault -eq 'other_model') { 'keysight-34460a' } else { 'keysight-34461a' }
+$resolvedConnection = if ($fault -eq 'usb') { 'usb' } else { 'lan' }
+$resolvedVisaLibrary = if ($fault -in @('system_ok', 'system_error')) { '@ivi' } else { '@py' }
+$Suite = if ($fault -eq 'other_suite') { 'minimal' } else { 'worker-streaming' }
+function Invoke-StreamingStartProcess {
+    param($Case, $Arguments, $StdOutPath, $StdErrPath, $Port, $OutDir)
+    Write-Utf8NoBomText -LiteralPath $StdOutPath -Text ([IO.File]::ReadAllText((Join-Path $caseRoot 'events.jsonl')))
+    Write-Utf8NoBomText -LiteralPath $StdErrPath -Text 'private stderr'
+    Write-Utf8NoBomText -LiteralPath $Arguments[[array]::IndexOf($Arguments, '--csv') + 1] -Text ([IO.File]::ReadAllText((Join-Path $caseRoot 'sample.csv')))
+    return [ordered]@{
+        name = $Case.name; command = $Python; arguments = $Arguments
+        stdout = $StdOutPath; stderr = $StdErrPath; client_commands = @(); duration_seconds = 0
+        exit_code = 0; success = $true; timed_out = $false
+        forced_termination = $false; cleanup_unconfirmed = $false
+        streaming_evidence = @{
+            active = $true; ended = $true; summary = $true; stdout_eof = $true
+            failure_reasons = @()
+        }
+    }
+}
+$runDir = $caseRoot
+$privateRoot = Join-Path $runDir 'private'
+$shareableRoot = Join-Path $runDir 'shareable'
+New-Item -ItemType Directory -Path $privateRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $shareableRoot -Force | Out-Null
+$reportPath = Join-Path $privateRoot 'report.json'
+$summaryPath = Join-Path $privateRoot 'summary.md'
+$cases = @(New-LiveCase -Name 'synthetic' -ModeArgs @('--trigger-mode', 'immediate') -ExpectedCaptured 1 -Streaming $true)
+$result = Invoke-LiveCase -Case $cases[0] -CaseDir $privateRoot -Port 0 -CsvPath (Join-Path $privateRoot 'live.csv')
+$written = Write-LiveArtifacts -Status $result.status -PlanOnlyRun $false -LiveExecuted $true -CaseItems @($result) -DryRunItems @() -ScpiDiagnosticItems @() -CommandItems @($result.command)
+if (-not $written) { throw 'Synthetic artifact generation failed.' }
+""")
+    result = run_wrapper_path(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    report_path = tmp_path / "shareable/report.json"
+    report = load_json(report_path)
+    case = report["cases"][0]
+    passed = fault in ("known", "system_ok")
+    assert case["status"] == report["status"] == ("passed" if passed else "failed"), case
+    evidence = case["runtime_evidence"]["cleanup"]
+    assert evidence == {
+        "status": "observed", "results": cleanup,
+        "close_status": "not_reported", "process_exit_observed": True,
+        "forced_termination": False, "unconfirmed": not passed,
+    }
+    summary = report_path.with_name("summary.md").read_text(encoding="utf-8")
+    assert ("control_ren" in summary) is (fault == "known")
+    if fault == "known":
+        assert "@py" in summary and "failed:VisaIOError" in summary
+    assert report["schema_version"] == "1.1" and report["redaction_applied"] is True
+    assert case["csv_validation"]["header_valid"] is True
+    files = {p.relative_to(tmp_path).as_posix() for p in tmp_path.rglob("*") if p.is_file()}
+    assert files == {"shareable/report.json", "shareable/summary.md"}
+    safe_text = report_path.read_text(encoding="utf-8") + summary
+    for forbidden in (resource, "synthetic-meter.invalid", str(tmp_path), value, "private stderr"):
+        assert forbidden not in safe_text
 
 
 @pytest.mark.parametrize("name", ["basic_immediate_current_dc", "basic_software_timer",
