@@ -1676,7 +1676,8 @@ Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'results.json') -Text ($re
 
 
 @pytest.mark.parametrize("fault", ["missing_active", "forced", "malformed", "wrong_http_run",
-                                  "http_failure", "http_stopping", "large_tail", "stopped_before_active",
+                                  "http_failure", "http_stopping", "http_waiting", "http_ended",
+                                  "http_invalid", "large_tail", "stopped_before_active",
                                   "missing_ended", "missing_summary", "exit_failure", "external"])
 def test_worker_streaming_controlled_process_failures_and_external_gate(tmp_path: Path, fault):
     # The child never imports VISA. File signals stand in for control responses;
@@ -1700,7 +1701,8 @@ if fault not in ("missing_active", "stopped_before_active"):
     state("active")
 if fault == "forced":
     time.sleep(30)
-elif fault in ("missing_active", "malformed", "wrong_http_run", "http_failure", "http_stopping", "large_tail"):
+elif fault in ("missing_active", "malformed", "wrong_http_run", "http_failure", "http_stopping",
+               "http_waiting", "http_ended", "http_invalid", "large_tail"):
     deadline = time.monotonic() + 10
     while not (root / "stop").exists() and time.monotonic() < deadline:
         time.sleep(0.01)
@@ -1729,15 +1731,20 @@ function Invoke-StreamingClient {
     if ($fault -eq 'wrong_http_run') { $payload.run_id = 'other-run' }
     if ($fault -in @('http_failure', 'large_tail')) { $payload.ok = $false; $payload.fatal_error = 'test failure' }
     if ($fault -eq 'http_stopping') { $payload.stopping = $true }
+    if ($fault -eq 'http_waiting') { $payload.stream.state = 'waiting' }
+    if ($fault -eq 'http_ended') { $payload.stream.state = 'ended' }
+    if ($fault -eq 'http_invalid') { $payload.stream.state = 'invalid' }
     return @{ name = $Name; success = $true; stdout_text = ($payload | ConvertTo-Json -Compress -Depth 5) }
 }
-$case = New-LiveCase -Name 'controlled' -ModeArgs @('--trigger-mode', 'software') -ExpectedCaptured 1 -SoftTriggerCount 1 -Streaming $true -TimeoutSeconds 1
+$case = New-LiveCase -Name 'controlled' -ModeArgs @('--trigger-mode', 'software') -ExpectedCaptured 1 -SoftTriggerCount 1 -Streaming $true -TimeoutSeconds 3
 if ($fault -eq 'external') { $case.soft_trigger_count = 0; $case.external_edges = 1 }
+if ($fault -in @('http_waiting', 'http_ended', 'http_invalid', 'http_stopping')) { $case.external_edges = 1 }
 if ($fault -eq 'stopped_before_active') { $case.soft_trigger_count = 0; $case.expected_captured = 0 }
 $graceMs = if ($fault -eq 'large_tail') { 5000 } else { 300 }
+$activeMs = if ($fault -eq 'missing_active') { 300 } else { 2000 }
 $result = Invoke-StreamingStartProcess -Case $case -Arguments @('-u', (Join-Path $caseRoot 'worker.py'), $fault, $caseRoot) `
     -StdOutPath (Join-Path $caseRoot 'live.jsonl') -StdErrPath (Join-Path $caseRoot 'live.stderr.txt') `
-    -Port 0 -OutDir $caseRoot -ActiveTimeoutMs 300 -StopGracePeriodMs $graceMs
+    -Port 0 -OutDir $caseRoot -ActiveTimeoutMs $activeMs -StopGracePeriodMs $graceMs
 Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'result.json') -Text ($result | ConvertTo-Json -Depth 20)
 """)
     result = run_wrapper_path(script)
@@ -1745,12 +1752,20 @@ Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'result.json') -Text ($res
     case = load_json(tmp_path / "result.json")
     assert case["success"] is (fault in ("external", "stopped_before_active")), case
     evidence = case["streaming_evidence"]
-    if fault in ("missing_active", "malformed", "wrong_http_run", "http_failure", "http_stopping", "large_tail"):
+    if fault in ("wrong_http_run", "http_failure", "http_stopping", "http_waiting",
+                 "http_ended", "http_invalid", "large_tail"):
+        assert any(command["name"] == "controlled_live_soft_status" for command in case["client_commands"])
+    if fault in ("missing_active", "malformed", "wrong_http_run", "http_failure", "http_stopping",
+                 "http_waiting", "http_ended", "http_invalid", "large_tail"):
         assert evidence["software_triggers_sent"] == 0
         assert evidence["stop_requested"]
         assert (tmp_path / "stop").exists()
         assert "cleanup tail" in (tmp_path / "live.jsonl").read_text(encoding="utf-8")
         assert not case["forced_termination"]
+    if fault in ("http_waiting", "http_ended", "http_invalid", "http_stopping"):
+        assert not evidence["external_prompt_after_active"]
+        assert "external trigger edge(s) now" not in result.stdout
+        assert evidence["http_status_checked"] is (fault == "http_ended")
     if fault == "missing_active":
         assert case["timed_out"] and not case["forced_termination"]
     if fault == "forced":
@@ -1763,3 +1778,87 @@ Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'result.json') -Text ($res
         assert not evidence["active"] and evidence["sample_count"] == 0
         assert evidence["ended"] and evidence["summary"] and evidence["stdout_eof"]
         assert case["exit_code"] == 0
+
+
+@pytest.mark.parametrize("fault", ["slow_stop", "stop_failure", "stop_timeout"])
+def test_worker_streaming_controlled_stop_client_and_cleanup_deadlines(tmp_path: Path, fault):
+    # A separate Stop client delivers its request late; only then can cleanup start.
+    child = tmp_path / "worker_client.py"
+    child.write_text(r'''
+import json
+from pathlib import Path
+import sys
+import time
+
+role, fault, root = sys.argv[1], sys.argv[2], Path(sys.argv[3])
+if role == "client":
+    (root / "stop-requested").write_text("stop", encoding="utf-8")
+    time.sleep(30 if fault == "stop_timeout" else 1.5)
+    (root / "stop-delivered").write_text("stop", encoding="utf-8")
+    print(json.dumps(dict(event="stop", status="accepted" if fault == "slow_stop" else "rejected")))
+    sys.exit(0 if fault == "slow_stop" else 1)
+
+def emit(event, **fields):
+    print(json.dumps(dict(schema_version=2, run_id="test-run", event=event, **fields)), flush=True)
+
+emit("ready", stream=dict(lifecycle="run_bound"))
+emit("status", stream=dict(lifecycle="run_bound", state="active"))
+if fault != "slow_stop":
+    time.sleep(30)
+else:
+    deadline = time.monotonic() + 10
+    while not (root / "stop-delivered").exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    time.sleep(0.3)
+emit("sample", captured=1)
+emit("status", stream=dict(lifecycle="run_bound", state="ended"))
+emit("summary", captured=1)
+emit("message", message="cleanup tail")
+print("cleanup stderr", file=sys.stderr, flush=True)
+''', encoding="utf-8")
+    script = streaming_test_script(tmp_path, f"$fault = '{fault}'\n" + r"""
+function Invoke-StreamingClient {
+    param($Command, $Name, $Port, $OutDir)
+    if ($Command -eq 'stop') {
+        $clientTimeout = if ($fault -eq 'stop_timeout') { 1000 } else { 5000 }
+        return Invoke-CapturedCommand -Name $Name -FilePath $Python `
+            -Arguments @('-u', (Join-Path $caseRoot 'worker_client.py'), 'client', $fault, $caseRoot) `
+            -StdOutPath (Join-Path $caseRoot 'client.json') -StdErrPath (Join-Path $caseRoot 'client.stderr.txt') `
+            -CaptureInMemory -ProcessTimeoutMs $clientTimeout
+    }
+    $payload = @{ event = 'status'; run_id = 'test-run'; ok = $true
+        fatal_error = $null; errors = 0; stopping = $false
+        stream = @{ lifecycle = 'run_bound'; state = 'active' } }
+    return @{ name = $Name; success = $true; stdout_text = ($payload | ConvertTo-Json -Compress -Depth 5) }
+}
+$case = New-LiveCase -Name 'controlled' -ModeArgs @('--trigger-mode', 'immediate-custom') `
+    -ExpectedCaptured 1 -Streaming $true -PlannedStopAfterSeconds 1 -TimeoutSeconds 5
+$result = Invoke-StreamingStartProcess -Case $case `
+    -Arguments @('-u', (Join-Path $caseRoot 'worker_client.py'), 'worker', $fault, $caseRoot) `
+    -StdOutPath (Join-Path $caseRoot 'live.jsonl') -StdErrPath (Join-Path $caseRoot 'live.stderr.txt') `
+    -Port 0 -OutDir $caseRoot -StopGracePeriodMs 1000
+Write-Utf8NoBomText -LiteralPath (Join-Path $caseRoot 'result.json') -Text ($result | ConvertTo-Json -Depth 20)
+""")
+    result = run_wrapper_path(script)
+    assert result.returncode == 0, result.stdout + result.stderr
+    case = load_json(tmp_path / "result.json")
+    evidence = case["streaming_evidence"]
+    assert evidence["active"] and evidence["http_status_checked"] and evidence["stop_requested"]
+    assert (tmp_path / "stop-requested").exists()
+    stops = [command for command in case["client_commands"] if command["name"] == "controlled_stop"]
+    assert len(stops) == 1
+    stop = stops[0]
+    assert stop["timed_out"] is (fault == "stop_timeout")
+    assert case["duration_seconds"] < 10, case
+    assert evidence["stdout_eof"]
+    if fault == "slow_stop":
+        assert stop["success"] and stop["duration_seconds"] >= 1.5
+        assert case["success"] and not case["forced_termination"] and not case["cleanup_unconfirmed"], case
+        assert evidence["ended"] and evidence["summary"] and evidence["sample_count"] == 1
+        assert case["exit_code"] == 0
+        assert "cleanup tail" in (tmp_path / "live.jsonl").read_text(encoding="utf-8")
+        assert "cleanup stderr" in (tmp_path / "live.stderr.txt").read_text(encoding="utf-8")
+    else:
+        assert not stop["success"] and not case["success"]
+        assert case["forced_termination"] and case["cleanup_unconfirmed"]
+        assert case["duration_seconds"] >= stop["duration_seconds"] + 1

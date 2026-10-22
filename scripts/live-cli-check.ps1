@@ -586,8 +586,12 @@ function Invoke-StreamingStartProcess {
                 $now - $activeAt -ge $Case.planned_stop_after_seconds * 1000
             if (-not $stopSent -and ($failures.Count -gt 0 -or $plannedStop)) {
                 $stopSent = $true
-                $stopAt = $clock.ElapsedMilliseconds
-                $stop = Invoke-StreamingClient -Command 'stop' -Name "$($Case.name)_stop" -Port $Port -OutDir $OutDir
+                try {
+                    $stop = Invoke-StreamingClient -Command 'stop' -Name "$($Case.name)_stop" -Port $Port -OutDir $OutDir
+                } finally {
+                    # The bounded Stop client does not consume the worker's cleanup grace.
+                    $stopAt = $clock.ElapsedMilliseconds
+                }
                 $clients.Add([pscustomobject]$stop) | Out-Null
                 $response = $stop.stdout_text | ConvertFrom-Json -ErrorAction Stop
                 if (-not $stop.success -or $response.event -ne 'stop' -or $response.status -ne 'accepted') {
@@ -604,7 +608,7 @@ function Invoke-StreamingStartProcess {
                     $snapshot = $status.stdout_text | ConvertFrom-Json -ErrorAction Stop
                     if (-not $status.success -or $snapshot.event -ne 'status' -or
                         $snapshot.run_id -ne $state.run_id -or $snapshot.stream.lifecycle -ne 'run_bound' -or
-                        $snapshot.stream.state -notin @('waiting', 'active', 'ended') -or
+                        $snapshot.stream.state -notin @('active', 'ended') -or
                         -not $snapshot.ok -or $snapshot.fatal_error -or $snapshot.errors -gt 0 -or $snapshot.stopping) {
                         throw 'HTTP streaming status correlation failed.'
                     }
@@ -640,8 +644,9 @@ function Invoke-StreamingStartProcess {
                 try {
                     $clients.Add([pscustomobject](Invoke-StreamingClient -Command 'stop' -Name "$($Case.name)_cleanup_stop" -Port $Port -OutDir $OutDir)) | Out-Null
                 } catch { $failures.Add('Cleanup Stop failed.') | Out-Null }
+                finally { $stopAt = $clock.ElapsedMilliseconds }
             }
-            $cleanupDeadline = $clock.ElapsedMilliseconds + $StopGracePeriodMs
+            $cleanupDeadline = $stopAt + $StopGracePeriodMs
             while (-not $process.HasExited -and $clock.ElapsedMilliseconds -lt $cleanupDeadline) {
                 # Keep stdout flowing while Stop cleanup runs, including after client failures.
                 if ($eof -or -not $lineTask.IsCompleted) { Start-Sleep -Milliseconds 10; continue }
