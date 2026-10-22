@@ -972,7 +972,8 @@ function Invoke-LiveCase {
             $result.exit_code -eq 0 -and -not $result.forced_termination -and
             -not $result.cleanup_unconfirmed -and $result.streaming_evidence.stdout_eof -and
             (Test-PyLanControlRenException -CleanupResults $cleanupResults)
-        if ($cleanupResults.Count -eq 0 -or
+        $cleanupSteps = @($cleanupResults | ForEach-Object { $_.step })
+        if ('release_to_local' -notin $cleanupSteps -or 'cleanup_release_to_local' -notin $cleanupSteps -or
             (-not $knownCleanupException -and @($cleanupResults | Where-Object { $_.result -match 'failed|error' }).Count -gt 0)) {
             $result.cleanup_unconfirmed = $true
         }

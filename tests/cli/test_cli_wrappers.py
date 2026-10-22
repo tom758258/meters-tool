@@ -1607,6 +1607,7 @@ def streaming_test_script(tmp_path: Path, body: str) -> Path:
 @pytest.mark.parametrize("fault", [
     "known", "system_ok", "system_error", "other_model", "usb", "other_suite",
     "release_syst_loc", "close", "missing_release", "missing_cleanup", "ren6_only",
+    "normal_missing_release", "normal_missing_cleanup",
 ])
 def test_worker_streaming_cleanup_compatibility_and_report(tmp_path: Path, fault):
     release = (
@@ -1619,7 +1620,7 @@ def test_worker_streaming_cleanup_compatibility_and_report(tmp_path: Path, fault
             f"cleanup_open:ok, {release}, cleanup_close:ok, cleanup_rm_close:ok"
         )},
     ]
-    if fault == "system_ok":
+    if fault in ("system_ok", "normal_missing_release", "normal_missing_cleanup"):
         for record in cleanup:
             record["result"] = record["result"].replace(
                 "control_ren(6):failed:VisaIOError, control_ren(0):failed:VisaIOError",
@@ -1633,8 +1634,10 @@ def test_worker_streaming_cleanup_compatibility_and_report(tmp_path: Path, fault
         cleanup[1]["result"] = cleanup[1]["result"].replace(
             "cleanup_close:ok", "cleanup_close:failed:VisaIOError"
         )
-    if fault in ("missing_release", "missing_cleanup"):
-        cleanup = [cleanup[1 if fault == "missing_release" else 0]]
+    if fault in ("missing_release", "missing_cleanup", "normal_missing_release", "normal_missing_cleanup"):
+        cleanup = [cleanup[1 if fault in ("missing_release", "normal_missing_release") else 0]]
+    if fault in ("normal_missing_release", "normal_missing_cleanup"):
+        assert all(not re.search(r"failed|error", record["result"]) for record in cleanup)
     if fault == "ren6_only":
         cleanup[0]["result"] = cleanup[0]["result"].replace(
             ", control_ren(0):failed:VisaIOError", ""
@@ -1658,7 +1661,7 @@ def test_worker_streaming_cleanup_compatibility_and_report(tmp_path: Path, fault
     script = streaming_test_script(tmp_path, f"$fault = '{fault}'\n$Resource = {ps_quote(resource)}\n" + r"""
 $resolvedTarget = if ($fault -eq 'other_model') { 'keysight-34460a' } else { 'keysight-34461a' }
 $resolvedConnection = if ($fault -eq 'usb') { 'usb' } else { 'lan' }
-$resolvedVisaLibrary = if ($fault -in @('system_ok', 'system_error')) { '@ivi' } else { '@py' }
+$resolvedVisaLibrary = if ($fault -in @('system_ok', 'system_error', 'normal_missing_release', 'normal_missing_cleanup')) { '@ivi' } else { '@py' }
 $Suite = if ($fault -eq 'other_suite') { 'minimal' } else { 'worker-streaming' }
 function Invoke-StreamingStartProcess {
     param($Case, $Arguments, $StdOutPath, $StdErrPath, $Port, $OutDir)
@@ -1695,6 +1698,9 @@ if (-not $written) { throw 'Synthetic artifact generation failed.' }
     case = report["cases"][0]
     passed = fault in ("known", "system_ok")
     assert case["status"] == report["status"] == ("passed" if passed else "failed"), case
+    if fault in ("normal_missing_release", "normal_missing_cleanup"):
+        assert case["command"]["cleanup_unconfirmed"] is True
+        assert any("Cleanup unconfirmed" in reason for reason in case["failure_reasons"])
     evidence = case["runtime_evidence"]["cleanup"]
     assert evidence == {
         "status": "observed", "results": cleanup,
