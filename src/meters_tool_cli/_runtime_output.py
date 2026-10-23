@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from meters_tool_core import StartPlan, StartRunEvent
 from meters_tool_core.command import common_error
 
-from ._constants import WORKER_SCHEMA_VERSION, WORKER_SCHEMA_VERSION
+from ._constants import CLI_EVENT_SCHEMA_VERSION, WORKER_SCHEMA_VERSION
 
 
 class CliEventEmitter:

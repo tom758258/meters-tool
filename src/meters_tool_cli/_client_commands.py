@@ -393,7 +393,7 @@ def cmd_send_command(
                 if isinstance(worker_error, dict):
                     payload["error"] = worker_error.get("code")
                     payload["worker_error"] = worker_error
-                    payload["message"] = worker_error.get("message", message)
+                    payload["message"] = worker_error.get("message", "command request failed")
             print(json.dumps(payload, sort_keys=True))
         else:
             print(message, file=sys.stderr)
