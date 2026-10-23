@@ -529,6 +529,24 @@ def cmd_send_command(
     return 0
 
 
+def _read_stop_response(response: Any, http_status: int) -> dict[str, object]:
+    try:
+        payload = json.loads(response.read().decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CommandResponsePayloadError("stop endpoint returned invalid JSON", http_status) from exc
+    if (
+        not isinstance(payload, dict)
+        or type(payload.get("schema_version")) is not int
+        or payload["schema_version"] != WORKER_SCHEMA_VERSION
+        or not isinstance(payload.get("run_id"), str)
+        or not payload["run_id"]
+        or payload.get("status") != "accepted"
+        or payload.get("error") is not None
+    ):
+        raise CommandResponsePayloadError("stop endpoint returned invalid v3 acknowledgement", http_status)
+    return payload
+
+
 def cmd_stop(
     port: int,
     output_format: str = "text",
@@ -548,6 +566,9 @@ def cmd_stop(
     started_at = time.monotonic()
     try:
         with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
+            _read_stop_response(response, response.status)
+            if response.status not in {200, 202}:
+                raise CommandResponsePayloadError("stop endpoint returned unexpected HTTP status", response.status)
             elapsed_ms = int((time.monotonic() - started_at) * 1000)
             if output_format == "json":
                 print(
@@ -575,7 +596,7 @@ def cmd_stop(
                 )
             else:
                 print(f"stop accepted: {response.status}")
-    except URLError as exc:
+    except (URLError, CommandResponsePayloadError) as exc:
         elapsed_ms = int((time.monotonic() - started_at) * 1000)
         reason = getattr(exc, "reason", None)
         winerror = getattr(reason, "winerror", None)
