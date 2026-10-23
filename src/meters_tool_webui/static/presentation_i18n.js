@@ -138,6 +138,61 @@ export function latestStatusPresentation(value) {
   if (csvPath) {
     return keyedPresentation("status.csv_output_path", csvPath.groups);
   }
+  // Preserve diagnostic suffixes verbatim, including line breaks and whitespace.
+  const pollTimeout = text.match(
+    /^hardware status poll timeout warning (?<diagnostic>count=\d+ type=[A-Za-z_][A-Za-z0-9_]*)$/
+  );
+  if (pollTimeout && pollTimeout[0] === text) {
+    return keyedPresentation("status.hardware_status_poll_timeout_warning", pollTimeout.groups);
+  }
+  const pollingDegraded = text.match(
+    /^hardware status polling degraded (?<diagnostic>count=\d+ errors=\d+ type=[A-Za-z_][A-Za-z0-9_]*)$/
+  );
+  if (pollingDegraded && pollingDegraded[0] === text) {
+    return keyedPresentation("status.hardware_status_polling_degraded", pollingDegraded.groups);
+  }
+  const triggerWaitError = text.match(
+    /^hardware trigger wait error (?<diagnostic>count=\d+ type=[A-Za-z_][A-Za-z0-9_]*: [\s\S]*)$/
+  );
+  if (triggerWaitError) {
+    return keyedPresentation("status.hardware_trigger_wait_error", triggerWaitError.groups);
+  }
+  const overflowFailed = text.match(
+    /^overflow monitoring failed (?<diagnostic>type=[A-Za-z_][A-Za-z0-9_]*: [\s\S]*)$/
+  );
+  if (overflowFailed) {
+    return keyedPresentation("status.overflow_monitoring_failed", overflowFailed.groups);
+  }
+  const completionFailed = text.match(
+    /^completion verification failed (?<diagnostic>type=[A-Za-z_][A-Za-z0-9_]*: [\s\S]*)$/
+  );
+  if (completionFailed) {
+    return keyedPresentation("status.completion_verification_failed", completionFailed.groups);
+  }
+  const finalDrainFailed = text.match(
+    /^final drain failed (?<diagnostic>type=[A-Za-z_][A-Za-z0-9_]*: [\s\S]*)$/
+  );
+  if (finalDrainFailed) {
+    return keyedPresentation("status.final_drain_failed", finalDrainFailed.groups);
+  }
+  const captureError = text.match(
+    /^capture error (?<diagnostic>count=\d+ scpi_error=[\s\S]*)$/
+  );
+  if (captureError) {
+    return keyedPresentation("status.capture_error", captureError.groups);
+  }
+  const bufferedCaptureError = text.match(
+    /^buffered capture error (?<diagnostic>count=\d+ scpi_error=[\s\S]*)$/
+  );
+  if (bufferedCaptureError) {
+    return keyedPresentation("status.buffered_capture_error", bufferedCaptureError.groups);
+  }
+  const triggerReadinessError = text.match(
+    /^software trigger readiness error (?<diagnostic>count=\d+ scpi_error=[\s\S]*)$/
+  );
+  if (triggerReadinessError) {
+    return keyedPresentation("status.software_trigger_readiness_error", triggerReadinessError.groups);
+  }
   return rawPresentation(value);
 }
 

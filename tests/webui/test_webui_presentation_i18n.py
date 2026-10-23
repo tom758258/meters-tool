@@ -92,12 +92,44 @@ for (const locale of ["en", "zh-TW"]) {
   translator.setLocale(locale);
   assert.ok(translator.t(csvPath.key, csvPath.params).includes(path));
 }
+// Only the known explanation changes; the complete diagnostic suffix stays raw.
+for (const [prefix, diagnostic] of [
+  ["hardware status poll timeout warning", "count=5 type=TimeoutError"],
+  ["hardware status polling degraded", "count=25 errors=1 type=VisaIOError"],
+  ["hardware trigger wait error", "count=2 type=VisaIOError: VI_ERROR_TMO (-1073807339): READ?\r\nRaw {count} <img src=x onerror=alert(1)>  "],
+  ["overflow monitoring failed", "type=TimeoutError: "],
+  ["buffered capture error", "count=2 scpi_error=-113,\"Undefined header\"; VISA FETC?\nRaw {diagnostic} <b>detail</b>  "],
+]) {
+  const raw = `${prefix} ${diagnostic}`;
+  const mapped = presentation.latestStatusPresentation(raw);
+  assert.equal(mapped.kind, "translated", raw);
+  assert.deepEqual({ ...mapped.params }, { diagnostic });
+  translator.setLocale("en");
+  assert.equal(translator.t(mapped.key, mapped.params), raw[0].toUpperCase() + raw.slice(1));
+  translator.setLocale("zh-TW");
+  const chinese = translator.t(mapped.key, mapped.params);
+  assert.match(chinese.slice(0, -diagnostic.length), /\p{Script=Han}/u);
+  assert.ok(chinese.endsWith(` ${diagnostic}`));
+  assert.deepEqual(
+    presentation.latestStatusPresentation(`vendor ${raw}`),
+    { kind: "raw", text: `vendor ${raw}` }
+  );
+}
 for (const raw of [
   "captured=7 1.25 V",
   "software timer enabled interval_s=0.5 ms",
   "hardware trigger configured slope=VENDOR delay_s=0.0",
   "release_to_local: SYST:LOC:failed vendor detail",
-  "overflow monitoring failed type=VisaIOError: raw detail",
+  "vendor overflow monitoring failed type=VisaIOError: raw detail",
+  "overflow monitoring failed type=VisaIOError",
+  "overflow monitoring failed Type=VisaIOError: raw detail",
+  "hardware status poll timeout warning count=5",
+  "hardware status poll timeout warning count=five type=TimeoutError",
+  "hardware status poll timeout warning count=5 type=TimeoutError extra",
+  "hardware status poll timeout warning count=5 type=TimeoutError\n",
+  "hardware status polling degraded errors=1 count=25 type=TimeoutError",
+  "capture error count=1",
+  "capture error count=1 scpi_error",
 ]) {
   assert.deepEqual(presentation.latestStatusPresentation(raw), { kind: "raw", text: raw });
 }
@@ -538,8 +570,8 @@ const lifecycle = {
 const messages = [
   "recording started",
   "software timer enabled interval_s=0.125",
-  "main cleanup starting",
-  "waiting for measurement worker to stop",
+  "hardware status poll timeout warning count=5 type=TimeoutError",
+  "buffered capture error count=2 scpi_error=-113,\"Undefined header\"; <img src=x onerror=alert(1)>",
   "unknown diagnostic: SCPI READ? VISA CODE_X",
 ];
 for (const latest_status of messages) status.renderStatus({ ...lifecycle, latest_status });
@@ -562,6 +594,9 @@ for (const locale of ["en", "zh-TW", "en"]) {
     assert.equal(log.at(-1), messages.at(-1));
     assert.notDeepEqual(log, englishLog);
   }
+  assert.ok(log[2].endsWith("count=5 type=TimeoutError"));
+  assert.ok(log[3].endsWith('count=2 scpi_error=-113,"Undefined header"; <img src=x onerror=alert(1)>'));
+  assert.equal(latestLines()[3].children.length, 0);
   assert.equal(element("#fatal-error").textContent, lifecycle.fatal_error);
   assert.equal(element("#cleanup-status").textContent, lifecycle.cleanup_status);
   assert.equal(element("#raw-status").textContent, JSON.stringify(finalSnapshot, null, 2));
