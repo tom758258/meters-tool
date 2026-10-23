@@ -301,6 +301,15 @@ The Windows ZIP contains one `meters-tool-<version>` application directory with
 shared `_internal`, and the Electron runtime. Extract it once, then launch the
 Desktop, browser WebUI, or CLI from that directory.
 
+Run formal no-hardware Release Acceptance from the repository root in a clean,
+committed Git working tree:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-acceptance.ps1
+```
+
+If `-Release` is omitted, the version is read from the root `pyproject.toml`.
+
 `release-acceptance.ps1` is the formal no-hardware release acceptance for a
 clean committed tree. It runs the complete no-hardware test suite, including
 wrapper tests, invokes `build_release.ps1` once, and validates the final wheel,

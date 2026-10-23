@@ -257,6 +257,14 @@ Windows ZIP 內含單一 `meters-tool-<version>` application directory，其中�
 `_internal` 與 Electron runtime。解壓一次後，即可從該目錄啟動 Desktop、
 browser WebUI 或 CLI。
 
+請在乾淨且已提交的 Git 工作樹中，從 repository 根目錄執行正式無硬體 Release Acceptance：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-acceptance.ps1
+```
+
+未指定 `-Release` 時，版本會從根目錄 `pyproject.toml` 取得。
+
 `release-acceptance.ps1` 是針對乾淨、已提交工作樹的正式無硬體發布驗收。
 它會執行完整無硬體測試（包含 wrapper 測試）、呼叫一次
 `build_release.ps1`，並驗證最終 wheel、source distribution、統一 Windows
