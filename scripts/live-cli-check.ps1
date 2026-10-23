@@ -443,7 +443,7 @@ function Add-StreamingObservation {
 
     # Validate ordered stdout independently of non-atomic HTTP snapshots.
     if ($null -eq $Event.PSObject.Properties['schema_version'] -or
-        $Event.schema_version -isnot [int] -or $Event.schema_version -ne 2 -or
+        $Event.schema_version -isnot [int] -or $Event.schema_version -ne 3 -or
         $null -eq $Event.PSObject.Properties['event']) { throw 'Invalid streaming event envelope.' }
     if ($Event.event -in @('ready', 'status', 'sample', 'summary')) {
         if ($null -eq $Event.PSObject.Properties['run_id'] -or
