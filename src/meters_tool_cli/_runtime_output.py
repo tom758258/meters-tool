@@ -5,8 +5,9 @@ import sys
 from datetime import datetime, timezone
 
 from meters_tool_core import StartPlan, StartRunEvent
+from meters_tool_core.command import common_error
 
-from ._constants import CLI_EVENT_SCHEMA_VERSION
+from ._constants import WORKER_SCHEMA_VERSION, WORKER_SCHEMA_VERSION
 
 
 class CliEventEmitter:
@@ -28,10 +29,16 @@ class CliEventEmitter:
             payload = {
                 "event": "status",
                 "message": message,
-                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "schema_version": WORKER_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }
             payload.update(fields)
+            payload.setdefault("worker_state", "running")
+            fatal = payload.get("fatal_error")
+            payload["fatal_error"] = (
+                common_error("execution", "acquisition_failed", fatal)
+                if isinstance(fatal, str) and fatal else None
+            )
             self._emit_json(payload)
             return
         self._print(f"[status] {message}")
@@ -45,7 +52,7 @@ class CliEventEmitter:
                 "measurement_metadata": sample.measurement_metadata,
                 "message": f"value={sample.value:g} {sample.unit}",
                 "resource_id": sample.resource_id,
-                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "schema_version": WORKER_SCHEMA_VERSION,
                 "status": sample.status,
                 "timestamp_utc": sample.timestamp_utc.isoformat(),
                 "trigger_id": sample.trigger_id,
@@ -71,12 +78,15 @@ class CliEventEmitter:
                 "errors": errors,
                 "event": "summary",
                 "ok": fatal_error is None if ok is None else ok,
-                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "schema_version": WORKER_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }
-            if fatal_error is not None:
-                payload["fatal_error"] = fatal_error
+            payload["fatal_error"] = (
+                common_error("execution", "acquisition_failed", fatal_error)
+                if fatal_error else None
+            )
             payload.update(fields)
+            payload["exit_code"] = 0 if payload["ok"] else 3
             self._emit_json(payload)
             return
         self._print(f"captured={captured} errors={errors}")
@@ -89,7 +99,7 @@ class CliEventEmitter:
             "event": "ready",
             "host": host,
             "port": port,
-            "schema_version": CLI_EVENT_SCHEMA_VERSION,
+            "schema_version": WORKER_SCHEMA_VERSION,
             "service": "keysight-meter",
             "status_url": f"{base_url}/status",
             "stop_url": f"{base_url}/stop",
@@ -97,6 +107,10 @@ class CliEventEmitter:
             "command_url": f"{base_url}/command",
         }
         payload.update(fields)
+        payload["features"] = (
+            {"common.streaming": {"contract_version": 1, "lifecycles": ["run_bound"]}}
+            if "stream" in payload else {}
+        )
         self._emit_json(payload)
 
     def line(self, message: str, **fields) -> None:  # noqa: ANN003
@@ -104,7 +118,7 @@ class CliEventEmitter:
             payload = {
                 "event": "message",
                 "message": message,
-                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "schema_version": WORKER_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             }
             payload.update(fields)
@@ -114,12 +128,19 @@ class CliEventEmitter:
 
     def error(self, message: str, rc: int = 3, **fields) -> None:  # noqa: ANN003
         if self._output_format == "jsonl":
+            scope = fields.pop("scope", "worker" if "run_id" in fields else "request")
+            fatal = fields.pop("fatal", rc == 3 and scope == "worker")
+            category = fields.pop("category", "validation" if rc == 2 else "worker")
+            code = fields.pop("code", "invalid_request" if rc == 2 else "worker_failed")
             payload = {
                 "event": "error",
                 "message": message,
-                "schema_version": CLI_EVENT_SCHEMA_VERSION,
+                "schema_version": WORKER_SCHEMA_VERSION,
                 "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                 "exit_code": rc,
+                "scope": scope,
+                "fatal": fatal,
+                "error": common_error(category, code, message),
             }
             payload.update(fields)
             self._emit_json(payload)
@@ -165,6 +186,9 @@ class CliStartRunEventSink:
                 self._emitter.ready(event.host, event.port, **ready_fields)
             return
         if event.event == "error":
+            fields.update(event.fields)
+            fields.setdefault("scope", "worker")
+            fields.setdefault("fatal", False)
             self._emitter.error(event.message or "", rc=3, **fields)
             return
         self._emitter.line(event.message or "", **fields)
