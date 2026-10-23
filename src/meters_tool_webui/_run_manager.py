@@ -182,7 +182,7 @@ class _WebControlPlane:
         queue_max: int,
         stop_cb: Callable[[], None],
         status_provider: Callable[[], dict[str, object]],  # noqa: ARG002
-        run_id: str,  # noqa: ARG002
+        run_id: str | None = None,  # noqa: ARG002
     ) -> StartControlPlaneHandle:
         with self._lock:
             self._router = router

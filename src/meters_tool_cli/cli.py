@@ -609,10 +609,10 @@ def cmd_start(args: argparse.Namespace) -> int:
             **({"stream_state": stream_state} if stream_state is not None else {}),
         )
     except ValueError as exc:
-        emitter.error(str(exc), rc=2)
+        emitter.error(str(exc), rc=2, run_id=runtime_run_id, scope="request", fatal=False)
         return 2
     except InstrumentError as exc:
-        emitter.error(str(exc), rc=3)
+        emitter.error(str(exc), rc=3, run_id=runtime_run_id, scope="worker", fatal=True)
         return 3
     return 0 if result.ok else 3
 

@@ -543,7 +543,8 @@ def _read_stop_response(response: Any, http_status: int) -> dict[str, object]:
         or not isinstance(payload.get("run_id"), str)
         or not payload["run_id"]
         or payload.get("status") != "accepted"
-        or payload.get("error") is not None
+        or "error" not in payload
+        or payload["error"] is not None
     ):
         raise CommandResponsePayloadError("stop endpoint returned invalid v3 acknowledgement", http_status)
     return payload

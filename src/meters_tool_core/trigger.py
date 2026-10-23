@@ -186,7 +186,7 @@ class _SoftwareTriggerRequestHandler(BaseHTTPRequestHandler):
             return
         try:
             content_len = int(self.headers.get("Content-Length", "0"))
-            if content_len < 0 or content_len > 1_048_576:
+            if content_len < 0:
                 raise ValueError("invalid request body length")
             request_body = self.rfile.read(content_len) if content_len else b""
             payload = request_body.decode("utf-8")
@@ -208,9 +208,11 @@ class _SoftwareTriggerRequestHandler(BaseHTTPRequestHandler):
                 ))
                 return
             first_stop = adapter._publish_stop()
-            self._send_json(202, adapter._stop_response("accepted"))
-            if first_stop:
-                adapter._start_stop_callback()
+            try:
+                self._send_json(202, adapter._stop_response("accepted"))
+            finally:
+                if first_stop:
+                    adapter._start_stop_callback()
             return
         status_code, response = adapter._handle_command(payload)
         self._send_json(status_code, response)
