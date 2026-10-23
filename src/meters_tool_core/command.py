@@ -66,8 +66,12 @@ def command_identity(payload: Any) -> tuple[str | None, str | None]:
 
 
 def common_error(category: str, code: str, message: str) -> dict[str, Any]:
-    return {"category": category, "code": code, "message": message,
-            "details": {"domain_error": message}}
+    return {
+        "category": category,
+        "code": code,
+        "message": message or code.replace("_", " "),
+        "details": {"domain_error": message} if message else {},
+    }
 
 
 def parse_stop_request_json(raw_payload: str) -> None:

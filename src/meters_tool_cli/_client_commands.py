@@ -186,6 +186,18 @@ def _print_client_error(
     return 3
 
 
+def _valid_worker_common_error(value: object) -> bool:
+    return (
+        isinstance(value, dict)
+        and value.get("category") in {"validation", "admission", "execution", "worker"}
+        and isinstance(value.get("code"), str)
+        and bool(value["code"].strip())
+        and isinstance(value.get("message"), str)
+        and bool(value["message"].strip())
+        and isinstance(value.get("details"), dict)
+    )
+
+
 def _fetch_worker_status(port: int, timeout_ms: int) -> tuple[int, dict[str, object]]:
     req = request.Request(_client_url(port, "/status"), method="GET")
     with request.urlopen(req, timeout=_client_timeout_s(timeout_ms)) as response:
@@ -212,6 +224,13 @@ def _fetch_worker_status(port: int, timeout_ms: int) -> tuple[int, dict[str, obj
             or worker_status.get("worker_state") not in {"starting", "running", "stopping", "failed"}
             or "fatal_error" not in worker_status
             or not isinstance(worker_status.get("features"), dict)
+            or (
+                worker_status["fatal_error"] is not None
+                and not _valid_worker_common_error(worker_status["fatal_error"])
+            )
+            or (worker_status["worker_state"] == "failed") != (
+                worker_status["fatal_error"] is not None
+            )
         ):
             raise StatusPayloadError("status endpoint returned invalid v3 status", http_status)
         return http_status, worker_status
@@ -266,6 +285,17 @@ def _read_command_response(response: Any, http_status: int) -> dict[str, object]
     ):
         raise CommandResponsePayloadError(
             "command endpoint returned invalid v3 response fields", http_status,
+        )
+    if (
+        (payload["status"] == "accepted" and (
+            payload["kind"] != "control"
+            or payload["worker_job_id"] is not None
+            or payload["error"] is not None
+        ))
+        or (payload["status"] != "accepted" and not _valid_worker_common_error(payload["error"]))
+    ):
+        raise CommandResponsePayloadError(
+            "command endpoint returned inconsistent v3 response", http_status,
         )
     return payload
 

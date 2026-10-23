@@ -1,46 +1,297 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "Meters Worker v3 Envelope",
-  "type": "object",
-  "required": [
-    "schema_version",
-    "run_id"
-  ],
-  "properties": {
-    "schema_version": {
-      "type": "integer",
-      "const": 3
+  "title": "Meters Worker v3 common event and HTTP envelope fixture",
+  "$defs": {
+    "ready": {
+      "type": "object",
+      "required": [
+        "event",
+        "schema_version",
+        "timestamp_utc",
+        "run_id",
+        "status_url",
+        "command_url",
+        "stop_url",
+        "features"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "const": "ready"
+        },
+        "status_url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "command_url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "stop_url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "features": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
     },
-    "run_id": {
-      "type": "string",
-      "minLength": 1
+    "status": {
+      "type": "object",
+      "required": [
+        "event",
+        "schema_version",
+        "timestamp_utc",
+        "run_id",
+        "worker_state",
+        "fatal_error"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "const": "status"
+        },
+        "worker_state": {
+          "enum": [
+            "starting",
+            "running",
+            "stopping",
+            "failed"
+          ]
+        },
+        "fatal_error": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "additionalProperties": true
     },
-    "event": {
-      "type": "string"
-    },
-    "worker_state": {
-      "enum": [
-        "starting",
-        "running",
-        "stopping",
-        "failed"
-      ]
-    },
-    "fatal_error": {
-      "type": [
-        "object",
-        "null"
-      ]
-    },
-    "features": {
-      "type": "object"
+    "summary": {
+      "type": "object",
+      "required": [
+        "event",
+        "schema_version",
+        "timestamp_utc",
+        "run_id",
+        "ok",
+        "fatal_error",
+        "exit_code"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "const": "summary"
+        },
+        "ok": {
+          "type": "boolean"
+        },
+        "fatal_error": {
+          "type": [
+            "object",
+            "null"
+          ]
+        },
+        "exit_code": {
+          "type": "integer"
+        }
+      },
+      "additionalProperties": true
     },
     "error": {
-      "type": [
-        "object",
-        "null"
-      ]
+      "type": "object",
+      "required": [
+        "event",
+        "schema_version",
+        "timestamp_utc",
+        "run_id",
+        "scope",
+        "fatal",
+        "error"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "const": "error"
+        },
+        "scope": {
+          "enum": [
+            "request",
+            "job",
+            "worker"
+          ]
+        },
+        "fatal": {
+          "type": "boolean"
+        },
+        "error": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "status_http": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "timestamp_utc",
+        "run_id",
+        "worker_state",
+        "fatal_error",
+        "features",
+        "status_url",
+        "command_url",
+        "stop_url"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "type": "string"
+        },
+        "worker_state": {
+          "enum": [
+            "starting",
+            "running",
+            "stopping",
+            "failed"
+          ]
+        },
+        "features": {
+          "type": "object"
+        },
+        "fatal_error": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      }
+    },
+    "command_response": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "status",
+        "command",
+        "job_id",
+        "kind",
+        "worker_job_id",
+        "error"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "accepted",
+            "rejected",
+            "error"
+          ]
+        },
+        "kind": {
+          "enum": [
+            "control",
+            "async_job",
+            null
+          ]
+        }
+      }
+    },
+    "stop_ack": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "run_id",
+        "status",
+        "error"
+      ],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 3
+        },
+        "run_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timestamp_utc": {
+          "type": "string"
+        },
+        "event": {
+          "type": "string"
+        },
+        "status": {
+          "const": "accepted"
+        },
+        "error": {
+          "type": "null"
+        }
+      }
     }
-  },
-  "additionalProperties": true
+  }
 }

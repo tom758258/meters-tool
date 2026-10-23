@@ -140,7 +140,8 @@ Opt-out runs have no `stream` fields or runtime streaming feature.
   `stream: {"lifecycle":"run_bound","state":"waiting"}`, with state advancing
   to `active` and then `ended`, or directly to `ended`.
 - CLI `status --json` and `wait-ready --json` preserve the HTTP `stream` object
-  when present. `wait-ready` still checks endpoint reachability, not Active.
+  when present. `wait-ready` requires `worker_state: "running"` and
+  `fatal_error: null`; it does not wait for Streaming Active.
 - `sample`, `summary`, and `dry_run` have no stream metadata. Existing counters,
   quality fields, run correlation, summary success, and exit codes retain
   their meanings.
@@ -247,6 +248,9 @@ The manifest object contains:
 - `worker_protocol`: `schema_versions: [3]` with compatibility policy
   `v3-only`; the Worker command/status protocol requires Worker schema `3`
   only, without fallback or negotiation.
+- `execution`: `model: "run_bound"` and `context_binding: "startup"`.
+- `features`: optional `common.streaming` contract 1 with lifecycle `run_bound`.
+- `commands.software_trigger.kind`: `control` (not an async job).
 
 `send-command` defaults to `--command software_trigger`,
 `--arguments-json {}`, no `--job-id`, `--format text`, and
@@ -257,8 +261,9 @@ contains exact integer `schema_version: 3`. Invalid JSON, a non-object arguments
 value, non-object metadata, and unknown commands exit `2` without a request.
 
 `status` wraps non-mutating `GET /status` and emits a flat normalized JSON
-object. `wait-ready` emits the same status fields after any successful `200`
-JSON response from `/status`, plus `attempts`, `elapsed_ms`, and `timeout_ms`.
+object. `wait-ready` requires a valid v3 HTTP 200 Common Status with
+`worker_state: "running"` and `fatal_error: null` before it succeeds; it
+adds `attempts`, `elapsed_ms`, and `timeout_ms`.
 
 The normalized status fields include:
 
@@ -301,7 +306,8 @@ The normalized status fields include:
 - `final_drain_complete`
 - `data_integrity`
 
-Reachable status responses exit `0` even when `fatal_error` is not `null`.
+Valid reachable `status` responses exit `0` even when `fatal_error` is not `null`;
+`wait-ready` does not succeed on fatal, starting, stopping, or failed status.
 Machine callers should read `ok` and `fatal_error` to distinguish worker
 health from client reachability.
 
@@ -395,8 +401,8 @@ Earlier contract revision `v2.1` additively added `csv_enabled` to this dry-run 
 not a Common required envelope field. When `csv_enabled` is `true`, `csv_path`
 is the resolved explicit or timestamped default path; when `csv_enabled` is
 `false`, `csv_path` is `null`. Consumers using `--no-csv` must accept this null
-value under Common `schema_version: 2`.
+value under the independent CLI `schema_version: 2`.
 `dry_run_writes_csv` remains `false` in both cases because dry-run itself never
 writes a file. Consumers must not use it as a substitute for `csv_enabled`.
-This Meters-specific additive extension does not change Common
+This Meters-specific additive extension does not change the independent CLI
 `schema_version: 2`.

@@ -174,6 +174,26 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         finally:
             server.stop()
 
+    def test_status_provider_unserializable_data_is_structured_http_500(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(
+            router, port=0, status_provider=lambda: {"captured": {1, 2}}
+        )
+        _, port = server.start()
+        try:
+            with self.assertRaises(HTTPError) as raised:
+                self._get_json(port)
+            with raised.exception as response:
+                self.assertEqual(500, response.code)
+                payload = json.loads(response.read())
+            self.assertEqual(3, payload["schema_version"])
+            self.assertEqual(server._run_id, payload["run_id"])
+            self.assertEqual("error", payload["status"])
+            self.assertEqual("worker", payload["error"]["category"])
+            self.assertEqual("status_failed", payload["error"]["code"])
+        finally:
+            server.stop()
+
     def test_unknown_get_path_returns_404(self):
         router = TriggerRouter()
         server = SoftwareTriggerAdapter(router, port=0)

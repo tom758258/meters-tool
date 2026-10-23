@@ -173,6 +173,7 @@ class _SoftwareTriggerRequestHandler(BaseHTTPRequestHandler):
         adapter = self._adapter()
         try:
             payload = adapter._status_payload()
+            json.dumps(payload)  # Check serializability before HTTP headers are written.
         except Exception as exc:
             self._send_json(500, adapter._status_error_payload(exc))
             return

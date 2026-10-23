@@ -1768,7 +1768,7 @@ def test_worker_streaming_event_acceptance_including_stop_before_active(tmp_path
         "failure_with_tail": ([ready, {"event": "error"}, active, sample, ended, summary], False),
     }
     payload = [
-        {"name": name, "events": [{"schema_version": 2, "run_id": "test-run", **event}
+        {"name": name, "events": [{"schema_version": 3, "run_id": "test-run", **event}
                                   for event in events]}
         for name, (events, _) in scenarios.items()
     ]
@@ -1811,7 +1811,7 @@ import time
 
 fault, root = sys.argv[1], Path(sys.argv[2])
 def emit(event, **fields):
-    print(json.dumps(dict(schema_version=2, run_id="test-run", event=event, **fields)), flush=True)
+    print(json.dumps(dict(schema_version=3, run_id="test-run", event=event, **fields)), flush=True)
 def state(phase):
     emit("status", stream=dict(lifecycle="run_bound", state=phase))
 emit("ready", stream=dict(lifecycle="run_bound"))
@@ -1919,7 +1919,7 @@ if role == "client":
     sys.exit(0 if fault == "slow_stop" else 1)
 
 def emit(event, **fields):
-    print(json.dumps(dict(schema_version=2, run_id="test-run", event=event, **fields)), flush=True)
+    print(json.dumps(dict(schema_version=3, run_id="test-run", event=event, **fields)), flush=True)
 
 emit("ready", stream=dict(lifecycle="run_bound"))
 emit("status", stream=dict(lifecycle="run_bound", state="active"))
