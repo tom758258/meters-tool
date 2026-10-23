@@ -487,7 +487,7 @@ class CliStartOutputTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, summary["captured"])
         self.assertEqual(1, summary["errors"])
         self.assertIs(False, summary["ok"])
-        self.assertIn("simulated read failure", summary["fatal_error"])
+        self.assertIn("simulated read failure", summary["fatal_error"]["details"]["domain_error"])
 
     def test_start_simulate_jsonl_emits_error_on_malformed_buffered_read(self):
         parser = build_parser()
@@ -529,7 +529,7 @@ class CliStartOutputTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, summary["captured"])
         self.assertEqual(1, summary["errors"])
         self.assertIs(False, summary["ok"])
-        self.assertIn("buffered capture failure", summary["fatal_error"])
+        self.assertIn("buffered capture failure", summary["fatal_error"]["details"]["domain_error"])
 
     def test_start_simulate_jsonl_csv_permission_error_is_structured(self):
         parser = build_parser()
@@ -567,7 +567,7 @@ class CliStartOutputTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(0, summary["captured"])
         self.assertEqual(1, summary["errors"])
         self.assertIs(False, summary["ok"])
-        self.assertIn("cannot open CSV output file", summary["fatal_error"])
+        self.assertIn("cannot open CSV output file", summary["fatal_error"]["details"]["domain_error"])
 
     def test_start_dry_run_immediate_no_buffered_scpi(self):
         parser = build_parser()

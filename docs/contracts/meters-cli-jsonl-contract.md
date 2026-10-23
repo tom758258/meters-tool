@@ -1,12 +1,14 @@
 # Meters CLI JSON / JSONL Contract
 
-Common schema version: `2`
+Worker schema version: `3`
 
-Compatibility policy: `v2-only`
+Independent single-response CLI schema version: `2`
 
-Implementation status: `Common v2-only conformant`
+Manifest schema version: `2`
 
-Runtime contract revision: `v2.1`
+Compatibility policy: `v3-only`
+
+Runtime contract revision: `v3.0`
 
 The runtime contract revision tracks this document's evolution only.
 Orchestrators must use the JSON `schema_version` field to determine runtime
@@ -21,12 +23,11 @@ worker control plane and artifacts are defined in
 
 Consumers must ignore unknown fields, following the common envelope contract.
 
-The current CLI implementation produces Common schema `2` machine output and
-rejects non-v2 Worker lifecycle responses. Wrapper `report.json` schemas remain
-separately versioned at schema `1` and are unchanged by this migration.
-
-Every Common v2 JSON or JSONL object uses exact integer
-`schema_version: 2`.
+Worker runtime JSONL and direct Worker HTTP responses use exact integer
+`schema_version: 3`; independent client single-response JSON, dry-run previews,
+capability output, and list-resources remain schema 2. Static Manifest remains
+schema 2. Wrapper `report.json` remains schema 1. Worker v2 responses are
+rejected without compatibility fallback.
 
 ## Execution Context
 
@@ -60,10 +61,10 @@ Selected fields:
 - `sample`: `run_id`, `captured`, `measurement_type`,
   `measurement_metadata`, `message`, `resource_id`, `status`, `trigger_id`,
   `trigger_metadata`, `trigger_source`, `unit`, `value`
-- `summary`: `run_id`, `captured`, `errors`, `ok`, optional `fatal_error`,
+- `summary`: `run_id`, `captured`, `errors`, `ok`, `fatal_error`, `exit_code`,
   `trigger_count_infinite`, `expected_readings`, `overflow_monitoring`,
   `overflow_detected`, `stop_reason`, `final_drain_complete`, `data_integrity`
-- `error`: `message`, `exit_code`, optional `run_id`
+- `error`: `scope`, `fatal`, Common `error`, `message`, `exit_code`, optional `run_id`
 - `dry_run`: plan fields for the command being previewed, including
   `csv_enabled` and nullable `csv_path`; no `run_id` and no `ready` event
 
@@ -130,14 +131,17 @@ captured a first sample.
 Extension with lifecycle `run_bound`. The mode-specific Active boundaries,
 observation failure policy, and file defaults are defined in
 [Meters Worker Contract](meters-worker-contract.md#optional-run-bound-streaming).
-Opt-out output is unchanged. This additive extension keeps `schema_version: 2`.
+Streaming remains opt-in; when selected the runtime retains Worker `schema_version: 3`.
+Opt-out runs have no `stream` fields or runtime streaming feature.
 
-- `ready.stream` is `{"lifecycle":"run_bound"}`, without state.
+- `ready.features.common.streaming` declares contract version 1 and only the
+  selected `run_bound` lifecycle. `ready.stream` is `{"lifecycle":"run_bound"}`, without state.
 - Every runtime `status` and HTTP status snapshot includes
   `stream: {"lifecycle":"run_bound","state":"waiting"}`, with state advancing
   to `active` and then `ended`, or directly to `ended`.
 - CLI `status --json` and `wait-ready --json` preserve the HTTP `stream` object
-  when present. `wait-ready` still checks endpoint reachability, not Active.
+  when present. `wait-ready` requires `worker_state: "running"` and
+  `fatal_error: null`; it does not wait for Streaming Active.
 - `sample`, `summary`, and `dry_run` have no stream metadata. Existing counters,
   quality fields, run correlation, summary success, and exit codes retain
   their meanings.
@@ -237,25 +241,29 @@ responsibility of `capabilities`.
 The manifest object contains:
 
 - `event`: `tool_manifest`.
-- `schema_version`: exact integer `2`, the Common runtime schema version this
+- `schema_version`: exact integer `2`, the independent Manifest schema version this
   tool emits.
 - `tool_id`: `meters`.
 - `tool_version`: the single distribution package version.
-- `worker_protocol`: `schema_versions: [2]` with compatibility policy
-  `v2-only`; the Worker command/status protocol accepts Common schema `2`
+- `worker_protocol`: `schema_versions: [3]` with compatibility policy
+  `v3-only`; the Worker command/status protocol requires Worker schema `3`
   only, without fallback or negotiation.
+- `execution`: `model: "run_bound"` and `context_binding: "startup"`.
+- `features`: optional `common.streaming` contract 1 with lifecycle `run_bound`.
+- `commands.software_trigger.kind`: `control` (not an async job).
 
 `send-command` defaults to `--command software_trigger`,
 `--arguments-json {}`, no `--job-id`, `--format text`, and
 `--timeout-ms 3000`. It places the complete JSON object from
 `--arguments-json` in the command envelope and validates the envelope with the
-Meters command parser before sending. Under Common v2 the sent envelope also
-contains exact integer `schema_version: 2`. Invalid JSON, a non-object arguments
+Meters command parser before sending. Under Common v3 the sent Worker envelope
+contains exact integer `schema_version: 3`. Invalid JSON, a non-object arguments
 value, non-object metadata, and unknown commands exit `2` without a request.
 
 `status` wraps non-mutating `GET /status` and emits a flat normalized JSON
-object. `wait-ready` emits the same status fields after any successful `200`
-JSON response from `/status`, plus `attempts`, `elapsed_ms`, and `timeout_ms`.
+object. `wait-ready` requires a valid v3 HTTP 200 Common Status with
+`worker_state: "running"` and `fatal_error: null` before it succeeds; it
+adds `attempts`, `elapsed_ms`, and `timeout_ms`.
 
 The normalized status fields include:
 
@@ -298,7 +306,8 @@ The normalized status fields include:
 - `final_drain_complete`
 - `data_integrity`
 
-Reachable status responses exit `0` even when `fatal_error` is not `null`.
+Valid reachable `status` responses exit `0` even when `fatal_error` is not `null`;
+`wait-ready` does not succeed on fatal, starting, stopping, or failed status.
 Machine callers should read `ok` and `fatal_error` to distinguish worker
 health from client reachability.
 
@@ -387,13 +396,13 @@ resource verification closes the session immediately after its `*IDN?` query.
 fields and adds explicit safety fields: `dry_run_performs_visa_io: false`,
 `dry_run_writes_csv: false`, and `dry_run_starts_http_server: false`.
 
-Contract revision `v2.1` additively adds `csv_enabled` to this dry-run object.
+Earlier contract revision `v2.1` additively added `csv_enabled` to this dry-run object.
 `csv_path` is a Meters-specific, conditionally nullable dry-run plan field,
 not a Common required envelope field. When `csv_enabled` is `true`, `csv_path`
 is the resolved explicit or timestamped default path; when `csv_enabled` is
 `false`, `csv_path` is `null`. Consumers using `--no-csv` must accept this null
-value under Common `schema_version: 2`.
+value under the independent CLI `schema_version: 2`.
 `dry_run_writes_csv` remains `false` in both cases because dry-run itself never
 writes a file. Consumers must not use it as a substitute for `csv_enabled`.
-This Meters-specific additive extension does not change Common
+This Meters-specific additive extension does not change the independent CLI
 `schema_version: 2`.

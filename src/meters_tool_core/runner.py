@@ -104,8 +104,11 @@ def run_start_session(
         return stream_state.status_fields() if stream_state is not None else {}
 
     def emit_status(message: str) -> None:
+        fatal = engine.fatal_error or runtime_fatal_error
+        state = "failed" if fatal else "stopping" if stop_controller.stop else "running"
         event_sink.emit(StartRunEvent.status_event(
-            active_run_id, message, **engine_result_fields(), **stream_fields()
+            active_run_id, message, **engine_result_fields(), **stream_fields(),
+            worker_state=state, fatal_error=fatal,
         ))
 
     def activate_stream() -> None:
@@ -132,8 +135,10 @@ def run_start_session(
     def emit_message(message: str) -> None:
         event_sink.emit(StartRunEvent.message_event(active_run_id, message))
 
-    def emit_error(message: str) -> None:
-        event_sink.emit(StartRunEvent.error_event(active_run_id, message))
+    def emit_error(message: str, *, code: str = "acquisition_failed") -> None:
+        event_sink.emit(StartRunEvent.error_event(
+            active_run_id, message, category="execution", code=code, fatal=True,
+        ))
 
     def engine_result_fields() -> dict[str, object]:
         provider = getattr(engine, "result_fields", None)
@@ -210,7 +215,7 @@ def run_start_session(
             instrument.connect()
             connected = True
         except InstrumentError as exc:
-            emit_error(f"error: {exc}")
+            emit_error(f"error: {exc}", code="connection_failed")
             return result(
                 ok=False,
                 reason="connect_error",
@@ -225,6 +230,7 @@ def run_start_session(
             queue_max=request.sw_queue_max,
             stop_cb=stop_controller.request_http_stop,
             status_provider=worker_status,
+            run_id=active_run_id,
         )
         if control_handle.active:
             emit_message(f"command endpoint: {control_handle.command_url}")

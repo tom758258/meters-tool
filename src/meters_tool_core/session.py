@@ -57,8 +57,8 @@ class StartRunEvent:
         )
 
     @staticmethod
-    def error_event(run_id: str, message: str) -> "StartRunEvent":
-        return StartRunEvent(event="error", run_id=run_id, message=message)
+    def error_event(run_id: str, message: str, **fields: object) -> "StartRunEvent":
+        return StartRunEvent(event="error", run_id=run_id, message=message, fields=fields)
 
     @staticmethod
     def summary_event(
@@ -114,6 +114,7 @@ class StartControlPlane(Protocol):
         queue_max: int,
         stop_cb: Callable[[], None],
         status_provider: Callable[[], dict[str, object]],
+        run_id: str,
     ) -> StartControlPlaneHandle: ...
 
 
@@ -127,6 +128,7 @@ class NoOpControlPlane:
         queue_max: int,  # noqa: ARG002
         stop_cb: Callable[[], None],  # noqa: ARG002
         status_provider: Callable[[], dict[str, object]],  # noqa: ARG002
+        run_id: str,  # noqa: ARG002
     ) -> StartControlPlaneHandle:
         return StartControlPlaneHandle()
 
@@ -144,6 +146,7 @@ class SoftwareTriggerControlPlane:
         queue_max: int,
         stop_cb: Callable[[], None],
         status_provider: Callable[[], dict[str, object]],
+        run_id: str,
     ) -> StartControlPlaneHandle:
         server = self._server_factory(
             router,
@@ -152,6 +155,7 @@ class SoftwareTriggerControlPlane:
             queue_max=queue_max,
             stop_cb=stop_cb,
             status_provider=status_provider,
+            run_id=run_id,
         )
         host, actual_port = server.start()
         base_url = f"http://{host}:{actual_port}"

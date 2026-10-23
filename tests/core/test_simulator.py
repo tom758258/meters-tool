@@ -45,6 +45,7 @@ class PreloadedSoftwareTriggerControlPlane:
         queue_max: int,  # noqa: ARG002
         stop_cb,  # noqa: ANN001, ARG002
         status_provider,  # noqa: ANN001, ARG002
+        run_id,  # noqa: ANN001, ARG002
     ) -> StartControlPlaneHandle:
         for index in range(self._count):
             router.publish(TriggerEvent.new(TriggerSource.SOFTWARE, {"preloaded": str(index)}))

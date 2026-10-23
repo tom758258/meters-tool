@@ -38,8 +38,8 @@ class CliManifestCommandTests(unittest.TestCase):
         self.assertEqual("3.1.2", payload["tool_version"])
         self.assertEqual(
             {
-                "compatibility_policy": "v2-only",
-                "schema_versions": [2],
+                "compatibility_policy": "v3-only",
+                "schema_versions": [3],
             },
             payload["worker_protocol"],
         )

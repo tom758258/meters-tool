@@ -29,13 +29,16 @@ class CliStopCommandTests(CliCommandHarnessMixin, unittest.TestCase):
     @patch("meters_tool_cli._client_commands.request.urlopen")
     def test_soft_stop_posts_stop_request(self, mock_urlopen):
         class FakeResponse:
-            status = 204
+            status = 202
 
             def __enter__(self):
                 return self
 
             def __exit__(self, *_args):
                 return False
+
+            def read(self):
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","error":null}'
 
         mock_urlopen.return_value = FakeResponse()
         stdout = io.StringIO()
@@ -44,7 +47,7 @@ class CliStopCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             rc = cmd_stop(8765)
 
         self.assertEqual(0, rc)
-        self.assertIn("stop accepted: 204", stdout.getvalue())
+        self.assertIn("stop accepted: 202", stdout.getvalue())
         req = mock_urlopen.call_args.args[0]
         self.assertEqual("http://127.0.0.1:8765/stop", req.full_url)
         self.assertEqual("POST", req.get_method())
@@ -99,13 +102,16 @@ class CliStopCommandTests(CliCommandHarnessMixin, unittest.TestCase):
     @patch("meters_tool_cli._client_commands.request.urlopen")
     def test_soft_stop_uses_configured_timeout(self, mock_urlopen):
         class FakeResponse:
-            status = 204
+            status = 202
 
             def __enter__(self):
                 return self
 
             def __exit__(self, *_args):
                 return False
+
+            def read(self):
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","error":null}'
 
         mock_urlopen.return_value = FakeResponse()
 
@@ -151,13 +157,16 @@ class CliStopCommandTests(CliCommandHarnessMixin, unittest.TestCase):
     @patch("meters_tool_cli._client_commands.request.urlopen")
     def test_soft_stop_success_json_returns_accepted_event(self, mock_urlopen):
         class FakeResponse:
-            status = 204
+            status = 202
 
             def __enter__(self):
                 return self
 
             def __exit__(self, *args):
                 return False
+
+            def read(self):
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","error":null}'
 
         mock_urlopen.return_value = FakeResponse()
         stdout = io.StringIO()
@@ -168,7 +177,7 @@ class CliStopCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual(1, len(events))
         self.assertEqual("stop", events[0]["event"])
         self.assertEqual("accepted", events[0]["status"])
-        self.assertEqual(204, events[0]["http_status"])
+        self.assertEqual(202, events[0]["http_status"])
         self._assert_client_contract(
             events[0],
             event="stop",

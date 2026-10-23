@@ -1,10 +1,12 @@
 # Meters Worker Contract
 
-Common schema version: `2`
+Worker schema version: `3`
 
-Compatibility policy: `v2-only`
+Manifest schema version: `2`
 
-Implementation status: `Common v2-only conformant`
+Compatibility policy: `v3-only`
+
+Implementation scope: Worker protocol v3; ordinary CLI and artifact schemas retain their independent versions.
 
 This document defines the operational contract for the Meters worker
 used by agents and orchestration tools. It follows the lifecycle shape in
@@ -12,10 +14,10 @@ used by agents and orchestration tools. It follows the lifecycle shape in
 process modes, local control HTTP, runtime JSONL, and wrapper artifacts. Instrument operations remain
 Meters-specific, including the optional readiness observations defined below.
 
-The current implementation enforces Common schema `2` for Worker command
-requests and responses, status responses, and CLI JSON/JSONL output. Schema
-`1`, missing, and non-integer schema versions are not accepted at v2-only
-runtime boundaries.
+The Worker HTTP command/status/stop envelopes and runtime JSONL require exact
+integer Worker `schema_version: 3`; the static Manifest retains schema 2.
+Single-response CLI client and dry-run preview schemas remain independently
+versioned at 2. Workers reject v2 requests without fallback.
 
 ## Cross-Instrument Compatibility
 
@@ -201,151 +203,68 @@ the runtime session.
 
 ### `POST /command`
 
-Publishes one Meters software-triggered measurement request. The only Meters
-command in this contract revision is `software_trigger`.
+Meters supports exactly one domain command, `software_trigger`, with
+`kind: "control"`; no async job is created and no common job terminal is
+emitted. The Worker has `execution.model: "run_bound"` and
+`execution.context_binding: "startup"`. Command-level `context` is forbidden.
 
-Request body:
+Request: `{"schema_version":3,"command":"software_trigger","arguments":{"metadata":{}},"job_id":"client-1"}`.
+`arguments` and its `metadata` member may be omitted and default to objects.
+String metadata is preserved; non-string JSON metadata values are compactly
+serialized into sample `trigger_metadata`. A supplied `job_id` is echoed as
+correlation only; it does not deduplicate work or enter measurement metadata.
 
-```json
-{
-  "schema_version": 2,
-  "command": "software_trigger",
-  "arguments": {
-    "metadata": {}
-  },
-  "job_id": "optional-client-generated-id"
-}
-```
+Valid commands return HTTP 202:
+`{"schema_version":3,"run_id":"r1","status":"accepted","command":"software_trigger","job_id":"client-1","kind":"control","worker_job_id":null,"error":null}`.
 
-`arguments` may be omitted and defaults to `{}`. If present, it must be a JSON
-object. `arguments.metadata` may be omitted and defaults to `{}`. If present,
-it must be a JSON object with string keys. String metadata values are preserved;
-other JSON values are stored as compact JSON literals in `trigger_metadata` on
-captured samples. `job_id` must be a client-provided string when present and is
-not written to measurement metadata.
-
-Malformed JSON, non-object bodies, a missing or non-exact-integer
-`schema_version: 2`, unknown top-level fields, a missing or non-string
-`command`, unknown commands, non-object `arguments`, non-object
-metadata, non-string metadata keys, and a non-string `job_id` return `400` with
-structured JSON and do not publish queue events or touch instrument I/O.
-
-Every response includes exact integer `schema_version: 2`, `status`,
-`command`, and `job_id`. A valid
-client-provided string identity is echoed even when the request has an unknown
-command or unknown top-level field. Malformed JSON, non-object bodies, and
-non-string command identities use `command: null`; omitted or non-string
-`job_id` values use `job_id: null`.
-
-Accepted requests return `202`:
-
-```json
-{"schema_version":2,"status":"accepted","command":"software_trigger","job_id":"job-1"}
-```
-
-Queue and rate-limit rejections return `429` with `reason: "queue_full"` or
-`reason: "rate_limited"`:
-
-```json
-{"schema_version":2,"status":"rejected","command":"software_trigger","job_id":"job-1","reason":"queue_full"}
-```
-
-Validation failures return `400`:
-
-```json
-{"schema_version":2,"status":"error","command":"software_trigger","job_id":"job-1","error":"validation_error","message":"metadata must be a JSON object"}
-```
-
-This endpoint must not be used as a stop mechanism. In hardware-triggered
-simple and external-custom modes, software trigger events may be ignored by the
-Meters acquisition flow.
+Invalid JSON, version tokens (including `3.0`, `3e0`, `true`, and `"3"`),
+unknown top-level fields, request `context`, and invalid metadata return
+HTTP 400 without queue admission or instrument I/O. Existing queue-full and
+rate-limit admission rejection return HTTP 429. All responses carry the
+Common command envelope, preserving the original `reason` diagnostics;
+rejections and errors include a Common Error with domain diagnostics in
+`details.domain_error`. Software-trigger commands in hardware-trigger modes
+retain their existing possible ignored-event behavior.
 
 ### `POST /stop`
 
-Publishes a stop control event and requests graceful worker stop. Accepted
-requests return `202`. Stop control events use a priority queue and remain
-deliverable even when the normal trigger queue is full.
-
-The stop design is unchanged: `engine.stop()` sets stop state/events only.
-VISA I/O remains on the worker or cleanup path.
+Accepts an empty body, `{}`, or an object containing only optional
+`schema_version: 3` and `reason: string`. Invalid versions and fields return
+HTTP 400 Common Error without publishing Stop. Valid Stop retains HTTP 202,
+with `{"schema_version":3,"run_id":"r1","status":"accepted","error":null}`.
+Repeated Stop acknowledges without publishing another control event or starting
+another Stop callback. Stop acceptance is not evidence of acquisition
+completion or cleanup. The original high-priority control event, cooperative
+`engine.stop()`, worker join and Core-owned cleanup order are unchanged.
 
 ### `GET /status`
 
-Returns `200` with a JSON status object. It does not change state, publish a
-trigger, request stop, mutate queues, trigger measurement, or touch VISA. It is
-safe for non-mutating readiness and progress checks. Unknown `GET` paths return
-`404`.
+Returns a non-mutating HTTP 200 Common Status object with exact integer
+`schema_version: 3`, `timestamp_utc`, non-empty `run_id`,
+`worker_state` (`running`, `stopping`, or `failed`), `fatal_error`
+(Common Error or null), the control URLs, and runtime `features`.
+Existing Meters-specific `status`, queue, `captured`, `errors`,
+`trigger_count_infinite`, `expected_readings`, `overflow_monitoring`,
+`overflow_detected`, `stop_reason`, `final_drain_complete`, and
+`data_integrity` fields are retained with their existing meanings.
+A fatal acquisition error establishes `worker_state: "failed"` and preserves
+the domain diagnostic under `fatal_error.details.domain_error`.
 
-`meters-tool status` is the CLI client wrapper for this endpoint. It
-normalizes the worker status into the CLI single-response JSON contract without
-mutating worker state. `meters-tool wait-ready` polls this same endpoint
-until any successful `200` JSON status response is reachable or its deadline
-expires.
+The runtime declares `features: {}` unless `--streaming` opted in. With
+streaming it declares `common.streaming` contract version 1 and lifecycle
+`run_bound` plus the existing monotonic stream state snapshot. There are no
+common async jobs or job cancellation features.
 
-Status response v2:
+A status-provider/handler failure that can be represented structurally returns
+HTTP 500 with Common Error category `worker`, code `status_failed`, and the
+runtime `run_id`; it cannot be treated as a valid status snapshot. Loss of
+connection is a communication failure and may have no JSON response.
+Status reads perform no instrument I/O and do not mutate queues.
 
-```json
-{
-  "schema_version": 2,
-  "service": "keysight-meter",
-  "run_id": "9f84b6ad-d2aa-4d68-9133-f33a5f6bcb9c",
-  "status": "running",
-  "command_url": "http://127.0.0.1:8765/command",
-  "stop_url": "http://127.0.0.1:8765/stop",
-  "status_url": "http://127.0.0.1:8765/status",
-  "queue_size": 0,
-  "queue_max": 10000,
-  "min_interval_ms": 0,
-  "captured": 0,
-  "errors": 0,
-  "fatal_error": null,
-  "trigger_count_infinite": false,
-  "expected_readings": null,
-  "overflow_monitoring": "off",
-  "overflow_detected": null,
-  "stop_reason": "unknown",
-  "final_drain_complete": null,
-  "data_integrity": "unknown",
-  "timestamp_utc": "2026-05-23T00:00:00+00:00"
-}
-```
-
-Fields:
-
-- `schema_version`: exact integer `2`.
-- `service`: fixed string, `keysight-meter`.
-- `run_id`: current runtime UUID, or `null` if no runtime provider supplied
-  one.
-- `status`: `running` or `stopping`.
-- `command_url`, `stop_url`, `status_url`: absolute local HTTP URLs.
-- `queue_size`: pending normal software trigger events.
-- `queue_max`: effective normal trigger queue limit.
-- `min_interval_ms`: configured software trigger rate limit.
-- `captured`: current successful capture count, or `null` if unavailable.
-- `errors`: current acquisition error count, or `null` if unavailable.
-- `fatal_error`: fatal acquisition error text, or `null`.
-- `trigger_count_infinite`: whether the Custom run uses an unbounded trigger
-  count.
-- `expected_readings`: finite Custom expected reading count, or `null` for
-  infinite or non-Custom runs.
-- `overflow_monitoring`: `off`, `starting`, `active`, or `failed`.
-- `overflow_detected`: `null` when monitoring is unavailable, otherwise `false`
-  or `true`. Once observed, `true` remains latched even if a later poll fails.
-- `stop_reason`: `stop_requested`, `completed`, `overflow_detected`,
-  `overflow_monitor_failed`, `fatal_error`, `max_samples_reached`, or
-  `unknown`.
-- `final_drain_complete`: `null` when no final drain ran, otherwise a boolean.
-- `data_integrity`: `unknown`, `no_loss_detected`, or `incomplete`.
-- `timestamp_utc`: UTC timestamp serialized as ISO 8601.
-
-If the dynamic status provider fails, the endpoint still returns the base
-status object with nullable `captured`, `errors`, and `fatal_error`. The
-structured acquisition outcome fields remain present with their non-Custom
-defaults.
-
-`run_id` is the correlation key between runtime JSONL emitted on stdout,
-`GET /status`, and wrapper artifacts for a single non-dry-run
-`start-trigger-record` session. Dry-run plans do not have a `run_id`.
+The `meters-tool status --json` and `wait-ready --json` clients normalize
+Worker 3 into their independent single-response CLI schema 2; `wait-ready`
+requires `worker_state: "running"` and `fatal_error: null`, not merely
+a reachable HTTP 200.
 
 ## Runtime JSONL
 
@@ -375,8 +294,8 @@ Primary worker artifacts:
 Disabling CSV does not change worker lifecycle, HTTP control, JSONL `sample`
 events, status, summary, process exit meanings, stop behavior, or cleanup.
 Dry-run reports `csv_enabled: false` and `csv_path: null` for a no-CSV plan,
-while `dry_run_writes_csv` remains false for every dry-run. Common schema
-version remains `2`; the Common Worker Protocol is unchanged.
+while `dry_run_writes_csv` remains false for every dry-run. The Worker
+uses protocol schema 3; the independent dry-run and artifact schemas remain unchanged.
 
 Schedulers that retain launch requests, complete stdout/stderr, terminal
 results, or derived sample files own those filenames and layouts. See

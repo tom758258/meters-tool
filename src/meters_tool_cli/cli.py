@@ -46,7 +46,7 @@ from meters_tool_core.validation import (
 )
 
 try:
-    from ._constants import CLI_EVENT_SCHEMA_VERSION
+    from ._constants import CLI_EVENT_SCHEMA_VERSION, MANIFEST_SCHEMA_VERSION, WORKER_SCHEMA_VERSION
     from ._client_commands import (
         CommandResponsePayloadError,
         StatusPayloadError,
@@ -72,7 +72,7 @@ try:
         WindowsKeyboardStopPoller,
     )
 except ImportError:  # pragma: no cover - PyInstaller script entry point
-    from meters_tool_cli._constants import CLI_EVENT_SCHEMA_VERSION
+    from meters_tool_cli._constants import CLI_EVENT_SCHEMA_VERSION, MANIFEST_SCHEMA_VERSION, WORKER_SCHEMA_VERSION
     from meters_tool_cli._client_commands import (
         _validate_client_port_and_timeout,
         cmd_send_command,
@@ -371,13 +371,18 @@ def cmd_manifest(output_format: str = "text", print_fn=print) -> int:  # noqa: A
 
     payload = {
         "event": "tool_manifest",
-        "schema_version": CLI_EVENT_SCHEMA_VERSION,
+        "schema_version": MANIFEST_SCHEMA_VERSION,
         "tool_id": "meters",
         "tool_version": get_cli_version(),
         "worker_protocol": {
-            "compatibility_policy": "v2-only",
-            "schema_versions": [CLI_EVENT_SCHEMA_VERSION],
+            "compatibility_policy": "v3-only",
+            "schema_versions": [WORKER_SCHEMA_VERSION],
         },
+        "execution": {"model": "run_bound", "context_binding": "startup"},
+        "features": {
+            "common.streaming": {"contract_version": 1, "lifecycles": ["run_bound"]},
+        },
+        "commands": {"software_trigger": {"kind": "control"}},
     }
 
     if output_format == "json":
@@ -586,6 +591,7 @@ def cmd_start(args: argparse.Namespace) -> int:
         if args.status_format == "jsonl":
             event_sink.emit(StartRunEvent.status_event(
                 runtime_run_id, warning,
+                worker_state="starting", fatal_error=None,
                 **(stream_state.status_fields() if stream_state is not None else {}),
             ))
         else:
@@ -603,10 +609,10 @@ def cmd_start(args: argparse.Namespace) -> int:
             **({"stream_state": stream_state} if stream_state is not None else {}),
         )
     except ValueError as exc:
-        emitter.error(str(exc), rc=2)
+        emitter.error(str(exc), rc=2, run_id=runtime_run_id, scope="request", fatal=False)
         return 2
     except InstrumentError as exc:
-        emitter.error(str(exc), rc=3)
+        emitter.error(str(exc), rc=3, run_id=runtime_run_id, scope="worker", fatal=True)
         return 3
     return 0 if result.ok else 3
 

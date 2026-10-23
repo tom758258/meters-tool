@@ -1,10 +1,10 @@
 # Meters Orchestrator Workflows
 
-Common schema version: `2`
+Worker schema version: `3`
 
-Compatibility policy: `v2-only`
+Independent CLI single-response schema version: `2`
 
-Implementation status: `Common v2-only conformant`
+Compatibility policy: `v3-only`
 
 This document gives subprocess-oriented workflows for agents that drive the
 Keysight meter CLI. Shared lifecycle guidance is defined in
@@ -16,8 +16,9 @@ fields are defined in
 worker endpoints are defined in
 [Meters Worker Contract](meters-worker-contract.md).
 
-The current Meters implementation supports Common schema `2` only. Do not send
-schema `1` or attempt fallback or version negotiation.
+Meters runtime Worker HTTP and JSONL require exact integer schema `3`;
+the Manifest and independently wrapped CLI client responses use schema `2`.
+There is no v2 fallback or version negotiation.
 
 ## Invocation Forms
 
@@ -120,7 +121,7 @@ try:
             ready = event
             break
     assert ready is not None
-    assert ready["schema_version"] == 2
+    assert ready["schema_version"] == 3
 
     wait_ready = subprocess.run(
         [
@@ -180,7 +181,7 @@ try:
     for line in worker.stdout:
         event = json.loads(line)
         if event["event"] == "summary":
-            assert event["schema_version"] == 2
+            assert event["schema_version"] == 3
             assert event["ok"] is True
             assert event["captured"] == 1
             assert event["errors"] == 0
@@ -269,7 +270,7 @@ default CSV workflow. Do not layer a new storage contract on top of it.
 `persist_stdout_jsonl`, `persist_measurement`, and terminal-result construction
 are orchestrator responsibilities. Meters creates no CSV file or CSV-only
 parent directory with `--no-csv`, and its `ready`, `status`, `summary`, process
-exit, `run_id`, and Common `schema_version: 2` semantics remain unchanged.
+exit, `run_id`, and Common Worker `schema_version: 3` semantics apply; independent wrappers remain 2.
 
 ## Readiness And Status
 
@@ -284,8 +285,8 @@ the current run.
 ## Trigger And Stop
 
 Use `send-command --json` or direct `POST /command` for software-triggered
-Meters measurement requests. The Common v2 command envelope includes exact
-integer `schema_version: 2` and omits `context` because Meters binds it at
+Meters measurement requests. The Common v3 Worker command envelope includes exact
+integer `schema_version: 3` and omits `context` because Meters binds it at
 startup. Use `stop --json` or direct `POST /stop` for cooperative cleanup.
 
 Treat `send-command` exit `2` as local or worker validation failure. Treat

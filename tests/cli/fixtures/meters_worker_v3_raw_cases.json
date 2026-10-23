@@ -1,0 +1,30 @@
+{
+  "valid_command": [
+    "{\"schema_version\":3,\"command\":\"software_trigger\"}",
+    "{\"schema_version\":3,\"command\":\"software_trigger\",\"arguments\":{\"metadata\":{\"batch\":1}}}"
+  ],
+  "invalid_command": [
+    "{\"schema_version\":2,\"command\":\"software_trigger\"}",
+    "{\"schema_version\":\"3\",\"command\":\"software_trigger\"}",
+    "{\"schema_version\":true,\"command\":\"software_trigger\"}",
+    "{\"schema_version\":3.0,\"command\":\"software_trigger\"}",
+    "{\"schema_version\":3e0,\"command\":\"software_trigger\"}",
+    "{\"schema_version\":3,\"command\":\"software_trigger\",\"context\":{}}",
+    "{\"schema_version\":3,\"command\":\"software_trigger\",\"unknown\":true}"
+  ],
+  "valid_stop": [
+    "",
+    "{}",
+    "{\"schema_version\":3,\"reason\":\"operator\"}"
+  ],
+  "invalid_stop": [
+    "{\"schema_version\":2}",
+    "{\"schema_version\":\"3\"}",
+    "{\"schema_version\":true}",
+    "{\"schema_version\":3.0}",
+    "{\"schema_version\":3e0}",
+    "{\"reason\":1}",
+    "{\"unknown\":true}",
+    "[]"
+  ]
+}

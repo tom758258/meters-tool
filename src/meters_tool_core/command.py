@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-COMMAND_SCHEMA_VERSION = 2
+COMMAND_SCHEMA_VERSION = 3
 ALLOWED_COMMAND_ENVELOPE_KEYS = {"schema_version", "command", "arguments", "job_id"}
 METERS_SOFTWARE_TRIGGER_COMMAND = "software_trigger"
 
@@ -65,27 +65,51 @@ def command_identity(payload: Any) -> tuple[str | None, str | None]:
     )
 
 
+def common_error(category: str, code: str, message: str) -> dict[str, Any]:
+    return {
+        "category": category,
+        "code": code,
+        "message": message or code.replace("_", " "),
+        "details": {"domain_error": message} if message else {},
+    }
+
+
+def parse_stop_request_json(raw_payload: str) -> None:
+    if not raw_payload.strip():
+        return
+    try:
+        payload = json.loads(raw_payload)
+    except json.JSONDecodeError as exc:
+        raise CommandValidationError(f"malformed JSON: {exc.msg}") from exc
+    if not isinstance(payload, dict):
+        raise CommandValidationError("stop request must be a JSON object")
+    if set(payload) - {"schema_version", "reason"}:
+        raise CommandValidationError("unknown stop request field")
+    if "schema_version" in payload and (
+        type(payload["schema_version"]) is not int
+        or payload["schema_version"] != COMMAND_SCHEMA_VERSION
+    ):
+        raise CommandValidationError("stop schema_version must be exact integer 3")
+    if "reason" in payload and not isinstance(payload["reason"], str):
+        raise CommandValidationError("stop reason must be a string")
+
+
 def command_response(
-    status: str,
-    *,
-    command: str | None,
-    job_id: str | None,
-    reason: str | None = None,
-    error: str | None = None,
-    message: str | None = None,
+    status: str, *, run_id: str, command: str | None, job_id: str | None,
+    error: dict[str, Any] | None = None, reason: str | None = None,
 ) -> dict[str, Any]:
     response: dict[str, Any] = {
         "schema_version": COMMAND_SCHEMA_VERSION,
+        "run_id": run_id,
         "status": status,
         "command": command,
         "job_id": job_id,
+        "kind": "control" if command == METERS_SOFTWARE_TRIGGER_COMMAND else None,
+        "worker_job_id": None,
+        "error": error,
     }
     if reason is not None:
         response["reason"] = reason
-    if error is not None:
-        response["error"] = error
-    if message is not None:
-        response["message"] = message
     return response
 
 
