@@ -16,7 +16,7 @@ from meters_tool_core.command import (
 )
 from meters_tool_core.validation import validate_client_port
 
-from ._constants import CLI_EVENT_SCHEMA_VERSION
+from ._constants import CLI_EVENT_SCHEMA_VERSION, WORKER_SCHEMA_VERSION
 
 
 class StatusPayloadError(ValueError):
@@ -201,11 +201,19 @@ def _fetch_worker_status(port: int, timeout_ms: int) -> tuple[int, dict[str, obj
         if not isinstance(worker_status, dict):
             raise StatusPayloadError("status endpoint returned invalid JSON object", http_status)
         schema_version = worker_status.get("schema_version")
-        if type(schema_version) is not int or schema_version != CLI_EVENT_SCHEMA_VERSION:
+        if type(schema_version) is not int or schema_version != WORKER_SCHEMA_VERSION:
             raise StatusPayloadError(
-                f"status endpoint requires schema_version {CLI_EVENT_SCHEMA_VERSION}",
+                f"status endpoint requires schema_version {WORKER_SCHEMA_VERSION}",
                 http_status,
             )
+        if (
+            not isinstance(worker_status.get("run_id"), str)
+            or not worker_status["run_id"]
+            or worker_status.get("worker_state") not in {"starting", "running", "stopping", "failed"}
+            or "fatal_error" not in worker_status
+            or not isinstance(worker_status.get("features"), dict)
+        ):
+            raise StatusPayloadError("status endpoint returned invalid v3 status", http_status)
         return http_status, worker_status
 
 
@@ -226,9 +234,9 @@ def _read_command_response(response: Any, http_status: int) -> dict[str, object]
             http_status,
         )
     schema_version = payload.get("schema_version")
-    if type(schema_version) is not int or schema_version != CLI_EVENT_SCHEMA_VERSION:
+    if type(schema_version) is not int or schema_version != WORKER_SCHEMA_VERSION:
         raise CommandResponsePayloadError(
-            f"command endpoint requires schema_version {CLI_EVENT_SCHEMA_VERSION}",
+            f"command endpoint requires schema_version {WORKER_SCHEMA_VERSION}",
             http_status,
         )
     if payload.get("status") not in {"accepted", "rejected", "error"}:
@@ -250,6 +258,15 @@ def _read_command_response(response: Any, http_status: int) -> dict[str, object]
             "command endpoint returned an invalid job_id identity",
             http_status,
         )
+    if (
+        not isinstance(payload.get("run_id"), str) or not payload["run_id"]
+        or payload.get("kind") not in {"control", "async_job", None}
+        or "kind" not in payload or "worker_job_id" not in payload
+        or "error" not in payload
+    ):
+        raise CommandResponsePayloadError(
+            "command endpoint returned invalid v3 response fields", http_status,
+        )
     return payload
 
 
@@ -261,7 +278,11 @@ def _normalized_status_payload(
     extra: dict[str, object] | None = None,
 ) -> dict[str, object]:
     status_value = worker_status.get("status")
-    fatal_error = worker_status.get("fatal_error")
+    worker_fatal_error = worker_status.get("fatal_error")
+    fatal_error = (
+        worker_fatal_error.get("details", {}).get("domain_error", worker_fatal_error.get("message"))
+        if isinstance(worker_fatal_error, dict) else worker_fatal_error
+    )
     payload = {
         "event": event,
         "client_command": event,
@@ -283,6 +304,7 @@ def _normalized_status_payload(
         "service": worker_status.get("service"),
         "run_id": worker_status.get("run_id"),
         "status": status_value,
+        "worker_state": worker_status.get("worker_state"),
         "command_url": worker_status.get("command_url"),
         "stop_url": worker_status.get("stop_url"),
         "status_url": worker_status.get("status_url"),
@@ -300,6 +322,8 @@ def _normalized_status_payload(
         "final_drain_complete": worker_status.get("final_drain_complete"),
         "data_integrity": worker_status.get("data_integrity", "unknown"),
     }
+    if worker_fatal_error is not None:
+        payload["worker_fatal_error"] = worker_fatal_error
     if "stream" in worker_status:
         payload["stream"] = worker_status["stream"]
     if extra is not None:
@@ -362,9 +386,14 @@ def cmd_send_command(
                 elapsed_ms=elapsed_ms,
             )
             if worker_response is not None:
-                for key in ("command", "job_id", "reason", "error", "message"):
+                for key in ("command", "job_id", "reason"):
                     if key in worker_response:
                         payload[key] = worker_response[key]
+                worker_error = worker_response.get("error")
+                if isinstance(worker_error, dict):
+                    payload["error"] = worker_error.get("code")
+                    payload["worker_error"] = worker_error
+                    payload["message"] = worker_error.get("message", message)
             print(json.dumps(payload, sort_keys=True))
         else:
             print(message, file=sys.stderr)
@@ -450,9 +479,14 @@ def cmd_send_command(
                     "timestamp_utc": datetime.now(timezone.utc).isoformat(),
                     "url": url,
                 }
-                for key in ("command", "job_id", "reason", "error", "message"):
+                for key in ("command", "job_id", "reason"):
                     if key in worker_response:
                         payload[key] = worker_response[key]
+                worker_error = worker_response.get("error")
+                if isinstance(worker_error, dict):
+                    payload["error"] = worker_error.get("code")
+                    payload["worker_error"] = worker_error
+                    payload["message"] = worker_error.get("message", message)
                 print(json.dumps(payload, sort_keys=True))
             else:
                 print(f"command accepted: {response.status}")
@@ -478,8 +512,8 @@ def cmd_send_command(
                 worker_response = None
         exit_code = 2 if http_status == 400 else 3
         message = (
-            str(worker_response.get("message"))
-            if worker_response is not None and worker_response.get("message")
+            str(worker_response["error"].get("message"))
+            if worker_response is not None and isinstance(worker_response.get("error"), dict)
             else f"command request failed: {exc}"
         )
         return emit_error(
@@ -667,6 +701,11 @@ def cmd_wait_ready(port: int, output_format: str = "text", timeout_ms: int = 100
         try:
             request_timeout_ms = max(1, min(1000, int(remaining_s * 1000)))
             http_status, worker_status = _fetch_worker_status(port, request_timeout_ms)
+            if (
+                worker_status["worker_state"] != "running"
+                or worker_status["fatal_error"] is not None
+            ):
+                raise StatusPayloadError("status endpoint is not ready", http_status)
             elapsed_ms = int((time.monotonic() - start) * 1000)
             payload = _normalized_status_payload(
                 "wait-ready",
