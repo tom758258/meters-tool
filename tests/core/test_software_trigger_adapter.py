@@ -17,7 +17,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
     def _post_command(
         self,
         port: int,
-        payload: bytes = b'{"schema_version":2,"command":"software_trigger"}',
+        payload: bytes = b'{"schema_version":3,"command":"software_trigger"}',
     ) -> int:
         req = request.Request(
             f"http://127.0.0.1:{port}/command",
@@ -85,7 +85,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             status, payload = self._get_json(port)
 
             self.assertEqual(200, status)
-            self.assertEqual(2, payload["schema_version"])
+            self.assertEqual(3, payload["schema_version"])
             self.assertEqual("keysight-meter", payload["service"])
             self.assertEqual("running", payload["status"])
             self.assertEqual(f"http://127.0.0.1:{port}/command", payload["command_url"])
@@ -97,7 +97,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertIsNone(payload["captured"])
             self.assertIsNone(payload["errors"])
             self.assertIsNone(payload["fatal_error"])
-            self.assertIsNone(payload["run_id"])
+            self.assertTrue(payload["run_id"])
             self.assertFalse(payload["trigger_count_infinite"])
             self.assertEqual("off", payload["overflow_monitoring"])
             self.assertEqual("unknown", payload["data_integrity"])
@@ -112,6 +112,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             port=0,
             min_interval_ms=50,
             queue_max=3,
+            run_id="run-123",
             status_provider=lambda: {
                 "status": "stopping",
                 "run_id": "run-123",
@@ -139,7 +140,8 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
             self.assertEqual(50, payload["min_interval_ms"])
             self.assertEqual(2, payload["captured"])
             self.assertEqual(1, payload["errors"])
-            self.assertEqual("capture failed", payload["fatal_error"])
+            self.assertEqual("capture failed", payload["fatal_error"]["details"]["domain_error"])
+            self.assertEqual("failed", payload["worker_state"])
             self.assertEqual("run-123", payload["run_id"])
             self.assertTrue(payload["trigger_count_infinite"])
             self.assertIsNone(payload["expected_readings"])
@@ -151,7 +153,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         finally:
             server.stop()
 
-    def test_status_provider_exception_returns_nullable_dynamic_fields(self):
+    def test_status_provider_exception_returns_structured_http_500(self):
         def failing_provider() -> dict[str, object]:
             raise RuntimeError("status unavailable")
 
@@ -159,13 +161,16 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         server = SoftwareTriggerAdapter(router, port=0, status_provider=failing_provider)
         _, port = server.start()
         try:
-            status, payload = self._get_json(port)
-
-            self.assertEqual(200, status)
-            self.assertEqual("running", payload["status"])
-            self.assertIsNone(payload["captured"])
-            self.assertIsNone(payload["errors"])
-            self.assertIsNone(payload["fatal_error"])
+            with self.assertRaises(HTTPError) as raised:
+                self._get_json(port)
+            with raised.exception as response:
+                self.assertEqual(500, response.code)
+                payload = json.loads(response.read())
+            self.assertEqual(3, payload["schema_version"])
+            self.assertEqual("error", payload["status"])
+            self.assertEqual("worker", payload["error"]["category"])
+            self.assertEqual("status_failed", payload["error"]["code"])
+            self.assertTrue(payload["run_id"])
         finally:
             server.stop()
 
@@ -216,7 +221,7 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
         try:
             status = self._post_command(
                 port,
-                b'{"schema_version":2,"command":"software_trigger","arguments":{"metadata":{"batch":"A1","count":3,"tags":["x"]}}}',
+                b'{"schema_version":3,"command":"software_trigger","arguments":{"metadata":{"batch":"A1","count":3,"tags":["x"]}}}',
             )
             self.assertEqual(202, status)
             event = router.wait(timeout_s=0.1)
@@ -244,69 +249,95 @@ class SoftwareTriggerAdapterTests(unittest.TestCase):
 
     def test_command_responses_use_common_envelope_and_echo_safe_identity(self):
         router = TriggerRouter()
-        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=1000, queue_max=0)
+        server = SoftwareTriggerAdapter(router, port=0, min_interval_ms=1000)
         _, port = server.start()
         try:
             accepted = self._post_command_json(
-                port,
-                b'{"schema_version":2,"command":"software_trigger","job_id":"job-1"}',
+                port, b'{"schema_version":3,"command":"software_trigger","job_id":"job-1"}',
             )
             rejected = self._post_command_json(
-                port,
-                b'{"schema_version":2,"command":"software_trigger","job_id":"job-2"}',
+                port, b'{"schema_version":3,"command":"software_trigger","job_id":"job-2"}',
             )
             invalid = self._post_command_json(
                 port,
-                b'{"schema_version":2,"command":"software_trigger","job_id":"job-3","arguments":{"metadata":[]}}',
+                b'{"schema_version":3,"command":"software_trigger","job_id":"job-3","arguments":{"metadata":[]}}',
             )
             invalid_job = self._post_command_json(
-                port,
-                b'{"schema_version":2,"command":"software_trigger","job_id":3}',
+                port, b'{"schema_version":3,"command":"software_trigger","job_id":3}',
             )
-
-            self.assertEqual(
-                (
-                    202,
-                    {
-                        "schema_version": 2,
-                        "status": "accepted",
-                        "command": "software_trigger",
-                        "job_id": "job-1",
-                    },
-                    "application/json",
-                ),
-                accepted,
-            )
-            self.assertEqual(
-                (
-                    429,
-                    {
-                        "schema_version": 2,
-                        "status": "rejected",
-                        "command": "software_trigger",
-                        "job_id": "job-2",
-                        "reason": "rate_limited",
-                    },
-                    "application/json",
-                ),
-                rejected,
-            )
-            self.assertEqual(400, invalid[0])
-            self.assertEqual(
-                {
-                    "schema_version": 2,
-                    "status": "error",
-                    "command": "software_trigger",
-                    "job_id": "job-3",
-                    "error": "validation_error",
-                    "message": "metadata must be a JSON object",
-                },
-                invalid[1],
-            )
-            self.assertEqual(400, invalid_job[0])
+            self.assertEqual([202, 429, 400, 400], [x[0] for x in
+                             (accepted, rejected, invalid, invalid_job)])
+            for _, payload, content_type in (accepted, rejected, invalid, invalid_job):
+                self.assertEqual("application/json", content_type)
+                self.assertEqual(3, payload["schema_version"])
+                self.assertEqual(server._run_id, payload["run_id"])
+                self.assertIsNone(payload["worker_job_id"])
+                self.assertEqual("control", payload["kind"])
+            self.assertEqual("accepted", accepted[1]["status"])
+            self.assertIsNone(accepted[1]["error"])
+            self.assertEqual("job-1", accepted[1]["job_id"])
+            self.assertEqual("rejected", rejected[1]["status"])
+            self.assertEqual("rate_limited", rejected[1]["reason"])
+            self.assertEqual("admission", rejected[1]["error"]["category"])
+            self.assertEqual("validation", invalid[1]["error"]["category"])
+            self.assertEqual("job-3", invalid[1]["job_id"])
             self.assertIsNone(invalid_job[1]["job_id"])
-            self.assertEqual("software_trigger", invalid_job[1]["command"])
             self.assertIsNotNone(router.wait(timeout_s=0.01))
+            self.assertIsNone(router.wait(timeout_s=0.01))
+        finally:
+            server.stop()
+
+    def test_stop_ack_is_idempotent_and_invalid_body_is_rejected(self):
+        router = TriggerRouter()
+        callback_called = threading.Event()
+        callbacks = []
+
+        def stop_cb():
+            callbacks.append("called")
+            callback_called.set()
+
+        server = SoftwareTriggerAdapter(router, port=0, stop_cb=stop_cb)
+        _, port = server.start()
+        try:
+            for body, expected in [
+                (b'{"schema_version":2}', 400),
+                (b'{"schema_version":3.0}', 400),
+                (b'{"schema_version":3e0}', 400),
+                (b'{"context":{}}', 400),
+                (b'{"reason":5}', 400),
+            ]:
+                req = request.Request(f"http://127.0.0.1:{port}/stop",
+                                      method="POST", data=body)
+                with self.assertRaises(HTTPError) as failed:
+                    request.urlopen(req, timeout=1)
+                self.assertEqual(expected, failed.exception.code)
+            self.assertIsNone(router.wait(timeout_s=0.01))
+            for _ in range(2):
+                req = request.Request(f"http://127.0.0.1:{port}/stop",
+                                      method="POST", data=b'{"schema_version":3}')
+                with request.urlopen(req, timeout=1) as response:
+                    self.assertEqual(202, response.status)
+                    ack = json.loads(response.read())
+                    self.assertEqual("accepted", ack["status"])
+                    self.assertEqual(3, ack["schema_version"])
+                    self.assertIsNone(ack["error"])
+            self.assertTrue(callback_called.wait(timeout=1))
+            self.assertEqual(["called"], callbacks)
+            self.assertEqual("stop", router.wait(timeout_s=0.1).metadata["control"])
+            self.assertIsNone(router.wait(timeout_s=0.01))
+        finally:
+            server.stop()
+
+    def test_startup_bound_context_rejected_without_trigger_side_effect(self):
+        router = TriggerRouter()
+        server = SoftwareTriggerAdapter(router, port=0)
+        _, port = server.start()
+        try:
+            code, data, _ = self._post_command_json(
+                port, b'{"schema_version":3,"command":"software_trigger","context":{}}',
+            )
+            self.assertEqual(400, code)
+            self.assertEqual("validation", data["error"]["category"])
             self.assertIsNone(router.wait(timeout_s=0.01))
         finally:
             server.stop()
@@ -397,15 +428,15 @@ _MISSING_SCHEMA_VERSION = object()
 
 @pytest.mark.parametrize(
     "schema_version",
-    [_MISSING_SCHEMA_VERSION, 1, "2", 2.0, True],
+    [_MISSING_SCHEMA_VERSION, 2, "3", 3.0, True],
     ids=["missing", "v1", "string", "float", "boolean"],
 )
-def test_command_parser_rejects_non_v2_schema_versions(schema_version):
+def test_command_parser_rejects_non_v3_schema_versions(schema_version):
     payload = {"command": "software_trigger"}
     if schema_version is not _MISSING_SCHEMA_VERSION:
         payload["schema_version"] = schema_version
 
-    with pytest.raises(CommandValidationError, match="schema_version must be exact integer 2"):
+    with pytest.raises(CommandValidationError, match="schema_version must be exact integer 3"):
         parse_command_envelope(payload)
 
 
