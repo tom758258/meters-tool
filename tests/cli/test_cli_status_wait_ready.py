@@ -83,7 +83,7 @@ class CliStatusWaitReadyTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertTrue(event["reachable"])
         self.assertTrue(event["running"])
         self.assertEqual("run-123", event["run_id"])
-        self.assertEqual(2, event["worker_schema_version"])
+        self.assertEqual(3, event["worker_schema_version"])
         self.assertEqual("2026-05-31T00:00:00+00:00", event["worker_timestamp_utc"])
 
     @patch("meters_tool_cli._client_commands.request.urlopen")

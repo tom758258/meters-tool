@@ -41,7 +41,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             status = 202
 
             def read(self):
-                return b'{"schema_version":2,"status":"accepted","command":"software_trigger","job_id":null}'
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","command":"software_trigger","job_id":null,"kind":"control","worker_job_id":null,"error":null}'
 
             def __enter__(self):
                 return self
@@ -61,7 +61,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertEqual("http://127.0.0.1:8765/command", req.full_url)
         self.assertEqual("POST", req.get_method())
         self.assertEqual(
-            b'{"schema_version":2,"command":"software_trigger","arguments":{"metadata":{"operator":"tom"}}}',
+            b'{"schema_version":3,"command":"software_trigger","arguments":{"metadata":{"operator":"tom"}}}',
             req.data,
         )
 
@@ -108,7 +108,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         self.assertFalse(events[0]["send_request"])
         self.assertEqual(
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "command": "software_trigger",
                 "arguments": {"metadata": {"operator": "tom"}},
             },
@@ -156,7 +156,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             status = 202
 
             def read(self):
-                return b'{"schema_version":2,"status":"accepted","command":"software_trigger","job_id":null}'
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","command":"software_trigger","job_id":null,"kind":"control","worker_job_id":null,"error":null}'
 
             def __enter__(self):
                 return self
@@ -206,7 +206,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             status = 202
 
             def read(self):
-                return b'{"schema_version":2,"status":"accepted","command":"software_trigger","job_id":"job-1"}'
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","command":"software_trigger","job_id":"job-1","kind":"control","worker_job_id":null,"error":null}'
 
             def __enter__(self):
                 return self
@@ -253,7 +253,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
         mock_urlopen.assert_not_called()
 
     @patch("meters_tool_cli._client_commands.request.urlopen")
-    def test_soft_trigger_rejects_non_v2_worker_response(self, mock_urlopen):
+    def test_soft_trigger_rejects_non_v3_worker_response(self, mock_urlopen):
         class FakeResponse:
             status = 202
 
@@ -274,13 +274,14 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
 
         self.assertEqual(3, rc)
         event = json.loads(stdout.getvalue())
-        self.assertIn("requires schema_version 2", event["message"])
+        self.assertIn("requires schema_version 3", event["message"])
 
     @patch("meters_tool_cli._client_commands.request.urlopen")
     def test_soft_trigger_http_400_merges_worker_response_and_returns_2(self, mock_urlopen):
         body = io.BytesIO(
-            b'{"schema_version":2,"status":"error","command":"software_trigger","job_id":"job-1",'
-            b'"error":"validation_error","message":"metadata must be a JSON object"}'
+            b'{"schema_version":3,"run_id":"run-123","status":"error","command":"software_trigger","job_id":"job-1",'
+            b'"kind":"control","worker_job_id":null,"error":{"category":"validation","code":"validation_error",'
+            b'"message":"metadata must be a JSON object","details":{}}}'
         )
         mock_urlopen.side_effect = HTTPError(
             "http://127.0.0.1:8765/command",
@@ -330,7 +331,7 @@ class CliSendCommandTests(CliCommandHarnessMixin, unittest.TestCase):
             status = 202
 
             def read(self):
-                return b'{"schema_version":2,"status":"accepted","command":"software_trigger","job_id":"other"}'
+                return b'{"schema_version":3,"run_id":"run-123","status":"accepted","command":"software_trigger","job_id":"other","kind":"control","worker_job_id":null,"error":null}'
 
             def __enter__(self):
                 return self

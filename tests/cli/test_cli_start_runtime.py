@@ -129,7 +129,7 @@ class CliStartRuntimeTests(CliCommandHarnessMixin, unittest.TestCase):
 
             self.assertIsNotNone(payload)
             assert payload is not None
-            self.assertEqual(2, payload["schema_version"])
+            self.assertEqual(3, payload["schema_version"])
             self.assertEqual("keysight-meter", payload["service"])
             self.assertEqual("running", payload["status"])
             self.assertEqual(f"http://127.0.0.1:{port}/command", payload["command_url"])
@@ -146,7 +146,7 @@ class CliStartRuntimeTests(CliCommandHarnessMixin, unittest.TestCase):
             trigger_req = request.Request(
                 f"http://127.0.0.1:{port}/command",
                 method="POST",
-                data=b'{"schema_version":2,"command":"software_trigger"}',
+                data=b'{"schema_version":3,"command":"software_trigger"}',
                 headers={"Content-Type": "application/json"},
             )
             with request.urlopen(trigger_req, timeout=1.0) as resp:

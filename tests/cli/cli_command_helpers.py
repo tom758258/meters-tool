@@ -255,7 +255,7 @@ class CliCommandHarnessMixin:
     def _parse_jsonl_events(self, output):
         events = [json.loads(line) for line in output.splitlines() if line.strip()]
         self.assertTrue(events)
-        self.assertTrue(all(event["schema_version"] == 2 for event in events))
+        self.assertTrue(all(event["schema_version"] == 3 for event in events))
         self.assertTrue(all("event" in event for event in events))
         self.assertTrue(all("timestamp_utc" in event for event in events))
         return events
@@ -289,14 +289,17 @@ class CliCommandHarnessMixin:
         self.assertEqual(expected_samples, summary["captured"])
         self.assertEqual(0, summary["errors"])
         self.assertIs(True, summary["ok"])
-        self.assertNotIn("fatal_error", summary)
+        self.assertIsNone(summary["fatal_error"])
+        self.assertEqual(0, summary["exit_code"])
 
     def _worker_status(self, *, fatal_error=None, status="running"):
         return {
-            "schema_version": 2,
+            "schema_version": 3,
             "service": "keysight-meter",
             "run_id": "run-123",
             "status": status,
+            "worker_state": "failed" if fatal_error else status,
+            "features": {},
             "command_url": "http://127.0.0.1:8765/command",
             "stop_url": "http://127.0.0.1:8765/stop",
             "status_url": "http://127.0.0.1:8765/status",
@@ -305,7 +308,11 @@ class CliCommandHarnessMixin:
             "min_interval_ms": 0,
             "captured": 10,
             "errors": 0,
-            "fatal_error": fatal_error,
+            "fatal_error": (
+                {"category": "execution", "code": "acquisition_failed",
+                 "message": fatal_error, "details": {"domain_error": fatal_error}}
+                if fatal_error else None
+            ),
             "timestamp_utc": "2026-05-31T00:00:00+00:00",
         }
 

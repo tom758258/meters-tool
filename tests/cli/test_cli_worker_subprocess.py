@@ -107,7 +107,7 @@ def test_piped_jsonl_ready_is_visible_before_worker_exit():
         ready = read_event_until(lines, "ready", timeout_s=10.0)
         assert process.poll() is None
         assert ready["event"] == "ready"
-        assert ready["schema_version"] == 2
+        assert ready["schema_version"] == 3
         assert ready["service"] == "keysight-meter"
         assert ready["run_id"]
         for key in ("status_url", "command_url", "stop_url"):
