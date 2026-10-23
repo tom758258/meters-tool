@@ -1,6 +1,28 @@
 # Changelog
 
-## Unreleased
+## v4.0.0
+
+- **Breaking:** Migrates Worker v2-only to v3-only under Common Contract `3.0`.
+  Existing integrations must upgrade Worker requests and response parsing;
+  there is no v2 fallback. Worker schema is `3`; Manifest and independent CLI
+  schemas remain `2`.
+- **Breaking:** CSV now defaults to compact timestamp, value, and unit columns.
+  Use `--csv-format full` or WebUI/Desktop `Full` for the previous metadata
+  columns. Adds optional elapsed and sample-interval columns.
+- Adds opt-in run-bound Streaming through `--streaming --json`, with stream
+  readiness and termination reporting. Streaming defaults to no CSV unless
+  `--csv PATH` is supplied.
+- Adds Infinite Custom acquisition and overflow controls for supported scopes,
+  improves completion and data-integrity reporting, and preserves buffered
+  readings and stop requests across failure and shutdown paths.
+- Adds PyVISA-py backend selection to WebUI/Desktop for supported 34461A TCPIP
+  sessions. System VISA remains the default and does not fall back to PyVISA-py.
+- Fixes WebUI support gating, completed-run status, CSV folder selection,
+  launcher port selection, and Traditional Chinese runtime translations;
+  improves live rendering and preserves sample selection during locale changes.
+- Updates release acceptance for Worker v3-only while retaining artifact,
+  SHA-256, clean-tree, and unchanged-HEAD checks. Expands no-hardware coverage
+  and refreshes bilingual documentation and bundled Help.
 
 ## v3.1.2
 

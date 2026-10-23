@@ -528,15 +528,22 @@ uv run meters-tool start-trigger-record `
   "event": "tool_manifest",
   "schema_version": 2,
   "tool_id": "meters",
-  "tool_version": "3.1.2",
+  "tool_version": "4.0.0",
   "worker_protocol": {
-    "compatibility_policy": "v2-only",
-    "schema_versions": [2]
-  }
+    "compatibility_policy": "v3-only",
+    "schema_versions": [3]
+  },
+  "execution": {"model": "run_bound", "context_binding": "startup"},
+  "features": {
+    "common.streaming": {"contract_version": 1, "lifecycles": ["run_bound"]}
+  },
+  "commands": {"software_trigger": {"kind": "control"}}
 }
 ```
 
-`worker_protocol` 欄位回報支援的 Common worker schema 版本與相容性政策。Orchestrator 必須將非 v2 的 schema 視為不支援，而不是進行協商。
+`worker_protocol` 欄位依 Common Contract revision `3.0` 宣告 Worker schema `3` 與 `v3-only` 相容性。Meters Tool `4.0.0` 取代 `3.1.2` 的 Worker v2-only 合約，不提供 v2 fallback 或版本協商；既有整合端必須先升級 Worker 請求及回應解析，才能使用此版本。`execution`、`features` 與 `commands` 描述啟動時綁定執行脈絡、單次執行的 Worker 及其選用 Streaming 能力。
+
+Manifest schema 維持 `2`。獨立 CLI 單次回應 JSON 與 dry-run 預覽維持 schema `2`；執行階段 Worker JSONL 與直接 Worker HTTP 使用 schema `3`。`status` 與 `wait-ready` 以 `worker_schema_version` 揭露內層 Worker 版本。Worker 欄位與相容性要求請參閱 [Meters Worker Contract](../contracts/meters-worker-contract.md)。
 
 `list-resources` 選項：
 
@@ -775,7 +782,7 @@ JSONL 輸出是每行一個 JSON 物件。這是專為 Agent 和腳本設計的�
 .\.venv\Scripts\meters-tool.exe wait-ready --port 8765 --timeout-ms 10000 --format json
 ```
 
-`wait-ready` 在收到來自 `/status` 的任何有效 `200` JSON 回應時成功，並將 `attempts`、`elapsed_ms` 和 `timeout_ms` 加入正規化的狀態物件中。逾時或無效狀態 JSON 將以代碼 3 退出。
+`wait-ready` 要求 `/status` 回傳有效的 Worker schema `3` 回應，且 HTTP 為 `200`、`worker_state: "running"`、`fatal_error: null`。它將 `attempts`、`elapsed_ms` 和 `timeout_ms` 加入 schema `2` 的正規化狀態物件。若期限內未達就緒條件，包括狀態回應無效或不相容，則以代碼 3 退出。
 
 ### 結束代碼 (Exit Codes)
 

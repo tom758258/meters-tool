@@ -12,8 +12,9 @@ on:
           - bundle
           - desktop
           - release
+          - release-acceptance
       create_draft:
-        description: "Create GitHub Draft Release (release mode only)"
+        description: "Create GitHub Draft Release (release-acceptance mode only)"
         type: boolean
         required: true
         default: false
@@ -29,6 +30,8 @@ jobs:
   build:
     name: Build ${{ inputs.build_mode }}
     runs-on: windows-2025
+    env:
+      ACCEPTANCE_OUTPUT_ROOT: .tmp_tests/action-release-acceptance/${{ github.run_id }}-${{ github.run_attempt }}
     outputs:
       version: ${{ steps.meta.outputs.version }}
       artifact_name: ${{ steps.meta.outputs.artifact_name }}
@@ -39,8 +42,8 @@ jobs:
       - name: Validate options
         shell: pwsh
         run: |
-          if ('${{ inputs.create_draft }}' -eq 'true' -and '${{ inputs.build_mode }}' -ne 'release') {
-            throw "Draft Releases require build_mode=release."
+          if ('${{ inputs.create_draft }}' -eq 'true' -and '${{ inputs.build_mode }}' -ne 'release-acceptance') {
+            throw "Draft Releases require build_mode=release-acceptance."
           }
           if ('${{ inputs.create_draft }}' -eq 'true' -and '${{ github.ref }}' -ne 'refs/heads/main') {
             throw "Draft Releases can only be created from main."
@@ -65,20 +68,7 @@ jobs:
         shell: pwsh
         run: uv sync --python 3.13 --all-extras --locked --link-mode=copy
 
-      - name: Build with existing PowerShell script
-        shell: pwsh
-        run: |
-          $mode = '${{ inputs.build_mode }}'
-          $script = switch ($mode) {
-            'bundle' { 'scripts/build_windows_bundle.ps1' }
-            'desktop' { 'scripts/build_desktop.ps1' }
-            'release' { 'scripts/build_release.ps1' }
-            default { throw "Unknown build mode: $mode" }
-          }
-          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script
-          if ($LASTEXITCODE -ne 0) { throw "$script failed with exit code $LASTEXITCODE" }
-
-      - name: Package artifacts and extract version
+      - name: Extract build metadata
         id: meta
         shell: pwsh
         run: |
@@ -91,6 +81,31 @@ jobs:
           $artifactName = "meters-tool-windows-$mode-$shortSha"
           "version=$version" >> $env:GITHUB_OUTPUT
           "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+
+      - name: Build with existing PowerShell script
+        shell: pwsh
+        run: |
+          $mode = '${{ inputs.build_mode }}'
+          $script = switch ($mode) {
+            'bundle' { 'scripts/build_windows_bundle.ps1' }
+            'desktop' { 'scripts/build_desktop.ps1' }
+            'release' { 'scripts/build_release.ps1' }
+            'release-acceptance' { 'scripts/release-acceptance.ps1' }
+            default { throw "Unknown build mode: $mode" }
+          }
+          $scriptArguments = @()
+          if ($mode -eq 'release-acceptance') {
+            $scriptArguments = @('-Release', '${{ steps.meta.outputs.version }}', '-OutputRoot', $env:ACCEPTANCE_OUTPUT_ROOT)
+          }
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script @scriptArguments
+          if ($LASTEXITCODE -ne 0) { throw "$script failed with exit code $LASTEXITCODE" }
+
+      - name: Package artifacts
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $mode = '${{ inputs.build_mode }}'
+          $version = '${{ steps.meta.outputs.version }}'
           New-Item -ItemType Directory -Force -Path "action-artifacts" | Out-Null
           switch ($mode) {
             'bundle' {
@@ -106,8 +121,23 @@ jobs:
               Copy-Item -Path "$source/*" -Destination $staging -Recurse -Force
               Compress-Archive -LiteralPath $staging -DestinationPath "action-artifacts/meters-tool-desktop-windows-x64.zip"
             }
-            'release' {
+            { $_ -in @('release', 'release-acceptance') } {
               $source = "release/$version"
+              if ($mode -eq 'release-acceptance') {
+                $reports = @(Get-ChildItem -Path "$env:ACCEPTANCE_OUTPUT_ROOT/*/*/report.json" -File)
+                if ($reports.Count -ne 1) { throw "Expected exactly one report from this acceptance run" }
+                $report = Get-Content -Raw -LiteralPath $reports[0].FullName | ConvertFrom-Json
+                $head = (git rev-parse HEAD).Trim()
+                if ($LASTEXITCODE -ne 0 -or $head -cne $env:GITHUB_SHA) { throw "Checkout HEAD does not match the Action commit" }
+                if (
+                  $report.status -ne 'passed' -or
+                  $report.package_version -ne $version -or
+                  $report.target_release -ne $version -or
+                  $report.git_head -cne $head -or
+                  $report.final_git_head -cne $head
+                ) { throw "Acceptance report did not pass for this version and commit" }
+                $source = $report.final_release_dir
+              }
               if (-not (Test-Path -LiteralPath $source -PathType Container)) { throw "Missing release directory: $source" }
               $expected = @(
                 "meters-tool-$version-windows-x64.zip",
@@ -118,6 +148,12 @@ jobs:
               foreach ($name in $expected) {
                 if (-not (Test-Path -LiteralPath (Join-Path $source $name) -PathType Leaf)) {
                   throw "Missing release file: $name"
+                }
+              }
+              if ($mode -eq 'release-acceptance') {
+                $entries = @(Get-ChildItem -LiteralPath $source -Force)
+                if ($entries.Count -ne 4 -or @($entries | Where-Object { $_.PSIsContainer -or $_.Name -notin $expected }).Count -ne 0) {
+                  throw "Accepted release directory must contain exactly the four expected files"
                 }
               }
               Copy-Item -Path "$source/*" -Destination "action-artifacts" -Force
@@ -137,7 +173,7 @@ jobs:
   draft-release:
     name: Create Draft Release
     needs: build
-    if: ${{ inputs.build_mode == 'release' && inputs.create_draft }}
+    if: ${{ needs.build.result == 'success' && inputs.build_mode == 'release-acceptance' && inputs.create_draft && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

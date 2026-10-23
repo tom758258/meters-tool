@@ -49,6 +49,20 @@ instrument. Exact live support uses a fail-closed policy; see [Supported Models]
 and the component documentation for model, transport/backend, measurement, and
 trigger-mode status.
 
+## Release Compatibility
+
+Meters Tool `4.0.0` upgrades the public Worker protocol from v2-only in `3.1.2`
+to v3-only under Common Contract revision `3.0`. Existing Worker integrations
+must upgrade requests and response parsing; there is no v2 fallback or version
+negotiation. Worker HTTP and runtime JSONL use schema `3`; Manifest and
+independent CLI single-response schemas remain `2`. See the
+[Meters Worker Contract](docs/contracts/meters-worker-contract.md) and
+[CLI manifest reference](docs/cli/README.md) for details.
+
+CSV now defaults to the compact `data` format. Use `--csv-format full` in CLI or
+select `Full` in WebUI/Desktop when downstream tools require the previous
+metadata columns.
+
 ## Project Structure
 
 The repository now has one distribution and one version number. In examples,

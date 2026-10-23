@@ -9,19 +9,9 @@ Contract revision: `3.0`
 Compatibility policy: `v3-only`
 
 The Common v3.0 specification is finalized, with its major contract design
-frozen. Specification, implementation, conformance, and release are distinct:
-
-| Status | Common v3.0 |
-| --- | --- |
-| Specification | Finalized |
-| Implementation | Pending across the five Tool projects and Orchestrator (six projects) |
-| Conformance | Pending test verification |
-| Release | No formal v3 cutover |
-
-The five Tools' existing v2 implementations continue under Common v2, contract
-revision `2.2`. These finalized requirements do not upgrade those runtimes or
-establish v3 implementation, conformance, or release. Implementation and
-no-hardware acceptance require separate authorization.
+frozen. Runtime adoption is declared by each Tool's Manifest and tool-specific
+contracts. The specification alone does not establish implementation,
+conformance, release, or cross-project integration.
 
 This document defines shared consumer behavior for Worker subprocesses.
 The [Worker protocol](common-worker-protocol.md) owns discovery and HTTP;

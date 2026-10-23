@@ -649,17 +649,31 @@ instrument capabilities; see `capabilities` for model/feature discovery.
   "event": "tool_manifest",
   "schema_version": 2,
   "tool_id": "meters",
-  "tool_version": "3.1.2",
+  "tool_version": "4.0.0",
   "worker_protocol": {
-    "compatibility_policy": "v2-only",
-    "schema_versions": [2]
-  }
+    "compatibility_policy": "v3-only",
+    "schema_versions": [3]
+  },
+  "execution": {"model": "run_bound", "context_binding": "startup"},
+  "features": {
+    "common.streaming": {"contract_version": 1, "lifecycles": ["run_bound"]}
+  },
+  "commands": {"software_trigger": {"kind": "control"}}
 }
 ```
 
-The `worker_protocol` field reports the supported Common worker schema
-versions and the compatibility policy. Orchestrators must treat non-v2
-schemas as unsupported instead of negotiating.
+The `worker_protocol` field declares Worker schema `3` with `v3-only`
+compatibility under Common Contract revision `3.0`. Meters Tool `4.0.0` replaces
+the `3.1.2` Worker v2-only contract without v2 fallback or version negotiation;
+existing integrations must upgrade their Worker requests and response parsing
+before using this release. `execution`, `features`, and `commands` describe the
+startup-bound, run-bound Worker and its optional Streaming capability.
+
+Manifest schema remains `2`. Independent CLI single-response JSON and dry-run
+previews remain schema `2`; runtime Worker JSONL and direct Worker HTTP use
+schema `3`. `status` and `wait-ready` expose the inner Worker version as
+`worker_schema_version`. See the [Meters Worker Contract](../contracts/meters-worker-contract.md)
+for the Worker fields and compatibility requirements.
 
 `list-resources` options:
 
@@ -946,9 +960,11 @@ reachable and `fatal_error` is `null`.
 .\.venv\Scripts\meters-tool.exe wait-ready --port 8765 --timeout-ms 10000 --format json
 ```
 
-`wait-ready` succeeds on any valid `200` JSON response from `/status` and adds
-`attempts`, `elapsed_ms`, and `timeout_ms` to the normalized status object.
-Timeout or invalid status JSON exits with code 3.
+`wait-ready` requires a valid Worker schema `3` response from `/status` with
+HTTP `200`, `worker_state: "running"`, and `fatal_error: null`. It adds
+`attempts`, `elapsed_ms`, and `timeout_ms` to the schema `2` normalized status
+object. If readiness is not reached before the deadline, including invalid or
+incompatible status responses, it exits with code 3.
 
 ### Exit Codes
 

@@ -568,13 +568,13 @@ try {
             -Message "Standalone CLI manifest payload did not match the expected tool manifest contract."
     }
     if (
-        $standaloneManifest.worker_protocol.compatibility_policy -ne "v2-only" -or
+        $standaloneManifest.worker_protocol.compatibility_policy -ne "v3-only" -or
         @($standaloneManifest.worker_protocol.schema_versions).Count -ne 1 -or
-        [int]@($standaloneManifest.worker_protocol.schema_versions)[0] -ne 2
+        [int]@($standaloneManifest.worker_protocol.schema_versions)[0] -ne 3
     ) {
         Set-RecordedCommandFailure `
             -Result $standaloneManifestResult `
-            -Message "Standalone CLI manifest worker protocol did not report v2-only compatibility with schema versions [2]."
+            -Message "Standalone CLI manifest worker protocol did not report v3-only compatibility with schema versions [3]."
     }
     $standaloneCliSmoke = "passed"
 

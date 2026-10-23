@@ -23,6 +23,12 @@ System VISA 需要另外安裝相容的執行環境。Meters Tool 隨程式提�
 
 實機啟動時會透過 `*IDN?` 自動偵測已連接的型號；明確選擇的型號僅作為預期型號防護 (expected-model guard)，並不會為另一台儀器解鎖功能。精確的實機支援採用 fail-closed (預設關閉) 原則；關於型號、傳輸/後端、量測與觸發模式的狀態，請參閱 [支援型號](docs/core/supported-models.md) 與各元件說明文件。
 
+## 版本相容性
+
+Meters Tool `4.0.0` 依 Common Contract revision `3.0`，將公開 Worker 協定從 `3.1.2` 的 v2-only 升級為 v3-only。既有 Worker 整合端必須升級請求與回應解析；不提供 v2 fallback 或版本協商。Worker HTTP 與執行階段 JSONL 使用 schema `3`；Manifest 與獨立 CLI 單次回應 schema 維持 `2`。詳情請參閱 [Meters Worker Contract](docs/contracts/meters-worker-contract.md) 與 [CLI manifest 參考](docs/cli/README.zh-TW.md)。
+
+CSV 現在預設使用精簡的 `data` 格式。若下游工具需要原有的 metadata 欄位，請在 CLI 使用 `--csv-format full`，或在 WebUI/Desktop 選擇 `Full`。
+
 ## 專案結構
 
 此 repository 現在使用單一發行套件與單一版本號。在範例中，`<version>` 代表根目錄 `pyproject.toml` 中的 `[project].version`：

@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 DISTRIBUTION_NAME = "meters-tool"
-FALLBACK_PACKAGE_VERSION = "3.1.2"
+FALLBACK_PACKAGE_VERSION = "4.0.0"
 
 
 def read_project_version(pyproject_path: Path | None = None) -> str:
