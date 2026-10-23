@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Meters Worker v3 Envelope",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "integer",
+      "const": 3
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "event": {
+      "type": "string"
+    },
+    "worker_state": {
+      "enum": [
+        "starting",
+        "running",
+        "stopping",
+        "failed"
+      ]
+    },
+    "fatal_error": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "features": {
+      "type": "object"
+    },
+    "error": {
+      "type": [
+        "object",
+        "null"
+      ]
+    }
+  },
+  "additionalProperties": true
+}
