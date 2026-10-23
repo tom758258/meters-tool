@@ -33,6 +33,10 @@ for (const name of guarded) {
 }
 
 const presentation = await import(moduleUrl);
+const { createI18n } = await import(new URL("./i18n.js", moduleUrl));
+const { EN_MESSAGES } = await import(new URL("./locale_en.js", moduleUrl));
+const { ZH_TW_MESSAGES } = await import(new URL("./locale_zh_tw.js", moduleUrl));
+const translator = createI18n({ catalogs: { en: EN_MESSAGES, "zh-TW": ZH_TW_MESSAGES } });
 
 assert.deepEqual(
   presentation.runStatePresentation("RUNNING"),
@@ -46,6 +50,57 @@ assert.deepEqual(
   presentation.latestStatusPresentation("vendor diagnostic: waiting trigger soon"),
   { kind: "raw", text: "vendor diagnostic: waiting trigger soon" }
 );
+// Cover lifecycle families and parameter preservation without freezing Chinese copy.
+for (const [raw, tokens] of [
+  ["recording started", []],
+  ["hardware trigger wait timed out; re-armed and waiting for next edge", []],
+  ["software trigger ignored while software timer is enabled", []],
+  ["software custom capture armed", []],
+  ["overflow detected: questionable status bit 0x4000", ["0x4000"]],
+  ["main cleanup starting", []],
+  ["waiting worker to fully stop...", []],
+  ["software trigger server stopped", []],
+  ["software timer enabled interval_s=1e-05", ["interval_s=1e-05"]],
+  ["max samples reached: 12", ["12"]],
+  ["hardware trigger configured slope=NEG delay_s=0.0", ["slope=NEG", "delay_s=0.0"]],
+  ["immediate custom capture configured trigger_count=2 sample_count=3 expected_readings=6", ["trigger_count=2", "sample_count=3", "expected_readings=6"]],
+  ["software custom capture configured trigger_count=infinity sample_count=4 expected_readings=unbounded", ["trigger_count=infinity", "sample_count=4", "expected_readings=unbounded"]],
+  ["external custom capture configured trigger_count=3 sample_count=4 expected_readings=12 slope=POS delay_s=1e-06", ["trigger_count=3", "sample_count=4", "expected_readings=12", "slope=POS", "delay_s=1e-06"]],
+  ["software custom trigger sent=2/infinity", ["sent=2/infinity"]],
+  ["expected readings reached: 12", ["12"]],
+]) {
+  const mapped = presentation.latestStatusPresentation(raw);
+  assert.equal(mapped.kind, "translated", raw);
+  translator.setLocale("en");
+  const english = translator.t(mapped.key, mapped.params);
+  assert.equal(english.toLowerCase(), raw.toLowerCase());
+  translator.setLocale("zh-TW");
+  const chinese = translator.t(mapped.key, mapped.params);
+  assert.match(chinese, /\p{Script=Han}/u);
+  for (const token of tokens) {
+    assert.ok(english.includes(token), `${raw}: missing ${token}`);
+    assert.ok(chinese.includes(token), `${raw}: missing ${token}`);
+  }
+  for (const nearMatch of [`prefix ${raw}`, `${raw}; vendor detail`]) {
+    assert.deepEqual(presentation.latestStatusPresentation(nearMatch), { kind: "raw", text: nearMatch });
+  }
+}
+const path = "C:\\meter\\MixedCase.csv";
+const csvPath = presentation.latestStatusPresentation(`csv output path: ${path}`);
+assert.equal(csvPath.kind, "translated");
+for (const locale of ["en", "zh-TW"]) {
+  translator.setLocale(locale);
+  assert.ok(translator.t(csvPath.key, csvPath.params).includes(path));
+}
+for (const raw of [
+  "captured=7 1.25 V",
+  "software timer enabled interval_s=0.5 ms",
+  "hardware trigger configured slope=VENDOR delay_s=0.0",
+  "release_to_local: SYST:LOC:failed vendor detail",
+  "overflow monitoring failed type=VisaIOError: raw detail",
+]) {
+  assert.deepEqual(presentation.latestStatusPresentation(raw), { kind: "raw", text: raw });
+}
 assert.deepEqual(
   presentation.resourceStatusPresentation("live"),
   { kind: "translated", key: "resource.status.live", params: {} }
@@ -474,6 +529,51 @@ const noCsv = { ...running, csv_enabled: false, csv_path: null };
 status.renderStatus(noCsv);
 assert.equal(element("#status-csv").getAttribute("data-i18n"), "common.off");
 assert.equal(element("#open-csv").disabled, true);
+
+const lifecycle = {
+  ...running, active: true,
+  fatal_error: "recording started",
+  cleanup_status: "main cleanup starting; release_to_local: SYST:LOC:ok",
+};
+const messages = [
+  "recording started",
+  "software timer enabled interval_s=0.125",
+  "main cleanup starting",
+  "waiting for measurement worker to stop",
+  "unknown diagnostic: SCPI READ? VISA CODE_X",
+];
+for (const latest_status of messages) status.renderStatus({ ...lifecycle, latest_status });
+const finalSnapshot = { ...lifecycle, latest_status: messages.at(-1) };
+const controlsBeforeSwitch = [
+  element("#start-run").disabled, element("#stop-run").disabled,
+  element("#trigger-mode").value, element("#refresh-resources").disabled,
+];
+let englishLog;
+for (const locale of ["en", "zh-TW", "en"]) {
+  i18n.setLocale(locale);
+  status.refreshStatusPresentation();
+  const log = latestLines().map((line) => line.textContent);
+  if (locale === "en") {
+    assert.deepEqual(log, messages.map((text, index) => index < 4 ? text[0].toUpperCase() + text.slice(1) : text));
+    englishLog = log;
+  } else {
+    for (const text of log.slice(0, 4)) assert.match(text, /\p{Script=Han}/u);
+    assert.ok(log[1].includes("interval_s=0.125"));
+    assert.equal(log.at(-1), messages.at(-1));
+    assert.notDeepEqual(log, englishLog);
+  }
+  assert.equal(element("#fatal-error").textContent, lifecycle.fatal_error);
+  assert.equal(element("#cleanup-status").textContent, lifecycle.cleanup_status);
+  assert.equal(element("#raw-status").textContent, JSON.stringify(finalSnapshot, null, 2));
+  assert.equal(status.isRunActive(), true);
+  assert.deepEqual([
+    element("#start-run").disabled, element("#stop-run").disabled,
+    element("#trigger-mode").value, element("#refresh-resources").disabled,
+  ], controlsBeforeSwitch);
+  status.renderStatus(finalSnapshot);
+  assert.deepEqual(latestLines().map((line) => line.textContent), log);
+  assert.equal(fetchCalls, 0);
+}
 
 status.renderStatus({ ...running, active: true });
 assert.equal(executionModeInputs.every((input) => input.disabled), true);
