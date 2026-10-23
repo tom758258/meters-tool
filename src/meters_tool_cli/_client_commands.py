@@ -394,6 +394,8 @@ def cmd_send_command(
                     payload["error"] = worker_error.get("code")
                     payload["worker_error"] = worker_error
                     payload["message"] = worker_error.get("message", "command request failed")
+                elif isinstance(worker_error, str):
+                    payload["error"] = worker_error
             print(json.dumps(payload, sort_keys=True))
         else:
             print(message, file=sys.stderr)

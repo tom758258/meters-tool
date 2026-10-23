@@ -217,8 +217,8 @@ def test_meters_contracts_preserve_meters_specific_safety_semantics():
     assert "fatal acquisition failures" in cli_contract
     assert "must exit `3`" in cli_contract
     assert "GET /status" in worker_contract
-    assert "trigger measurement" in worker_contract
-    assert "touch VISA" in worker_contract
+    assert "instrument I/O" in worker_contract
+    assert "Status reads perform no instrument I/O" in worker_contract
 
 
 def test_meters_contracts_link_common_contracts():
