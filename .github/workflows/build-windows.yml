@@ -100,6 +100,18 @@ jobs:
           & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script @scriptArguments
           if ($LASTEXITCODE -ne 0) { throw "$script failed with exit code $LASTEXITCODE" }
 
+      - name: Upload acceptance evidence
+        if: ${{ always() && inputs.build_mode == 'release-acceptance' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}-evidence
+          path: |
+            ${{ env.ACCEPTANCE_OUTPUT_ROOT }}/*/*/report.json
+            ${{ env.ACCEPTANCE_OUTPUT_ROOT }}/*/*/summary.md
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 30
+
       - name: Package artifacts
         shell: pwsh
         run: |
