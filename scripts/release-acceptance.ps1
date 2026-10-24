@@ -221,9 +221,12 @@ try {
     if (-not (Test-Path -LiteralPath $Python)) {
         throw "Project Python executable not found: $Python"
     }
-    $gitCommand = Get-Command -Name "git" -CommandType Application -ErrorAction Stop
-    $uvCommand = Get-Command -Name "uv" -CommandType Application -ErrorAction Stop
-    $nodeCommand = Get-Command -Name "node" -CommandType Application -ErrorAction Stop
+    $gitCommand = Get-Command -Name "git" -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    $uvCommand = Get-Command -Name "uv" -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    $nodeCommand = Get-Command -Name "node" -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
     $npmCommand = Get-Command -Name "npm.cmd" -CommandType Application -ErrorAction Stop |
         Select-Object -First 1
 
