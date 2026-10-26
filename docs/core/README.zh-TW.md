@@ -10,7 +10,7 @@ CLI 與 WebUI 負責各自的輸入解析、顯示文字、在地化、終端機
 
 Core 可以透過 `StartRequest` 與 `InstrumentConfig` 傳遞選用的 `visa_library` 值。未設定時，live VISA 工作階段會使用 `pyvisa.ResourceManager("@ivi")`，明確要求 System VISA，不會自動退回 `@py`，也不會由 `PYVISA_LIBRARY` 改用其他 backend。CLI、WebUI 與 Desktop 可選擇隨程式提供的 `@py`，但正式支援僅限已註冊的 34461A TCPIP scope。
 
-進行支援政策比對時，未設定或空白 selector 對應 `system_visa`，`@py` 對應 `pyvisa_py`，`@bt` 則保留為獨立的 `pyvisa_bt` identity，其他 selector 仍對應 `custom_visa`。Backend identity 本身不代表 Product support；實機擷取需要符合 [Supported Models](supported-models.md) 中已註冊的 Product-open scope。未註冊的 backend selector 會在一般支援政策規則下 fail closed。WebUI 僅接受未設定／空白的 System VISA selector 或 `@py`。
+進行支援政策比對時，未設定或空白 selector 對應 `system_visa`，`@py` 對應 `pyvisa_py`，`@bt` 則保留為獨立的 `pyvisa_bt` identity，其他 selector 仍對應 `custom_visa`。Backend identity 本身不代表 Product support；實機擷取需要符合 [Supported Models](supported-models.zh-TW.md) 中已註冊的 Product-open scope。未註冊的 backend selector 會在一般支援政策規則下 fail closed。WebUI 僅接受未設定／空白的 System VISA selector 或 `@py`。
 
 ## 請求准入與配接器邊界
 
@@ -69,7 +69,7 @@ Canonical 型號與穩定型號 ID 彼此相關，但用途不同。像 `Keysigh
 
 Core 是配接器與直接呼叫端的最終支援與安全閘門。`run_start_session()` 會在連接 backend 與設定儀器前，再次執行最終請求驗證與支援政策檢查。不受支援或非 Product-open 的確切 scope 必須 fail closed。Simulator 只驗證確定性的無硬體合約與工作流程，不代表實機量測準確度或硬體支援。
 
-使用者可閱讀的支援矩陣請參閱 [支援的型號](supported-models.md)；支援政策的 machine contract 與 policy mode 請參閱 [Core 整合](integration.md)；contributor validation 與 promotion 請參閱 [貢獻指南](../CONTRIBUTING.md)。
+使用者可閱讀的支援矩陣請參閱 [支援的型號](supported-models.zh-TW.md)；支援政策的 machine contract 與 policy mode 請參閱 [Core 整合](integration.md)；contributor validation 與 promotion 請參閱 [貢獻指南](../CONTRIBUTING.md)。
 
 ## 公開套件介面
 
@@ -103,5 +103,5 @@ Core 是配接器與直接呼叫端的最終支援與安全閘門。`run_start_s
 ## 文件
 
 - [Core 整合](integration.md)
-- [支援的型號](supported-models.md)
+- [支援的型號](supported-models.zh-TW.md)
 - [變更日誌](../../CHANGELOG.md)

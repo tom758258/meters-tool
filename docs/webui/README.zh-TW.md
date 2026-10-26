@@ -95,7 +95,7 @@ npm start
 ```
 
 此 host 僅繫結至 `127.0.0.1` 並使用 Port `0`，從已繫結的 socket 取得作業
-系統配置的 ephemeral port，再將同一個 socket 傳給 Uvicorn。它重用既有的
+系統指派的暫時性連接埠（ephemeral port），再將同一個 socket 傳給 Uvicorn。它重用既有的
 FastAPI application、WebUI static assets、HTTP API 與 `WebRunManager`，沒有
 另一套 WebUI implementation，也不會開啟 system browser 或使用 Tkinter。
 
@@ -198,7 +198,7 @@ http://127.0.0.1:8767/
 - 用於裝置/資源設定、Run Setup、Output Settings（輸出設定）、量測設定、觸發設定、即時資料 (Live data) 與狀態詳細資料的可摺疊設定面板。
 - 即時資料面板包含最新讀值、取樣時間、觸發來源、趨勢圖表、統計資料、最近取樣表格以及所選取樣的 metadata。
 
-`支援裝置` 按鈕會開啟一個精簡的 WebUI 連線清單，僅顯示目前 WebUI 正式支援的連線方式（由 Core 能力 metadata 衍生）。如需操作人員所見之連線清單，請參閱 [WebUI／Desktop 使用者指南](USER_GUIDE.zh-TW.md)；確切的產品支援型號與連線範圍請參閱 [支援型號](../core/supported-models.md)。
+`支援裝置` 按鈕會開啟一個精簡的 WebUI 連線清單，僅顯示目前 WebUI 正式支援的連線方式（由 Core 能力 metadata 衍生）。如需操作人員所見之連線清單，請參閱 [WebUI／Desktop 使用者指南](USER_GUIDE.zh-TW.md)；確切的產品支援型號與連線範圍請參閱 [支援型號](../core/supported-models.zh-TW.md)。
 
 ### 瀏覽器語言
 
@@ -307,7 +307,7 @@ pending_keys
 `transport_pending` 狀態。瀏覽器會將這些 scope 視為一般 Product 啟動不可用；
 此狀態不代表執行授權。
 
-關於型號、傳輸、後端與量測功能支援矩陣，請參閱 [支援型號](../core/supported-models.md)。現有的量測、觸發、範圍與限制欄位仍是控制項定義的 source of truth。Product-open support-policy 範圍不代表每個 distribution 都已 bundle 該 backend 套件。
+關於型號、傳輸、後端與量測功能支援矩陣，請參閱 [支援型號](../core/supported-models.zh-TW.md)。現有的量測、觸發、範圍與限制欄位仍是控制項定義的 source of truth。Product-open support-policy 範圍不代表每個 distribution 都已 bundle 該 backend 套件。
 
 Expected model 檢查是選用的。Core 會在 Start 時驗證連接儀器的識別資訊。若明確指定的預期型號與新的 IDN preflight 不符，WebUI 會回報選取的型號以及 IDN 中找到的支援型號。
 
@@ -336,7 +336,7 @@ Expected model 檢查是選用的。Core 會在 Start 時驗證連接儀器的�
 - 閘門時間 (Gate Time) 僅出現在頻率和週期，預設值為 `0.1` 秒。逾時 (Timeout) 僅出現在頻率，預設為 `auto`；週期會隱藏它且不送出逾時 payload。
 - 電流端子選擇僅在支援的電流量測中顯示。
 - 在 34460A 設定檔選定時，電流量程排除 10 A 且電流端子選擇會被隱藏，因為基礎 34460A 設定檔沒有 10 A 端子/路徑。自訂模式讀值記憶體限制為 1000 筆。
-- 在 34460A 設定檔選定時，`voltage-dc-ratio` 的可用性取決於已註冊的 Product-open scope（請參閱 [支援型號](../core/supported-models.md)）。Backend／transport 可用性來自 Core 支援 metadata。
+- 在 34460A 設定檔選定時，`voltage-dc-ratio` 的可用性取決於已註冊的 Product-open scope（請參閱 [支援型號](../core/supported-models.zh-TW.md)）。Backend／transport 可用性來自 Core 支援 metadata。
 - DCV Input Z (輸入阻抗) 僅在 `voltage-dc` 與 `voltage-dc-ratio` 中顯示。
 - 在 Core 支援的情況下，VM Comp 仍會作為量測選項。
 - 透過 Core 能力 (capabilities)，支援的 DC/電阻量測可使用 Auto Zero Once。
@@ -459,7 +459,7 @@ GET /api/runs/current
 - `Auto absolute` 使用最近可見數值樣本的實際最小值和最大值，並帶有微小襯墊，使線條不會貼在圖表邊界上。
 - `Manual span` 將第一個數值取樣保持為中心，並使用操作人員輸入的正數原始單位跨度作為固定的 `baseline +/- span` 範圍。此範圍外的數值會被裁切到圖表邊界，且目前版本不會另外顯示 `clipped indicator`。
 
-這些模式僅影響圖表顯示，不影響原始樣本值、統計數據、CSV 輸出、API 樣本 payload、儀器設定或 SCPI 指令。圖表縮放控制項不包含在 `POST /api/runs` 中。
+這些模式僅影響圖表顯示，不影響原始樣本值、統計資料、CSV 輸出、API 樣本 payload、儀器設定或 SCPI 指令。圖表縮放控制項不包含在 `POST /api/runs` 中。
 
 ## CSV 輸出、選擇與開啟 CSV
 

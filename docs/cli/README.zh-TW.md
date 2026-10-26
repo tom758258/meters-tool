@@ -4,13 +4,13 @@
 
 - [CLI 使用者指南](USER_GUIDE.zh-TW.md) - 操作人員工作流程與常見設定指引。
 - [CLI README](README.zh-TW.md) - 詳細的 CLI 參考與自動化指南。
-- [支援型號](../core/supported-models.md) - 目前型號與確切範圍的支援狀態。
+- [支援型號](../core/supported-models.zh-TW.md) - 目前型號與確切範圍的支援狀態。
 - [變更日誌](../../CHANGELOG.md) - 版本發佈說明與歷史紀錄。
 - [CLI 整合](cli-integration.md) - CLI 配接器維護邊界。
 - [通用 CLI JSON / JSONL 合約](../contracts/common-cli-jsonl-contract.md) - 共享命令列 JSON 外殼規則。
 - [Meters CLI JSON / JSONL 合約](../contracts/meters-cli-jsonl-contract.md) - Meters 命令列 JSON schema 與別名規則。
-- [通用協調器工作流程](../contracts/common-orchestrator-workflows.md) - 共享子程序生命週期指引。
-- [Meters 協調器工作流程](../contracts/meters-orchestrator-workflows.md) - 用於 Agent 和自動化的 Meters 子程序範例。
+- [通用協調器工作流程](../contracts/common-orchestrator-workflows.md) - 共享子行程生命週期指引。
+- [Meters 協調器工作流程](../contracts/meters-orchestrator-workflows.md) - 用於 Agent 和自動化的 Meters 子行程範例。
 - [Meters Worker 合約](../contracts/meters-worker-contract.md) - 用於 Agent 和協調器的 Meters 工作器控制面、JSONL 與產物合約。
 
 適用於支援的數位萬用電表的 CLI 優先 Python 記錄器，支援透過 VISA 進行 DC/AC 電流、DC/AC 電壓、DCV 比率、頻率、週期以及 2 線式或 4 線式電阻量測。
@@ -64,7 +64,7 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 - 本專案目前支援 Keysight 34460A 與 34461A Truevolt DMM 記錄。若省略 `--model`，實機啟動將從已連接之儀器的 IDN 自動偵測型號。
 - 當 Start 必須要求 34460A IDN 相符時，請選擇 `--model 34460A`。在實機模式下，這僅作為預期型號防護 (expected-model guard)，並不會覆寫由 IDN 決定的設定檔。在 dry-run 或模擬模式下，它會選擇 34460A 的設定檔限制：無 10 A 電流範圍或電流端子選擇、1000 筆讀值的記憶體，且無基礎設定檔外接觸發模式。
 - 當 Start 必須要求 34461A IDN 相符時，請選擇 `--model 34461A`。明確的實機不符會在 setup SCPI 之前失敗。型號名稱由 Core 設定檔邏輯進行標準化與驗證；未知的型號驗證會失敗，並列出支援的型號。
-- 實機產品支援具備功能感知與範圍精確性；確切的型號、傳輸與功能支援矩陣請參閱 [支援型號](../core/supported-models.md)。缺少的功能 metadata 會以預設關閉 (fail-closed) 處理，而非繼承其他範圍的支援。
+- 實機產品支援具備功能感知與範圍精確性；確切的型號、傳輸與功能支援矩陣請參閱 [支援型號](../core/supported-models.zh-TW.md)。缺少的功能 metadata 會以預設關閉 (fail-closed) 處理，而非繼承其他範圍的支援。
 - 34460A 的最大讀值速率低於 34461A，但 CLI 在此版本中不會主動控制高速讀值速率。
 - AC、頻率與週期模式透過 `--ac-bandwidth-hz` 公開 34461A 的 `3`、`20` 和 `200` Hz 頻寬/濾波器設定。在實際投入生產使用前，請使用操作人員提供的 VISA 資源執行低風險的實機資源快速功能健檢 (smoke test)，並將 CLI 記錄列與 34461A 前面板讀值進行對比。
 - `--nplc` 和 `--auto-zero` 是 DC/電阻控制項。AC 電流、AC 電壓、頻率與週期僅接受中性預設值 `--nplc 1.0`；任何其他 NPLC 值都將被拒絕，因為這些模式不會寫入 NPLC SCPI。它們也不會寫入 Auto Zero SCPI 指令。
@@ -225,13 +225,13 @@ output root 下產生 `report.json` 與 `summary.md`。
 ### 實機 CLI 驗證
 
 使用 live wrapper 前，先依照本 README 其他實機範例的方式，把操作人員
-選定的確切 VISA resource 放入 PowerShell 文件變數：
+選定的確切 VISA resource 放入 PowerShell 環境變數：
 
 ```powershell
 $env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
-`METER_RESOURCE` 只是方便文件範例使用的 PowerShell 變數。
+`METER_RESOURCE` 只是供文件範例使用的 PowerShell 環境變數。
 Validation wrapper 不會自行尋找或自動讀取這個變數；仍需明確以
 `-Resource "$env:METER_RESOURCE"` 傳入。
 
@@ -407,7 +407,7 @@ Live-validation 輸出位於：
 ```
 
 每次執行會將 private raw validation material 與 shareable artifact set
-分開保存，完成時會印出 shareable summary 路徑。Validation report 會記錄
+分開儲存，完成時會印出 shareable summary 路徑。Validation report 會記錄
 target、connection、backend、suite、package version、Git HEAD、dry-run
 plans、實際執行 cases 與結果狀態。
 
@@ -459,7 +459,7 @@ Product-open，也不會自動修改 supported-model matrix；support metadata
 
 預設情況下，`meters-tool` 使用 `pyvisa.ResourceManager("@ivi")`，因此使用系統 VISA 執行階段，例如 Keysight IO Libraries Suite 或 NI-VISA。
 
-在 source checkout、虛擬環境或已安裝的 Python 環境中，CLI 可在 backend 已安裝且可載入時傳遞選用 selector；實機擷取仍另外需要符合已註冊的 Product-open support scope（請參閱 [支援型號](../core/supported-models.md)）。僅安裝其 backend 不會開放 `start-trigger-record`。若要使用隨程式提供的 pyvisa-py，請在會開啟 VISA 資源的 CLI 指令中傳入 `--visa-library "@py"`：
+在 source checkout、虛擬環境或已安裝的 Python 環境中，CLI 可在 backend 已安裝且可載入時傳遞選用 selector；實機擷取仍另外需要符合已註冊的 Product-open support scope（請參閱 [支援型號](../core/supported-models.zh-TW.md)）。僅安裝其 backend 不會開放 `start-trigger-record`。若要使用隨程式提供的 pyvisa-py，請在會開啟 VISA 資源的 CLI 指令中傳入 `--visa-library "@py"`：
 
 ```powershell
 uv run meters-tool list-resources --visa-library "@py" --verify
@@ -567,7 +567,7 @@ Manifest schema 維持 `2`。獨立 CLI 單次回應 JSON 與 dry-run 預覽維�
 | `--timeout-ms N` | `3000` | HTTP 用戶端逾時（毫秒）。支援範圍：`100` 到 `600000`。 |
 | `--command NAME` | `software_trigger` | Meters 指令名稱。此版本僅支援 `software_trigger`。 |
 | `--arguments-json JSON` | `{}` | 完整的 JSON 指令引數物件。使用 `{"metadata":{...}}` 附加觸發 metadata；JSONL 保留該欄位，選擇 `--csv-format full` 時 CSV 亦會寫入 `trigger_metadata`。無效的 JSON、非物件的 metadata 以及其他指令驗證失敗將在傳送請求前被拒絕。 |
-| `--job-id TEXT` | 未設置 | 選用的用戶端產生工作識別碼，僅由指令外殼回應。 |
+| `--job-id TEXT` | 未設定 | 選用的用戶端產生工作識別碼，僅由指令外殼回應。 |
 | `--format text\|json` | `text` | 回應輸出格式。`json` 為 Agent 呼叫端發出一個結構化物件。 |
 | `--json` | 關閉 | `--format json` 的別名。 |
 | `--dry-run` | 關閉 | 在本機預覽請求而不傳送 HTTP。 |
@@ -624,14 +624,14 @@ Manifest schema 維持 `2`。獨立 CLI 單次回應 JSON 與 dry-run 預覽維�
 | `--model MODEL`、`--instrument-model MODEL` | 否 | live 為 auto；非確定性 dry-run/simulate 必要 | 接受 canonical model token 或已註冊的穩定型號 ID。它是 live 執行的預期型號防護，也是 dry-run/simulate 的規劃設定檔選擇器。Core 設定檔邏輯會標準化並驗證 `34460A`、`34461A`、`keysight-34460a` 與 `keysight-34461a` 等值。 |
 | `--visa-library TEXT`、`--backend TEXT` | 否 | 系統預設 | 已安裝環境中的選用 PyVISA library/backend 引數，例如 `@py`；backend 套件必須已安裝且可載入。Dry-run 與 simulator 執行會接受此選項，但不會開啟 VISA。 |
 | `--csv PATH` | 否 | Streaming 停用；其他情況為 `data/YYYY-MM-DD-HH-MM-SS.csv` | 明確指定 CSV 輸出路徑。空字串或僅含空白的路徑會以結束碼 `2` 拒絕，Dry-run 亦同。未啟用 Streaming 時，省略此項會在 `data` 下建立 UTC+8 時間戳記檔案。只有啟用 CSV 才會建立父目錄。 |
-| `--no-csv` | 否 | 關閉 | 當外部 orchestrator 保存 JSONL `sample` events 時，停用本次執行的 CSV 輸出。不可與 `--csv` 同時使用。 |
+| `--no-csv` | 否 | 關閉 | 當外部 orchestrator 儲存 JSONL `sample` events 時，停用本次執行的 CSV 輸出。不可與 `--csv` 同時使用。 |
 | `--csv-format data\|full` | 否 | `data` | `data` 僅輸出時間戳記、數值與單位；`full` 保留原有十欄及 metadata。 |
 | `--csv-time-columns elapsed,delta` | 否 | 無 | 可獨立或同時選擇 `elapsed_s` 與 `delta_t_s`，單位秒、三位小數。 |
 | `--status-format text\|jsonl` | 否 | `text` | 執行階段狀態輸出格式。`jsonl` 為 Agent 呼叫端每行發出一個 JSON 物件。 |
 | `--dry-run` | 否 | 關閉 | 驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。 |
 | `--simulate` | 否 | 關閉 | 針對確定的模擬儀器後端執行，而不開啟實機 VISA 工作階段。簡單模式需要有界限的執行，例如 `--max-samples`。 |
 | `--json` | 否 | 關閉 | `--status-format jsonl` 的別名。 |
-| `--streaming` | 否 | 關閉 | 選用 Run-bound Streaming，必須搭配 JSONL；只有明確指定 `--csv PATH` 才保存 CSV。 |
+| `--streaming` | 否 | 關閉 | 選用 Run-bound Streaming，必須搭配 JSONL；只有明確指定 `--csv PATH` 才寫入 CSV。 |
 | `--timeout-ms N` | 否 | `5000` | VISA 工作階段逾時（毫秒）。支援範圍：`100` 到 `600000`。 |
 | `--trigger-timeout-ms N` | 否 | `10000` | 外接/自訂觸發等待逾時。支援範圍：`500` 到 `600000`。逾時會重新 arm 硬體模式，其本身並非擷取錯誤。對於預期的外接邊緣時間而言太短的值將會重複 arm 而不進行擷取。 |
 | `--sw-trigger-port N` | 否 | `8765` | 用於 `/command`、`/stop` 和 `/status` 的本機 HTTP 連接埠。使用 `0` 讓伺服器選擇連接埠，或使用 `1024` 到 `65535`。 |
@@ -731,9 +731,9 @@ JSONL 輸出是每行一個 JSON 物件。這是專為 Agent 和腳本設計的�
 3. 對於實機擷取，使用明確的 `--resource` 啟動工作器；在無人值守的實機執行中，絕不可掃描、推斷或猜測 VISA 資源。
 4. 等待 JSONL 的 `ready` 事件，或執行 `wait-ready --port 8765 --json`，然後呼叫 `status --port 8765 --json` 來確認 `run_id`。
 5. 僅在軟體觸發模式下使用 `POST /command`，並使用 `POST /stop` 進行正常停止。
-6. 讀取 stdout 的 JSONL 與預設 CSV 輸出以取得執行結果。使用 `--no-csv` 時，改由 orchestrator 保存 JSONL `sample` events。
+6. 讀取 stdout 的 JSONL 與預設 CSV 輸出以取得執行結果。使用 `--no-csv` 時，改由 orchestrator 儲存 JSONL `sample` events。
 
-請參閱 [Meters 協調器工作流程](../../docs/contracts/meters-orchestrator-workflows.md) 了解完整的 Python 子程序工作流程。
+請參閱 [Meters 協調器工作流程](../../docs/contracts/meters-orchestrator-workflows.md) 了解完整的 Python 子行程工作流程。
 
 `ready` 事件與 `wait-ready` 代表本機控制面可以接受 `/command`、`/stop` 與 `/status` 請求。它們並不代表第一個樣本已經擷取。使用 JSONL `run_id` 作為同一次執行的 stdout 執行階段事件與 `status` 或直接 `GET /status` 回應之間的關聯鍵。
 
@@ -873,7 +873,7 @@ CLI 在開啟儀器前會驗證使用者輸入。超出這些範圍的值將快�
 $env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
-`METER_RESOURCE` 只是 PowerShell 文件範例。CLI 不會自動讀取或搜尋這個環境變數；請透過 `--resource "$env:METER_RESOURCE"` 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼實機硬體資源。
+`METER_RESOURCE` 只是文件範例中使用的 PowerShell 環境變數。CLI 不會自動讀取或搜尋這個環境變數；請透過 `--resource "$env:METER_RESOURCE"` 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼實機硬體資源。
 
 ### 列出 VISA 資源
 
@@ -1629,7 +1629,7 @@ already stopped (endpoint not listening)
 
 未使用 `--streaming` 時，如果省略 `--csv`，記錄器會寫入 `data` 下的 UTC+8 時間戳記檔案，例如 `data/2026-05-11-14-30-05.csv`。傳送 `--csv PATH` 會繼續寫入該確切路徑。傳送 `--no-csv` 會明確停用 CSV writer、CSV 檔案及僅供 CSV 使用的父目錄建立；此選項不可與 `--csv` 同時使用。
 
-CSV 是 Meters-specific artifact。`--streaming --json` 選用 Run-bound Streaming，只有明確指定 `--csv PATH` 才會保存 CSV。也允許 `--streaming --no-csv`；格式參數不會啟用存檔。未使用 Streaming 而由 Orchestrator 保存資料時，可使用 `--no-csv --status-format jsonl`。JSONL 本身不改變 CSV 預設。
+CSV 是 Meters-specific artifact。`--streaming --json` 選用 Run-bound Streaming，只有明確指定 `--csv PATH` 才會寫入 CSV。也允許 `--streaming --no-csv`；格式參數不會啟用存檔。未使用 Streaming 而由 Orchestrator 儲存資料時，可使用 `--no-csv --status-format jsonl`。JSONL 本身不改變 CSV 預設。
 
 Streaming 涵蓋既有擷取流程，仍受 Core Capability 與實機支援限制，並不要求永久量測。Core 在 Sample 前輸出 active，尾端處理結束後、Summary 前輸出 ended。`wait-ready` 仍只檢查控制端點。部分模式會增加就緒觀測；觀測錯誤將終止 Run 並執行既有收尾。模式邊界、I/O 行為、驗證要求與錯誤政策詳見 [Worker 合約](../contracts/meters-worker-contract.md#optional-run-bound-streaming)。
 
