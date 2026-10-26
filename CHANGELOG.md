@@ -20,6 +20,8 @@
 - Fixes WebUI support gating, completed-run status, CSV folder selection,
   launcher port selection, and Traditional Chinese runtime translations;
   improves live rendering and preserves sample selection during locale changes.
+- Updates Desktop application icons (PNG and ICO) for improved transparency
+  and visual clarity.
 - Updates release acceptance for Worker v3-only while retaining artifact,
   SHA-256, clean-tree, and unchanged-HEAD checks. Expands no-hardware coverage
   and refreshes bilingual documentation and bundled Help.
