@@ -71,6 +71,16 @@ Core 是配接器與直接呼叫端的最終支援與安全閘門。`run_start_s
 
 使用者可閱讀的支援矩陣請參閱 [支援的型號](supported-models.zh-TW.md)；支援政策的 machine contract 與 policy mode 請參閱 [Core 整合](integration.md)；contributor validation 與 promotion 請參閱 [貢獻指南](../CONTRIBUTING.md)。
 
+## Frequency／Period SCPI 相容性注意事項
+
+Frequency 與 Period 刻意採用不同的 Timeout 設定行為。Frequency 支援 Timeout
+設定，而 Period 不提供 Timeout 選項，也不會送出 Period Timeout SCPI 指令。
+
+這是有意保留的 Core 實作差異，不應僅因 Frequency 與 Period 的 SCPI 指令看似相似，
+就推定兩者支援相同的設定。未來若需要調整此行為，應先參考
+[Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf)，
+並進行對應型號的實機驗證，再修改 Core 的指令序列。
+
 ## 公開套件介面
 
 使用端應優先從 `meters_tool_core` package root import。Package root 的 `__all__` 清單是穩定的公開 import 邊界。以下模組提供該邊界背後的主要公開領域：
