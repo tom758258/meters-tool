@@ -489,11 +489,8 @@ trigger counts, control gates, EOF and failures, plus cleanup/exit observations.
 Its report and summary list `not_run_cases` and `unverified_observations`. The
 live Stop Before Active race is excluded from routine execution and marked
 `not_run`; no-hardware checks validate acceptance of the zero-sample, no-Active,
-Ended/Summary/normal-exit outcome. Raw `STAT:OPER:COND?` replies, precise
-query/trigger overlap and latency, and observation-query timeouts remain
-unverified. They require non-interfering raw traces, correlated timestamps or
-separately authorized bounded fault validation, respectively. The wrapper neither
-opens another VISA session for these observations nor adds runtime hooks.
+Ended/Summary/normal-exit outcome. The wrapper neither opens another VISA
+session for `unverified_observations` nor adds runtime hooks.
 
 Plans, simulator and synthetic results do not establish real-instrument support;
 evidence applies only to the model, transport, backend, measurement and exact
@@ -511,12 +508,7 @@ measurement from being diagnosed.
 
 The probe sends only the runtime's planned SCPI commands; it does not search
 for alternate timeout syntax. Probe cleanup records the order `abort`,
-`release_to_local`, and `close`. Live validation on a 34461A with firmware
-A.03.03 found no SCPI errors for the Frequency or Period probe after the Period
-timeout command was removed, and both formal cases produced one sample and CSV
-row. This behavior resolves ambiguity in the
-[Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf)
-without recording a real VISA resource or serial number.
+`release_to_local`, and `close`.
 
 `summary.md` is not a schema source of truth. Orchestrators should read
 `report.json` for pass/fail decisions and use `summary.md` only for operator
