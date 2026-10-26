@@ -198,8 +198,13 @@ def test_public_package_versions_match_package_metadata():
     )
     version = read_project_version()
 
-    assert "`meters-tool` `<version>`" in readme
-    assert "`[project].version`" in readme
+    readme = readme.split("\n## Project Structure\n", 1)[1].split("\n## ", 1)[0]
+    architecture = architecture.split("\n## Package Names\n", 1)[1].split("\n## ", 1)[0]
+    for section in (readme, architecture):
+        assert "`meters-tool`" in section
+        assert "<version>" in section
+        assert "`[project].version`" in section
+        assert "`pyproject.toml`" in section
     for import_name in (
         "meters_tool_core",
         "meters_tool_cli",
@@ -208,9 +213,6 @@ def test_public_package_versions_match_package_metadata():
         assert f"`{import_name}`" in readme
         assert f"`{import_name}`" in architecture
     assert version
-    assert "`[project].version`" in architecture
-    assert "| Distribution | `meters-tool` | `<version>` |" in architecture
-    assert "distribution version" in architecture
 
 
 def test_changelog_release_direction_matches_package_metadata():

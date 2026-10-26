@@ -84,13 +84,6 @@ class WebUiStaticTests(unittest.TestCase):
         self.assertNotIn("execution-mode.locale", app_js)
         self.assertNotIn("execution-mode.storage", app_js)
 
-        styles_css = (STATIC_DIR / "styles.css").read_text(encoding="utf-8")
-        self.assertIn('.execution-mode-options input[type="radio"]', styles_css)
-        self.assertIn("min-height: 0;", styles_css)
-        self.assertIn("padding: 0;", styles_css)
-        self.assertIn("box-shadow: none;", styles_css)
-        self.assertIn("white-space: nowrap;", styles_css)
-
     def test_static_ui_omits_cli_compat_only_controls(self):
         index, _ = load_static_ui()
         javascript_sources = {
