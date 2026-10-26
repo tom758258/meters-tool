@@ -124,6 +124,18 @@ and [Core Integration](integration.md) for the support-policy machine contract
 and policy modes. See [Contributing](../CONTRIBUTING.md) for contributor
 validation and promotion.
 
+## Frequency/Period SCPI Compatibility
+
+Frequency and Period intentionally use different timeout configuration behavior.
+Frequency supports timeout configuration, while Period does not expose a timeout
+option or send a Period timeout SCPI command.
+
+This distinction is deliberate and should not be changed solely by assuming
+that Frequency and Period support equivalent SCPI commands. When revisiting the
+behavior, consult the [Keysight Truevolt Series DMM Operating and Service Guide](https://www.keysight.com/us/en/assets/9018-03876/service-manuals/9018-03876.pdf)
+and perform model-appropriate real-instrument validation before changing the
+Core command sequence.
+
 ## Public Package Surface
 
 Consumers should prefer imports from the `meters_tool_core` package root. The
