@@ -8,11 +8,6 @@ Contract revision: `3.0`
 
 Compatibility policy: `v3-only`
 
-The Common v3.0 specification is finalized, with its major contract design
-frozen. Runtime adoption is declared by each Tool's Manifest and tool-specific
-contracts. The specification alone does not establish implementation,
-conformance, release, or cross-project integration.
-
 This document defines shared consumer behavior for Worker subprocesses.
 The [Worker protocol](common-worker-protocol.md) owns discovery and HTTP;
 the [JSONL contract](common-cli-jsonl-contract.md) owns event envelopes,
@@ -338,11 +333,6 @@ execution, queue, session, cancellation, or source capabilities.
 
 ## Conformance and validation requirements
 
-These are requirements for v3 implementation acceptance, not evidence of
-completed implementation, tests, or release. Structure schemas, raw JSON
-fixtures, and behavioral conformance tests serve different purposes and must
-all be retained.
-
 | Area | Required no-hardware verification |
 | --- | --- |
 | Version separation | Manifest/Worker/feature versions, exact raw version tokens, and unchanged independent CLI and artifact formats |
@@ -387,22 +377,3 @@ Additional positive and negative cases:
 
 See also the [terminal counterexamples](common-cli-jsonl-contract.md#conformance-examples)
 and [streaming cases](common-streaming-extension.md#conformance-examples).
-
-Use each project's actual validation entry points; do not assume a shared
-release script. Real Worker simulation and fake Workers are complementary,
-and both are required. Missing packaged executables or skipped checks remain
-unverified, never passed. Preserve existing live-validation evidence; a pure
-protocol migration does not require rerunning live scripts or replace live
-evidence with simulation. No cross-repository verbatim document test is added.
-
-Document acceptance requires consistent versions, ready/status declarations,
-terminal and snapshot semantics, streaming ordering, summary interpretation,
-and all three completion conditions across the four files. It must not force
-new capture, cancellation, streaming, queue, or session features. Loopback
-restrictions remain limited to managed local connections.
-
-Specification acceptance, implementation completion, validation success, and
-release are separate decisions. Implementations and a compatible release set
-require separate authorization and verification. This finalized specification
-freezes the major contract design; it does not establish implementation,
-conformance, or a v3 release cutover.

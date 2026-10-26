@@ -10,11 +10,6 @@ Compatibility policy: `v3-only`
 
 Feature: `common.streaming`, `contract_version: 1`
 
-The Common v3.0 specification is finalized, with its major contract design
-frozen. Runtime adoption is declared by each Tool's Manifest and tool-specific
-contracts. The specification alone does not establish implementation,
-conformance, release, or cross-project integration.
-
 This optional contract defines source readiness, data output ordering, and
 logical stream termination for one data stream per Worker runtime. It builds
 on the [Common Worker Protocol](common-worker-protocol.md). Wire fields and
@@ -219,8 +214,3 @@ timestamps across or within tools.
 | Delayed active status after an observed ended state | Do not regress the state |
 | Natural end omits Worker stopping | Valid; do not add a stop operation |
 | Ended and successful summary followed by known cleanup failure | Retain the failure; do not report complete workflow success |
-
-SIM, existing streaming fakes, and controlled delayed snapshots validate these
-requirements without introducing hardware observations. They do not establish
-real-device readiness or timing guarantees. V3 implementation and validation
-remain separate from publication of this specification.

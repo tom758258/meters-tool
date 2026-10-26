@@ -8,11 +8,6 @@ Contract revision: `3.0`
 
 Compatibility policy: `v3-only`
 
-The Common v3.0 specification is finalized, with its major contract design
-frozen. Runtime adoption is declared by each Tool's Manifest and tool-specific
-contracts. The specification alone does not establish implementation,
-conformance, release, or cross-project integration.
-
 This document owns Worker event envelopes, terminal events, summary, EOF, and
 process exit. The [Worker protocol](common-worker-protocol.md) owns discovery,
 HTTP, Common Error, and job snapshots. The
@@ -396,8 +391,6 @@ not standalone envelopes:
 Schema checks validate structure. Raw JSON fixtures check representation
 details such as exact version tokens. Behavioral conformance checks cover
 event ordering, races, and completion decisions. None replaces the others.
-These requirements are validation criteria, not claims that v3 has passed
-them.
 
 ## Client diagnostics
 
