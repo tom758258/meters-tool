@@ -95,7 +95,7 @@ npm start
 ```
 
 此 host 僅繫結至 `127.0.0.1` 並使用 Port `0`，從已繫結的 socket 取得作業
-作業系統指派的暫時性連接埠（ephemeral port），再將同一個 socket 傳給 Uvicorn。它重用既有的
+系統指派的暫時性連接埠（ephemeral port），再將同一個 socket 傳給 Uvicorn。它重用既有的
 FastAPI application、WebUI static assets、HTTP API 與 `WebRunManager`，沒有
 另一套 WebUI implementation，也不會開啟 system browser 或使用 Tkinter。
 

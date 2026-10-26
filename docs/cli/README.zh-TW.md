@@ -873,7 +873,7 @@ CLI 在開啟儀器前會驗證使用者輸入。超出這些範圍的值將快�
 $env:METER_RESOURCE = "USB0::...::INSTR"
 ```
 
-`METER_RESOURCE` 只是 文件範例中使用的 PowerShell 環境變數。CLI 不會自動讀取或搜尋這個環境變數；請透過 `--resource "$env:METER_RESOURCE"` 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼實機硬體資源。
+`METER_RESOURCE` 只是文件範例中使用的 PowerShell 環境變數。CLI 不會自動讀取或搜尋這個環境變數；請透過 `--resource "$env:METER_RESOURCE"` 明確傳入選定的資源。下方 dry-run 範例也使用相同的明確變數以保持一致。請勿猜測、掃描後自動選擇或硬編碼實機硬體資源。
 
 ### 列出 VISA 資源
 
