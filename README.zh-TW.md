@@ -2,36 +2,30 @@
 
 # Meters Tool
 
-Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀錄工具。Meters Tool 支援 Keysight 34460A 與 34461A；確切的產品支援範圍請參閱 [支援型號文件](docs/core/supported-models.zh-TW.md)。專案提供單一可安裝發行套件 `meters-tool`，其套件版本由根目錄 `pyproject.toml` 定義，同時保留三個獨立的 import package：`meters_tool_core`、`meters_tool_cli` 與 `meters_tool_webui`。
+Meters Tool 是供支援的數位萬用電表使用的 Python 資料擷取與紀錄工具，涵蓋 Keysight 34460A 與 34461A；確切的產品支援範圍請參閱 [支援型號](docs/core/supported-models.zh-TW.md)。單一發行套件 `meters-tool` 包含獨立的 Core、CLI 與 WebUI 套件。
 
-本專案支援透過 VISA 進行 DC 與 AC 電流、DC 與 AC 電壓、DC 電壓比、頻率、週期，以及 2 線式或 4 線式電阻量測。預設會將每筆擷取樣本寫入 Data CSV 的一行，包含時間戳記、數值與單位；選擇 Full 可保留原有觸發與量測 metadata，也可獨立附加時間欄位。CLI 呼叫端可使用 `--no-csv`，WebUI 使用者則可取消勾選 `CSV 輸出`；兩者都映射到同一個 Core `csv_enabled` 設定。CLI `--streaming --json` 則預設不寫入 CSV，只有明確加入 `--csv PATH` 才寫入 CSV。
+支援 VISA 的 DC／AC 電壓與電流、DC 電壓比、頻率、週期，以及 2 線式／4 線式電阻量測。預設每筆樣本輸出時間戳記、數值及單位的精簡 `data` CSV；若需保留觸發與量測 metadata，可用 CLI `--csv-format full` 或 WebUI/Desktop `Full`，並可附加 elapsed 與 sample interval 欄位。CLI `--no-csv` 或 WebUI `CSV 輸出` 可停用 CSV；CLI `--streaming --json` 預設不儲存 CSV，需指定 `--csv PATH` 才會儲存。
 
-System VISA 需要另外安裝相容的執行環境。Meters Tool 隨程式提供 PyVISA-py，可用於正式支援的 34461A TCPIP 連線；dry-run 與模擬模式不需要 VISA 執行環境。
+System VISA 需要另行安裝執行環境；隨附的 PyVISA-py 可用於正式支援的 34461A TCPIP 連線。dry-run 與模擬模式不需要 VISA 執行環境。
 
 ## 功能特性
 
 * 透過 VISA 控制支援的數位萬用電表
-* 設定量測範圍 (range)、NPLC、Auto Zero、AC 頻寬 (bandwidth)、電流端子 (current terminal) 與 DC 電壓輸入阻抗 (input impedance)
-* 支援 software 工作流程（可透過 `--timer-interval-s` 選用計時排程）、external hardware、immediate 與 custom/buffered 觸發工作流程
-* 使用 dry-run 模式預覽儀器命令
-* 使用內建模擬器在沒有硬體的情況下測試工作流程
-* 透過 CLI 或本機 WebUI 進行操作
-* CLI 與 WebUI/Desktop 提供英文與繁體中文的內建離線說明／使用指南
-* 在瀏覽器 WebUI 中即時切換英文與繁體中文，不需重新載入頁面，也不會重設目前執行、表單值、即時樣本、圖表、狀態或其他執行階段 UI 狀態；手動選擇會儲存在瀏覽器中
-* 產生 JSON 與 JSONL 輸出，供自動化、agent 與 orchestrator 使用
-* 預設產生時間戳記 CSV，可透過 CLI `--no-csv` 或 WebUI `CSV 輸出` checkbox 明確停用
+* 設定量測範圍 (range)、NPLC、Auto Zero、AC 頻寬、電流端子及 DC 電壓輸入阻抗
+* 執行 immediate、software（可用 `--timer-interval-s` 計時）、external hardware 與 custom/buffered 觸發工作流程
+* 透過 dry-run 預覽儀器命令
+* 使用內建模擬器在無硬體環境測試工作流程
+* 透過 CLI 或本機 WebUI 操作
+* 使用 CLI 與 WebUI/Desktop 提供的英文、繁體中文內建離線說明／使用指南
+* 在瀏覽器 WebUI 即時切換英文與繁體中文，不重新載入頁面或重設執行、表單、樣本、圖表及 UI 狀態，並記住語言選擇
+* 輸出 JSON 與 JSONL，供自動化、agent 及 orchestrator 使用
+* 預設輸出含時間戳記的 CSV，可用 CLI `--no-csv` 或 WebUI `CSV 輸出` 核取方塊停用
 
-實機啟動時會透過 `*IDN?` 自動偵測已連接的型號；明確選擇的型號僅作為預期型號防護 (expected-model guard)，並不會為另一台儀器解鎖功能。精確的實機支援採用 fail-closed (預設關閉) 原則；關於型號、傳輸/後端、量測與觸發模式的狀態，請參閱 [支援型號](docs/core/supported-models.zh-TW.md) 與各元件說明文件。
-
-## 版本相容性
-
-Meters Tool `4.0.0` 依 Common Contract revision `3.0`，將公開 Worker 協定從 `3.1.2` 的 v2-only 升級為 v3-only。既有 Worker 整合端必須升級請求與回應解析；不提供 v2 fallback 或版本協商。Worker HTTP 與執行階段 JSONL 使用 schema `3`；Manifest 與獨立 CLI 單次回應 schema 維持 `2`。詳情請參閱 [Meters Worker Contract](docs/contracts/meters-worker-contract.md) 與 [CLI manifest 參考](docs/cli/README.zh-TW.md)。
-
-CSV 現在預設使用精簡的 `data` 格式。若下游工具需要原有的 metadata 欄位，請在 CLI 使用 `--csv-format full`，或在 WebUI/Desktop 選擇 `Full`。
+實機啟動透過 `*IDN?` 偵測型號；手動指定的型號僅用於預期型號比對，不能解鎖其他儀器功能。Core 依型號、傳輸方式、Backend、量測與觸發模式執行 fail-closed 支援檢查；詳見 [支援型號](docs/core/supported-models.zh-TW.md)。
 
 ## 專案結構
 
-此 repository 現在使用單一發行套件與單一版本號。在範例中，`<version>` 代表根目錄 `pyproject.toml` 中的 `[project].version`：
+`meters-tool` 是單一發行套件，`<version>` 取自根目錄 `pyproject.toml` 的 `[project].version`：
 
 * 發行套件 (Distribution)：`meters-tool` `<version>`
 * Core import：`meters_tool_core`
@@ -64,66 +58,55 @@ scripts/
 
 ## 安裝
 
-首先開啟 PowerShell 並進入專案根目錄：
+在 PowerShell 進入專案根目錄：
 
 ```powershell
 cd path\to\meters-tool
 ```
 
-如果尚未安裝 uv，請先安裝：
+安裝 uv（若尚未安裝），並確認可執行：
 
 ```powershell
 py -m pip install --user uv
 ```
 
-驗證 uv：
-
 ```powershell
 uv --version
 ```
 
-在專案資料夾中建立虛擬環境：
+建立虛擬環境，並依 `uv.lock` 同步開發與測試相依套件：
 
 ```powershell
 uv venv .venv
 ```
 
-依照 `uv.lock` 同步可重現的開發與測試環境：
-
 ```powershell
 uv sync --all-extras --link-mode=copy
 ```
 
-針對 CI 或嚴格的本機檢查，可要求已提交的 lock 檔案保持不變：
+CI 或嚴格本機驗證使用鎖定模式：
 
 ```powershell
 uv sync --all-extras --locked --link-mode=copy
 ```
 
-本專案支援 Python `>=3.10`。`uv venv .venv` 會使用可用的相容 Python。如果您需要特定的 Python 版本，請明確指定：
+支援 Python `>=3.10`。`uv venv` 會選擇相容版本，也可明確指定：
 
 ```powershell
 uv venv .venv --python 3.12
 ```
 
-`uv.lock` 檔案用於 uv 的開發與 CI 可重現環境。
-
-Windows 會建立 virtualenv console wrappers，例如
-`.\.venv\Scripts\meters-tool.exe`、
-`.\.venv\Scripts\meters-tool-webui.exe` 與
-`.\.venv\Scripts\meters-tool-webui-launcher.exe`。
-
-如果既有虛擬環境已完成同步，但仍缺少一個或多個 console wrapper，請強制 uv 只重新安裝本專案套件：
+Windows 會在 `.venv\Scripts\` 建立 `meters-tool.exe`、`meters-tool-webui.exe` 及 `meters-tool-webui-launcher.exe`。若既有環境缺少這些命令入口，可只重新安裝專案套件：
 
 ```powershell
 uv sync --all-extras --link-mode=copy --reinstall-package meters-tool
 ```
 
-這會重新建置專案套件並重建 console wrappers，不需要 pip。新建立的虛擬環境通常不需要執行此命令。
+此修復通常不適用於新建的虛擬環境，也不需要另行使用 pip。
 
 ## 快速開始
 
-安裝後，可在沒有硬體的情況下執行安全的模擬器工作流程：
+先以模擬器安全測試 CLI（不需要硬體）：
 
 ```powershell
 .\.venv\Scripts\meters-tool.exe start-trigger-record `
@@ -142,19 +125,15 @@ uv sync --all-extras --link-mode=copy --reinstall-package meters-tool
 .\.venv\Scripts\meters-tool-webui.exe --host 127.0.0.1 --port 8767
 ```
 
-或啟動 WebUI launcher：
+或使用 WebUI Launcher：
 
 ```powershell
 .\.venv\Scripts\meters-tool-webui-launcher.exe
 ```
 
-Launcher 只會繫結本機 loopback。未提供參數時會從 `8767` 開始，最多嘗試
-100 個 Port，直到實際 bind 成功；接著等待 WebUI capabilities identity ready
-後開啟瀏覽器。使用 `--port 9000` 可固定只嘗試一個 Port；使用
-`--port 9000 --auto-port` 則會從 `9000` 開始自動搜尋。
+Launcher 僅繫結本機 loopback，預設從 Port `8767` 搜尋最多 100 個可用 Port，確認 WebUI capabilities identity 後開啟瀏覽器。`--port 9000` 固定 Port；`--port 9000 --auto-port` 從 `9000` 開始搜尋。
 
-開發 Desktop shell 時，請在 `desktop/` 安裝 lockfile 固定的 Node 相依套件並
-啟動 Electron：
+開發 Desktop shell 時，從 `desktop/` 啟動 Electron：
 
 ```powershell
 cd desktop
@@ -162,47 +141,32 @@ npm ci
 npm start
 ```
 
-Development mode 會透過 repository `.venv` 啟動同一個私有 WebUI host；
-Electron 只包覆既有 FastAPI 與 static WebUI，不是另一套 frontend。
+Desktop 開發模式透過專案 `.venv` 使用同一個私有 FastAPI/WebUI host；Electron 不另建 frontend。
 
-詳細選項與工作流程請參閱 [CLI README](docs/cli/README.zh-TW.md) 和
-[WebUI README](docs/webui/README.zh-TW.md)。
-
-預設情況下，實機工作階段會透過 `pyvisa.ResourceManager("@ivi")` 使用系統
-VISA 執行環境。CLI 開啟 VISA 的指令可使用 `--visa-library "@py"` 選擇
-隨程式提供的 PyVISA-py 後端；WebUI 與 Desktop 可在「裝置選項 > VISA 後端」
-選擇。System VISA 仍為預設，不會靜默退回 `@py`，也不會因 `PYVISA_LIBRARY`
-而改用其他後端。PyVISA-py 僅正式支援 34461A TCPIP；System VISA 保持支援
-34461A USB／TCPIP 與 34460A USB。Windows 封裝也包含 PyVISA-py；`psutil` 與 `zeroconf`
-已納入正式依賴，支援 PyVISA-py LAN 資源自動探索。不包含額外 USB 驅動。
+實機預設透過 `pyvisa.ResourceManager("@ivi")` 使用 System VISA；CLI 可指定 `--visa-library "@py"`，WebUI/Desktop 可在「裝置選項 > VISA 後端」選擇 PyVISA-py。沒有自動 fallback，也不會依 `PYVISA_LIBRARY` 改選後端。`@py` 僅正式支援 34461A TCPIP；System VISA 支援 34461A USB／TCPIP 與 34460A USB 已登錄的功能。Windows 封裝隨附 PyVISA-py，以及用於 LAN 資源探索的 `psutil`／`zeroconf`；不含額外 USB 驅動。詳細操作請參閱 [CLI README](docs/cli/README.zh-TW.md) 與 [WebUI README](docs/webui/README.zh-TW.md)。
 
 ## 建置
 
-建置 wheel 與 source distribution。這會使用上面安裝的 `dev` extra 中的 `build` 套件：
+使用 `dev` extra 的 `build` 套件產生單一 Python distribution 的 wheel 與 sdist：
 
 ```powershell
 .\.venv\Scripts\python.exe -m build
 ```
 
-這只會產生一個 Python 發行套件：
+輸出：
 
 ```text
 dist\meters_tool-<version>-py3-none-any.whl
 dist\meters_tool-<version>.tar.gz
 ```
 
-共用 Windows bundle 採用 PyInstaller onedir 工作流程。PyInstaller 已包含在
-Windows `dev` 相依套件中，因此透過
-`uv sync --all-extras --locked --link-mode=copy` 建立的開發環境已可用於發布
-建置與正式發布驗收。
-
-將 CLI、WebUI Launcher 與 private Desktop host 建置到同一個共用 bundle：
+Windows `dev` 相依套件包含 PyInstaller。以 onedir 模式建立共用 CLI、WebUI Launcher 與私有 Desktop host：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_windows_bundle.ps1
 ```
 
-預設會產生：
+輸出：
 
 ```text
 dist\meters-tool\
@@ -212,14 +176,13 @@ dist\meters-tool\
   _internal\
 ```
 
-Desktop build 也會直接使用這個 private host。建置 Windows x64 Desktop
-application directory：
+建置共用 Windows onedir 與 Electron Desktop 目錄：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_desktop.ps1
 ```
 
-此流程會建置共用 Windows onedir、以 directory mode 建置 Electron，再組合成：
+輸出：
 
 ```text
 dist\desktop\win-unpacked\
@@ -233,17 +196,15 @@ dist\desktop\win-unpacked\
   ... Electron runtime files
 ```
 
-Desktop application 會啟動與 `Meters Tool.exe` 位於同一目錄的共用 private
-host，並與 CLI 和 Launcher 使用同一個 `_internal`。它不需要系統預先安裝
-Python，也不會在每次啟動時解壓 portable Electron executable。
+Desktop 的 `Meters Tool.exe` 使用旁邊的私有 host，並與 CLI／Launcher 共用唯一的 `_internal`；無須系統 Python，也無須每次啟動時解壓 Electron。
 
-建置包含 wheel、sdist、統一 Windows ZIP 與檢查碼 (checksums) 的發佈資料夾：
+組裝 wheel、sdist、統一 Windows ZIP 與 checksums：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\build_release.ps1
 ```
 
-這會產生帶有版本號的發佈產物：
+版本化產物：
 
 ```text
 release\<version>\meters-tool-<version>-windows-x64.zip
@@ -252,46 +213,21 @@ release\<version>\meters_tool-<version>.tar.gz
 release\<version>\checksums.txt
 ```
 
-Windows ZIP 內含單一 `meters-tool-<version>` application directory，其中有
-`Meters Tool.exe`、CLI、WebUI Launcher、private Desktop host、唯一共用的
-`_internal` 與 Electron runtime。解壓一次後，即可從該目錄啟動 Desktop、
-browser WebUI 或 CLI。
+Windows ZIP 解壓一次後，即可從單一 `meters-tool-<version>` 目錄執行 Desktop、CLI 或 WebUI Launcher，並包含共享 `_internal` 與 Electron runtime。
 
-請在乾淨且已提交的 Git 工作樹中，從 repository 根目錄執行正式無硬體 Release Acceptance：
+從乾淨、已提交的 Git 工作樹在專案根目錄執行正式無硬體 Release Acceptance：
 
 ```powershell
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\release-acceptance.ps1
 ```
 
-未指定 `-Release` 時，版本會從根目錄 `pyproject.toml` 取得。
-
-`release-acceptance.ps1` 是針對乾淨、已提交工作樹的正式無硬體發布驗收。
-它會執行完整無硬體測試（包含 wrapper 測試）、呼叫一次
-`build_release.ps1`，並驗證最終 wheel、source distribution、統一 Windows
-ZIP 與全部三筆 SHA-256 checksums；接著解壓
-bundle 並執行既有 CLI 與 Launcher smoke test、乾淨安裝套件 smoke test、
-指定 target 的 preflight 與既有的 PlanOnly 驗證。此流程不會自動執行
-Electron GUI runtime smoke。通過後會輸出可直接上傳至 GitHub Release 的
-版本化目錄。
-最後的 `live-cli-check.ps1` 呼叫是 `-Suite minimal -PlanOnly -SkipPreflight`；
-它只產生規劃，不會開啟 VISA 資源。每個 recorded command 會顯示
-`[start]` 以及含執行時間的 `[passed]` 或 `[failed]`，詳細的 child-process
-stdout/stderr 仍會保留在 acceptance run directory。完整 pytest 可能透過
-wrapper contract tests 建立 `.tmp_tests\cli_live\...`；看到該目錄不代表正在
-執行真實儀器測試。長時間的 PyInstaller build 不應被誤認為正在等待 external trigger。
+未指定 `-Release` 時使用 `pyproject.toml` 的版本。驗收在未變動的提交上執行完整無硬體測試（含 wrapper）、單次 Release 建置、wheel/sdist/Windows ZIP 與 SHA-256 驗證、乾淨安裝、CLI／Launcher smoke、preflight 及 PlanOnly。通過後會輸出可供發布的版本化產物路徑，但不會自動發布，也不會自動執行 Electron GUI smoke 或實機測試。最後的 `live-cli-check.ps1 -Suite minimal -PlanOnly -SkipPreflight` 只產生計畫，不開啟 VISA。詳細流程見 [測試指南](docs/testing-guidelines.md) 與 [貢獻指南](docs/CONTRIBUTING.md)。
 
 ## 測試
 
-CLI 驗證維持兩個入口：`scripts/preflight-cli.ps1` 執行無硬體檢查，
-`scripts/live-cli-check.ps1` 執行操作人員明確核准的實機驗證。
-涵蓋範圍與風險請見 [CLI 驗證 Suite 矩陣](docs/cli/README.zh-TW.md#cli-驗證腳本)。
-`full` 包含 Finite Custom（34460A 為 16 案例，34461A 為 20 案例）；
-`infinite-custom`、刻意溢位的 `overflow` 與 `worker-streaming` 分別選用。
-`worker-streaming` 啟用 `--streaming --json`，在執行期間檢查 Active 邊界。
-使用 `-PlanOnly` 可在不開啟 VISA 的情況下檢查實機 Suite；實機執行需要
-明確指定 Resource 並完成人工確認。
+`scripts/preflight-cli.ps1` 執行無硬體檢查；`scripts/live-cli-check.ps1` 僅用於操作人員明確核准的實機驗證。Suite 包含 `full`（Finite Custom：34460A 16 案例、34461A 20 案例），以及分開執行的 `infinite-custom`、`overflow` 和 `worker-streaming`（使用 `--streaming --json` 檢查 Active 邊界）。詳見 [CLI 驗證 Suite 矩陣](docs/cli/README.zh-TW.md#cli-驗證腳本)。`-PlanOnly` 不開啟 VISA；實機測試必須提供明確 Resource 並完成人工確認。
 
-開發迭代時可先跑 focused tests：
+開發時先執行各元件的 focused tests：
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests\core -q -p no:cacheprovider
@@ -299,23 +235,21 @@ CLI 驗證維持兩個入口：`scripts/preflight-cli.ps1` 執行無硬體檢查
 .\.venv\Scripts\python.exe -m pytest tests\webui -q -p no:cacheprovider
 ```
 
-執行靜態檢查：
+執行 Ruff 靜態檢查：
 
 ```powershell
 .\.venv\Scripts\python.exe -m ruff check src tests
 ```
 
-執行每日快速無硬體測試套件：
+執行每日快速無硬體測試：
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --ignore=tests\cli\test_cli_wrappers.py
 ```
 
-Windows wrapper 合約的 CI 工作會另外執行
-`tests\cli\test_cli_wrappers.py`。完整的 `release-acceptance.ps1` 門檻只應
-在正式發布前執行。
+Windows CI 會另行執行 `tests\cli\test_cli_wrappers.py`；完整 `release-acceptance.ps1` 只在正式發布前執行。
 
-如果 Windows 系統暫存目錄權限阻擋了 pytest，請改用 repository-local 暫存目錄重新執行：
+若 pytest 遇到 Windows 暫存目錄權限問題，改用專案內 `.tmp_tests`：
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests -q -p no:cacheprovider --ignore=tests\cli\test_cli_wrappers.py --basetemp .tmp_tests\pytest_tmp
@@ -323,6 +257,7 @@ Windows wrapper 合約的 CI 工作會另外執行
 
 ## 文件
 
+* [版本紀錄](CHANGELOG.md)
 * [Core README](docs/core/README.zh-TW.md)
 * [支援型號](docs/core/supported-models.zh-TW.md)
 * [CLI 使用者指南](docs/cli/USER_GUIDE.zh-TW.md)
