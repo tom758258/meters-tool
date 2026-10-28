@@ -73,6 +73,23 @@ docs/
 scripts/
 ```
 
+## Key Dependencies
+
+Meters Tool uses these major open-source components (not an exhaustive dependency list):
+
+| Component | Purpose |
+| --- | --- |
+| [PyVISA](https://pyvisa.readthedocs.io/) | VISA communication with supported instruments |
+| [PyVISA-py](https://pyvisa-py.readthedocs.io/) | Python VISA backend for supported connections |
+| [FastAPI](https://fastapi.tiangolo.com/) / [Uvicorn](https://www.uvicorn.org/) | Local WebUI backend |
+| [psutil](https://github.com/giampaolo/psutil) / [zeroconf](https://github.com/python-zeroconf/python-zeroconf) | LAN resource discovery |
+| [Electron](https://www.electronjs.org/) | Desktop application shell |
+
+Python dependencies are declared in [pyproject.toml](pyproject.toml) and pinned in
+[uv.lock](uv.lock). Desktop dependencies are declared in
+[desktop/package.json](desktop/package.json) and pinned in
+[desktop/package-lock.json](desktop/package-lock.json).
+
 ## Install
 
 From the repository root in PowerShell:
@@ -327,6 +344,8 @@ behavior require real-instrument validation evidence when applicable.
 ## License and Disclaimer
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+Third-party notices for bundled distributions are in
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
 
 Application icon: The Meters Tool application icon was generated with OpenAI image
 generation in ChatGPT, then reviewed and selected by the project maintainer.

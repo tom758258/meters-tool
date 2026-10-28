@@ -1,0 +1,44 @@
+Meters Tool - Third-Party Notices
+
+Meters Tool itself is licensed under the MIT License; see LICENSE.
+
+zeroconf 0.151.5 (python-zeroconf)
+-----------------------------------
+License: GNU Lesser General Public License, version 2.1 or later
+         (LGPL-2.1-or-later).
+Upstream project: https://github.com/python-zeroconf/python-zeroconf
+Corresponding source: https://github.com/python-zeroconf/python-zeroconf/tree/0.151.5
+Original copyright notices and the complete license text:
+    third_party/licenses/zeroconf-COPYING
+
+The Windows application bundles zeroconf. You may modify this LGPL library
+and build a version of Meters Tool that uses your modified library. The
+Meters Tool source code and Windows build scripts are publicly available at
+https://github.com/tom758258/meters-tool.
+
+Rebuilding the Windows bundle with a modified zeroconf
+------------------------------------------------------
+These instructions describe the build using the Python 3.13 x64 and Node.js
+22 toolchain used by the Windows workflow. On a Windows machine:
+
+1. Obtain the Meters Tool source corresponding to the distributed version,
+   and obtain the zeroconf 0.151.5 source from the URL above. Modify zeroconf
+   and build a Windows-compatible wheel from your modified source.
+2. From the Meters Tool repository root, create/sync the project environment:
+
+       uv sync --python 3.13 --all-extras --locked --link-mode=copy
+
+3. Replace only zeroconf in the existing environment with your modified wheel:
+
+       uv pip install --python .venv/Scripts/python.exe --no-deps --reinstall <MODIFIED_ZEROCONF_WHEEL>
+
+4. Rebuild the unified ZIP using the existing release script:
+
+       powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/build_release.ps1
+
+   The build uses the local .venv, including your replacement zeroconf.
+   Do not run "uv sync" again between steps 3 and 4: doing so would restore
+   the project's locked zeroconf dependency.
+
+These notices supplement, and do not replace, the Electron and Chromium
+license files already distributed with the Desktop application.
