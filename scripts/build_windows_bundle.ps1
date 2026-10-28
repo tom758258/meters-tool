@@ -90,3 +90,32 @@ try {
 if ($pyinstallerExitCode -ne 0) {
     exit $pyinstallerExitCode
 }
+
+# Preserve project and LGPL library license notices in standalone and Desktop bundles.
+# The Desktop builder copies the shared onedir bundle, and release packaging copies
+# the Desktop directory. Use SourceRoot so release builds use their source snapshot.
+$zeroconfVersion = (& $Python -c "from importlib.metadata import version; print(version('zeroconf'))").Trim()
+if ($LASTEXITCODE -ne 0 -or $zeroconfVersion -ne "0.151.5") {
+    throw "Bundled zeroconf version '$zeroconfVersion' differs from the reviewed 0.151.5 license notice. Update third-party notices before building."
+}
+
+$bundleDirectory = Join-Path $distFull "meters-tool"
+if (-not (Test-Path -LiteralPath $bundleDirectory -PathType Container)) {
+    throw "Windows bundle directory not found: $bundleDirectory"
+}
+
+$noticePaths = @(
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.txt",
+    "third_party/licenses/zeroconf-COPYING"
+)
+foreach ($relativePath in $noticePaths) {
+    $sourceNotice = Join-Path $sourceRootFull $relativePath
+    if (-not (Test-Path -LiteralPath $sourceNotice -PathType Leaf)) {
+        throw "Required license notice not found: $sourceNotice"
+    }
+    $targetNotice = Join-Path $bundleDirectory $relativePath
+    $targetParent = Split-Path -Parent $targetNotice
+    New-Item -ItemType Directory -Force -Path $targetParent | Out-Null
+    Copy-Item -LiteralPath $sourceNotice -Destination $targetNotice -Force
+}
