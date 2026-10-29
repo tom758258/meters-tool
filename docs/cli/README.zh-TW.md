@@ -629,7 +629,7 @@ Manifest schema 維持 `2`。獨立 CLI 單次回應 JSON 與 dry-run 預覽維�
 | `--csv-time-columns elapsed,delta` | 否 | 無 | 可獨立或同時選擇 `elapsed_s` 與 `delta_t_s`，單位秒、三位小數。 |
 | `--status-format text\|jsonl` | 否 | `text` | 執行階段狀態輸出格式。`jsonl` 為 Agent 呼叫端每行發出一個 JSON 物件。 |
 | `--dry-run` | 否 | 關閉 | 驗證引數並列印規劃的量測、SCPI、讀取路徑和清除合約，而不開啟 VISA、寫入 CSV 或啟動 HTTP 伺服器。 |
-| `--simulate` | 否 | 關閉 | 針對確定的模擬儀器後端執行，而不開啟實機 VISA 工作階段。簡單模式需要有界限的執行，例如 `--max-samples`。 |
+| `--simulate` | 否 | 關閉 | 針對確定的模擬儀器後端執行，而不開啟實機 VISA 工作階段。非 Streaming 的 Simple 模擬必須指定有限的 `--max-samples`。使用 `--simulate --streaming --json` 時，Simple 模式可省略筆數且不會套用隱藏上限，也可指定筆數以自然結束。無限 Streaming 必須由使用者或 Orchestrator 安排既有 Stop。 |
 | `--json` | 否 | 關閉 | `--status-format jsonl` 的別名。 |
 | `--streaming` | 否 | 關閉 | 選用 Run-bound Streaming，必須搭配 JSONL；只有明確指定 `--csv PATH` 才寫入 CSV。 |
 | `--timeout-ms N` | 否 | `5000` | VISA 工作階段逾時（毫秒）。支援範圍：`100` 到 `600000`。 |

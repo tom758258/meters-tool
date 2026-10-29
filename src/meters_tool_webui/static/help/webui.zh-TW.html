@@ -155,8 +155,8 @@ buffered custom acquisition。</p>
 </tr>
 <tr>
 <td><code>External</code></td>
-<td>由治具、DUT、PLC 或其他硬體訊號同步量測。</td>
-<td>等待實體外部觸發邊緣。</td>
+<td>在 <code>Real</code> 中，由治具、DUT、PLC 或其他硬體訊號同步量測。</td>
+<td><code>Real</code> 等待實體外部觸發邊緣；<code>Simulate</code> 使用自動虛擬觸發。</td>
 </tr>
 <tr>
 <td><code>Immediate Custom</code></td>
@@ -170,8 +170,8 @@ buffered custom acquisition。</p>
 </tr>
 <tr>
 <td><code>External Custom</code></td>
-<td>每個實體觸發事件都驅動一組指定的 buffered acquisition。</td>
-<td>由外部觸發控制的 buffered custom acquisition。</td>
+<td>在 <code>Real</code> 中，每個實體觸發事件都驅動一組指定的 buffered acquisition。</td>
+<td>由 <code>Real</code> 的實體邊緣或 <code>Simulate</code> 的自動虛擬觸發控制的 buffered custom acquisition。</td>
 </tr>
 </tbody>
 </table>
@@ -207,10 +207,14 @@ command，也不是可執行 script。</p>
 必須勾選接受緩衝區溢位風險，並自動啟用溢位監測。有限採集可用 <code>Monitor overflow</code> 啟用相同檢查；
 <code>Stop on overflow</code> 會在偵測到溢位時停止。狀態面板會在執行中及停止後顯示
 監測、溢位、最後排空與資料完整性狀態。使用 CSV 前請先檢查這些欄位。</p>
-<p>只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
+<p>在 <code>Real</code> 模式中，只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
 <code>External trigger slope</code> 選擇實體觸發邊緣，<code>Trigger delay</code> 設定觸發後到量測前
 的延遲，<code>Trigger timeout</code> 則控制保護性的等待／re-arm 路徑。硬體觸發逾時並不
 自動代表量測失敗。</p>
+<p>在 <code>Simulate</code> 模式中，支援的 External 模式由 Core Simulator 自動產生虛擬觸發，
+不需連接實體觸發訊號、手動注入 Trigger 或額外設定 Simulation Trigger Interval。
+External Custom 每次虛擬觸發產生 <code>sample_count</code> 筆資料。WebUI 模擬維持既有
+非 Streaming 執行方式；這些虛擬觸發不能當成實體 External 邊緣時序的驗證證據。</p>
 <p>除非量測設定有此需求，且操作人員了解對儀器造成的影響，否則請勿更改觸發時序、
 觸發延遲、NPLC、自動量程 (Auto Range)、自動歸零 (Auto Zero)、VM Comp 或
 電流端子的設定。</p>
@@ -238,9 +242,9 @@ command，也不是可執行 script。</p>
 <p><strong>直流電壓比 (DC voltage ratio)</strong> 是特殊的量測模式。只有當測試設定明確要求比值量測時才使用。</p>
 <p><code>VM Comp slope</code> 控制後面板 VM Comp 輸出脈衝的斜率。<code>Leave unchanged</code> 會保留目前設定；只有測試設定明確使用 VM Comp 輸出時，才選擇 <code>Pos</code> 或 <code>Neg</code>。</p>
 <p><code>Trigger mode</code> (觸發模式) 控制取樣的時間點。前面的「選擇觸發模式」章節說明了一般與 Custom 工作流程，以及各模式會顯示的設定欄位。</p>
-<p><code>Trigger delay</code> (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。</p>
+<p>在 <code>Real</code> 模式中，<code>Trigger delay</code> (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。</p>
 <p><code>Trigger timeout</code> (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</p>
-<p><code>External trigger slope</code> (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。</p>
+<p>在 <code>Real</code> 模式中，<code>External trigger slope</code> (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。</p>
 <h2 id="即時資料圖表縮放-live-data-chart-scale">即時資料圖表縮放 (Live Data Chart Scale)</h2>
 <p><code>Live data</code>（即時資料）面板在 <code>Trend</code> 區域有圖表縮放控制項。這些設定僅影響介面圖表顯示。它們不影響儀器設定、SCPI 指令、CSV 輸出或記錄的數值。</p>
 <p>趨勢圖表使用作用中的縮放模式，在每條網格線的左側顯示 Y 軸標籤。</p>
@@ -293,13 +297,13 @@ WebUI，也會採用相同行為，因為不同儀器可能需要不同的 WebUI
 <h3 id="open-csv-按鈕被停用">Open CSV 按鈕被停用</h3>
 <p><code>Open CSV</code> 將被停用，直到啟用 CSV 的作業停止並產生完整的 CSV 路徑為止。在作業執行期間或取消勾選 <code>CSV 輸出</code> 時，它也會保持停用狀態。</p>
 <h3 id="硬體觸發作業似乎在等待">硬體觸發作業似乎在等待</h3>
-<p>外部觸發模式會等待實體觸發訊號。如果觸發訊號遺失，作業可能會依照設定的逾時行為繼續等待或重新準備 (re-arm)。</p>
+<p>在 <code>Real</code> 模式中，外部觸發模式會等待實體觸發訊號。如果觸發訊號遺失，作業可能會依照設定的逾時行為繼續等待或重新準備 (re-arm)。</p>
 <h2 id="操作人員安全注意事項">操作人員安全注意事項</h2>
 <ul>
 <li>在量測電流之前，請先確認儀器的輸入接線與電流端子。</li>
 <li>檢查新的設定時，請先使用立即模式 (immediate mode)。</li>
 <li>除非需要固定量程，否則請保持啟用自動量程 (Auto Range)。</li>
-<li>請將外部觸發的接線與極性視為量測設定的一部分。</li>
+<li>在 <code>Real</code> 模式中，請將外部觸發的接線與極性視為量測設定的一部分。</li>
 <li>在可行的情況下，請在斷開儀器連接前先停止測量作業。</li>
 </ul>
     </main>

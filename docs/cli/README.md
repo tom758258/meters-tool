@@ -766,7 +766,7 @@ after that many successful timed samples.
 | `--csv-time-columns elapsed,delta` | No | None | Add one or both relative timing columns in seconds with 3 decimal places. |
 | `--status-format text\|jsonl` | No | `text` | Runtime status output format. `jsonl` emits one JSON object per line for agent callers. |
 | `--dry-run` | No | Off | Validate arguments and print the planned measurement, SCPI, read path, and cleanup contract without opening VISA, writing CSV, or starting the HTTP server. |
-| `--simulate` | No | Off | Run against a deterministic simulated instrument backend instead of opening a real VISA session. Simple modes require bounded runs such as `--max-samples`. |
+| `--simulate` | No | Off | Run against a deterministic simulated instrument backend instead of opening a real VISA session. Non-streaming Simple simulation requires finite `--max-samples`. With `--simulate --streaming --json`, Simple modes may omit it to run without a hidden sample cap, or specify it to finish naturally. For infinite Streaming, the user or Orchestrator must arrange the existing Stop. |
 | `--json` | No | Off | Alias for `--status-format jsonl`. |
 | `--streaming` | No | Off | Select Run-bound Streaming; requires JSONL. CSV is disabled unless `--csv PATH` is explicit. |
 | `--timeout-ms N` | No | `5000` | VISA session timeout in milliseconds. Supported range: `100` to `600000`. |

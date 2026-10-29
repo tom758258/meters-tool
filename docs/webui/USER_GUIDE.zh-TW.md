@@ -142,10 +142,10 @@ buffered custom acquisition。
 | --- | --- | --- |
 | `Immediate` | 按下 Start 後立即開始取得讀值。 | 一般讀值，由作業的 sample limit 控制。 |
 | `Software` | 由操作人員決定每次何時取樣，或由計時器發送軟體觸發。 | Timer trigger 關閉時使用 `Trigger` 按鈕；開啟時依設定間隔自動觸發。 |
-| `External` | 由治具、DUT、PLC 或其他硬體訊號同步量測。 | 等待實體外部觸發邊緣。 |
+| `External` | 在 `Real` 中，由治具、DUT、PLC 或其他硬體訊號同步量測。 | `Real` 等待實體外部觸發邊緣；`Simulate` 使用自動虛擬觸發。 |
 | `Immediate Custom` | Start 後立即依指定數量將一批讀值擷取到儀器讀值記憶體。 | Buffered custom acquisition。 |
 | `Software Custom` | 每次 WebUI 軟體觸發都啟動一組指定的 buffered acquisition。 | 由 `Trigger` 按鈕控制的 buffered custom acquisition。 |
-| `External Custom` | 每個實體觸發事件都驅動一組指定的 buffered acquisition。 | 由外部觸發控制的 buffered custom acquisition。 |
+| `External Custom` | 在 `Real` 中，每個實體觸發事件都驅動一組指定的 buffered acquisition。 | 由 `Real` 的實體邊緣或 `Simulate` 的自動虛擬觸發控制的 buffered custom acquisition。 |
 
 第一次操作時，Immediate mode 是最簡單的選擇。
 
@@ -196,10 +196,15 @@ trigger count x sample count
 `Stop on overflow` 會在偵測到溢位時停止。狀態面板會在執行中及停止後顯示
 監測、溢位、最後排空與資料完整性狀態。使用 CSV 前請先檢查這些欄位。
 
-只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
+在 `Real` 模式中，只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
 `External trigger slope` 選擇實體觸發邊緣，`Trigger delay` 設定觸發後到量測前
 的延遲，`Trigger timeout` 則控制保護性的等待／re-arm 路徑。硬體觸發逾時並不
 自動代表量測失敗。
+
+在 `Simulate` 模式中，支援的 External 模式由 Core Simulator 自動產生虛擬觸發，
+不需連接實體觸發訊號、手動注入 Trigger 或額外設定 Simulation Trigger Interval。
+External Custom 每次虛擬觸發產生 `sample_count` 筆資料。WebUI 模擬維持既有
+非 Streaming 執行方式；這些虛擬觸發不能當成實體 External 邊緣時序的驗證證據。
 
 除非量測設定有此需求，且操作人員了解對儀器造成的影響，否則請勿更改觸發時序、
 觸發延遲、NPLC、自動量程 (Auto Range)、自動歸零 (Auto Zero)、VM Comp 或
@@ -253,11 +258,11 @@ WebUI 與 Desktop 可在右側齒輪的裝置設定中，透過 `VISA 後端` �
 
 `Trigger mode` (觸發模式) 控制取樣的時間點。前面的「選擇觸發模式」章節說明了一般與 Custom 工作流程，以及各模式會顯示的設定欄位。
 
-`Trigger delay` (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。
+在 `Real` 模式中，`Trigger delay` (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。
 
 `Trigger timeout` (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。
 
-`External trigger slope` (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。
+在 `Real` 模式中，`External trigger slope` (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。
 
 ## 即時資料圖表縮放 (Live Data Chart Scale)
 
@@ -348,12 +353,12 @@ WebUI，也會採用相同行為，因為不同儀器可能需要不同的 WebUI
 
 ### 硬體觸發作業似乎在等待
 
-外部觸發模式會等待實體觸發訊號。如果觸發訊號遺失，作業可能會依照設定的逾時行為繼續等待或重新準備 (re-arm)。
+在 `Real` 模式中，外部觸發模式會等待實體觸發訊號。如果觸發訊號遺失，作業可能會依照設定的逾時行為繼續等待或重新準備 (re-arm)。
 
 ## 操作人員安全注意事項
 
 - 在量測電流之前，請先確認儀器的輸入接線與電流端子。
 - 檢查新的設定時，請先使用立即模式 (immediate mode)。
 - 除非需要固定量程，否則請保持啟用自動量程 (Auto Range)。
-- 請將外部觸發的接線與極性視為量測設定的一部分。
+- 在 `Real` 模式中，請將外部觸發的接線與極性視為量測設定的一部分。
 - 在可行的情況下，請在斷開儀器連接前先停止測量作業。

@@ -196,10 +196,10 @@ you need simple readings or a buffered custom acquisition.
 | --- | --- | --- |
 | `Immediate` | The run should start taking readings as soon as Start is pressed. | Simple readings controlled by the run sample limit. |
 | `Software` | An operator should decide when each reading is taken, or a timer should send software triggers. | Manual `Trigger` button when Timer trigger is off; scheduled software triggers when Timer trigger is on. |
-| `External` | A fixture, DUT, PLC, or other hardware signal should synchronize readings. | Waits for physical external trigger edges. |
+| `External` | In `Real`, a fixture, DUT, PLC, or other hardware signal should synchronize readings. | `Real` waits for physical external trigger edges; `Simulate` uses automatic virtual triggers. |
 | `Immediate Custom` | Start should immediately acquire a defined batch into instrument reading memory. | Buffered custom acquisition. |
 | `Software Custom` | Each WebUI software trigger should start a defined buffered acquisition. | Buffered custom acquisition controlled by the `Trigger` button. |
-| `External Custom` | Each physical trigger event should drive a defined buffered acquisition. | Buffered custom acquisition controlled by external trigger edges. |
+| `External Custom` | In `Real`, each physical trigger event should drive a defined buffered acquisition. | Buffered custom acquisition controlled by physical edges in `Real`, or automatic virtual triggers in `Simulate`. |
 
 Immediate mode is the simplest first-run choice.
 
@@ -259,11 +259,18 @@ when overflow is detected. The status panel shows monitoring, overflow, final
 drain, and data integrity while the run progresses and after it stops. Review
 those fields before relying on the CSV.
 
-Use External or External Custom only when a physical trigger signal is connected
-and configured for the instrument. `External trigger slope` selects the physical
+In `Real` mode, use External or External Custom only when a physical trigger
+signal is connected and configured for the instrument. `External trigger slope` selects the physical
 edge, `Trigger delay` waits after the edge before measurement, and `Trigger
 timeout` controls the protective wait/re-arm path. A hardware trigger timeout
 is not automatically a failed measurement.
+
+In `Simulate` mode, supported External modes use Core Simulator automatic
+virtual triggers. No physical trigger connection, manual trigger injection, or
+Simulation Trigger Interval setting is needed. External Custom generates
+`sample_count` readings per virtual trigger. WebUI simulation keeps its existing
+non-streaming execution. These virtual triggers do not validate physical
+External edge timing.
 
 Do not change trigger timing, trigger delay, NPLC, Auto Range, Auto Zero, VM
 Comp, or current terminal settings unless the measurement setup requires it and
@@ -369,15 +376,15 @@ test setup explicitly uses the VM Comp output.
 section above explains the simple and Custom workflows and the fields that
 appear for each mode.
 
-`Trigger delay` waits after an external trigger before measurement. Leave it
-unchanged unless the external setup requires a delay.
+In `Real` mode, `Trigger delay` waits after an external trigger before
+measurement. Leave it unchanged unless the external setup requires a delay.
 
 `Trigger timeout` controls how long trigger workflows wait before the protective
 timeout path is used. Increase it only when the measurement setup intentionally
 waits longer.
 
-`External trigger slope` selects the physical trigger edge. Match it to the
-signal source connected to the instrument.
+In `Real` mode, `External trigger slope` selects the physical trigger
+edge. Match it to the signal source connected to the instrument.
 
 ## Live Data Chart Scale
 
@@ -517,8 +524,8 @@ was cleared.
 
 ### A hardware trigger run appears to wait
 
-External trigger modes wait for the physical trigger signal. If the trigger
-signal is missing, the run can wait or re-arm according to the configured
+In `Real` mode, External trigger modes wait for the physical trigger
+signal. If the trigger signal is missing, the run can wait or re-arm according to the configured
 timeout behavior.
 
 ## Operator Safety Notes
@@ -527,5 +534,5 @@ timeout behavior.
   current.
 - Use immediate mode first when checking a new setup.
 - Keep Auto Range enabled unless a fixed range is required.
-- Treat external trigger wiring and polarity as part of the measurement setup.
+- In `Real` mode, treat external trigger wiring and polarity as part of the measurement setup.
 - Stop the run before disconnecting the instrument when practical.
