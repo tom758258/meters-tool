@@ -53,8 +53,30 @@ HTTP control server, start the acquisition worker, or write to the instrument.
 `start-trigger-record --simulate` runs the normal acquisition engine against
 the deterministic simulator. It starts the local HTTP control server and emits
 normal runtime output. Without `--streaming`, CSV is written by default and
-may be disabled with `--no-csv`. Simple simulate modes require a finite bound such as
-`--max-samples`.
+may be disabled with `--no-csv`. Simple simulate modes require `--max-samples`
+unless `--streaming` is selected. Simple Streaming simulation may omit it and
+continue until an existing Stop; an explicit `--max-samples N` still ends
+naturally after N readings. There is no implicit sample cap. This opt-in does
+not change WebUI/Desktop's non-streaming, finite Simple simulation.
+
+On profiles supporting External, `external` and `external-custom` simulation
+automatically generate virtual external triggers at an internal fixed cadence.
+No manual trigger injection, HTTP injection endpoint, or user-adjustable
+simulation interval is needed. INIT arms the simulated source; later simulator
+observations advance virtual triggers. Waiting-for-trigger and completion are
+distinct states. External Simple produces readings until `max_samples` or Stop.
+External Custom produces `sample_count` readings per virtual trigger: finite
+runs complete after `trigger_count` triggers, with
+`expected_readings = trigger_count * sample_count`; infinite runs continue
+after one INIT until Stop and still require `--allow-buffer-overflow-risk`.
+Reading-memory limits and overflow monitoring remain in force. Abort stops new
+virtual triggers while retaining buffered readings for existing tail handling;
+another INIT resets the simulated acquisition. Simulation does not validate
+physical External edge timing, hardware timeouts, or re-arm behavior.
+
+Simple Immediate infinite simulation keeps its existing acquisition pace.
+Consumers must arrange a bounded Stop and drain stdout continuously rather
+than accumulate unlimited sample output in memory.
 
 Live `start-trigger-record` is the default mode. It opens the explicit VISA
 resource, resolves the instrument profile through IDN-only auto-detect when
@@ -165,7 +187,8 @@ Use this order for agent-controlled runs:
 1. Run `start-trigger-record --dry-run --status-format jsonl` and validate the
    single `dry_run` object. Dry-run has no `run_id` and emits no `ready` event.
 2. Run the same acquisition shape with `--simulate --status-format jsonl` and a
-   finite bound such as `--max-samples`.
+   finite bound such as `--max-samples`, or opt in to `--streaming` and arrange
+   a bounded Stop for infinite simulation.
 3. Start live `start-trigger-record` with an explicit `--resource`. Live
    wrappers must not scan for resources or guess a VISA address.
 4. Wait for either the JSONL `ready` event or

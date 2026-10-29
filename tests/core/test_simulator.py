@@ -3,6 +3,7 @@ from __future__ import annotations
 import csv
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 from uuid import uuid4
 
@@ -222,17 +223,73 @@ class SimulatedVisaInstrumentTests(unittest.TestCase):
         self.assertEqual("4.46,2", instrument.query("DATA2?"))
 
     def test_status_byte_tracks_armed_external_completion_and_abort(self):
-        instrument = SimulatedVisaInstrument(
-            InstrumentConfig(resource_string="SIM::34461A"),
-            measurement_type="current_dc",
-        )
+        for trigger_count, sample_count in ((1, 1), (2, 3)):
+            with self.subTest(trigger_count=trigger_count, sample_count=sample_count):
+                instrument = SimulatedVisaInstrument(InstrumentConfig(resource_string="SIM::34461A"))
+                with patch("meters_tool_core.simulator.time.monotonic", return_value=0) as clock:
+                    instrument.write("TRIG:SOUR EXT")
+                    instrument.write(f"TRIG:COUNT {trigger_count}")
+                    instrument.write(f"SAMP:COUNT {sample_count}")
+                    instrument.write("INIT")
+                    instrument.write("*OPC")
+                    self.assertEqual("32", instrument.query("STAT:OPER:COND?"))
+                    self.assertEqual("0", instrument.query("DATA:POINTS?"))
+                    self.assertEqual(0, instrument.read_status_byte())
+                    self.assertEqual("0", instrument.query("*ESR?"))
+                    for index in range(1, trigger_count + 1):
+                        clock.return_value = index
+                        self.assertEqual(str(index * sample_count), instrument.query("DATA:POINTS?"))
+                        self.assertEqual(
+                            0x20 if index == trigger_count else 0, instrument.read_status_byte(),
+                        )
+                    self.assertEqual("0", instrument.query("STAT:OPER:COND?"))
+                    self.assertEqual("1", instrument.query("*ESR?"))
+                    self.assertEqual("0", instrument.query("*ESR?"))
+                    clock.return_value += 1
+                    self.assertEqual(str(trigger_count * sample_count), instrument.query("DATA:POINTS?"))
 
-        instrument.write("TRIG:SOUR EXT")
-        instrument.write("INIT")
-        self.assertEqual(0x20, instrument.read_status_byte())
+                    # Re-arm clears old readings/completion; either abort route stops new edges.
+                    for abort in (lambda: instrument.write("ABOR"), instrument.abort_measurement):
+                        instrument.write("INIT")
+                        instrument.write("*OPC")
+                        self.assertEqual("0", instrument.query("DATA:POINTS?"))
+                        self.assertEqual(0, instrument.read_status_byte())
+                        abort()
+                        clock.return_value += 1
+                        self.assertEqual("0", instrument.query("DATA:POINTS?"))
+                        self.assertEqual("0", instrument.query("STAT:OPER:COND?"))
+                        self.assertEqual(0, instrument.read_status_byte())
 
-        instrument.write("ABOR")
-        self.assertEqual(0, instrument.read_status_byte())
+    def test_infinite_external_batches_preserve_memory_overflow_and_abort(self):
+        instrument = SimulatedVisaInstrument(InstrumentConfig(resource_string="SIM::34461A"))
+        with patch("meters_tool_core.simulator.time.monotonic", return_value=0) as clock:
+            instrument.write("TRIG:SOUR EXT")
+            instrument.write("TRIG:COUNT INF")
+            instrument.write("SAMP:COUNT 6000")
+            instrument.write("INIT")
+            instrument.write("*OPC")
+            clock.return_value = 1
+            self.assertEqual("6000", instrument.query("DATA:POINTS?"))
+            clock.return_value = 2
+            self.assertEqual("10000", instrument.query("DATA:POINTS?"))
+            self.assertEqual("16384", instrument.query("STAT:QUES:EVEN?"))
+            self.assertEqual("0", instrument.query("STAT:QUES:EVEN?"))
+            self.assertEqual("16384", instrument.query("STAT:QUES:COND?"))
+            self.assertEqual("0", instrument.query("*ESR?"))
+            self.assertEqual(0, instrument.read_status_byte())
+            self.assertEqual("32", instrument.query("STAT:OPER:COND?"))
+            instrument.abort_measurement()
+            clock.return_value = 3
+            self.assertEqual("10000", instrument.query("DATA:POINTS?"))
+            self.assertEqual("0", instrument.query("STAT:QUES:COND?"))
+            self.assertEqual(10000, len(instrument.query("DATA:REMOVE? 10000").split(",")))
+            clock.return_value = 4
+            self.assertEqual("0", instrument.query("DATA:POINTS?"))
+            instrument.write("INIT")
+            self.assertEqual("0", instrument.query("DATA:POINTS?"))
+            self.assertEqual("0", instrument.query("STAT:QUES:EVEN?"))
+            clock.return_value = 5
+            self.assertEqual("6000", instrument.query("DATA:POINTS?"))
 
 
 class CoreSimulatorRatioSessionTests(unittest.TestCase):

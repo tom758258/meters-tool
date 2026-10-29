@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from collections import deque
+import time
 from .models import InstrumentConfig, KEYSIGHT_34460A_PROFILE, KEYSIGHT_34461A_PROFILE
+
+
+_EXTERNAL_TRIGGER_INTERVAL_S = 0.1
 
 
 def _format_ascii_float(value: float) -> str:
@@ -46,6 +50,7 @@ class SimulatedVisaInstrument:
         self._timeout_ms = config.timeout_ms
         self._overflow_after_samples = overflow_after_samples
         self._state = SimulatedMeasurementState(measurement_type=measurement_type)
+        self._next_external_trigger_at: float | None = None
         self._resource_id = config.resource_string
         self._profile = (
             KEYSIGHT_34460A_PROFILE
@@ -92,6 +97,29 @@ class SimulatedVisaInstrument:
             self._state.standard_event_complete = True
             self._state.operation_complete_requested = False
 
+    def _advance_external_trigger(self) -> None:
+        if (
+            self._state.source != "EXT"
+            or not self._state.armed
+            or self._next_external_trigger_at is None
+        ):
+            return
+        now = time.monotonic()
+        if now < self._next_external_trigger_at:
+            return
+        # Advance at most one virtual edge per observation, without catch-up bursts.
+        self._add_points(self._state.sample_count)
+        self._state.triggers_received += 1
+        if (
+            not self._state.trigger_count_infinite
+            and self._state.triggers_received >= self._state.trigger_count
+        ):
+            self._state.armed = False
+            self._next_external_trigger_at = None
+            self._complete_sequence()
+        else:
+            self._next_external_trigger_at = now + _EXTERNAL_TRIGGER_INTERVAL_S
+
     def write(self, command: str) -> None:
         self._writes.append(command)
         normalized = command.strip().upper()
@@ -109,6 +137,7 @@ class SimulatedVisaInstrument:
             return
         if normalized == "ABOR":
             self._state.armed = False
+            self._next_external_trigger_at = None
             self._state.overflow_condition = False
             return
         if normalized == "INIT":
@@ -118,8 +147,12 @@ class SimulatedVisaInstrument:
             self._state.standard_event_complete = False
             self._state.sequence_complete = False
             self._state.operation_complete_requested = False
+            self._next_external_trigger_at = None
             self._reset_overflow()
-            if self._state.source in {"IMM", "EXT"}:
+            if self._state.source == "EXT":
+                self._state.points_available = 0
+                self._next_external_trigger_at = time.monotonic() + _EXTERNAL_TRIGGER_INTERVAL_S
+            elif self._state.source == "IMM":
                 if self._state.trigger_count_infinite:
                     self._state.points_available = 0
                 else:
@@ -169,6 +202,7 @@ class SimulatedVisaInstrument:
     def query(self, command: str) -> str:
         normalized = command.strip().upper()
         self._writes.append(f"query:{command}")
+        self._advance_external_trigger()
         if normalized == "*IDN?":
             return f"Keysight Technologies,{self._profile.model},MYSIMULATED,1.0"
         if normalized == "SYST:ERR?":
@@ -231,6 +265,10 @@ class SimulatedVisaInstrument:
         return float(self.query(command))
 
     def read_status_byte(self) -> int:
+        if self._state.source == "EXT":
+            self._advance_external_trigger()
+            # Waiting (STAT:OPER bit 5) is not completion (Status Byte bit 5).
+            return 32 if self._state.standard_event_complete else 0
         if self._state.armed:
             return 32
         return 0
@@ -246,6 +284,7 @@ class SimulatedVisaInstrument:
 
     def abort_measurement(self) -> bool:
         self._state.armed = False
+        self._next_external_trigger_at = None
         self._state.overflow_condition = False
         return True
 

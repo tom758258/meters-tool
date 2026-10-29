@@ -81,8 +81,17 @@ VISA I/O。若資源本身沒有指定 simulator 型號，請提供
 `--model 34460A` 或 `--model 34461A`。
 
 使用 `--simulate` 搭配 `SIM::34461A` 這類 deterministic simulator resource，
-可在沒有真實硬體的情況下執行 acquisition workflow。模擬作業也應像第一次實機
-作業一樣保持有界限。
+可在沒有真實硬體的情況下執行 acquisition workflow。
+Simple 模擬必須指定 `--max-samples`，但選用 `--streaming --json` 時可以省略，
+持續擷取直到 Stop；明確指定筆數時，仍會在取得該筆數後自然結束，不會套用隱藏上限。
+試用無限模式時，請安排有界限的停止條件。
+
+External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
+External Custom 每次虛擬觸發產生 `sample_count` 筆讀值；有限模式在
+`trigger_count` 次觸發後完成，無限模式持續到 Stop，且仍須指定
+`--allow-buffer-overflow-risk`。讀值記憶體限制與溢位監測仍然適用。
+模擬不代表真實 External 觸發邊緣時序已通過驗證。
+WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。
 
 例如：
 
@@ -186,7 +195,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 或最後排空未完成，最終摘要會回報失敗。信任 CSV 前，請檢查
 `overflow_detected`、`final_drain_complete` 與 `data_integrity`。
 
-只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
+實機作業只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
 `external` 或 `external-custom`。硬體觸發逾時是一種保護性的重新準備
 (re-arm) 條件，並非自動代表量測失敗。
 
@@ -235,6 +244,12 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 使用 `--streaming --json`（或 `--streaming --status-format jsonl`）選用 Run-bound 量測事件與生命週期狀態輸出。Streaming 預設關閉，且必須搭配 JSONL。每個 Worker 執行一次擷取，保留所選模式的觸發及停止行為，既有儀器支援限制仍適用。
 
 Streaming 只有明確指定 `--csv PATH` 才保存 CSV。也接受 `--streaming --no-csv`；單獨設定 CSV 格式不會啟用存檔。Orchestrator 可以顯示或保存接收的 Sample Events。
+
+無限模擬使用既有 `meters-tool stop --port PORT --json` 停止，Port 由 Ready 回報；
+互動操作也可使用 Ctrl+C。Simple Immediate 模擬保留既有擷取速度，請持續讀取
+stdout，避免在記憶體保留無限增長的樣本清單。External Custom 無限模擬只啟動
+一次 Armed 擷取直到 Stop，不會自動進行有限次數的重新準備循環。
+Stop 會阻止新的虛擬觸發；正常收尾排空時，已保留的緩衝讀值仍可能在 Ended 前輸出。
 
 `ready` 代表控制端點可用；`active` 代表已達所選模式的擷取就緒條件，不保證剩餘量測時間。部分模式會增加就緒查詢；查詢錯誤會停止 Run 並執行既有安全收尾。收到 `ended` 與 Summary 後，仍須持續讀取直到程序退出，並檢查回報結果。
 

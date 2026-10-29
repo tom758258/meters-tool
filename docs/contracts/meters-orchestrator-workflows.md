@@ -72,6 +72,37 @@ not retroactively satisfy the earlier orchestration deadline or erase a
 Worker failure. Do not treat a rapidly ended stream as still active merely
 because an earlier Active event was received.
 
+### Background Simulation
+
+Use `--simulate --streaming --json` with a simulator resource such as
+`SIM::34461A`. Simple modes may omit `--max-samples` and run until the existing
+`stop --port PORT --json` command or `POST /stop`; an explicit finite count
+still ends naturally. Without `--streaming`, Simple simulation requires
+`--max-samples`. WebUI/Desktop keep their existing non-streaming, finite Simple
+simulation. No hidden sample limit is substituted for an omitted count.
+
+Software modes still need software triggers (or the existing Simple Software
+Timer). Immediate modes acquire automatically. External modes on supported
+profiles generate virtual triggers automatically at an internal cadence, with
+no manual injection or additional endpoint. External Custom produces
+`sample_count` readings per virtual trigger, completes finite runs after
+`trigger_count` triggers, and continues infinite runs until Stop without finite
+re-arm cycles. Infinite Custom still requires `--allow-buffer-overflow-risk`
+and uses the existing overflow monitoring and final drain.
+
+For example, launch a background Simple External simulation with:
+
+```text
+meters-tool start-trigger-record --resource SIM::34461A --simulate --streaming --json --trigger-mode external --sw-trigger-port 0
+```
+
+Read the chosen port from Ready. Arrange a bounded acquisition interval or
+sample condition, send Stop, then consume retained samples, Ended, Summary,
+stdout EOF, and process exit. Streaming defaults to no CSV. Simple Immediate
+infinite simulation retains its acquisition pace, so consume stdout continuously
+without retaining an unbounded sample list. These simulations exercise workflow
+behavior, not real External edge timing or hardware synchronization.
+
 ## Simulator Software Trigger Workflow
 
 Use a simulator-only worker for automated orchestration tests. The worker emits
@@ -318,9 +349,12 @@ acquisition_args = [
 IMM runs continuously after one INIT. BUS requires software commands and
 produces `sample_count` readings per instrument trigger. On a profile that
 supports EXT, each external edge produces `sample_count` readings. Infinity
-does not introduce finite automatic re-arm cycles. Simulator-only EXT does not
-provide a complete external-edge injection workflow; it cannot establish live
-EXT timing or edge behavior.
+does not introduce finite automatic re-arm cycles. Simulator-only EXT generates
+virtual triggers automatically after arming, including for infinite runs.
+Finite EXT simulation completes after `trigger_count` virtual triggers and
+reports `expected_readings = trigger_count * sample_count`. Memory limits and
+overflow semantics still apply; Stop/Abort prevents new virtual trigger data.
+This does not establish live EXT timing or edge behavior.
 
 Infinity and `--stop-on-overflow` force monitoring; `--monitor-overflow` also
 enables it for finite Custom acquisition. Status and summary carry

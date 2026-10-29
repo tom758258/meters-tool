@@ -123,8 +123,18 @@ physical instrument.</p>
 starting acquisition or performing live VISA I/O. Supply <code>--model 34460A</code> or
 <code>--model 34461A</code> when the resource does not identify a simulator model.</p>
 <p>Use <code>--simulate</code> with a deterministic simulator resource such as
-<code>SIM::34461A</code> to exercise the acquisition workflow without real hardware. Keep
-simulator runs bounded just as you would a first live run.</p>
+<code>SIM::34461A</code> to exercise the acquisition workflow without real hardware.
+Simple simulation requires <code>--max-samples</code> unless <code>--streaming --json</code> is
+selected. With Streaming, omit the count to continue until Stop, or specify it
+to end naturally after that many readings. There is no hidden sample cap.
+Arrange a bounded Stop when trying an infinite run.</p>
+<p>External simulation automatically generates virtual triggers at an internal
+cadence after arming; no manual trigger injection or interval setting is needed.
+External Custom generates <code>sample_count</code> readings per virtual trigger. Finite
+runs complete after <code>trigger_count</code> triggers; infinite runs continue until Stop
+and still require <code>--allow-buffer-overflow-risk</code>. Reading-memory limits and
+overflow monitoring still apply. Simulation does not validate real External
+trigger edge timing. WebUI/Desktop retain non-streaming, finite Simple simulation.</p>
 <p>For example:</p>
 <pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
   --resource SIM::34461A `
@@ -242,7 +252,7 @@ runs; <code>--stop-on-overflow</code> stops when overflow is detected. A detecte
 monitoring failure, or incomplete final drain makes the final summary
 unsuccessful. Check <code>overflow_detected</code>, <code>final_drain_complete</code>, and
 <code>data_integrity</code> before trusting the CSV.</p>
-<p>Use <code>external</code> or <code>external-custom</code> only when the physical trigger signal is
+<p>For live runs, use <code>external</code> or <code>external-custom</code> only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.
 Hardware trigger timeout is a protective re-arm condition, not automatically a
 failed measurement.</p>
@@ -320,6 +330,13 @@ limits still apply.</p>
 <p>Streaming does not write CSV unless you explicitly pass <code>--csv PATH</code>.
 <code>--streaming --no-csv</code> is also accepted; CSV format options alone do not enable
 saving. The Orchestrator can display or save the received Sample Events.</p>
+<p>For infinite simulation, use the existing <code>meters-tool stop --port PORT --json</code>
+command (with the port reported by Ready), or Ctrl+C for an interactive run.
+Simple Immediate simulation keeps its acquisition pace; consume stdout
+continuously and avoid retaining an unlimited list of samples. External Custom
+infinite simulation uses one armed acquisition until Stop, with no finite
+automatic re-arm cycle. Stop prevents new virtual triggers; retained buffered
+readings may still appear before Ended during normal final drain.</p>
 <p><code>ready</code> means the control endpoint is available. <code>active</code> reports the selected
 mode's acquisition readiness; it does not promise remaining measurement time.
 Some modes issue an additional readiness query, whose failure stops the run

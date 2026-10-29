@@ -243,6 +243,8 @@ def validate_start_request(
     request: StartRequest,
     trigger_mode: str,
     instrument_profile: InstrumentProfile | None = None,
+    *,
+    streaming: bool = False,
 ) -> None:
     _validate_basic_mode_conflicts(request)
     _validate_csv_output(request)
@@ -256,7 +258,7 @@ def validate_start_request(
     _validate_count_limits(context.request)
     _validate_timer_interval(context)
     _validate_buffer_drain_size(context)
-    _validate_custom_mode_contract(context)
+    _validate_custom_mode_contract(context, streaming=streaming)
 
 
 def _validate_csv_output(request: StartRequest) -> None:
@@ -547,7 +549,9 @@ def _validate_buffer_drain_size(context: _StartValidationContext) -> None:
             raise ValueError("--buffer-drain-size requires a custom trigger mode")
 
 
-def _validate_custom_mode_contract(context: _StartValidationContext) -> None:
+def _validate_custom_mode_contract(
+    context: _StartValidationContext, *, streaming: bool = False,
+) -> None:
     args = context.request
     if args.allow_buffer_overflow_risk and not context.custom_mode:
         raise ValueError("--allow-buffer-overflow-risk requires a custom trigger mode")
@@ -587,8 +591,10 @@ def _validate_custom_mode_contract(context: _StartValidationContext) -> None:
             raise ValueError("--trigger-count requires a custom trigger mode")
         if args.sample_count is not None:
             raise ValueError("--sample-count requires a custom trigger mode")
-        if getattr(args, "simulate", False) and args.max_samples is None:
-            raise ValueError("--simulate requires --max-samples with simple trigger modes")
+        if args.simulate and args.max_samples is None and not streaming:
+            raise ValueError(
+                "--simulate requires --max-samples with simple trigger modes without --streaming"
+            )
 
 
 def generate_buffer_overflow_warnings(

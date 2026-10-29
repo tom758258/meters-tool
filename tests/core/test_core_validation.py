@@ -595,11 +595,21 @@ class CoreValidationTests(unittest.TestCase):
             make_start_request(trigger_mode="external", timer_interval_s=1.0),
             "--timer-interval-s requires --trigger-mode software",
         )
-        self.assert_invalid(
-            make_start_request(trigger_mode="immediate", simulate=True),
-            "--simulate requires --max-samples with simple trigger modes",
-            profile=FAKE_CURRENT_ONLY_PROFILE,
-        )
+        for mode in ("software", "immediate", "external"):
+            for simulate in (False, True):
+                for streaming in (False, True):
+                    for max_samples in (None, 2):
+                        with self.subTest(
+                            mode=mode, simulate=simulate, streaming=streaming,
+                            max_samples=max_samples,
+                        ):
+                            request = make_start_request(
+                                trigger_mode=mode, simulate=simulate, max_samples=max_samples,
+                            )
+                            if simulate and not streaming and max_samples is None:
+                                self.assert_invalid(request, "--simulate requires --max-samples")
+                            else:
+                                validate_start_request(request, mode, streaming=streaming)
 
     def test_buffer_drain_size_and_overflow_risk(self):
         self.assert_valid(

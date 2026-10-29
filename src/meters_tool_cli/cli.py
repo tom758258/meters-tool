@@ -554,7 +554,10 @@ def cmd_start(args: argparse.Namespace) -> int:
         request_model = _start_request_from_args(args)
         request_model, instrument_profile = resolve_start_profile(request_model)
         trigger_mode = resolve_trigger_mode(request_model)
-        validate_start_request(request_model, trigger_mode, instrument_profile=instrument_profile)
+        validate_start_request(
+            request_model, trigger_mode, instrument_profile=instrument_profile,
+            streaming=args.streaming,
+        )
         validate_start_workflow_support(
             request_model,
             trigger_mode,

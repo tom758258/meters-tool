@@ -66,7 +66,10 @@ def run_start_session(
     # `trigger_mode` is retained for public API compatibility; the runner
     # recomputes the effective mode from the resolved request.
     effective_trigger_mode = resolve_trigger_mode(request)
-    validate_start_request(request, effective_trigger_mode, instrument_profile=profile)
+    validate_start_request(
+        request, effective_trigger_mode, instrument_profile=profile,
+        streaming=stream_state is not None,
+    )
     validate_start_workflow_support(
         request,
         effective_trigger_mode,

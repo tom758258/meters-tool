@@ -90,8 +90,16 @@
 VISA I/O。若資源本身沒有指定 simulator 型號，請提供
 <code>--model 34460A</code> 或 <code>--model 34461A</code>。</p>
 <p>使用 <code>--simulate</code> 搭配 <code>SIM::34461A</code> 這類 deterministic simulator resource，
-可在沒有真實硬體的情況下執行 acquisition workflow。模擬作業也應像第一次實機
-作業一樣保持有界限。</p>
+可在沒有真實硬體的情況下執行 acquisition workflow。
+Simple 模擬必須指定 <code>--max-samples</code>，但選用 <code>--streaming --json</code> 時可以省略，
+持續擷取直到 Stop；明確指定筆數時，仍會在取得該筆數後自然結束，不會套用隱藏上限。
+試用無限模式時，請安排有界限的停止條件。</p>
+<p>External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
+External Custom 每次虛擬觸發產生 <code>sample_count</code> 筆讀值；有限模式在
+<code>trigger_count</code> 次觸發後完成，無限模式持續到 Stop，且仍須指定
+<code>--allow-buffer-overflow-risk</code>。讀值記憶體限制與溢位監測仍然適用。
+模擬不代表真實 External 觸發邊緣時序已通過驗證。
+WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。</p>
 <p>例如：</p>
 <pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
   --resource SIM::34461A `
@@ -202,7 +210,7 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 <code>--stop-on-overflow</code> 會在偵測到溢位時停止。若已偵測到溢位、監測失敗，
 或最後排空未完成，最終摘要會回報失敗。信任 CSV 前，請檢查
 <code>overflow_detected</code>、<code>final_drain_complete</code> 與 <code>data_integrity</code>。</p>
-<p>只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
+<p>實機作業只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
 <code>external</code> 或 <code>external-custom</code>。硬體觸發逾時是一種保護性的重新準備
 (re-arm) 條件，並非自動代表量測失敗。</p>
 <h2 id="常見設定">常見設定</h2>
@@ -228,6 +236,11 @@ reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支
 <h2 id="自動化-streaming">自動化 Streaming</h2>
 <p>使用 <code>--streaming --json</code>（或 <code>--streaming --status-format jsonl</code>）選用 Run-bound 量測事件與生命週期狀態輸出。Streaming 預設關閉，且必須搭配 JSONL。每個 Worker 執行一次擷取，保留所選模式的觸發及停止行為，既有儀器支援限制仍適用。</p>
 <p>Streaming 只有明確指定 <code>--csv PATH</code> 才保存 CSV。也接受 <code>--streaming --no-csv</code>；單獨設定 CSV 格式不會啟用存檔。Orchestrator 可以顯示或保存接收的 Sample Events。</p>
+<p>無限模擬使用既有 <code>meters-tool stop --port PORT --json</code> 停止，Port 由 Ready 回報；
+互動操作也可使用 Ctrl+C。Simple Immediate 模擬保留既有擷取速度，請持續讀取
+stdout，避免在記憶體保留無限增長的樣本清單。External Custom 無限模擬只啟動
+一次 Armed 擷取直到 Stop，不會自動進行有限次數的重新準備循環。
+Stop 會阻止新的虛擬觸發；正常收尾排空時，已保留的緩衝讀值仍可能在 Ended 前輸出。</p>
 <p><code>ready</code> 代表控制端點可用；<code>active</code> 代表已達所選模式的擷取就緒條件，不保證剩餘量測時間。部分模式會增加就緒查詢；查詢錯誤會停止 Run 並執行既有安全收尾。收到 <code>ended</code> 與 Summary 後，仍須持續讀取直到程序退出，並檢查回報結果。</p>
 <h2 id="csv-輸出">CSV 輸出</h2>
 <p>非 Streaming 模式預設啟用 CSV，<code>data</code> 格式輸出 <code>timestamp_utc_plus_8,value,unit</code>。使用 <code>--csv-format full</code> 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：</p>

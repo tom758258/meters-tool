@@ -114,8 +114,19 @@ starting acquisition or performing live VISA I/O. Supply `--model 34460A` or
 `--model 34461A` when the resource does not identify a simulator model.
 
 Use `--simulate` with a deterministic simulator resource such as
-`SIM::34461A` to exercise the acquisition workflow without real hardware. Keep
-simulator runs bounded just as you would a first live run.
+`SIM::34461A` to exercise the acquisition workflow without real hardware.
+Simple simulation requires `--max-samples` unless `--streaming --json` is
+selected. With Streaming, omit the count to continue until Stop, or specify it
+to end naturally after that many readings. There is no hidden sample cap.
+Arrange a bounded Stop when trying an infinite run.
+
+External simulation automatically generates virtual triggers at an internal
+cadence after arming; no manual trigger injection or interval setting is needed.
+External Custom generates `sample_count` readings per virtual trigger. Finite
+runs complete after `trigger_count` triggers; infinite runs continue until Stop
+and still require `--allow-buffer-overflow-risk`. Reading-memory limits and
+overflow monitoring still apply. Simulation does not validate real External
+trigger edge timing. WebUI/Desktop retain non-streaming, finite Simple simulation.
 
 For example:
 
@@ -226,7 +237,7 @@ monitoring failure, or incomplete final drain makes the final summary
 unsuccessful. Check `overflow_detected`, `final_drain_complete`, and
 `data_integrity` before trusting the CSV.
 
-Use `external` or `external-custom` only when the physical trigger signal is
+For live runs, use `external` or `external-custom` only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.
 Hardware trigger timeout is a protective re-arm condition, not automatically a
 failed measurement.
@@ -327,6 +338,14 @@ limits still apply.
 Streaming does not write CSV unless you explicitly pass `--csv PATH`.
 `--streaming --no-csv` is also accepted; CSV format options alone do not enable
 saving. The Orchestrator can display or save the received Sample Events.
+
+For infinite simulation, use the existing `meters-tool stop --port PORT --json`
+command (with the port reported by Ready), or Ctrl+C for an interactive run.
+Simple Immediate simulation keeps its acquisition pace; consume stdout
+continuously and avoid retaining an unlimited list of samples. External Custom
+infinite simulation uses one armed acquisition until Stop, with no finite
+automatic re-arm cycle. Stop prevents new virtual triggers; retained buffered
+readings may still appear before Ended during normal final drain.
 
 `ready` means the control endpoint is available. `active` reports the selected
 mode's acquisition readiness; it does not promise remaining measurement time.

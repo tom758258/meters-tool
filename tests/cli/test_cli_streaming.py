@@ -190,3 +190,81 @@ def test_streaming_worker_active_before_first_trigger_and_http_matches(mode, tmp
             except subprocess.TimeoutExpired:
                 process.kill()
                 process.wait(timeout=5)
+
+
+@pytest.mark.parametrize("mode", ["external", "external-custom"])
+@pytest.mark.parametrize("infinite", [False, True])
+def test_external_simulation_streams_until_finite_completion_or_stop(mode, infinite, tmp_path):
+    custom = mode.endswith("-custom")
+    if custom:
+        count_args = ["--sample-count", "2", "--monitor-overflow"]
+        count_args += (
+            ["--trigger-count-infinite", "--allow-buffer-overflow-risk"]
+            if infinite else ["--trigger-count", "3"]
+        )
+    else:
+        count_args = [] if infinite else ["--max-samples", "3"]
+    process = subprocess.Popen(
+        [sys.executable, "-m", "meters_tool_cli", "start-trigger-record",
+         "--resource", "SIM::34461A", "--simulate", "--streaming", "--json",
+         "--trigger-mode", mode, "--sw-trigger-port", "0", *count_args],
+        cwd=tmp_path, env=subprocess_env(), text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    )
+    lines = start_stdout_reader(process)
+    events = []
+    ready = None
+    stopped = False
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            try:
+                event = json.loads(lines.get(timeout=0.1))
+            except queue.Empty:
+                if process.poll() is not None:
+                    break
+                continue
+            events.append(event)
+            assert len(events) < 1000
+            if event["event"] == "ready":
+                ready = event
+            if infinite and not stopped and event["event"] == "sample" and event["captured"] >= 4:
+                assert ready is not None
+                response = run_client("stop", "--port", str(ready["port"]), "--json")
+                assert response.returncode == 0, response.stdout + response.stderr
+                assert json.loads(response.stdout)["status"] == "accepted"
+                stopped = True
+        assert process.wait(timeout=2) == 0
+        assert ready is not None
+        ready_index = events.index(ready)
+        active_index = next(i for i, e in enumerate(events) if e.get("stream", {}).get("state") == "active")
+        ended_index = next(i for i, e in enumerate(events) if e.get("stream", {}).get("state") == "ended")
+        summary_index = next(i for i, e in enumerate(events) if e["event"] == "summary")
+        sample_indices = [i for i, e in enumerate(events) if e["event"] == "sample"]
+        assert ready_index < active_index < min(sample_indices)
+        assert max(sample_indices) < ended_index < summary_index
+        assert all(e["schema_version"] == 3 and e["run_id"] == ready["run_id"] for e in events)
+        summary = events[summary_index]
+        assert summary["ok"] is True
+        assert summary["errors"] == 0
+        assert summary["captured"] == len(sample_indices)
+        if infinite:
+            assert stopped and len(sample_indices) >= 4
+            assert summary["stop_reason"] == "stop_requested"
+        else:
+            assert len(sample_indices) == (6 if custom else 3)
+            assert summary["stop_reason"] == ("completed" if custom else "max_samples_reached")
+        if custom:
+            assert summary["expected_readings"] == (None if infinite else 6)
+            assert summary["final_drain_complete"] is True
+            assert summary["overflow_detected"] is False
+        assert list(tmp_path.iterdir()) == []
+        assert process.stderr.read() == ""
+    finally:
+        if process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
