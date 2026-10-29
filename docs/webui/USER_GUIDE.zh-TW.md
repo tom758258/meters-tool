@@ -191,10 +191,27 @@ trigger count x sample count
 硬限制。目前 34461A 的 reading memory 為 10000 筆，34460A 為 1000 筆。
 精確的目前支援與限制請參閱 [支援型號](../core/supported-models.zh-TW.md)。
 
+**勾選 Allow buffer risk，表示明確接受可能不可恢復的資料遺失，不代表保證資料完整。**
+即使總筆數超過讀值記憶體，只要及時排空，仍可能取得所有讀值。
+若擷取填入記憶體的速度超過排空速度，則可能遺失讀值。
+
 `Infinite trigger count` 會讓 Custom 採集持續執行，直到要求 Stop 或發生錯誤，
-必須勾選接受緩衝區溢位風險，並自動啟用溢位監測。有限採集可用 `Monitor overflow` 啟用相同檢查；
-`Stop on overflow` 會在偵測到溢位時停止。狀態面板會在執行中及停止後顯示
+必須勾選接受緩衝區溢位風險，並自動啟用溢位監測。有限 Custom 採集不強制啟用監測；
+`Monitor overflow` 可觀察溢位，`Stop on overflow` 則啟用監測並在偵測到溢位時停止。
+監測不能恢復遺失的讀值。狀態面板會在執行中及停止後顯示
 監測、溢位、最後排空與資料完整性狀態。使用 CSV 前請先檢查這些欄位。
+
+**如果溢位造成讀值遺失，有限 Custom 作業可能在所有預定觸發完成後，仍持續等待不足的樣本。**
+Worker 可能仍能正常回應並接受既有 `Stop` 按鈕的操作；持續等待不一定代表程式當機。
+若 `Captured` 停在預期筆數以下，請使用 `Stop` 並檢查 Status details。
+
+未啟用監測時，`overflow_detected=null` 表示沒有監測結果，不表示沒有溢位或資料遺失。
+未監測的作業提前 Stop 後，即使 Worker 摘要成功（`summary.ok=true`）且程序結束碼為 `0`，
+擷取仍可能不完整。使用資料前，請在 Status details 比較 `captured` 與 `expected_readings`，
+並核對 `stop_reason`、`data_integrity`、`overflow_detected` 與 `final_drain_complete`。
+緩衝區風險警告會出現在既有 Status details；Dry-run 則會在預覽計畫的 `notes` 顯示。
+
+這些注意事項適用於 `Simulate` 與 `Real`。Simulator 的行為不能證明實體儀器也會出現相同的等待情況。
 
 在 `Real` 模式中，只有在實體觸發訊號已連接且儀器設定完成時，才使用 External 或 External Custom。
 `External trigger slope` 選擇實體觸發邊緣，`Trigger delay` 設定觸發後到量測前

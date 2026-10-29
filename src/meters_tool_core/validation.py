@@ -621,18 +621,53 @@ def generate_buffer_overflow_warning_details(
     profile = instrument_profile or get_default_instrument_profile()
     if not trigger_mode.endswith("-custom") or not args.allow_buffer_overflow_risk:
         return []
-    if args.trigger_count is None or args.sample_count is None:
+    if args.sample_count is None or (
+        not args.trigger_count_infinite and args.trigger_count is None
+    ):
         return []
     memory_limit = profile.reading_memory_limit
-    expected_readings = args.trigger_count * args.sample_count
-    if expected_readings <= memory_limit:
-        return []
+    expected_readings = (
+        None if args.trigger_count_infinite else args.trigger_count * args.sample_count
+    )
     model = profile.model
-    msg1 = f"WARNING: requested readings exceed {model} reading memory."
-    msg2 = f"WARNING: requested={expected_readings}, memory_limit={memory_limit}."
-    msg3 = "WARNING: this depends on DATA:REMove? draining faster than acquisition fills memory."
-    msg4 = "WARNING: data loss, incomplete rows, or SCPI errors are possible."
-    msg5 = "WARNING: validate with low counts first and inspect row count/errors."
+    if args.trigger_count_infinite:
+        context = "continuous Custom acquisition requires ongoing reading-memory draining."
+        msg2 = (
+            f"WARNING: requested=unbounded, sample_count={args.sample_count}, "
+            f"memory_limit={memory_limit}, model={model}."
+        )
+        msg4 = (
+            "WARNING: Infinite Custom automatically enables overflow monitoring; "
+            "monitoring cannot recover lost readings. Use Stop to end continuous acquisition."
+        )
+    else:
+        context = (
+            f"requested readings exceed {model} reading memory."
+            if expected_readings > memory_limit
+            else "Allow buffer overflow risk accepts possible data loss, even within reading memory."
+        )
+        msg2 = f"WARNING: requested={expected_readings}, memory_limit={memory_limit}."
+        msg4 = (
+            "WARNING: if readings are lost to overflow, finite Custom acquisition may keep "
+            "waiting for missing samples after all planned triggers finish and not finish "
+            "naturally. The Worker may still be responsive; use the existing Stop."
+        )
+        if not overflow_monitoring_enabled(args):
+            msg4 += (
+                " Without overflow monitoring, overflow_detected=null means no monitoring "
+                "result, not no overflow."
+            )
+    msg1 = f"WARNING: HIGH BUFFER OVERFLOW RISK: {context}"
+    msg3 = (
+        "WARNING: timely DATA:REMove? draining may capture all readings, even "
+        "beyond reading-memory capacity. If acquisition fills memory faster than it is "
+        "drained, irreversible data loss, incomplete rows, or SCPI errors are possible."
+    )
+    msg5 = (
+        "WARNING: validate with low counts first. Check captured, expected_readings, "
+        "stop_reason, data_integrity, overflow_detected, summary.ok, and process exit code; "
+        "summary.ok=true or exit code 0 alone does not guarantee the expected count was captured."
+    )
     fields = {
         "trigger_mode": trigger_mode,
         "trigger_count": args.trigger_count,

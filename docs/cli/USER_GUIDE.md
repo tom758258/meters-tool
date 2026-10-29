@@ -123,7 +123,7 @@ Arrange a bounded Stop when trying an infinite run.
 External simulation automatically generates virtual triggers at an internal
 cadence after arming; no manual trigger injection or interval setting is needed.
 External Custom generates `sample_count` readings per virtual trigger. Finite
-runs complete after `trigger_count` triggers; infinite runs continue until Stop
+runs plan `trigger_count` triggers; infinite runs continue until Stop
 and still require `--allow-buffer-overflow-risk`. Reading-memory limits and
 overflow monitoring still apply. Simulation does not validate real External
 trigger edge timing. WebUI/Desktop retain non-streaming, finite Simple simulation.
@@ -228,14 +228,37 @@ are 10000 readings for 34461A and 1000 readings for 34460A; see
 [Supported Models](../core/supported-models.md) for exact current limits and
 support scope.
 
+**Allowing buffer overflow risk explicitly accepts possible irreversible data
+loss; it does not guarantee complete data.** Even when the total exceeds reading
+memory, timely draining may still capture all readings. If acquisition fills
+memory faster than it is drained, readings may be lost.
+
 For an unbounded Custom run, use `--trigger-count-infinite` instead of
 `--trigger-count`, together with `--allow-buffer-overflow-risk`, then stop the
 run explicitly. Overflow monitoring is enabled
-automatically. `--monitor-overflow` also enables monitoring for finite Custom
-runs; `--stop-on-overflow` stops when overflow is detected. A detected overflow,
+automatically. Monitoring is optional for finite Custom runs; use
+`--monitor-overflow` to observe overflow, or `--stop-on-overflow` to enable
+monitoring and stop when overflow is detected. Monitoring cannot recover lost
+readings. A detected overflow,
 monitoring failure, or incomplete final drain makes the final summary
 unsuccessful. Check `overflow_detected`, `final_drain_complete`, and
 `data_integrity` before trusting the CSV.
+
+**A finite Custom run may keep waiting for missing samples after all planned
+triggers finish if overflow has lost readings.** The Worker may still be
+responsive and accept the existing Stop command; waiting does not necessarily
+mean it has crashed. If progress stops below the expected count, use Stop and
+review the result.
+
+Without monitoring, `overflow_detected=null` means there is no monitoring result,
+not that overflow or data loss did not occur. After an early Stop without
+monitoring, `summary.ok=true` and process exit code `0` can accompany an incomplete
+capture. Compare `captured` with `expected_readings`, and check `stop_reason`,
+`data_integrity`, `overflow_detected`, `final_drain_complete`, `summary.ok`, and the
+process exit code before using the data.
+
+These precautions apply to simulated and live runs. Simulator behavior does not
+establish that the same waiting behavior occurs on a physical instrument.
 
 For live runs, use `external` or `external-custom` only when the physical trigger signal is
 connected and the operator understands the trigger edge and delay settings.

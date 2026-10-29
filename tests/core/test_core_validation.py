@@ -795,56 +795,101 @@ class CoreValidationTests(unittest.TestCase):
         )
 
     def test_generate_buffer_overflow_warnings_returns_messages(self):
-        args = make_start_request(
-            trigger_mode="immediate-custom",
-            trigger_count=101,
-            sample_count=100,
-            allow_buffer_overflow_risk=True,
+        cases = (
+            ("risk disabled", {"allow_buffer_overflow_risk": False}),
+            ("within memory", {"trigger_count": 1}),
+            ("beyond memory", {}),
+            ("monitored", {"monitor_overflow": True}),
+            ("stop on overflow", {"stop_on_overflow": True}),
+            ("infinite", {"trigger_count": None, "trigger_count_infinite": True}),
         )
-
-        stdout = StringIO()
-        with redirect_stdout(stdout):
-            warnings = generate_buffer_overflow_warnings(args, "immediate-custom")
-
-        self.assertEqual("", stdout.getvalue())
-        self.assertEqual(5, len(warnings))
-        self.assertIn("requested readings exceed 34461A reading memory", warnings[0])
-        self.assertIn("requested=10100, memory_limit=10000", warnings[1])
+        for name, overrides in cases:
+            with self.subTest(case=name):
+                values = {
+                    "trigger_mode": "external-custom",
+                    "trigger_count": 101,
+                    "sample_count": 100,
+                    "allow_buffer_overflow_risk": True,
+                }
+                values.update(overrides)
+                args = make_start_request(**values)
+                if args.allow_buffer_overflow_risk:
+                    validate_start_request(args, args.trigger_mode)
+                else:
+                    with self.assertRaises(ValueError):
+                        validate_start_request(args, args.trigger_mode)
+                stdout = StringIO()
+                with redirect_stdout(stdout):
+                    warnings = generate_buffer_overflow_warnings(args, args.trigger_mode)
+                self.assertEqual("", stdout.getvalue())
+                if not args.allow_buffer_overflow_risk:
+                    self.assertEqual([], warnings)
+                    continue
+                text = " ".join(warnings)
+                for token in ("HIGH BUFFER OVERFLOW RISK", "irreversible data loss", "may"):
+                    self.assertIn(token, text)
+                for field in (
+                    "captured", "expected_readings", "stop_reason", "data_integrity",
+                    "overflow_detected", "summary.ok", "exit code",
+                ):
+                    self.assertIn(field, text)
+                if args.trigger_count_infinite:
+                    self.assertIn("automatically enables overflow monitoring", text)
+                    self.assertNotIn("Without overflow monitoring", text)
+                    self.assertNotIn("missing samples", text)
+                else:
+                    self.assertIn("may keep waiting", text)
+                    self.assertIn("Stop", text)
+                    self.assertEqual(
+                        not (args.monitor_overflow or args.stop_on_overflow),
+                        "overflow_detected=null" in text,
+                    )
+                    if args.trigger_count * args.sample_count > 10000:
+                        self.assertIn("requested readings exceed", text)
+                        self.assertIn("requested=10100, memory_limit=10000", text)
+                    else:
+                        self.assertNotIn("requested readings exceed", text)
+                # Generating warnings must not turn a legal request into a rejection.
+                validate_start_request(args, args.trigger_mode)
         self.assertEqual([], generate_buffer_overflow_warnings(make_start_request(), "software"))
+        self.assertEqual([], generate_buffer_overflow_warnings(
+            make_start_request(allow_buffer_overflow_risk=True), "immediate",
+        ))
 
     def test_generate_buffer_overflow_warning_details_match_string_helper(self):
-        args = make_start_request(
-            trigger_mode="software-custom",
-            trigger_count=2,
-            sample_count=3,
-            allow_buffer_overflow_risk=True,
-        )
-
-        details = generate_buffer_overflow_warning_details(
-            args,
-            "software-custom",
-            FAKE_CURRENT_ONLY_PROFILE,
-        )
-
-        self.assertEqual(
-            generate_buffer_overflow_warnings(args, "software-custom", FAKE_CURRENT_ONLY_PROFILE),
-            [warning.message for warning in details],
-        )
-        self.assertEqual(5, len(details))
-        self.assertTrue(all(isinstance(warning, CoreWarning) for warning in details))
-        self.assertEqual("buffer_overflow_risk", details[0].code)
-        self.assertEqual("warning", details[0].severity)
-        self.assertEqual(
-            {
-                "trigger_mode": "software-custom",
-                "trigger_count": 2,
-                "sample_count": 3,
-                "expected_readings": 6,
-                "memory_limit": 5,
-                "model": "FAKE100",
-            },
-            details[0].fields,
-        )
+        for count, infinite, expected in ((1, False, 3), (2, False, 6), (None, True, None)):
+            with self.subTest(count=count, infinite=infinite):
+                args = make_start_request(
+                    trigger_mode="software-custom",
+                    trigger_count=count,
+                    trigger_count_infinite=infinite,
+                    sample_count=3,
+                    allow_buffer_overflow_risk=True,
+                )
+                details = generate_buffer_overflow_warning_details(
+                    args, "software-custom", FAKE_CURRENT_ONLY_PROFILE,
+                )
+                self.assertEqual(
+                    generate_buffer_overflow_warnings(
+                        args, "software-custom", FAKE_CURRENT_ONLY_PROFILE,
+                    ),
+                    [warning.message for warning in details],
+                )
+                self.assertEqual({
+                    "buffer_overflow_risk", "buffer_overflow_counts", "buffer_overflow_drain_rate",
+                    "buffer_overflow_data_loss", "buffer_overflow_validation",
+                }, {warning.code for warning in details})
+                for warning in details:
+                    self.assertIsInstance(warning, CoreWarning)
+                    self.assertEqual("warning", warning.severity)
+                    self.assertEqual({
+                        "trigger_mode": "software-custom",
+                        "trigger_count": count,
+                        "sample_count": 3,
+                        "expected_readings": expected,
+                        "memory_limit": 5,
+                        "model": "FAKE100",
+                    }, warning.fields)
 
     def test_start_help_epilog_lists_validation_limits(self):
         help_text = start_help_epilog()

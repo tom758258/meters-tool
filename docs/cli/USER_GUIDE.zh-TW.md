@@ -87,8 +87,8 @@ Simple 模擬必須指定 `--max-samples`，但選用 `--streaming --json` 時�
 試用無限模式時，請安排有界限的停止條件。
 
 External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
-External Custom 每次虛擬觸發產生 `sample_count` 筆讀值；有限模式在
-`trigger_count` 次觸發後完成，無限模式持續到 Stop，且仍須指定
+External Custom 每次虛擬觸發產生 `sample_count` 筆讀值；有限模式
+規劃 `trigger_count` 次觸發，無限模式持續到 Stop，且仍須指定
 `--allow-buffer-overflow-risk`。讀值記憶體限制與溢位監測仍然適用。
 模擬不代表真實 External 觸發邊緣時序已通過驗證。
 WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。
@@ -187,13 +187,29 @@ Custom mode 不使用 `--max-samples`。
 reading memory 為 10000 筆，34460A 為 1000 筆；精確的目前限制與支援範圍請參閱
 [支援型號](../core/supported-models.zh-TW.md)。
 
+**允許緩衝區溢位風險，表示明確接受可能不可恢復的資料遺失，不代表保證資料完整。**
+即使總筆數超過讀值記憶體，只要及時排空，仍可能取得所有讀值。
+若擷取填入記憶體的速度超過排空速度，則可能遺失讀值。
+
 若要持續執行 Custom 採集，請使用 `--trigger-count-infinite` 取代
 `--trigger-count`，同時指定 `--allow-buffer-overflow-risk`，並在需要結束時
 明確停止。此模式會自動啟用溢位監測。
-有限 Custom 採集可用 `--monitor-overflow` 啟用監測；
-`--stop-on-overflow` 會在偵測到溢位時停止。若已偵測到溢位、監測失敗，
+有限 Custom 採集不強制啟用監測；可用 `--monitor-overflow` 觀察溢位，
+或用 `--stop-on-overflow` 啟用監測並在偵測到溢位時停止。監測不能恢復遺失的讀值。
+若已偵測到溢位、監測失敗，
 或最後排空未完成，最終摘要會回報失敗。信任 CSV 前，請檢查
 `overflow_detected`、`final_drain_complete` 與 `data_integrity`。
+
+**如果溢位造成讀值遺失，有限 Custom 作業可能在所有預定觸發完成後，仍持續等待不足的樣本。**
+Worker 可能仍能正常回應並接受既有 Stop 指令；持續等待不一定代表程式當機。
+若進度停在預期筆數以下，請使用 Stop 並檢查結果。
+
+未啟用監測時，`overflow_detected=null` 表示沒有監測結果，不表示沒有溢位或資料遺失。
+未監測的作業提前 Stop 後，即使 `summary.ok=true` 且程序結束碼為 `0`，擷取仍可能不完整。
+使用資料前，請比較 `captured` 與 `expected_readings`，並核對 `stop_reason`、
+`data_integrity`、`overflow_detected`、`final_drain_complete`、`summary.ok` 與程序結束碼。
+
+這些注意事項適用於模擬及實機作業。Simulator 的行為不能證明實體儀器也會出現相同的等待情況。
 
 實機作業只有在實體觸發訊號已連接，且操作人員了解觸發邊緣與延遲設定時，才使用
 `external` 或 `external-custom`。硬體觸發逾時是一種保護性的重新準備

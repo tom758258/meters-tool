@@ -264,13 +264,33 @@ procedure requires a specific drain size.</p>
 The current reading-memory limits are 10000 readings for 34461A and 1000
 readings for 34460A. See <a href="supported-models.html">Supported Models</a> for
 exact current support and limits.</p>
+<p><strong>Allow buffer risk explicitly accepts possible irreversible data loss; it does
+not guarantee complete data.</strong> Even when the total exceeds reading memory,
+timely draining may still capture all readings. If acquisition fills memory
+faster than it is drained, readings may be lost.</p>
 <p><code>Infinite trigger count</code> keeps a Custom run active until Stop is requested or
 an error occurs. It requires the buffer overflow risk acknowledgement and
-enables overflow monitoring automatically. <code>Monitor
-overflow</code> enables the same check for finite runs, and <code>Stop on overflow</code> stops
-when overflow is detected. The status panel shows monitoring, overflow, final
+enables overflow monitoring automatically. Monitoring is optional for finite
+Custom runs; <code>Monitor overflow</code> observes overflow, and <code>Stop on overflow</code> enables
+monitoring and stops when overflow is detected. Monitoring cannot recover lost
+readings. The status panel shows monitoring, overflow, final
 drain, and data integrity while the run progresses and after it stops. Review
 those fields before relying on the CSV.</p>
+<p><strong>A finite Custom run may keep waiting for missing samples after all planned
+triggers finish if overflow has lost readings.</strong> The Worker may still be
+responsive and accept the existing <code>Stop</code> button; waiting does not necessarily
+mean it has crashed. If <code>Captured</code> stops below the expected count, use <code>Stop</code>
+and review Status details.</p>
+<p>Without monitoring, <code>overflow_detected=null</code> means there is no monitoring result,
+not that overflow or data loss did not occur. After an early Stop without
+monitoring, a successful Worker summary (<code>summary.ok=true</code>) and process exit code
+<code>0</code> can accompany an incomplete capture. In Status details, compare <code>captured</code>
+with <code>expected_readings</code>, and check <code>stop_reason</code>, <code>data_integrity</code>,
+<code>overflow_detected</code>, and <code>final_drain_complete</code> before using the data. Buffer-risk
+warnings are available in the existing Status details; Dry-run shows them in
+the preview plan's <code>notes</code>.</p>
+<p>These precautions apply to <code>Simulate</code> and <code>Real</code>. Simulator behavior does not
+establish that the same waiting behavior occurs on a physical instrument.</p>
 <p>In <code>Real</code> mode, use External or External Custom only when a physical trigger
 signal is connected and configured for the instrument. <code>External trigger slope</code> selects the physical
 edge, <code>Trigger delay</code> waits after the edge before measurement, and <code>Trigger

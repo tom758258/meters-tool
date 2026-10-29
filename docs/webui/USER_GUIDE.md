@@ -251,13 +251,37 @@ The current reading-memory limits are 10000 readings for 34461A and 1000
 readings for 34460A. See [Supported Models](../core/supported-models.md) for
 exact current support and limits.
 
+**Allow buffer risk explicitly accepts possible irreversible data loss; it does
+not guarantee complete data.** Even when the total exceeds reading memory,
+timely draining may still capture all readings. If acquisition fills memory
+faster than it is drained, readings may be lost.
+
 `Infinite trigger count` keeps a Custom run active until Stop is requested or
 an error occurs. It requires the buffer overflow risk acknowledgement and
-enables overflow monitoring automatically. `Monitor
-overflow` enables the same check for finite runs, and `Stop on overflow` stops
-when overflow is detected. The status panel shows monitoring, overflow, final
+enables overflow monitoring automatically. Monitoring is optional for finite
+Custom runs; `Monitor overflow` observes overflow, and `Stop on overflow` enables
+monitoring and stops when overflow is detected. Monitoring cannot recover lost
+readings. The status panel shows monitoring, overflow, final
 drain, and data integrity while the run progresses and after it stops. Review
 those fields before relying on the CSV.
+
+**A finite Custom run may keep waiting for missing samples after all planned
+triggers finish if overflow has lost readings.** The Worker may still be
+responsive and accept the existing `Stop` button; waiting does not necessarily
+mean it has crashed. If `Captured` stops below the expected count, use `Stop`
+and review Status details.
+
+Without monitoring, `overflow_detected=null` means there is no monitoring result,
+not that overflow or data loss did not occur. After an early Stop without
+monitoring, a successful Worker summary (`summary.ok=true`) and process exit code
+`0` can accompany an incomplete capture. In Status details, compare `captured`
+with `expected_readings`, and check `stop_reason`, `data_integrity`,
+`overflow_detected`, and `final_drain_complete` before using the data. Buffer-risk
+warnings are available in the existing Status details; Dry-run shows them in
+the preview plan's `notes`.
+
+These precautions apply to `Simulate` and `Real`. Simulator behavior does not
+establish that the same waiting behavior occurs on a physical instrument.
 
 In `Real` mode, use External or External Custom only when a physical trigger
 signal is connected and configured for the instrument. `External trigger slope` selects the physical
