@@ -724,6 +724,27 @@ label {
   text-transform: none;
 }
 
+.buffer-risk-warning {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--warn) 8%, var(--panel));
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.buffer-risk-warning strong {
+  font-size: 13px;
+}
+
+.buffer-risk-warning p {
+  margin: 0;
+}
+
 .field-title {
   display: flex;
   align-items: center;

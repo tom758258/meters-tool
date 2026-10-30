@@ -463,6 +463,12 @@
                 <label><input name="monitor_overflow" form="run-form" type="checkbox" /> <span data-i18n="trigger.monitor_overflow">Monitor overflow</span></label>
                 <label><input name="stop_on_overflow" form="run-form" type="checkbox" /> <span data-i18n="trigger.stop_on_overflow">Stop on overflow</span></label>
               </div>
+              <div class="buffer-risk-warning" data-mode-scope="custom">
+                <strong><span aria-hidden="true">⚠</span> <span data-i18n="trigger.buffer_risk.title">Buffer overflow risk</span></strong>
+                <p data-i18n="trigger.buffer_risk.data_loss">Allowing buffer overflow risk means accepting possible irreversible data loss. It does not guarantee data completeness.</p>
+                <p data-i18n="trigger.buffer_risk.waiting">If data is produced faster than the buffer is drained, readings may be lost. A finite acquisition may keep waiting for missing samples even after all scheduled triggers have completed.</p>
+                <p data-i18n="trigger.buffer_risk.monitoring">Overflow monitoring cannot recover lost data. When monitoring is disabled, overflow_detected=null does not mean no overflow occurred; summary.ok=true or exit code 0 does not guarantee data completeness either. If the captured sample count stalls, use Stop and inspect the results.</p>
+              </div>
               <label id="trigger-metadata-container" data-mode-scope="software-trigger">
                 <span class="label-title"><span data-i18n="trigger.metadata_json">Trigger metadata JSON</span> <span class="optional-mark" data-i18n="common.optional">(Optional)</span></span>
                 <textarea id="trigger-metadata" rows="3" placeholder="{&quot;batch&quot;:&quot;A1&quot;}"></textarea>
