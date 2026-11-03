@@ -86,6 +86,7 @@ import {
   startStatusUpdates,
 } from "./status.js";
 import { resourceStatusPresentation } from "./presentation_i18n.js";
+import { scannedResourceConnectionStatus } from "./run_form_support.js";
 import { initializeThemeUi } from "./theme_ui.js";
 
 function setPanelExpanded(button, expanded) {
@@ -150,7 +151,7 @@ let executionRequestPending = false;
 let realResourceValue = resourceInput.value;
 let realModelValue = instrumentModelSelect.value;
 let noHardwareModelValue = "";
-let supportedDevices = [];
+let supportedDevices = null;
 let supportBackend = "";
 let selectedBackend = visaLibrarySelect.value;
 let scanRevision = 0;
@@ -170,7 +171,7 @@ function renderSupportedDevices() {
     button.setAttribute("aria-pressed", String(button.dataset.supportBackend === supportBackend));
   }
   supportedDevicesBody.replaceChildren(
-    ...supportedDevices.filter((device) => device.backend_connections?.[backend]?.length).map((device) => {
+    ...(supportedDevices || []).filter((device) => device.backend_connections?.[backend]?.length).map((device) => {
       const row = document.createElement("tr");
       for (const value of [
         device.model,
@@ -304,16 +305,23 @@ async function switchExecutionMode(nextMode) {
   updateDeviceResourceSummary();
 }
 
+function scannedResourceSupportLabel(item) {
+  const status = scannedResourceConnectionStatus(item, supportedDevices, selectedBackend);
+  return t(`resource.support.${status}`);
+}
+
 function liveResourceSummary() {
   if (!resourceSelect.value) {
     return resourceScanCompleted
       ? t("resource.no_live_resources")
       : t("resource.not_scanned");
   }
-  const model = scanMetadataByResource.get(resourceSelect.value)?.instrument_model;
-  return model
+  const metadata = scanMetadataByResource.get(resourceSelect.value);
+  const model = metadata?.instrument_model;
+  const availability = model
     ? t("resource.live_model", { model })
     : t("resource.live_selected");
+  return metadata ? `${availability} — ${scannedResourceSupportLabel(metadata)}` : availability;
 }
 
 function expectedModelSummary() {
@@ -361,6 +369,7 @@ async function applyScannedResource(resource) {
   }
   const capabilities = await loadCapabilities(forcedModel || inferredModel, resource);
   if (!capabilities || revision !== scanRevision) return;
+  updateSupportedDevices(capabilities);
   instrumentModelSelect.value = forcedModel;
   updateRangeAndLiveChartScale();
   updateTriggerModeUi();
@@ -385,7 +394,7 @@ function renderScannedResourceOptions() {
       const option = document.createElement("option");
       option.value = item.resource;
       if (!item.detail) {
-        option.textContent = item.resource;
+        option.textContent = `${item.resource} — ${scannedResourceSupportLabel(item)}`;
         return option;
       }
       const statusPresentation = resourceStatusPresentation(item.status);
@@ -398,12 +407,21 @@ function renderScannedResourceOptions() {
       } else {
         option.textContent = `${item.resource} (${item.status}: ${item.detail})`;
       }
+      option.textContent += ` — ${scannedResourceSupportLabel(item)}`;
       return option;
     })
   );
   if (resources.some((item) => item.resource === previousResource)) {
     resourceSelect.value = previousResource;
   }
+}
+
+function updateSupportedDevices(capabilities) {
+  if (!Array.isArray(capabilities?.supported_devices)) return;
+  supportedDevices = capabilities.supported_devices;
+  renderSupportedDevices();
+  renderScannedResourceOptions();
+  updateDeviceResourceSummary();
 }
 
 export function refreshResourcesPresentation() {
@@ -852,8 +870,7 @@ for (const button of panelToggles) {
 
 loadCapabilities()
   .then((capabilities) => {
-    if (capabilities) supportedDevices = capabilities.supported_devices || [];
-    renderSupportedDevices();
+    updateSupportedDevices(capabilities);
     updateModelSelectorPresentation();
     updateRangeAndLiveChartScale();
     updateDeviceResourceSummary();

@@ -119,6 +119,34 @@ assert.equal(
   "missing"
 );
 
+const opened = [
+  { model: "34461A", backend_connections: { system_visa: ["usb", "tcpip"], pyvisa_py: ["tcpip"] } },
+  { model: "34460A", backend_connections: { system_visa: ["usb"] } },
+];
+const scanned = (model, resource) => ({
+  resource, instrument_model: model,
+  instrument_model_id: `keysight-${model.toLowerCase()}`, live: true,
+});
+for (const [model, resource, backend, expected] of [
+  ["34461A", "USB0::TEST", "", "supported"],
+  ["34461A", "TCPIP0::TEST", "", "supported"],
+  ["34461A", "TCPIP0::TEST", "@py", "supported"],
+  ["34460A", "USB0::TEST", "", "supported"],
+  ["34460A", "TCPIP0::TEST", "", "unsupported_connection"],
+  ["34460A", "TCPIP0::TEST", "@py", "unsupported_connection"],
+  ["34461A", "USB0::TEST", "@py", "unsupported_connection"],
+  ["34461A", "GPIB0::TEST", "", "unsupported_connection"],
+]) {
+  assert.equal(support.scannedResourceConnectionStatus(scanned(model, resource), opened, backend), expected);
+}
+assert.equal(support.scannedResourceConnectionStatus(
+  { resource: "USB0::UNKNOWN", instrument_model: null, instrument_model_id: null, live: true },
+  opened, ""), "unsupported_model");
+assert.equal(support.scannedResourceConnectionStatus(scanned("34461A", "USB0::TEST"), null, ""), "unavailable");
+assert.equal(support.scannedResourceConnectionStatus(
+  { ...scanned("34461A", "USB0::TEST"), live: false }, opened, ""), "unavailable");
+assert.equal(support.scannedResourceConnectionStatus(scanned("34461A", "USB0::TEST"), opened, "@custom"), "unavailable");
+
 const triggerMetadata = {
   external: { uses_trigger_timeout: true },
   software: { uses_trigger_timeout: false },
