@@ -249,6 +249,25 @@ const { t } = await import(new URL("./i18n.js", appUrl));
 const scan = () => event("#refresh-resources", "click");
 const selectResource = async (resource) => { element("#resource-select").value = resource; await event("#resource-select", "change"); };
 
+resources = [
+  { resource: "USB0::LIST-SUPPORTED", live: true, status: "live", detail: "Keysight,34461A,REDACTED,1.0", instrument_model: "34461A", instrument_model_id: "keysight-34461a" },
+  { resource: "TCPIP0::LIST-BLOCKED", live: true, status: "live", detail: "Keysight,34460A,REDACTED,1.0", instrument_model: "34460A", instrument_model_id: "keysight-34460a" },
+  { resource: "USB0::LIST-UNKNOWN", live: true, status: "live", detail: "Other,Unknown,REDACTED,1.0", instrument_model: null, instrument_model_id: null },
+];
+await scan();
+const listOptions = () => element("#resource-select").options;
+const labelFor = (name) => listOptions().find((entry) => entry.value === name)?.textContent;
+assert.equal(listOptions().length, 4, "all responding models remain in the scan list");
+assert.match(labelFor("USB0::LIST-SUPPORTED"), /Connection supported/);
+assert.match(labelFor("TCPIP0::LIST-BLOCKED"), /Connection not supported/);
+assert.match(labelFor("USB0::LIST-UNKNOWN"), /Unsupported \/ unrecognized model/);
+const scanCallCount = calls.length;
+element("#locale-toggle").click();
+assert.equal(labelFor("USB0::LIST-SUPPORTED").includes(t("resource.support.supported")), true);
+assert.equal(labelFor("USB0::LIST-UNKNOWN").includes(t("resource.support.unsupported_model")), true);
+assert.equal(calls.length, scanCallCount, "changing language does not re-scan");
+element("#locale-toggle").click();
+
 for (const [model, transport, library, allowed] of [
   ["34461A", "USB", "", true], ["34461A", "TCPIP", "", true],
   ["34461A", "TCPIP", "@py", true], ["34460A", "USB", "", true],

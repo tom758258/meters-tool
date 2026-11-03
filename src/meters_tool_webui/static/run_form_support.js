@@ -23,6 +23,22 @@ export function findProductSupportScope(resource, liveSupport, visaLibrary = "")
   ) || null;
 }
 
+// Discovery presentation only. Product authorization remains in Core.
+export function scannedResourceConnectionStatus(item, supportedDevices, visaLibrary = "") {
+  if (item?.live !== true) return "unavailable";
+  if (!item.instrument_model || !item.instrument_model_id) return "unsupported_model";
+  if (!Array.isArray(supportedDevices)) return "unavailable";
+  const backend = visaLibrary === "@py" ? "pyvisa_py"
+    : visaLibrary === "" ? "system_visa" : null;
+  if (!backend) return "unavailable";
+  const transport = inferTransportScope(item.resource);
+  if (!transport) return "unsupported_connection";
+  const model = supportedDevices.find((device) => device.model === item.instrument_model);
+  const transports = model?.backend_connections?.[backend];
+  return Array.isArray(transports) && transports.includes(transport)
+    ? "supported" : "unsupported_connection";
+}
+
 export function featureAvailability(scope, featureKind, featureValue) {
   if (!scope) {
     return {

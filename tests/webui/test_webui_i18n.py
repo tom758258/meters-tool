@@ -138,6 +138,8 @@ const runtimeMessageKeys = [
   "resource.no_resource", "resource.not_scanned", "resource.option_with_detail",
   "resource.scan_result_count", "resource.scanning", "resource.select_live",
   "resource.status.live", "resource.status.stale",
+  "resource.support.supported", "resource.support.unsupported_connection",
+  "resource.support.unsupported_model", "resource.support.unavailable",
   "run.csv_folder_selection_cancelled", "run.csv_path_selected",
   "run.opened_csv", "run.opening_csv_folder_selector",
   "status.active_run_scan_blocked", "status.active_run_start_blocked",
