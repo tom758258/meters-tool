@@ -38,6 +38,35 @@
 <p>This guide is for operators who receive the built CLI executable or an
 already-installed <code>meters-tool</code> command and use it to record measurements
 from a supported digital multimeter. It focuses on the normal measurement workflow and common settings.</p>
+<h2 id="choose-your-interface">Choose Your Interface</h2>
+<p>The Windows release offers three operator-facing executables. All share the same measurement Core; Browser WebUI and Desktop present the same graphical workflow.</p>
+<table>
+<thead>
+<tr>
+<th>Executable</th>
+<th>Interface</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meters-tool.exe</code></td>
+<td>CLI commands</td>
+<td>Terminal use, scripts, and automation</td>
+</tr>
+<tr>
+<td><code>meters-tool-webui-launcher.exe</code></td>
+<td>Browser WebUI</td>
+<td>Graphical operation in a local browser</td>
+</tr>
+<tr>
+<td><code>Meters Tool.exe</code></td>
+<td>Desktop</td>
+<td>Graphical operation in an application window</td>
+</tr>
+</tbody>
+</table>
+<p>This guide covers <code>meters-tool.exe</code>. For graphical operation, see the <a href="https://github.com/tom758258/meters-tool/blob/main/docs/webui/USER_GUIDE.md">WebUI / Desktop User Guide (online)</a>. The graphical interface also provides its own bundled offline <code>Help</code>.</p>
 <h2 id="start-the-cli">Start The CLI</h2>
 <p>For a release build, extract <code>meters-tool-&lt;version&gt;-windows-x64.zip</code>, open
 PowerShell in the extracted <code>meters-tool-&lt;version&gt;</code> folder, and check the CLI:</p>
@@ -54,6 +83,36 @@ PowerShell in the extracted <code>meters-tool-&lt;version&gt;</code> folder, and
 Chinese. The guide is bundled with the CLI and does not require an online
 documentation site. For exact command options, accepted values, ranges, or
 defaults, use <code>.\meters-tool.exe &lt;command&gt; --help</code>.</p>
+<h2 id="check-settings-without-hardware">Check Settings Without Hardware</h2>
+<p>Before a first live run, you can check the same request without controlling a
+physical instrument.</p>
+<p>Use <code>--dry-run</code> to validate the request and print the execution plan without
+starting acquisition or performing live VISA I/O. Supply <code>--model 34460A</code> or
+<code>--model 34461A</code> when the resource does not identify a simulator model.</p>
+<p>Use <code>--simulate</code> with a deterministic simulator resource such as
+<code>SIM::34461A</code> to exercise the acquisition workflow without real hardware.
+Simple simulation requires <code>--max-samples</code> unless <code>--streaming --json</code> is
+selected. With Streaming, omit the count to continue until Stop, or specify it
+to end naturally after that many readings. There is no hidden sample cap.
+Arrange a bounded Stop when trying an infinite run.</p>
+<p>External simulation automatically generates virtual triggers at an internal
+cadence after arming; no manual trigger injection or interval setting is needed.
+External Custom generates <code>sample_count</code> readings per virtual trigger. Finite
+runs plan <code>trigger_count</code> triggers; infinite runs continue until Stop
+and still require <code>--allow-buffer-overflow-risk</code>. Reading-memory limits and
+overflow monitoring still apply. Simulation does not validate real External
+trigger edge timing. WebUI/Desktop retain non-streaming, finite Simple simulation.</p>
+<p>For example:</p>
+<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+</code></pre>
+<p>Dry-run and simulation are useful setup checks, but neither is evidence that a
+real instrument and connection scope have been validated.</p>
 <h2 id="first-live-run">First Live Run</h2>
 <p>Use this flow when checking a new computer, VISA runtime, connection, or
 instrument setup.</p>
@@ -116,36 +175,6 @@ Core policy. Unsupported combinations fail closed instead of being unlocked by
 IO Libraries Suite or NI-VISA. Use <code>--visa-library "@py"</code> to select the bundled
 PyVISA-py backend for 34461A TCPIP, including in the Windows executable.
 Backend selection does not change or expand Product support.</p>
-<h2 id="check-settings-without-hardware">Check Settings Without Hardware</h2>
-<p>Before a first live run, you can check the same request without controlling a
-physical instrument.</p>
-<p>Use <code>--dry-run</code> to validate the request and print the execution plan without
-starting acquisition or performing live VISA I/O. Supply <code>--model 34460A</code> or
-<code>--model 34461A</code> when the resource does not identify a simulator model.</p>
-<p>Use <code>--simulate</code> with a deterministic simulator resource such as
-<code>SIM::34461A</code> to exercise the acquisition workflow without real hardware.
-Simple simulation requires <code>--max-samples</code> unless <code>--streaming --json</code> is
-selected. With Streaming, omit the count to continue until Stop, or specify it
-to end naturally after that many readings. There is no hidden sample cap.
-Arrange a bounded Stop when trying an infinite run.</p>
-<p>External simulation automatically generates virtual triggers at an internal
-cadence after arming; no manual trigger injection or interval setting is needed.
-External Custom generates <code>sample_count</code> readings per virtual trigger. Finite
-runs plan <code>trigger_count</code> triggers; infinite runs continue until Stop
-and still require <code>--allow-buffer-overflow-risk</code>. Reading-memory limits and
-overflow monitoring still apply. Simulation does not validate real External
-trigger edge timing. WebUI/Desktop retain non-streaming, finite Simple simulation.</p>
-<p>For example:</p>
-<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
-  --resource SIM::34461A `
-  --simulate `
-  --measurement voltage-dc `
-  --trigger-mode immediate `
-  --max-samples 3 `
-  --no-csv
-</code></pre>
-<p>Dry-run and simulation are useful setup checks, but neither is evidence that a
-real instrument and connection scope have been validated.</p>
 <h2 id="choosing-a-measurement">Choosing A Measurement</h2>
 <p>Choose the measurement type that matches the instrument wiring and the signal
 being measured:</p>
@@ -276,65 +305,111 @@ connected and the operator understands the trigger edge and delay settings.
 Hardware trigger timeout is a protective re-arm condition, not automatically a
 failed measurement.</p>
 <h2 id="common-settings">Common Settings</h2>
-<p><code>--resource</code> is the VISA address of the instrument. Use a value returned by
-<code>list-resources --live-only</code> or a known operator-provided resource. In
-PowerShell examples, set <code>$env:METER_RESOURCE</code> once and pass
-<code>--resource "$env:METER_RESOURCE"</code> so copied commands continue to use
-the selected instrument.</p>
-<p><code>--visa-library</code> selects the VISA backend. Omit it to use System VISA, or pass <code>"@py"</code> for supported 34461A TCPIP sessions.
-Selecting a backend does not unlock unsupported models, transports, measurements, or other Product support.</p>
-<p><code>list-resources --verify</code> opens discovered VISA resources and queries <code>*IDN?</code>.
-<code>list-resources --live-only</code> implies verification and hides stale entries.
-ASRL/RS-232 verification uses a short bounded timeout so a stale serial entry
-does not block later USB or TCPIP resources. The serial termination options
-<code>--serial-read-termination</code> and <code>--serial-write-termination</code> are CLI discovery
-compatibility settings for ASRL verification only; they are not acquisition
-settings.</p>
-<p><code>--csv</code> is the output file path. An explicitly empty or whitespace-only path
-is rejected with exit code <code>2</code> before connecting or creating files, including
-dry-run. Without <code>--streaming</code>, if omitted, the CLI creates a timestamped CSV
-path. Use an explicit path when you need predictable file locations for review
-or automation. Use <code>--no-csv</code> to disable CSV output for a run; it cannot be combined with <code>--csv</code>. The default CSV format is <code>data</code>; choose <code>--csv-format full</code> for the original ten columns, and optionally add <code>--csv-time-columns elapsed,delta</code>.</p>
-<p><code>--max-samples</code> bounds simple runs. Use it during smoke tests and validation so
-the command stops by itself.</p>
-<p><code>--auto-range</code> lets the instrument choose the range. Keep Auto Range enabled
-unless the measurement setup requires a fixed range.</p>
-<p><code>--range</code> selects a manual range when Auto Range is disabled. Choose a range
-that safely covers the expected signal.</p>
-<p><code>--nplc</code> controls integration time for DC and resistance measurements. Higher
-values are slower and can be more stable. AC, Frequency, and Period modes
-accept only the neutral default because they do not write NPLC SCPI.</p>
-<p><code>--auto-zero</code> controls offset handling for DC and resistance measurements.
-It can improve accuracy but may slow readings. AC, Frequency, and Period modes
-do not write Auto Zero SCPI.</p>
-<p><code>--ac-bandwidth-hz</code> applies to AC voltage, AC current, Frequency, and Period.
-Frequency and Period default to <code>20</code> Hz.</p>
-<p><code>--gate-time-s</code> applies only to Frequency and Period. Choose <code>0.01</code>, <code>0.1</code>, or
-<code>1</code> second; the default is <code>0.1</code> second.</p>
-<p><code>--freq-period-timeout</code> applies only to Frequency. Keep the default <code>auto</code>
-unless the measurement procedure requires the <code>1s</code> behavior. Period does not
-send a timeout command; specifying this option with Period is rejected.</p>
-<p><code>--current-terminal</code> applies to current measurements. Match it to the physical
-current terminal used on the instrument.</p>
-<p><code>--dcv-input-impedance</code> applies to DC voltage and DC voltage ratio. <code>default</code>
-leaves the current instrument setting unchanged, <code>10m</code> selects 10 MOhm, and
-<code>auto</code> enables the instrument automatic/high-impedance behavior. Keep
-<code>default</code> unless the measurement procedure requires another input impedance.</p>
-<p><code>--vm-comp-slope</code> controls the rear-panel VM Comp output pulse slope. Omit it to
-leave VM Comp unchanged; use <code>pos</code> or <code>neg</code> only when the test setup explicitly
-uses that output.</p>
-<p>For external trigger modes, <code>--hw-trigger-delay-s</code> sets the delay after the
-trigger and <code>--hw-trigger-slope</code> selects the physical trigger edge. Match both
-to the connected trigger source.</p>
-<p>For manual software-triggered runs, <code>--sw-min-interval-ms</code> can limit how quickly
-software triggers are accepted and <code>--sw-queue-max</code> limits queued trigger work.
-Leave them at their defaults unless the trigger producer or test procedure needs
-explicit throttling or queue control. A software trigger can also carry
-metadata; metadata is recorded with the trigger/sample output and is useful for
-labels such as DUT, batch, or step identifiers.</p>
-<p><code>--trigger-timeout-ms</code> controls how long trigger workflows wait before the
-protective timeout path is used. Increase it only when the measurement setup
-intentionally waits longer.</p>
+<h3 id="connection-and-output">Connection and Output</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--resource</code></td>
+<td>The VISA address of the instrument. Use a value returned by <code>list-resources --live-only</code> or a known operator-provided resource. In PowerShell examples, set <code>$env:METER_RESOURCE</code> once and pass <code>--resource "$env:METER_RESOURCE"</code> so copied commands continue to use the selected instrument.</td>
+</tr>
+<tr>
+<td><code>--visa-library</code></td>
+<td>Selects the VISA backend. Omit it to use System VISA, or pass <code>"@py"</code> for supported 34461A TCPIP sessions. Selecting a backend does not unlock unsupported models, transports, measurements, or other Product support.</td>
+</tr>
+<tr>
+<td><code>list-resources --verify</code>, <code>--live-only</code></td>
+<td>Opens discovered VISA resources and queries <code>*IDN?</code>. <code>list-resources --live-only</code> implies verification and hides stale entries. ASRL/RS-232 verification uses a short bounded timeout so a stale serial entry does not block later USB or TCPIP resources. The serial termination options <code>--serial-read-termination</code> and <code>--serial-write-termination</code> are CLI discovery compatibility settings for ASRL verification only; they are not acquisition settings.</td>
+</tr>
+<tr>
+<td><code>--csv</code>, <code>--no-csv</code></td>
+<td>The output file path. An explicitly empty or whitespace-only path is rejected with exit code <code>2</code> before connecting or creating files, including dry-run. Without <code>--streaming</code>, if omitted, the CLI creates a timestamped CSV path. Use an explicit path when you need predictable file locations for review or automation. Use <code>--no-csv</code> to disable CSV output for a run; it cannot be combined with <code>--csv</code>. The default CSV format is <code>data</code>; choose <code>--csv-format full</code> for the original ten columns, and optionally add <code>--csv-time-columns elapsed,delta</code>.</td>
+</tr>
+<tr>
+<td><code>--max-samples</code></td>
+<td>Bounds simple runs. Use it during smoke tests and validation so the command stops by itself.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="measurement-settings">Measurement Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--auto-range</code></td>
+<td>Lets the instrument choose the range. Keep Auto Range enabled unless the measurement setup requires a fixed range.</td>
+</tr>
+<tr>
+<td><code>--range</code></td>
+<td>Selects a manual range when Auto Range is disabled. Choose a range that safely covers the expected signal.</td>
+</tr>
+<tr>
+<td><code>--nplc</code></td>
+<td>Controls integration time for DC and resistance measurements. Higher values are slower and can be more stable. AC, Frequency, and Period modes accept only the neutral default because they do not write NPLC SCPI.</td>
+</tr>
+<tr>
+<td><code>--auto-zero</code></td>
+<td>Controls offset handling for DC and resistance measurements. It can improve accuracy but may slow readings. AC, Frequency, and Period modes do not write Auto Zero SCPI.</td>
+</tr>
+<tr>
+<td><code>--ac-bandwidth-hz</code></td>
+<td>Applies to AC voltage, AC current, Frequency, and Period. Frequency and Period default to <code>20</code> Hz.</td>
+</tr>
+<tr>
+<td><code>--gate-time-s</code></td>
+<td>Applies only to Frequency and Period. Choose <code>0.01</code>, <code>0.1</code>, or <code>1</code> second; the default is <code>0.1</code> second.</td>
+</tr>
+<tr>
+<td><code>--freq-period-timeout</code></td>
+<td>Applies only to Frequency. Keep the default <code>auto</code> unless the measurement procedure requires the <code>1s</code> behavior. Period does not send a timeout command; specifying this option with Period is rejected.</td>
+</tr>
+<tr>
+<td><code>--current-terminal</code></td>
+<td>Applies to current measurements. Match it to the physical current terminal used on the instrument.</td>
+</tr>
+<tr>
+<td><code>--dcv-input-impedance</code></td>
+<td>Applies to DC voltage and DC voltage ratio. <code>default</code> leaves the current instrument setting unchanged, <code>10m</code> selects 10 MOhm, and <code>auto</code> enables the instrument automatic/high-impedance behavior. Keep <code>default</code> unless the measurement procedure requires another input impedance.</td>
+</tr>
+<tr>
+<td><code>--vm-comp-slope</code></td>
+<td>Controls the rear-panel VM Comp output pulse slope. Omit it to leave VM Comp unchanged; use <code>pos</code> or <code>neg</code> only when the test setup explicitly uses that output.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="trigger-settings">Trigger Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--hw-trigger-delay-s</code>, <code>--hw-trigger-slope</code></td>
+<td>For external trigger modes, <code>--hw-trigger-delay-s</code> sets the delay after the trigger and <code>--hw-trigger-slope</code> selects the physical trigger edge. Match both to the connected trigger source.</td>
+</tr>
+<tr>
+<td><code>--sw-min-interval-ms</code>, <code>--sw-queue-max</code></td>
+<td>For manual software-triggered runs, <code>--sw-min-interval-ms</code> can limit how quickly software triggers are accepted and <code>--sw-queue-max</code> limits queued trigger work. Leave them at their defaults unless the trigger producer or test procedure needs explicit throttling or queue control. A software trigger can also carry metadata; metadata is recorded with the trigger/sample output and is useful for labels such as DUT, batch, or step identifiers.</td>
+</tr>
+<tr>
+<td><code>--trigger-timeout-ms</code></td>
+<td>Controls how long trigger workflows wait before the protective timeout path is used. Increase it only when the measurement setup intentionally waits longer.</td>
+</tr>
+</tbody>
+</table>
 <p>For command options and CLI-level accepted values, ranges, and defaults, run
 <code>meters-tool &lt;command&gt; --help</code> (for example,
 <code>.\meters-tool.exe start-trigger-record --help</code>).
@@ -365,6 +440,12 @@ reading until process exit and check the reported outcome.</p>
 <p>CSV is enabled by default outside Streaming. The <code>data</code> layout writes <code>timestamp_utc_plus_8,value,unit</code>.
 Choose <code>--csv-format full</code> to preserve the original ten fields, including metadata.
 After a smoke run, check the CSV for:</p>
+<p>A one-sample CSV may look like this (illustrative values, not an instrument result):</p>
+<pre><code class="language-csv">timestamp_utc_plus_8,value,unit
+2026-01-01T12:00:00+08:00,1.234,V
+</code></pre>
+<p>The header identifies the timestamp, reading, and unit. One data row confirms that a reading was recorded; compare the value with the instrument front panel before trusting the measurement.</p>
+
 <ul>
 <li>at least one data row;</li>
 <li>expected <code>value</code>;</li>

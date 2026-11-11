@@ -39,6 +39,35 @@
 <code>meters-tool-webui-launcher.exe</code> to record measurements from a supported digital
 multimeter. Both provide the same local acquisition interface and normal
 measurement workflow.</p>
+<h2 id="choose-your-interface">Choose Your Interface</h2>
+<p>The Windows release offers three operator-facing executables. All share the same measurement Core; Browser WebUI and Desktop present the same graphical workflow.</p>
+<table>
+<thead>
+<tr>
+<th>Executable</th>
+<th>Interface</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meters-tool.exe</code></td>
+<td>CLI commands</td>
+<td>Terminal use, scripts, and automation</td>
+</tr>
+<tr>
+<td><code>meters-tool-webui-launcher.exe</code></td>
+<td>Browser WebUI</td>
+<td>Graphical operation in a local browser</td>
+</tr>
+<tr>
+<td><code>Meters Tool.exe</code></td>
+<td>Desktop</td>
+<td>Graphical operation in an application window</td>
+</tr>
+</tbody>
+</table>
+<p>This guide covers Browser WebUI and Desktop. For the command-line workflow, see the <a href="https://github.com/tom758258/meters-tool/blob/main/docs/cli/USER_GUIDE.md">CLI User Guide (online)</a>. CLI operators can also open their bundled offline guide with <code>.\meters-tool.exe user-guide</code>.</p>
 <h2 id="what-the-webui-desktop-interface-does">What The WebUI / Desktop Interface Does</h2>
 <p>Meters Tool provides the same local acquisition interface either in the Electron
 Desktop application window or in a normal browser through the WebUI launcher.
@@ -308,87 +337,146 @@ the operator understands the effect on the instrument.</p>
 <h2 id="settings-reference">Settings Reference</h2>
 <p>The WebUI checks settings before starting a run. If <code>Start</code> is blocked, read
 the Status log and adjust the field it names.</p>
-<p><code>VISA resource</code> is the instrument address used for the run. Prefer a resource
-found by <code>Scan Device</code>, or type a known resource provided by the operator or
-test procedure. Do not guess a resource when more than one instrument may be
-connected.</p>
-<p>In Device options (gear), choose <code>VISA Backend</code>: <code>System VISA</code> (default) or
-<code>PyVISA-py</code>. The selection applies to Scan Device, verification, and Start
-in both WebUI and Desktop. PyVISA-py is included and supports 34461A LAN/TCPIP
-only. USB with <code>@py</code>, 34460A TCPIP, and other backends are unsupported.
-System VISA requires an installed VISA runtime and never silently uses <code>@py</code>.
-Changing backend clears the previous scan and resource address; scan again or
-enter a known resource. Backend selection is locked during Start and active runs.
-Expected model remains an IDN guard.</p>
+<h3 id="device-and-resource">Device and Resource</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VISA resource</code></td>
+<td>The instrument address used for the run. Prefer a resource found by <code>Scan Device</code>, or type a known resource provided by the operator or test procedure. Do not guess a resource when more than one instrument may be connected.</td>
+</tr>
+<tr>
+<td><code>VISA Backend</code></td>
+<td>In Device options (gear), choose <code>VISA Backend</code>: <code>System VISA</code> (default) or <code>PyVISA-py</code>. The selection applies to Scan Device, verification, and Start in both WebUI and Desktop. PyVISA-py is included and supports 34461A LAN/TCPIP only. USB with <code>@py</code>, 34460A TCPIP, and other backends are unsupported. System VISA requires an installed VISA runtime and never silently uses <code>@py</code>. Changing backend clears the previous scan and resource address; scan again or enter a known resource. Backend selection is locked during Start and active runs. Expected model remains an IDN guard.</td>
+</tr>
+<tr>
+<td><code>Live resource</code></td>
+<td>Shows the result of the last scan. Use it to confirm which instrument answered before copying or selecting a resource for the run. When the scan recognizes a supported 34460A or 34461A IDN, the WebUI may reload model-specific options for display while keeping <code>Expected model</code> on Auto-detect.</td>
+</tr>
+<tr>
+<td><code>Expected model</code></td>
+<td>An optional check in <code>Device options</code>. Auto-detect uses a fresh IDN preflight at Start to resolve the connected instrument. Select <code>Require 34460A</code> or <code>Require 34461A</code> only when you want Start to read IDN and fail unless the connected instrument reports that supported model. With 34460A required, the WebUI hides 10 A current ranges, current terminal selection, and external trigger modes; custom mode reading memory is 1000 readings. These disabled controls are guidance only. The selected model is an expected-model guard and display context; it does not override the detected IDN, unlock capabilities for another instrument, or replace the Core safety checks.</td>
+</tr>
+</tbody>
+</table>
 <p>The Supported devices panel has a separate <code>System VISA | PyVISA-py</code> control that
 filters its Model/Connections table. Opening it selects the current backend
 for viewing; changing this filter does not change the communication backend.
 Exact support is governed by Core policy in <a href="supported-models.html">Supported Models</a>.</p>
-<p><code>Live resource</code> shows the result of the last scan. Use it to confirm which
-instrument answered before copying or selecting a resource for the run. When
-the scan recognizes a supported 34460A or 34461A IDN, the WebUI may reload
-model-specific options for display while keeping <code>Expected model</code> on
-Auto-detect.</p>
-<p><code>CSV output</code> is checked by default. While enabled, <code>CSV path</code> is where readings
-will be written. Use <code>Select</code> to choose a folder and let the WebUI generate a
-timestamped file name, or type a specific file path before clicking <code>Start</code>.</p>
-<p>Run count and sample limit fields control how long a run can continue. Keep new
-setups bounded while checking wiring, measurement type, and trigger behavior.</p>
-<p><code>Expected model</code> is an optional check in <code>Device options</code>. Auto-detect uses a
-fresh IDN preflight at Start to resolve the connected instrument. Select
-<code>Require 34460A</code> or <code>Require 34461A</code> only when you want Start to read IDN and
-fail unless the connected instrument reports that supported model. With 34460A
-required, the WebUI hides 10 A current ranges,
-current terminal selection, and external trigger modes; custom mode reading
-memory is 1000 readings. These disabled controls are guidance only. The
-selected model is an expected-model guard and display context; it does not
-override the detected IDN, unlock capabilities for another instrument, or
-replace the Core safety checks.</p>
-<p><code>Measurement type</code> selects what the instrument measures: DC or AC voltage, DC
-or AC current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance.
-Match this to the instrument wiring before starting a run.</p>
-<p><code>Auto Range</code> lets the instrument choose the measurement range. Keep it enabled
-for first runs unless the measurement procedure requires a fixed range.</p>
-<p>Manual range fields are used when Auto Range is disabled. Choose a range that
-safely covers the expected signal.</p>
-<p><code>NPLC</code> controls integration time for DC and resistance measurements. Higher
-values are slower and can be more stable. AC, Frequency, and Period modes use
-their AC filter setting instead.</p>
-<p><code>Auto Zero</code> controls offset handling for DC and resistance measurements. It can
-improve accuracy but may slow readings. Leave it at the normal setup value
-unless the measurement procedure calls for a change.</p>
-<p><code>AC filter</code> applies to AC voltage, AC current, Frequency, and Period. For AC
-voltage and AC current, <code>Keep current setting</code> leaves the instrument's current
-filter unchanged. Frequency and Period select <code>20 Hz</code> by default; the summary
-may show this as <code>&gt;20 Hz</code>.</p>
-<p><code>Gate time</code> applies only to Frequency and Period. The default is <code>0.1 s</code>;
-available choices are <code>0.01</code>, <code>0.1</code>, and <code>1 s</code>.</p>
-<p><code>Timeout</code> in the Measurement options applies only to Frequency. Keep <code>Auto</code>
-unless the procedure requires <code>1 s</code>. Period hides this control and does not send
-a timeout command.</p>
-<p>Frequency values are shown and stored in <code>Hz</code>. Period values are shown and
-stored in <code>s</code>; the WebUI does not automatically rescale these units.</p>
-<p><code>Current terminal</code> applies to current measurements. Confirm the physical lead is
-connected to the matching current terminal before starting the run.</p>
-<p><code>DCV input Z</code> appears for DC voltage and DC voltage ratio. <code>Default</code> leaves the
-current instrument setting unchanged, <code>10M</code> selects 10 MOhm, and <code>Auto</code> enables
-the instrument automatic/high-impedance behavior. Keep <code>Default</code> unless the
-measurement procedure requires another input impedance.</p>
-<p>DC voltage ratio is a specialized measurement mode. Use it only when the test
-setup explicitly requires ratio measurement.</p>
-<p><code>VM Comp slope</code> controls the rear-panel VM Comp output pulse slope. <code>Leave
-unchanged</code> preserves the current setting; choose <code>Pos</code> or <code>Neg</code> only when the
-test setup explicitly uses the VM Comp output.</p>
-<p><code>Trigger mode</code> controls when samples are taken. The Choosing A Trigger Mode
-section above explains the simple and Custom workflows and the fields that
-appear for each mode.</p>
-<p>In <code>Real</code> mode, <code>Trigger delay</code> waits after an external trigger before
-measurement. Leave it unchanged unless the external setup requires a delay.</p>
-<p><code>Trigger timeout</code> controls how long trigger workflows wait before the protective
-timeout path is used. Increase it only when the measurement setup intentionally
-waits longer.</p>
-<p>In <code>Real</code> mode, <code>External trigger slope</code> selects the physical trigger
-edge. Match it to the signal source connected to the instrument.</p>
+<h3 id="run-and-output-settings">Run and Output Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CSV output</code>, <code>CSV path</code></td>
+<td>Checked by default. While enabled, <code>CSV path</code> is where readings will be written. Use <code>Select</code> to choose a folder and let the WebUI generate a timestamped file name, or type a specific file path before clicking <code>Start</code>.</td>
+</tr>
+<tr>
+<td>Run count and sample limits</td>
+<td>Run count and sample limit fields control how long a run can continue. Keep new setups bounded while checking wiring, measurement type, and trigger behavior.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="measurement-settings">Measurement Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Measurement type</code></td>
+<td>Selects what the instrument measures: DC or AC voltage, DC or AC current, DC voltage ratio, Frequency, Period, or 2-wire or 4-wire resistance. Match this to the instrument wiring before starting a run.</td>
+</tr>
+<tr>
+<td><code>Auto Range</code></td>
+<td>Lets the instrument choose the measurement range. Keep it enabled for first runs unless the measurement procedure requires a fixed range.</td>
+</tr>
+<tr>
+<td>Manual range</td>
+<td>Manual range fields are used when Auto Range is disabled. Choose a range that safely covers the expected signal.</td>
+</tr>
+<tr>
+<td><code>NPLC</code></td>
+<td>Controls integration time for DC and resistance measurements. Higher values are slower and can be more stable. AC, Frequency, and Period modes use their AC filter setting instead.</td>
+</tr>
+<tr>
+<td><code>Auto Zero</code></td>
+<td>Controls offset handling for DC and resistance measurements. It can improve accuracy but may slow readings. Leave it at the normal setup value unless the measurement procedure calls for a change.</td>
+</tr>
+<tr>
+<td><code>AC filter</code></td>
+<td>Applies to AC voltage, AC current, Frequency, and Period. For AC voltage and AC current, <code>Keep current setting</code> leaves the instrument's current filter unchanged. Frequency and Period select <code>20 Hz</code> by default; the summary may show this as <code>&gt;20 Hz</code>.</td>
+</tr>
+<tr>
+<td><code>Gate time</code></td>
+<td>Applies only to Frequency and Period. The default is <code>0.1 s</code>; available choices are <code>0.01</code>, <code>0.1</code>, and <code>1 s</code>.</td>
+</tr>
+<tr>
+<td><code>Timeout</code></td>
+<td>In the Measurement options applies only to Frequency. Keep <code>Auto</code> unless the procedure requires <code>1 s</code>. Period hides this control and does not send a timeout command.</td>
+</tr>
+<tr>
+<td>Frequency and Period units</td>
+<td>Frequency values are shown and stored in <code>Hz</code>. Period values are shown and stored in <code>s</code>; the WebUI does not automatically rescale these units.</td>
+</tr>
+<tr>
+<td><code>Current terminal</code></td>
+<td>Applies to current measurements. Confirm the physical lead is connected to the matching current terminal before starting the run.</td>
+</tr>
+<tr>
+<td><code>DCV input Z</code></td>
+<td>Appears for DC voltage and DC voltage ratio. <code>Default</code> leaves the current instrument setting unchanged, <code>10M</code> selects 10 MOhm, and <code>Auto</code> enables the instrument automatic/high-impedance behavior. Keep <code>Default</code> unless the measurement procedure requires another input impedance.</td>
+</tr>
+<tr>
+<td>DC voltage ratio</td>
+<td>DC voltage ratio is a specialized measurement mode. Use it only when the test setup explicitly requires ratio measurement.</td>
+</tr>
+<tr>
+<td><code>VM Comp slope</code></td>
+<td>Controls the rear-panel VM Comp output pulse slope. <code>Leave unchanged</code> preserves the current setting; choose <code>Pos</code> or <code>Neg</code> only when the test setup explicitly uses the VM Comp output.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="trigger-settings">Trigger Settings</h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Trigger mode</code></td>
+<td>Controls when samples are taken. The Choosing A Trigger Mode section above explains the simple and Custom workflows and the fields that appear for each mode.</td>
+</tr>
+<tr>
+<td><code>Trigger delay</code></td>
+<td>In <code>Real</code> mode, <code>Trigger delay</code> waits after an external trigger before measurement. Leave it unchanged unless the external setup requires a delay.</td>
+</tr>
+<tr>
+<td><code>Trigger timeout</code></td>
+<td>Controls how long trigger workflows wait before the protective timeout path is used. Increase it only when the measurement setup intentionally waits longer.</td>
+</tr>
+<tr>
+<td><code>External trigger slope</code></td>
+<td>In <code>Real</code> mode, <code>External trigger slope</code> selects the physical trigger edge. Match it to the signal source connected to the instrument.</td>
+</tr>
+</tbody>
+</table>
 <h2 id="live-data-chart-scale">Live Data Chart Scale</h2>
 <p>The <code>Live data</code> panel has chart scale controls in the <code>Trend</code> section. These
 settings affect only the interface chart display. They do not affect instrument

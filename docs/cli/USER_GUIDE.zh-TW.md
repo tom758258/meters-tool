@@ -2,6 +2,18 @@
 
 本指南適用於取得已建置之 CLI 執行檔或已安裝的 `meters-tool` 指令，並使用它來記錄支援的數位萬用電表量測資料的操作人員。本指南專注於正常的量測工作流程與常見設定。
 
+## 選擇操作介面
+
+Windows 發行包提供三種操作入口，皆共用相同的量測 Core；瀏覽器 WebUI 與 Desktop 使用相同的圖形操作流程。
+
+| 執行檔 | 操作介面 | 適用情境 |
+| --- | --- | --- |
+| `meters-tool.exe` | CLI 命令列 | 終端機操作、腳本與自動化 |
+| `meters-tool-webui-launcher.exe` | 瀏覽器 WebUI | 在本機瀏覽器中操作圖形介面 |
+| `Meters Tool.exe` | Desktop | 在獨立應用程式視窗中操作圖形介面 |
+
+本指南說明 `meters-tool.exe`。若要使用圖形介面，請參閱 [WebUI / Desktop 使用者指南（線上）](https://github.com/tom758258/meters-tool/blob/main/docs/webui/USER_GUIDE.zh-TW.md)；圖形介面的 `Help` 也提供隨附的離線指南。
+
 ## 啟動 CLI
 
 使用發佈版本時，請解壓縮 `meters-tool-<version>-windows-x64.zip`，在解壓後的
@@ -24,6 +36,43 @@
 ```
 
 預設指南語言為 English。若要開啟繁體中文，請使用 `--lang zh-TW`。指南隨 CLI 一起提供，不需要線上文件網站。若需要確切的 CLI 指令選項、可接受值、範圍或預設值，請使用 `.\meters-tool.exe <command> --help`。
+
+## 不連接硬體先檢查設定
+
+第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。
+
+使用 `--dry-run` 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
+VISA I/O。若資源本身沒有指定 simulator 型號，請提供
+`--model 34460A` 或 `--model 34461A`。
+
+使用 `--simulate` 搭配 `SIM::34461A` 這類 deterministic simulator resource，
+可在沒有真實硬體的情況下執行 acquisition workflow。
+Simple 模擬必須指定 `--max-samples`，但選用 `--streaming --json` 時可以省略，
+持續擷取直到 Stop；明確指定筆數時，仍會在取得該筆數後自然結束，不會套用隱藏上限。
+試用無限模式時，請安排有界限的停止條件。
+
+External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
+External Custom 每次虛擬觸發產生 `sample_count` 筆讀值；有限模式
+規劃 `trigger_count` 次觸發，無限模式持續到 Stop，且仍須指定
+`--allow-buffer-overflow-risk`。讀值記憶體限制與溢位監測仍然適用。
+模擬不代表真實 External 觸發邊緣時序已通過驗證。
+WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。
+
+例如：
+
+```powershell
+.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+```
+
+Dry-run 與 simulation 適合在操作前檢查設定，但兩者都不能當作真實儀器與連線範圍
+已完成實機驗證的證據。
+
 
 ## 首次實機執行
 
@@ -71,42 +120,6 @@ live 啟動省略 `--model` 時，連接儀器的 `*IDN?` 決定 runtime profile
 精確的目前支援矩陣，請參閱 [支援型號](../core/supported-models.zh-TW.md)。
 
 CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。使用 `--visa-library "@py"` 可選擇隨程式提供的 PyVISA-py 後端，用於 34461A TCPIP；Windows 執行檔也支援此選擇。backend 選擇不會改變或擴充 Product 支援。
-
-## 不連接硬體先檢查設定
-
-第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。
-
-使用 `--dry-run` 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
-VISA I/O。若資源本身沒有指定 simulator 型號，請提供
-`--model 34460A` 或 `--model 34461A`。
-
-使用 `--simulate` 搭配 `SIM::34461A` 這類 deterministic simulator resource，
-可在沒有真實硬體的情況下執行 acquisition workflow。
-Simple 模擬必須指定 `--max-samples`，但選用 `--streaming --json` 時可以省略，
-持續擷取直到 Stop；明確指定筆數時，仍會在取得該筆數後自然結束，不會套用隱藏上限。
-試用無限模式時，請安排有界限的停止條件。
-
-External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
-External Custom 每次虛擬觸發產生 `sample_count` 筆讀值；有限模式
-規劃 `trigger_count` 次觸發，無限模式持續到 Stop，且仍須指定
-`--allow-buffer-overflow-risk`。讀值記憶體限制與溢位監測仍然適用。
-模擬不代表真實 External 觸發邊緣時序已通過驗證。
-WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。
-
-例如：
-
-```powershell
-.\meters-tool.exe start-trigger-record `
-  --resource SIM::34461A `
-  --simulate `
-  --measurement voltage-dc `
-  --trigger-mode immediate `
-  --max-samples 3 `
-  --no-csv
-```
-
-Dry-run 與 simulation 適合在操作前檢查設定，但兩者都不能當作真實儀器與連線範圍
-已完成實機驗證的證據。
 
 ## 選擇量測類型
 
@@ -217,41 +230,38 @@ Worker 可能仍能正常回應並接受既有 Stop 指令；持續等待不一�
 
 ## 常見設定
 
-`--resource` 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 `$env:METER_RESOURCE` 並傳遞 `--resource "$env:METER_RESOURCE"`，以便複製的命令能繼續使用選定的儀器。
+### 連線與輸出
 
-`--visa-library` 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 `"@py"`。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。
+| 參數 | 說明 |
+| --- | --- |
+| `--resource` | 是儀器的 VISA 位址。請使用 `list-resources --live-only` 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 `$env:METER_RESOURCE` 並傳遞 `--resource "$env:METER_RESOURCE"`，以便複製的命令能繼續使用選定的儀器。 |
+| `--visa-library` | 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 `"@py"`。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。 |
+| `list-resources --verify`、`--live-only` | 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。 |
+| `--csv`、`--no-csv` | 是輸出檔案路徑。明確指定空字串或僅含空白的路徑，會在連線或建立檔案前以結束碼 `2` 拒絕，Dry-run 亦同。未使用 `--streaming` 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。 |
+| `--max-samples` | 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。 |
 
-`list-resources --verify` 會開啟偵測到的 VISA 資源並查詢 `*IDN?`。`list-resources --live-only` 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 `--serial-read-termination` 與 `--serial-write-termination` 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。
+### 量測設定
 
-`--csv` 是輸出檔案路徑。明確指定空字串或僅含空白的路徑，會在連線或建立檔案前以結束碼 `2` 拒絕，Dry-run 亦同。未使用 `--streaming` 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 `--no-csv` 停用本次 CSV 輸出；`--csv` 與 `--no-csv` 不可同時使用。預設 CSV 格式是 `data`；選擇 `--csv-format full` 可保留原有十欄，並可選用 `--csv-time-columns elapsed,delta`。
+| 參數 | 說明 |
+| --- | --- |
+| `--auto-range` | （自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。 |
+| `--range` | 當自動量程停用時，使用 `--range` 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。 |
+| `--nplc` | 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式僅接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。 |
+| `--auto-zero` | (自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。AC、頻率與週期模式不會寫入 Auto Zero SCPI 指令。 |
+| `--ac-bandwidth-hz` | (交流頻寬/濾波器) 適用於交流電壓、交流電流、頻率與週期。頻率與週期省略此選項時預設為 `20` Hz。 |
+| `--gate-time-s` | 僅適用於頻率與週期。可選 `0.01`、`0.1` 或 `1` 秒；預設為 `0.1` 秒。 |
+| `--freq-period-timeout` | 僅適用於頻率。除非量測程序要求 `1s` 行為，否則請保持預設的 `auto`。週期不會傳送逾時指令；搭配週期明確指定此選項將被拒絕。 |
+| `--current-terminal` | (電流端子) 適用於電流量測。請與儀器上實際使用的電流端子保持一致。 |
+| `--dcv-input-impedance` | 適用於直流電壓與直流電壓比。`default` 會保留儀器目前設定，`10m` 選擇 10 MOhm，`auto` 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 `default`。 |
+| `--vm-comp-slope` | 控制後面板 VM Comp 輸出脈衝的斜率。省略此選項會保持 VM Comp 不變；只有測試設定明確使用該輸出時，才選擇 `pos` 或 `neg`。 |
 
-`--max-samples` 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。
+### 觸發設定
 
-`--auto-range`（自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。
-
-當自動量程停用時，使用 `--range` 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。
-
-`--nplc` 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式僅接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。
-
-`--auto-zero` (自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。AC、頻率與週期模式不會寫入 Auto Zero SCPI 指令。
-
-`--ac-bandwidth-hz` (交流頻寬/濾波器) 適用於交流電壓、交流電流、頻率與週期。頻率與週期省略此選項時預設為 `20` Hz。
-
-`--gate-time-s` 僅適用於頻率與週期。可選 `0.01`、`0.1` 或 `1` 秒；預設為 `0.1` 秒。
-
-`--freq-period-timeout` 僅適用於頻率。除非量測程序要求 `1s` 行為，否則請保持預設的 `auto`。週期不會傳送逾時指令；搭配週期明確指定此選項將被拒絕。
-
-`--current-terminal` (電流端子) 適用於電流量測。請與儀器上實際使用的電流端子保持一致。
-
-`--dcv-input-impedance` 適用於直流電壓與直流電壓比。`default` 會保留儀器目前設定，`10m` 選擇 10 MOhm，`auto` 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 `default`。
-
-`--vm-comp-slope` 控制後面板 VM Comp 輸出脈衝的斜率。省略此選項會保持 VM Comp 不變；只有測試設定明確使用該輸出時，才選擇 `pos` 或 `neg`。
-
-對外部觸發模式而言，`--hw-trigger-delay-s` 設定觸發後的延遲，`--hw-trigger-slope` 選擇實體觸發邊緣。請與實際連接的觸發訊號源保持一致。
-
-對手動軟體觸發作業而言，`--sw-min-interval-ms` 可限制軟體觸發被接受的最快間隔，`--sw-queue-max` 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確的節流或 queue 控制，否則保持預設值。軟體觸發也可以攜帶 metadata；這些 metadata 會隨觸發／sample 輸出記錄，適合標示 DUT、batch 或 step 等識別資訊。
-
-`--trigger-timeout-ms` (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。
+| 參數 | 說明 |
+| --- | --- |
+| `--hw-trigger-delay-s`、`--hw-trigger-slope` | 對外部觸發模式而言，`--hw-trigger-delay-s` 設定觸發後的延遲，`--hw-trigger-slope` 選擇實體觸發邊緣。請與實際連接的觸發訊號源保持一致。 |
+| `--sw-min-interval-ms`、`--sw-queue-max` | 對手動軟體觸發作業而言，`--sw-min-interval-ms` 可限制軟體觸發被接受的最快間隔，`--sw-queue-max` 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確的節流或 queue 控制，否則保持預設值。軟體觸發也可以攜帶 metadata；這些 metadata 會隨觸發／sample 輸出記錄，適合標示 DUT、batch 或 step 等識別資訊。 |
+| `--trigger-timeout-ms` | (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。 |
 
 若需要指令選項及 CLI 層級的可接受值、範圍與預設值，請執行 `meters-tool <command> --help`（例如 `.\meters-tool.exe start-trigger-record --help`）。型號特定的支援與限制仍以 Core 驗證及前述「支援型號」範圍為準。
 
@@ -273,6 +283,15 @@ Stop 會阻止新的虛擬觸發；正常收尾排空時，已保留的緩衝讀
 
 非 Streaming 模式預設啟用 CSV，`data` 格式輸出 `timestamp_utc_plus_8,value,unit`。使用 `--csv-format full` 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：
 
+以下是一筆讀值的 CSV 示意範例（非實際儀器量測結果）：
+
+```csv
+timestamp_utc_plus_8,value,unit
+2026-01-01T12:00:00+08:00,1.234,V
+```
+
+標題列分別表示時間戳記、讀值及單位。出現一筆資料列代表已寫入讀值；使用量測結果前，仍應與儀器前面板讀值比對。
+
 - 至少有一筆資料列；
 - 預期的 `value` (數值)；
 - 預期的 `unit` (單位)；
@@ -282,7 +301,6 @@ Stop 會阻止新的虛擬觸發；正常收尾排空時，已保留的緩衝讀
 每擷取一個樣本後，CSV 都會立即排空 (flush) 並寫入磁碟，因此即使在較長時間的執行中，也隨時能取得已完成的資料列。
 
 選用的 `elapsed_s` 與 `delta_t_s` 使用 PC CSV Writer 的單調時鐘，單位為秒、三位小數；首筆經過時間為 `0.000`，首筆間隔留空。同一 Buffered 取回批次共用時間，不代表儀器 ADC 的真實取樣間隔。
-
 ## 停止執行
 
 對於有界限的驗證作業，建議使用 `--max-samples` 讓作業自行停止。
