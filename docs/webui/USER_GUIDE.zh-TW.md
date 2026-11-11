@@ -14,7 +14,7 @@ Windows 發行包提供三種操作入口，皆共用相同的量測 Core；瀏�
 | `meters-tool-webui-launcher.exe` | 瀏覽器 WebUI | 在本機瀏覽器中操作圖形介面 |
 | `Meters Tool.exe` | Desktop | 在獨立應用程式視窗中操作圖形介面 |
 
-本指南說明瀏覽器 WebUI 與 Desktop。若要使用命令列，請參閱 [CLI 使用者指南（線上）](https://github.com/tom758258/meters-tool/blob/main/docs/cli/USER_GUIDE.zh-TW.md)；CLI 也可透過 `.\meters-tool.exe user-guide` 開啟隨附的離線指南。
+本指南說明瀏覽器 WebUI 與 Desktop。若要查閱 CLI 操作說明，請在解壓後的發行包資料夾中開啟 PowerShell，執行 `.\meters-tool.exe user-guide --lang zh-TW`，即可開啟隨附的離線 CLI 指南。
 
 ## WebUI / Desktop 介面的功能
 
