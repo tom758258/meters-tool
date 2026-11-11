@@ -8,6 +8,8 @@ import webbrowser
 from datetime import datetime, timezone
 from pathlib import Path
 
+import meters_tool_cli
+
 from meters_tool_core import (
     SUPPORT_POLICY_MODE_PRODUCT,
     SUPPORT_POLICY_MODE_VALIDATION,
@@ -114,7 +116,7 @@ _USER_GUIDE_FILENAMES = {
 
 
 def _resolve_user_guide_path(lang: str) -> Path:
-    return Path(__file__).resolve().parent / "help" / _USER_GUIDE_FILENAMES[lang]
+    return Path(meters_tool_cli.__file__).resolve().parent / "help" / _USER_GUIDE_FILENAMES[lang]
 
 
 def cmd_user_guide(lang: str = "en") -> int:

@@ -349,5 +349,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI --version failed.' }
           & (Join-Path (Resolve-Path $bundle).Path 'meters-tool.exe') --help | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI --help failed.' }
+          & .\.venv\Scripts\python.exe scripts/smoke_cli_user_guide.py --exe (Join-Path (Resolve-Path $bundle).Path 'meters-tool.exe') --help-root (Join-Path (Resolve-Path $bundle).Path '_internal/meters_tool_cli/help') --language-option=--lang
+          if ($LASTEXITCODE -ne 0) { throw 'Packaged CLI User Guide smoke failed.' }
           & (Join-Path (Resolve-Path $bundle).Path 'meters-tool-webui-launcher.exe') --self-test
           if ($LASTEXITCODE -ne 0) { throw 'Packaged Launcher --self-test failed.' }

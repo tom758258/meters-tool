@@ -513,6 +513,17 @@ try {
         -FilePath $cliExe.FullName `
         -Arguments @("--help"))
 
+    $script:currentStep = "standalone_cli_user_guide"
+    [void](Invoke-RecordedCommand `
+        -Name $script:currentStep `
+        -FilePath $Python `
+        -Arguments @(
+            (Join-Path $RepoRoot "scripts\smoke_cli_user_guide.py"),
+            "--exe", $cliExe.FullName,
+            "--help-root", (Join-Path $extractedBundleDir "_internal\meters_tool_cli\help"),
+            "--language-option=--lang"
+        ))
+
     $script:currentStep = "standalone_cli_simulator"
     $standaloneCsv = Join-Path $runDir "standalone-cli.csv"
     $standaloneResult = Invoke-RecordedCommand `
