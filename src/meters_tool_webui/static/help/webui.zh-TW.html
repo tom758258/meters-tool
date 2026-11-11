@@ -38,6 +38,35 @@
 <p>本指南適用於使用 <code>Meters Tool.exe</code> 或 <code>meters-tool-webui-launcher.exe</code>，
 記錄支援數位萬用電表量測資料的操作人員。兩者提供相同的本機擷取介面與
 一般量測工作流程。</p>
+<h2 id="選擇操作介面">選擇操作介面</h2>
+<p>Windows 發行包提供三種操作入口，皆共用相同的量測 Core；瀏覽器 WebUI 與 Desktop 使用相同的圖形操作流程。</p>
+<table>
+<thead>
+<tr>
+<th>執行檔</th>
+<th>操作介面</th>
+<th>適用情境</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meters-tool.exe</code></td>
+<td>CLI 命令列</td>
+<td>終端機操作、腳本與自動化</td>
+</tr>
+<tr>
+<td><code>meters-tool-webui-launcher.exe</code></td>
+<td>瀏覽器 WebUI</td>
+<td>在本機瀏覽器中操作圖形介面</td>
+</tr>
+<tr>
+<td><code>Meters Tool.exe</code></td>
+<td>Desktop</td>
+<td>在獨立應用程式視窗中操作圖形介面</td>
+</tr>
+</tbody>
+</table>
+<p>本指南說明瀏覽器 WebUI 與 Desktop。若要使用命令列，請參閱 <a href="https://github.com/tom758258/meters-tool/blob/main/docs/cli/USER_GUIDE.zh-TW.md">CLI 使用者指南（線上）</a>；CLI 也可透過 <code>.\meters-tool.exe user-guide</code> 開啟隨附的離線指南。</p>
 <h2 id="webui-desktop-介面的功能">WebUI / Desktop 介面的功能</h2>
 <p>Meters Tool 在 Desktop 應用程式視窗或透過 WebUI launcher 開啟的一般瀏覽器中，
 提供相同的本機擷取介面。其功能包含：</p>
@@ -233,31 +262,147 @@ External Custom 每次虛擬觸發產生 <code>sample_count</code> 筆資料。W
 電流端子的設定。</p>
 <h2 id="設定參考">設定參考</h2>
 <p>WebUI 會在啟動作業前檢查各項設定。如果 <code>Start</code> 被封鎖無法點擊，請閱讀 Status 日誌並調整其指出的欄位。</p>
-<p><code>VISA resource</code> (VISA 資源) 是作業將使用的儀器位址。建議使用透過 <code>Scan Device</code> 找到的資源，或手動輸入由操作人員或測試程序提供的已知資源。當可能連接多台儀器時，請勿用猜測的方式填寫資源。</p>
-<p>WebUI 與 Desktop 可在右側齒輪的裝置設定中，透過 <code>VISA 後端</code> 選擇 <code>System VISA</code>（預設）或 <code>PyVISA-py</code>。選擇會套用至 Scan Device、資源驗證及 Start。PyVISA-py 隨程式提供，僅支援 34461A LAN/TCPIP；不支援 USB/<code>@py</code>、34460A TCPIP 或其他 backend。System VISA 需要已安裝的 VISA runtime，不會靜默改用 <code>@py</code>。</p>
-<p>切換後端會清除先前的掃描結果及資源位址；請重新掃描或輸入已知資源。Start 處理中及量測執行中會鎖定後端選擇。Expected model 仍是 IDN 防護檢查。</p>
+<h3 id="裝置與資源">裝置與資源</h3>
+<table>
+<thead>
+<tr>
+<th>設定</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>VISA resource</code></td>
+<td>(VISA 資源) 是作業將使用的儀器位址。建議使用透過 <code>Scan Device</code> 找到的資源，或手動輸入由操作人員或測試程序提供的已知資源。當可能連接多台儀器時，請勿用猜測的方式填寫資源。</td>
+</tr>
+<tr>
+<td><code>VISA 後端</code></td>
+<td>WebUI 與 Desktop 可在右側齒輪的裝置設定中，透過 <code>VISA 後端</code> 選擇 <code>System VISA</code>（預設）或 <code>PyVISA-py</code>。選擇會套用至 Scan Device、資源驗證及 Start。PyVISA-py 隨程式提供，僅支援 34461A LAN/TCPIP；不支援 USB/<code>@py</code>、34460A TCPIP 或其他 backend。System VISA 需要已安裝的 VISA runtime，不會靜默改用 <code>@py</code>。</td>
+</tr>
+<tr>
+<td>後端切換</td>
+<td>切換後端會清除先前的掃描結果及資源位址；請重新掃描或輸入已知資源。Start 處理中及量測執行中會鎖定後端選擇。Expected model 仍是 IDN 防護檢查。</td>
+</tr>
+<tr>
+<td><code>Live resource</code></td>
+<td>（實機資源）顯示最後一次掃描回應的結果。請先用它確認是哪台儀器回應，再複製或選取資源以進行作業。當掃描辨識出支援的 34460A 或 34461A IDN 時，WebUI 可能會載入特定型號的選項以供顯示，同時保持 <code>Expected model</code> 在 <code>Auto-detect</code>。</td>
+</tr>
+<tr>
+<td><code>Expected model</code></td>
+<td>（預期型號）是 <code>Device options</code> 中的選用檢查。Auto-detect 在 Start 時使用最新的 IDN preflight 來解析連接的儀器。只有當您希望 Start 讀取 IDN，且在連接的儀器不回報該支援型號就失敗時，才選擇 <code>Require 34460A</code> 或 <code>Require 34461A</code>。若要求 34460A，WebUI 會隱藏 10 A 電流量程、電流端子選擇與外接觸發模式；自訂模式的讀值記憶體為 1000 筆。這些停用的控制項僅供指引。選取的型號是預期型號防護與顯示上下文；它不會覆寫偵測到的 IDN、解鎖另一台儀器的功能，或取代 Core 的安全檢查。</td>
+</tr>
+</tbody>
+</table>
 <p>支援裝置面板的 <code>System VISA | PyVISA-py</code> 按鈕只篩選型號與連線清單，不會改變通訊後端。開啟面板時，會預設查看齒輪目前選定的後端。精確支援範圍由 Core policy 決定，請參閱 <a href="supported-models.zh-TW.html">Supported Models</a>。</p>
-<p><code>Live resource</code>（實機資源）顯示最後一次掃描回應的結果。請先用它確認是哪台儀器回應，再複製或選取資源以進行作業。當掃描辨識出支援的 34460A 或 34461A IDN 時，WebUI 可能會載入特定型號的選項以供顯示，同時保持 <code>Expected model</code> 在 <code>Auto-detect</code>。</p>
-<p><code>CSV 輸出</code> 預設為勾選。啟用時，<code>CSV path</code> (CSV 路徑) 是讀值寫入的位置。請使用 <code>Select</code> 選擇資料夾並讓 WebUI 產生帶有時間戳記的檔案名稱，或在點擊 <code>Start</code> 前手動輸入特定的檔案路徑。</p>
-<p><strong>執行次數與取樣限制</strong>欄位用來控制作業可以持續多久。在檢查接線、量測類型與觸發行為時，請為新的設定保持有界限 (bounded，即設定次數上限)。</p>
-<p><code>Expected model</code>（預期型號）是 <code>Device options</code> 中的選用檢查。Auto-detect 在 Start 時使用最新的 IDN preflight 來解析連接的儀器。只有當您希望 Start 讀取 IDN，且在連接的儀器不回報該支援型號就失敗時，才選擇 <code>Require 34460A</code> 或 <code>Require 34461A</code>。若要求 34460A，WebUI 會隱藏 10 A 電流量程、電流端子選擇與外接觸發模式；自訂模式的讀值記憶體為 1000 筆。這些停用的控制項僅供指引。選取的型號是預期型號防護與顯示上下文；它不會覆寫偵測到的 IDN、解鎖另一台儀器的功能，或取代 Core 的安全檢查。</p>
-<p><code>Measurement type</code> (量測類型) 用來選擇儀器要量測的項目：直流或交流電壓、直流或交流電流、直流電壓比、頻率、週期，或是 2 線/4 線式電阻。在啟動作業前，請確保這與儀器的實體接線相符。</p>
-<p><code>Auto Range</code>（自動量程）讓儀器自行選擇量測量程。除非量測程序要求固定量程，否則首次執行時請保持啟用。</p>
-<p>當自動量程停用時會使用<strong>手動量程</strong>欄位。請選擇一個能安全涵蓋預期訊號的量程。</p>
-<p><code>NPLC</code> 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式則改用其 AC 濾波器設定。</p>
-<p><code>Auto Zero</code> (自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。除非量測程序要求更改，否則請保持在正常的設定值。</p>
-<p><code>AC filter</code> (AC 濾波器) 適用於交流電壓、交流電流、頻率與週期。對於交流電壓與交流電流，<code>Keep current setting</code> (保持目前設定) 不會改變儀器目前的濾波器設定；頻率與週期預設選取 <code>20 Hz</code>，摘要中可能會顯示為 <code>&gt;20 Hz</code>。</p>
-<p><code>Gate time</code> (閘門時間) 僅適用於頻率與週期。預設為 <code>0.1 s</code>；可選項為 <code>0.01</code>、<code>0.1</code> 與 <code>1 s</code>。</p>
-<p>量測選項中的 <code>Timeout</code> (逾時) 僅適用於頻率。除非程序要求 <code>1 s</code> 行為，否則請保持 <code>Auto</code>。週期會隱藏此控制項，且不會傳送逾時指令。</p>
-<p>頻率數值會以 <code>Hz</code> 顯示與儲存。週期數值會以 <code>s</code> 顯示與儲存；WebUI 不會自動縮放這些單位。</p>
-<p><code>Current terminal</code> (電流端子) 適用於電流量測。啟動作業前，請確認實體導線已連接至相符的電流端子。</p>
-<p><code>DCV input Z</code> 會出現在直流電壓與直流電壓比。<code>Default</code> 會保留儀器目前設定，<code>10M</code> 選擇 10 MOhm，<code>Auto</code> 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 <code>Default</code>。</p>
-<p><strong>直流電壓比 (DC voltage ratio)</strong> 是特殊的量測模式。只有當測試設定明確要求比值量測時才使用。</p>
-<p><code>VM Comp slope</code> 控制後面板 VM Comp 輸出脈衝的斜率。<code>Leave unchanged</code> 會保留目前設定；只有測試設定明確使用 VM Comp 輸出時，才選擇 <code>Pos</code> 或 <code>Neg</code>。</p>
-<p><code>Trigger mode</code> (觸發模式) 控制取樣的時間點。前面的「選擇觸發模式」章節說明了一般與 Custom 工作流程，以及各模式會顯示的設定欄位。</p>
-<p>在 <code>Real</code> 模式中，<code>Trigger delay</code> (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。</p>
-<p><code>Trigger timeout</code> (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</p>
-<p>在 <code>Real</code> 模式中，<code>External trigger slope</code> (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。</p>
+<h3 id="執行與輸出設定">執行與輸出設定</h3>
+<table>
+<thead>
+<tr>
+<th>設定</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>CSV 輸出</code>、<code>CSV path</code></td>
+<td>預設為勾選。啟用時，<code>CSV path</code> (CSV 路徑) 是讀值寫入的位置。請使用 <code>Select</code> 選擇資料夾並讓 WebUI 產生帶有時間戳記的檔案名稱，或在點擊 <code>Start</code> 前手動輸入特定的檔案路徑。</td>
+</tr>
+<tr>
+<td>執行次數與取樣限制</td>
+<td><strong>執行次數與取樣限制</strong>欄位用來控制作業可以持續多久。在檢查接線、量測類型與觸發行為時，請為新的設定保持有界限 (bounded，即設定次數上限)。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="量測設定">量測設定</h3>
+<table>
+<thead>
+<tr>
+<th>設定</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Measurement type</code></td>
+<td>(量測類型) 用來選擇儀器要量測的項目：直流或交流電壓、直流或交流電流、直流電壓比、頻率、週期，或是 2 線/4 線式電阻。在啟動作業前，請確保這與儀器的實體接線相符。</td>
+</tr>
+<tr>
+<td><code>Auto Range</code></td>
+<td>（自動量程）讓儀器自行選擇量測量程。除非量測程序要求固定量程，否則首次執行時請保持啟用。</td>
+</tr>
+<tr>
+<td>手動量程</td>
+<td>當自動量程停用時會使用<strong>手動量程</strong>欄位。請選擇一個能安全涵蓋預期訊號的量程。</td>
+</tr>
+<tr>
+<td><code>NPLC</code></td>
+<td>控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式則改用其 AC 濾波器設定。</td>
+</tr>
+<tr>
+<td><code>Auto Zero</code></td>
+<td>(自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。除非量測程序要求更改，否則請保持在正常的設定值。</td>
+</tr>
+<tr>
+<td><code>AC filter</code></td>
+<td>(AC 濾波器) 適用於交流電壓、交流電流、頻率與週期。對於交流電壓與交流電流，<code>Keep current setting</code> (保持目前設定) 不會改變儀器目前的濾波器設定；頻率與週期預設選取 <code>20 Hz</code>，摘要中可能會顯示為 <code>&gt;20 Hz</code>。</td>
+</tr>
+<tr>
+<td><code>Gate time</code></td>
+<td>(閘門時間) 僅適用於頻率與週期。預設為 <code>0.1 s</code>；可選項為 <code>0.01</code>、<code>0.1</code> 與 <code>1 s</code>。</td>
+</tr>
+<tr>
+<td><code>Timeout</code></td>
+<td>量測選項中的 <code>Timeout</code> (逾時) 僅適用於頻率。除非程序要求 <code>1 s</code> 行為，否則請保持 <code>Auto</code>。週期會隱藏此控制項，且不會傳送逾時指令。</td>
+</tr>
+<tr>
+<td>頻率與週期單位</td>
+<td>頻率數值會以 <code>Hz</code> 顯示與儲存。週期數值會以 <code>s</code> 顯示與儲存；WebUI 不會自動縮放這些單位。</td>
+</tr>
+<tr>
+<td><code>Current terminal</code></td>
+<td>(電流端子) 適用於電流量測。啟動作業前，請確認實體導線已連接至相符的電流端子。</td>
+</tr>
+<tr>
+<td><code>DCV input Z</code></td>
+<td>會出現在直流電壓與直流電壓比。<code>Default</code> 會保留儀器目前設定，<code>10M</code> 選擇 10 MOhm，<code>Auto</code> 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 <code>Default</code>。</td>
+</tr>
+<tr>
+<td>直流電壓比</td>
+<td><strong>直流電壓比 (DC voltage ratio)</strong> 是特殊的量測模式。只有當測試設定明確要求比值量測時才使用。</td>
+</tr>
+<tr>
+<td><code>VM Comp slope</code></td>
+<td>控制後面板 VM Comp 輸出脈衝的斜率。<code>Leave unchanged</code> 會保留目前設定；只有測試設定明確使用 VM Comp 輸出時，才選擇 <code>Pos</code> 或 <code>Neg</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="觸發設定">觸發設定</h3>
+<table>
+<thead>
+<tr>
+<th>設定</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Trigger mode</code></td>
+<td>(觸發模式) 控制取樣的時間點。前面的「選擇觸發模式」章節說明了一般與 Custom 工作流程，以及各模式會顯示的設定欄位。</td>
+</tr>
+<tr>
+<td><code>Trigger delay</code></td>
+<td>在 <code>Real</code> 模式中，<code>Trigger delay</code> (觸發延遲) 在外部觸發後會等待一段時間才進行量測。除非外部設定需要延遲，否則請保持不變。</td>
+</tr>
+<tr>
+<td><code>Trigger timeout</code></td>
+<td>(觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</td>
+</tr>
+<tr>
+<td><code>External trigger slope</code></td>
+<td>在 <code>Real</code> 模式中，<code>External trigger slope</code> (外部觸發斜率) 用於選擇實體觸發的邊緣 (edge)。請與連接到儀器的訊號源保持一致。</td>
+</tr>
+</tbody>
+</table>
 <h2 id="即時資料圖表縮放-live-data-chart-scale">即時資料圖表縮放 (Live Data Chart Scale)</h2>
 <p><code>Live data</code>（即時資料）面板在 <code>Trend</code> 區域有圖表縮放控制項。這些設定僅影響介面圖表顯示。它們不影響儀器設定、SCPI 指令、CSV 輸出或記錄的數值。</p>
 <p>趨勢圖表使用作用中的縮放模式，在每條網格線的左側顯示 Y 軸標籤。</p>

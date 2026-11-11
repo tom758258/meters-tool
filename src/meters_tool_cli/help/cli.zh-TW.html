@@ -36,6 +36,35 @@
     <main id="help-content">
 <h1 id="meters-tool-cli-使用者指南">Meters Tool CLI 使用者指南</h1>
 <p>本指南適用於取得已建置之 CLI 執行檔或已安裝的 <code>meters-tool</code> 指令，並使用它來記錄支援的數位萬用電表量測資料的操作人員。本指南專注於正常的量測工作流程與常見設定。</p>
+<h2 id="選擇操作介面">選擇操作介面</h2>
+<p>Windows 發行包提供三種操作入口，皆共用相同的量測 Core；瀏覽器 WebUI 與 Desktop 使用相同的圖形操作流程。</p>
+<table>
+<thead>
+<tr>
+<th>執行檔</th>
+<th>操作介面</th>
+<th>適用情境</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>meters-tool.exe</code></td>
+<td>CLI 命令列</td>
+<td>終端機操作、腳本與自動化</td>
+</tr>
+<tr>
+<td><code>meters-tool-webui-launcher.exe</code></td>
+<td>瀏覽器 WebUI</td>
+<td>在本機瀏覽器中操作圖形介面</td>
+</tr>
+<tr>
+<td><code>Meters Tool.exe</code></td>
+<td>Desktop</td>
+<td>在獨立應用程式視窗中操作圖形介面</td>
+</tr>
+</tbody>
+</table>
+<p>本指南說明 <code>meters-tool.exe</code>。若要使用圖形介面，請參閱 <a href="https://github.com/tom758258/meters-tool/blob/main/docs/webui/USER_GUIDE.zh-TW.md">WebUI / Desktop 使用者指南（線上）</a>；圖形介面的 <code>Help</code> 也提供隨附的離線指南。</p>
 <h2 id="啟動-cli">啟動 CLI</h2>
 <p>使用發佈版本時，請解壓縮 <code>meters-tool-&lt;version&gt;-windows-x64.zip</code>，在解壓後的
 <code>meters-tool-&lt;version&gt;</code> 資料夾中開啟 PowerShell，並檢查 CLI：</p>
@@ -49,6 +78,33 @@
 .\meters-tool.exe user-guide --lang zh-TW
 </code></pre>
 <p>預設指南語言為 English。若要開啟繁體中文，請使用 <code>--lang zh-TW</code>。指南隨 CLI 一起提供，不需要線上文件網站。若需要確切的 CLI 指令選項、可接受值、範圍或預設值，請使用 <code>.\meters-tool.exe &lt;command&gt; --help</code>。</p>
+<h2 id="不連接硬體先檢查設定">不連接硬體先檢查設定</h2>
+<p>第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。</p>
+<p>使用 <code>--dry-run</code> 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
+VISA I/O。若資源本身沒有指定 simulator 型號，請提供
+<code>--model 34460A</code> 或 <code>--model 34461A</code>。</p>
+<p>使用 <code>--simulate</code> 搭配 <code>SIM::34461A</code> 這類 deterministic simulator resource，
+可在沒有真實硬體的情況下執行 acquisition workflow。
+Simple 模擬必須指定 <code>--max-samples</code>，但選用 <code>--streaming --json</code> 時可以省略，
+持續擷取直到 Stop；明確指定筆數時，仍會在取得該筆數後自然結束，不會套用隱藏上限。
+試用無限模式時，請安排有界限的停止條件。</p>
+<p>External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
+External Custom 每次虛擬觸發產生 <code>sample_count</code> 筆讀值；有限模式
+規劃 <code>trigger_count</code> 次觸發，無限模式持續到 Stop，且仍須指定
+<code>--allow-buffer-overflow-risk</code>。讀值記憶體限制與溢位監測仍然適用。
+模擬不代表真實 External 觸發邊緣時序已通過驗證。
+WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。</p>
+<p>例如：</p>
+<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
+  --resource SIM::34461A `
+  --simulate `
+  --measurement voltage-dc `
+  --trigger-mode immediate `
+  --max-samples 3 `
+  --no-csv
+</code></pre>
+<p>Dry-run 與 simulation 適合在操作前檢查設定，但兩者都不能當作真實儀器與連線範圍
+已完成實機驗證的證據。</p>
 <h2 id="首次實機執行">首次實機執行</h2>
 <p>在檢查新的電腦、VISA 執行階段、連線或儀器設定時，請使用此流程。</p>
 <p>進行實機執行前，請確認沒有其他 Meters CLI、WebUI、logger、測試程序或外部 VISA 應用程式正在控制同一台實體儀器。同時控制可能干擾 SCPI 回應或儀器狀態。Meters Tool 不會以自動鎖定強制此前提。</p>
@@ -84,33 +140,6 @@
 <p>某個 VISA resource 能回應 <code>*IDN?</code> 或出現在 <code>list-resources</code> 中，本身不代表所有型號與 transport/backend 組合都已 Product-open。型號、transport、backend、量測與觸發支援都是精確範圍，且必須符合 Core policy。未列出的組合會 fail closed，而不是透過 <code>--model</code> 或掃描結果被解鎖。</p>
 <p>精確的目前支援矩陣，請參閱 <a href="supported-models.zh-TW.html">支援型號</a>。</p>
 <p>CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。使用 <code>--visa-library "@py"</code> 可選擇隨程式提供的 PyVISA-py 後端，用於 34461A TCPIP；Windows 執行檔也支援此選擇。backend 選擇不會改變或擴充 Product 支援。</p>
-<h2 id="不連接硬體先檢查設定">不連接硬體先檢查設定</h2>
-<p>第一次操作實機前，可以先用相同的請求檢查設定，而不控制實體儀器。</p>
-<p>使用 <code>--dry-run</code> 可驗證請求並顯示執行計畫，不會啟動擷取，也不會執行實機
-VISA I/O。若資源本身沒有指定 simulator 型號，請提供
-<code>--model 34460A</code> 或 <code>--model 34461A</code>。</p>
-<p>使用 <code>--simulate</code> 搭配 <code>SIM::34461A</code> 這類 deterministic simulator resource，
-可在沒有真實硬體的情況下執行 acquisition workflow。
-Simple 模擬必須指定 <code>--max-samples</code>，但選用 <code>--streaming --json</code> 時可以省略，
-持續擷取直到 Stop；明確指定筆數時，仍會在取得該筆數後自然結束，不會套用隱藏上限。
-試用無限模式時，請安排有界限的停止條件。</p>
-<p>External 模擬會在 Armed 後依內部節奏自動產生虛擬觸發，不需手動注入或設定間隔。
-External Custom 每次虛擬觸發產生 <code>sample_count</code> 筆讀值；有限模式
-規劃 <code>trigger_count</code> 次觸發，無限模式持續到 Stop，且仍須指定
-<code>--allow-buffer-overflow-risk</code>。讀值記憶體限制與溢位監測仍然適用。
-模擬不代表真實 External 觸發邊緣時序已通過驗證。
-WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。</p>
-<p>例如：</p>
-<pre><code class="language-powershell">.\meters-tool.exe start-trigger-record `
-  --resource SIM::34461A `
-  --simulate `
-  --measurement voltage-dc `
-  --trigger-mode immediate `
-  --max-samples 3 `
-  --no-csv
-</code></pre>
-<p>Dry-run 與 simulation 適合在操作前檢查設定，但兩者都不能當作真實儀器與連線範圍
-已完成實機驗證的證據。</p>
 <h2 id="選擇量測類型">選擇量測類型</h2>
 <p>請選擇與儀器接線及待測訊號相符的量測類型：</p>
 <ul>
@@ -226,24 +255,111 @@ Worker 可能仍能正常回應並接受既有 Stop 指令；持續等待不一�
 <code>external</code> 或 <code>external-custom</code>。硬體觸發逾時是一種保護性的重新準備
 (re-arm) 條件，並非自動代表量測失敗。</p>
 <h2 id="常見設定">常見設定</h2>
-<p><code>--resource</code> 是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</p>
-<p><code>--visa-library</code> 用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 <code>"@py"</code>。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</p>
-<p><code>list-resources --verify</code> 會開啟偵測到的 VISA 資源並查詢 <code>*IDN?</code>。<code>list-resources --live-only</code> 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 <code>--serial-read-termination</code> 與 <code>--serial-write-termination</code> 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。</p>
-<p><code>--csv</code> 是輸出檔案路徑。明確指定空字串或僅含空白的路徑，會在連線或建立檔案前以結束碼 <code>2</code> 拒絕，Dry-run 亦同。未使用 <code>--streaming</code> 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。預設 CSV 格式是 <code>data</code>；選擇 <code>--csv-format full</code> 可保留原有十欄，並可選用 <code>--csv-time-columns elapsed,delta</code>。</p>
-<p><code>--max-samples</code> 用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。</p>
-<p><code>--auto-range</code>（自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。</p>
-<p>當自動量程停用時，使用 <code>--range</code> 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。</p>
-<p><code>--nplc</code> 控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式僅接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。</p>
-<p><code>--auto-zero</code> (自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。AC、頻率與週期模式不會寫入 Auto Zero SCPI 指令。</p>
-<p><code>--ac-bandwidth-hz</code> (交流頻寬/濾波器) 適用於交流電壓、交流電流、頻率與週期。頻率與週期省略此選項時預設為 <code>20</code> Hz。</p>
-<p><code>--gate-time-s</code> 僅適用於頻率與週期。可選 <code>0.01</code>、<code>0.1</code> 或 <code>1</code> 秒；預設為 <code>0.1</code> 秒。</p>
-<p><code>--freq-period-timeout</code> 僅適用於頻率。除非量測程序要求 <code>1s</code> 行為，否則請保持預設的 <code>auto</code>。週期不會傳送逾時指令；搭配週期明確指定此選項將被拒絕。</p>
-<p><code>--current-terminal</code> (電流端子) 適用於電流量測。請與儀器上實際使用的電流端子保持一致。</p>
-<p><code>--dcv-input-impedance</code> 適用於直流電壓與直流電壓比。<code>default</code> 會保留儀器目前設定，<code>10m</code> 選擇 10 MOhm，<code>auto</code> 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 <code>default</code>。</p>
-<p><code>--vm-comp-slope</code> 控制後面板 VM Comp 輸出脈衝的斜率。省略此選項會保持 VM Comp 不變；只有測試設定明確使用該輸出時，才選擇 <code>pos</code> 或 <code>neg</code>。</p>
-<p>對外部觸發模式而言，<code>--hw-trigger-delay-s</code> 設定觸發後的延遲，<code>--hw-trigger-slope</code> 選擇實體觸發邊緣。請與實際連接的觸發訊號源保持一致。</p>
-<p>對手動軟體觸發作業而言，<code>--sw-min-interval-ms</code> 可限制軟體觸發被接受的最快間隔，<code>--sw-queue-max</code> 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確的節流或 queue 控制，否則保持預設值。軟體觸發也可以攜帶 metadata；這些 metadata 會隨觸發／sample 輸出記錄，適合標示 DUT、batch 或 step 等識別資訊。</p>
-<p><code>--trigger-timeout-ms</code> (觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</p>
+<h3 id="連線與輸出">連線與輸出</h3>
+<table>
+<thead>
+<tr>
+<th>參數</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--resource</code></td>
+<td>是儀器的 VISA 位址。請使用 <code>list-resources --live-only</code> 回傳的值，或由操作人員提供的已知資源。在 PowerShell 範例中，設定一次 <code>$env:METER_RESOURCE</code> 並傳遞 <code>--resource "$env:METER_RESOURCE"</code>，以便複製的命令能繼續使用選定的儀器。</td>
+</tr>
+<tr>
+<td><code>--visa-library</code></td>
+<td>用於選擇 VISA backend。省略時使用 System VISA；34461A TCPIP 可選擇 <code>"@py"</code>。選擇 backend 不會解鎖未支援的型號、transport、量測或其他 Product 支援。</td>
+</tr>
+<tr>
+<td><code>list-resources --verify</code>、<code>--live-only</code></td>
+<td>會開啟偵測到的 VISA 資源並查詢 <code>*IDN?</code>。<code>list-resources --live-only</code> 暗示了驗證並隱藏過期的項目。ASRL/RS-232 驗證使用短暫的有界限逾時，因此過期的序列埠項目不會阻擋後續的 USB 或 TCPIP 資源。序列埠結束字元選項 <code>--serial-read-termination</code> 與 <code>--serial-write-termination</code> 是僅用於 ASRL 驗證的 CLI 偵測相容性設定；它們不是擷取設定。</td>
+</tr>
+<tr>
+<td><code>--csv</code>、<code>--no-csv</code></td>
+<td>是輸出檔案路徑。明確指定空字串或僅含空白的路徑，會在連線或建立檔案前以結束碼 <code>2</code> 拒絕，Dry-run 亦同。未使用 <code>--streaming</code> 時，若省略此項，CLI 會自動建立一個帶有時間戳記的 CSV 路徑。當您需要可預測的檔案位置以便進行檢閱或自動化處理時，請使用明確的路徑。可使用 <code>--no-csv</code> 停用本次 CSV 輸出；<code>--csv</code> 與 <code>--no-csv</code> 不可同時使用。預設 CSV 格式是 <code>data</code>；選擇 <code>--csv-format full</code> 可保留原有十欄，並可選用 <code>--csv-time-columns elapsed,delta</code>。</td>
+</tr>
+<tr>
+<td><code>--max-samples</code></td>
+<td>用來限制簡單作業的執行次數。在進行快速功能健檢與驗證時請使用它，讓指令能自行停止。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="量測設定">量測設定</h3>
+<table>
+<thead>
+<tr>
+<th>參數</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--auto-range</code></td>
+<td>（自動量程）讓儀器自行選擇量程。除非量測設定要求固定量程，否則請保持啟用自動量程。</td>
+</tr>
+<tr>
+<td><code>--range</code></td>
+<td>當自動量程停用時，使用 <code>--range</code> 來選擇手動量程。請選擇一個能安全涵蓋預期訊號的量程。</td>
+</tr>
+<tr>
+<td><code>--nplc</code></td>
+<td>控制直流與電阻量測的積分時間。較高的數值速度較慢，但可能更穩定。AC、頻率與週期模式僅接受中性的預設值，因為它們不會寫入 NPLC SCPI 指令。</td>
+</tr>
+<tr>
+<td><code>--auto-zero</code></td>
+<td>(自動歸零) 控制直流與電阻量測的偏移處理。它可以提高精確度，但可能會減慢讀取速度。AC、頻率與週期模式不會寫入 Auto Zero SCPI 指令。</td>
+</tr>
+<tr>
+<td><code>--ac-bandwidth-hz</code></td>
+<td>(交流頻寬/濾波器) 適用於交流電壓、交流電流、頻率與週期。頻率與週期省略此選項時預設為 <code>20</code> Hz。</td>
+</tr>
+<tr>
+<td><code>--gate-time-s</code></td>
+<td>僅適用於頻率與週期。可選 <code>0.01</code>、<code>0.1</code> 或 <code>1</code> 秒；預設為 <code>0.1</code> 秒。</td>
+</tr>
+<tr>
+<td><code>--freq-period-timeout</code></td>
+<td>僅適用於頻率。除非量測程序要求 <code>1s</code> 行為，否則請保持預設的 <code>auto</code>。週期不會傳送逾時指令；搭配週期明確指定此選項將被拒絕。</td>
+</tr>
+<tr>
+<td><code>--current-terminal</code></td>
+<td>(電流端子) 適用於電流量測。請與儀器上實際使用的電流端子保持一致。</td>
+</tr>
+<tr>
+<td><code>--dcv-input-impedance</code></td>
+<td>適用於直流電壓與直流電壓比。<code>default</code> 會保留儀器目前設定，<code>10m</code> 選擇 10 MOhm，<code>auto</code> 則啟用儀器的自動／高輸入阻抗行為。除非量測程序要求其他輸入阻抗，否則保持 <code>default</code>。</td>
+</tr>
+<tr>
+<td><code>--vm-comp-slope</code></td>
+<td>控制後面板 VM Comp 輸出脈衝的斜率。省略此選項會保持 VM Comp 不變；只有測試設定明確使用該輸出時，才選擇 <code>pos</code> 或 <code>neg</code>。</td>
+</tr>
+</tbody>
+</table>
+<h3 id="觸發設定">觸發設定</h3>
+<table>
+<thead>
+<tr>
+<th>參數</th>
+<th>說明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--hw-trigger-delay-s</code>、<code>--hw-trigger-slope</code></td>
+<td>對外部觸發模式而言，<code>--hw-trigger-delay-s</code> 設定觸發後的延遲，<code>--hw-trigger-slope</code> 選擇實體觸發邊緣。請與實際連接的觸發訊號源保持一致。</td>
+</tr>
+<tr>
+<td><code>--sw-min-interval-ms</code>、<code>--sw-queue-max</code></td>
+<td>對手動軟體觸發作業而言，<code>--sw-min-interval-ms</code> 可限制軟體觸發被接受的最快間隔，<code>--sw-queue-max</code> 則限制排隊等待處理的觸發工作。除非觸發來源或測試程序需要明確的節流或 queue 控制，否則保持預設值。軟體觸發也可以攜帶 metadata；這些 metadata 會隨觸發／sample 輸出記錄，適合標示 DUT、batch 或 step 等識別資訊。</td>
+</tr>
+<tr>
+<td><code>--trigger-timeout-ms</code></td>
+<td>(觸發逾時) 控制觸發工作流程在進入保護性逾時路徑前的等待時間。只有在量測設定刻意要等待更長時間時，才調高此值。</td>
+</tr>
+</tbody>
+</table>
 <p>若需要指令選項及 CLI 層級的可接受值、範圍與預設值，請執行 <code>meters-tool &lt;command&gt; --help</code>（例如 <code>.\meters-tool.exe start-trigger-record --help</code>）。型號特定的支援與限制仍以 Core 驗證及前述「支援型號」範圍為準。</p>
 <h2 id="自動化-streaming">自動化 Streaming</h2>
 <p>使用 <code>--streaming --json</code>（或 <code>--streaming --status-format jsonl</code>）選用 Run-bound 量測事件與生命週期狀態輸出。Streaming 預設關閉，且必須搭配 JSONL。每個 Worker 執行一次擷取，保留所選模式的觸發及停止行為，既有儀器支援限制仍適用。</p>
@@ -263,6 +379,11 @@ Stop 會阻止新的虛擬觸發；正常收尾排空時，已保留的緩衝讀
 <li>選擇 <code>full</code> 時才有的 <code>measurement_type</code>、<code>trigger_source</code>；</li>
 <li>一個與前面板顯示足夠接近，且符合測試設定的數值。</li>
 </ul>
+<p>以下是一筆讀值的 CSV 示意範例（非實際儀器量測結果）：</p>
+<pre><code class="language-csv">timestamp_utc_plus_8,value,unit
+2026-01-01T12:00:00+08:00,1.234,V
+</code></pre>
+<p>標題列分別表示時間戳記、讀值及單位。出現一筆資料列代表已寫入讀值；使用量測結果前，仍應與儀器前面板讀值比對。</p>
 <p>每擷取一個樣本後，CSV 都會立即排空 (flush) 並寫入磁碟，因此即使在較長時間的執行中，也隨時能取得已完成的資料列。</p>
 <p>選用的 <code>elapsed_s</code> 與 <code>delta_t_s</code> 使用 PC CSV Writer 的單調時鐘，單位為秒、三位小數；首筆經過時間為 <code>0.000</code>，首筆間隔留空。同一 Buffered 取回批次共用時間，不代表儀器 ADC 的真實取樣間隔。</p>
 <h2 id="停止執行">停止執行</h2>
