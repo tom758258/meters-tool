@@ -156,6 +156,9 @@ def test_release_acceptance_runs_minimal_standalone_smokes_and_existing_prefligh
     for contract in (
         '$script:currentStep = "standalone_cli_version"',
         '$script:currentStep = "standalone_cli_help"',
+        '$script:currentStep = "standalone_cli_user_guide"',
+        'scripts\\smoke_cli_user_guide.py',
+        '--language-option=--lang',
         '$script:currentStep = "standalone_cli_simulator"',
         '$script:currentStep = "standalone_cli_manifest"',
         '@("manifest", "--json")',
