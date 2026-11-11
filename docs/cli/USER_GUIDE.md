@@ -14,7 +14,7 @@ The Windows release offers three operator-facing executables. All share the same
 | `meters-tool-webui-launcher.exe` | Browser WebUI | Graphical operation in a local browser |
 | `Meters Tool.exe` | Desktop | Graphical operation in an application window |
 
-This guide covers `meters-tool.exe`. For graphical operation, see the [WebUI / Desktop User Guide (online)](https://github.com/tom758258/meters-tool/blob/main/docs/webui/USER_GUIDE.md). The graphical interface also provides its own bundled offline `Help`.
+This guide covers `meters-tool.exe`. For graphical operation, open `meters-tool-webui-launcher.exe` (Browser WebUI) or `Meters Tool.exe` (Desktop) in the extracted release folder, then use that interface's `Help` to open its bundled offline guide.
 
 ## Start The CLI
 
