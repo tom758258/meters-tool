@@ -440,12 +440,6 @@ reading until process exit and check the reported outcome.</p>
 <p>CSV is enabled by default outside Streaming. The <code>data</code> layout writes <code>timestamp_utc_plus_8,value,unit</code>.
 Choose <code>--csv-format full</code> to preserve the original ten fields, including metadata.
 After a smoke run, check the CSV for:</p>
-<p>A one-sample CSV may look like this (illustrative values, not an instrument result):</p>
-<pre><code class="language-csv">timestamp_utc_plus_8,value,unit
-2026-01-01T12:00:00+08:00,1.234,V
-</code></pre>
-<p>The header identifies the timestamp, reading, and unit. One data row confirms that a reading was recorded; compare the value with the instrument front panel before trusting the measurement.</p>
-
 <ul>
 <li>at least one data row;</li>
 <li>expected <code>value</code>;</li>
@@ -453,6 +447,11 @@ After a smoke run, check the CSV for:</p>
 <li><code>measurement_type</code> and <code>trigger_source</code> when using <code>full</code>;</li>
 <li>a value that matches the front panel closely enough for the test setup.</li>
 </ul>
+<p>A one-sample CSV may look like this (illustrative values, not an instrument result):</p>
+<pre><code class="language-csv">timestamp_utc_plus_8,value,unit
+2026-01-01T12:00:00+08:00,1.234,V
+</code></pre>
+<p>The header identifies the timestamp, reading, and unit. One data row confirms that a reading was recorded; compare the value with the instrument front panel before trusting the measurement.</p>
 <p>The CSV is flushed after each captured sample, so completed rows should be
 available even during longer runs.</p>
 <p>Optional <code>elapsed_s</code> and <code>delta_t_s</code> represent PC CSV Writer monotonic receipt

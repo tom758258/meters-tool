@@ -283,6 +283,12 @@ Stop 會阻止新的虛擬觸發；正常收尾排空時，已保留的緩衝讀
 
 非 Streaming 模式預設啟用 CSV，`data` 格式輸出 `timestamp_utc_plus_8,value,unit`。使用 `--csv-format full` 才會輸出原有十欄與 metadata。快速功能健檢後請檢查：
 
+- 至少有一筆資料列；
+- 預期的 `value` (數值)；
+- 預期的 `unit` (單位)；
+- 選擇 `full` 時才有的 `measurement_type`、`trigger_source`；
+- 一個與前面板顯示足夠接近，且符合測試設定的數值。
+
 以下是一筆讀值的 CSV 示意範例（非實際儀器量測結果）：
 
 ```csv
@@ -291,12 +297,6 @@ timestamp_utc_plus_8,value,unit
 ```
 
 標題列分別表示時間戳記、讀值及單位。出現一筆資料列代表已寫入讀值；使用量測結果前，仍應與儀器前面板讀值比對。
-
-- 至少有一筆資料列；
-- 預期的 `value` (數值)；
-- 預期的 `unit` (單位)；
-- 選擇 `full` 時才有的 `measurement_type`、`trigger_source`；
-- 一個與前面板顯示足夠接近，且符合測試設定的數值。
 
 每擷取一個樣本後，CSV 都會立即排空 (flush) 並寫入磁碟，因此即使在較長時間的執行中，也隨時能取得已完成的資料列。
 

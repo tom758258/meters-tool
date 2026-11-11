@@ -351,6 +351,12 @@ CSV is enabled by default outside Streaming. The `data` layout writes `timestamp
 Choose `--csv-format full` to preserve the original ten fields, including metadata.
 After a smoke run, check the CSV for:
 
+- at least one data row;
+- expected `value`;
+- expected `unit`;
+- `measurement_type` and `trigger_source` when using `full`;
+- a value that matches the front panel closely enough for the test setup.
+
 A one-sample CSV may look like this (illustrative values, not an instrument result):
 
 ```csv
@@ -359,12 +365,6 @@ timestamp_utc_plus_8,value,unit
 ```
 
 The header identifies the timestamp, reading, and unit. One data row confirms that a reading was recorded; compare the value with the instrument front panel before trusting the measurement.
-
-- at least one data row;
-- expected `value`;
-- expected `unit`;
-- `measurement_type` and `trigger_source` when using `full`;
-- a value that matches the front panel closely enough for the test setup.
 
 The CSV is flushed after each captured sample, so completed rows should be
 available even during longer runs.
