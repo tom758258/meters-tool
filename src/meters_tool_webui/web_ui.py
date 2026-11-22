@@ -19,6 +19,7 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
 
 from meters_tool_webui._run_manager import (
     CsvFolderSelectionUnavailable as CsvFolderSelectionUnavailable,
+    ErrorQueueRequest,
     FALLBACK_WEBUI_VERSION as FALLBACK_WEBUI_VERSION,
     NoActiveRun as NoActiveRun,
     PACKAGE_NAME as PACKAGE_NAME,
@@ -132,6 +133,13 @@ def create_app(
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/api/diagnostics/error-queue")
+    def api_error_queue(request: ErrorQueueRequest) -> dict[str, Any]:
+        try:
+            return app.state.manager.read_errors(request)
+        except WebRunError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     @app.get("/api/runs/current")
     def api_current_run() -> dict[str, Any]:

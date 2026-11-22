@@ -140,6 +140,15 @@ WebUI／Desktop 保留非 Streaming、有限筆數的 Simple 模擬方式。</p>
 <p>某個 VISA resource 能回應 <code>*IDN?</code> 或出現在 <code>list-resources</code> 中，本身不代表所有型號與 transport/backend 組合都已 Product-open。型號、transport、backend、量測與觸發支援都是精確範圍，且必須符合 Core policy。未列出的組合會 fail closed，而不是透過 <code>--model</code> 或掃描結果被解鎖。</p>
 <p>精確的目前支援矩陣，請參閱 <a href="supported-models.zh-TW.html">支援型號</a>。</p>
 <p>CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。使用 <code>--visa-library "@py"</code> 可選擇隨程式提供的 PyVISA-py 後端，用於 34461A TCPIP；Windows 執行檔也支援此選擇。backend 選擇不會改變或擴充 Product 支援。</p>
+<h2 id="讀取-scpi-error-queue">讀取 SCPI Error Queue</h2>
+<p>請指定支援連線的 VISA 資源。查詢前先停止儀器上的量測，並確認只有你正在控制該台儀器。</p>
+<pre><code class="language-powershell">meters-tool read-errors --resource &quot;&lt;VISA_RESOURCE&gt;&quot; --max-reads 20
+</code></pre>
+<p>每次 <code>SYST:ERR?</code> 查詢會移除一筆佇列中的錯誤。指令在第一次收到 No error 回覆，
+或達到最大讀取次數時停止。上限預設為 20 次。若最後一次讀取仍回傳錯誤，佇列可能還有其他錯誤。
+使用 <code>--json</code> 可輸出單一結構化結果。連線使用 PyVISA-py 時，請加上 <code>--visa-library @py</code>。</p>
+<p>使用 <code>meters-tool read-errors --simulate --model 34461A</code> 可讀取模擬佇列。
+使用 <code>meters-tool read-errors --dry-run --model 34461A</code> 可在未連接儀器的情況下預覽查詢。</p>
 <h2 id="選擇量測類型">選擇量測類型</h2>
 <p>請選擇與儀器接線及待測訊號相符的量測類型：</p>
 <ul>

@@ -121,6 +121,21 @@ live 啟動省略 `--model` 時，連接儀器的 `*IDN?` 決定 runtime profile
 
 CLI 預設使用電腦的 System VISA runtime，例如 Keysight IO Libraries Suite 或 NI-VISA。使用 `--visa-library "@py"` 可選擇隨程式提供的 PyVISA-py 後端，用於 34461A TCPIP；Windows 執行檔也支援此選擇。backend 選擇不會改變或擴充 Product 支援。
 
+## 讀取 SCPI Error Queue
+
+請指定支援連線的 VISA 資源。查詢前先停止儀器上的量測，並確認只有你正在控制該台儀器。
+
+```powershell
+meters-tool read-errors --resource "<VISA_RESOURCE>" --max-reads 20
+```
+
+每次 `SYST:ERR?` 查詢會移除一筆佇列中的錯誤。指令在第一次收到 No error 回覆，
+或達到最大讀取次數時停止。上限預設為 20 次。若最後一次讀取仍回傳錯誤，佇列可能還有其他錯誤。
+使用 `--json` 可輸出單一結構化結果。連線使用 PyVISA-py 時，請加上 `--visa-library @py`。
+
+使用 `meters-tool read-errors --simulate --model 34461A` 可讀取模擬佇列。
+使用 `meters-tool read-errors --dry-run --model 34461A` 可在未連接儀器的情況下預覽查詢。
+
 ## 選擇量測類型
 
 請選擇與儀器接線及待測訊號相符的量測類型：

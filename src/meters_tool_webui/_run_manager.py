@@ -11,7 +11,7 @@ from typing import Any, Callable, Iterator, Literal, Optional
 from uuid import uuid4
 
 try:
-    from pydantic import BaseModel
+    from pydantic import BaseModel, StrictInt
 except ImportError as exc:  # pragma: no cover - exercised only without web deps
     raise RuntimeError(
         'Web UI dependencies are not installed. Run: uv pip install -e ".[webui]" --link-mode=copy'
@@ -36,6 +36,7 @@ from meters_tool_core._version import (
     get_distribution_version,
 )
 from meters_tool_core.command import SoftwareTriggerCommand
+from meters_tool_core.diagnostics import DEFAULT_MAX_READS, ErrorQueueMode, read_error_queue
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
 from meters_tool_core.models import (
     Transport,
@@ -98,6 +99,14 @@ class RunStartRequest(BaseModel):
     gate_time_s: Optional[float] = None
     freq_period_timeout: Optional[str] = None
     current_terminal: Optional[int] = None
+
+
+class ErrorQueueRequest(BaseModel, extra="forbid"):
+    resource: str = ""
+    visa_library: Literal["", "@py"] | None = None
+    instrument_model: str | None = None
+    max_reads: StrictInt = DEFAULT_MAX_READS
+    mode: ErrorQueueMode = "real"
 
 
 @dataclass
@@ -280,6 +289,7 @@ class WebRunManager:
         self._lock = threading.Lock()
         self._active: _RunHandle | None = None
         self._starting = False
+        self._reading_error_queue = False
         self._shutdown_requested = False
         self._last_status = self._idle_status()
         self._status_version = 0
@@ -319,6 +329,7 @@ class WebRunManager:
         with self._status_cv:
             shutdown_complete = self._status_cv.wait_for(
                 lambda: not self._starting
+                and not self._reading_error_queue
                 and (
                     self._active is None
                     or not self._is_handle_active(self._active)
@@ -410,6 +421,8 @@ class WebRunManager:
         with self._lock:
             if self._shutdown_requested:
                 raise RunAlreadyActive("WebUI is shutting down")
+            if self._reading_error_queue:
+                raise RunAlreadyActive("an SCPI error queue diagnostic is already active")
             if self._starting or (
                 self._active is not None and self._is_handle_active(self._active)
             ):
@@ -507,6 +520,34 @@ class WebRunManager:
                 if handle is not None and self._active is handle and not self._is_handle_active(handle):
                     self._active = None
             raise
+
+    def read_errors(self, request: ErrorQueueRequest) -> dict[str, Any]:
+        with self._lock:
+            if self._shutdown_requested:
+                raise RunAlreadyActive("WebUI is shutting down")
+            if self._starting or (
+                self._active is not None and self._is_handle_active(self._active)
+            ):
+                raise RunAlreadyActive("an SCPI error queue diagnostic cannot run during a measurement")
+            if self._reading_error_queue:
+                raise RunAlreadyActive("an SCPI error queue diagnostic is already active")
+            self._reading_error_queue = True
+        try:
+            return asdict(read_error_queue(
+                request.resource,
+                visa_library=request.visa_library,
+                instrument_model=request.instrument_model,
+                max_reads=request.max_reads,
+                mode=request.mode,
+            ))
+        except ValueError as exc:
+            raise RunValidationError(str(exc)) from exc
+        except InstrumentError as exc:
+            raise RunConnectionError(str(exc)) from exc
+        finally:
+            with self._status_cv:
+                self._reading_error_queue = False
+                self._status_cv.notify_all()
 
     def plan(self, request: RunStartRequest) -> dict[str, Any]:
         if not request.instrument_model:

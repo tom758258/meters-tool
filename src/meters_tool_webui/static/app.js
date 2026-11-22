@@ -14,6 +14,7 @@ import {
   deviceResourceToggleButton,
   deviceOptionsPanel,
   deviceOptionsToggleButton,
+  errorQueueMaxReads,
   executionModeInputs,
   executionModelHelp,
   executionModelLabel,
@@ -31,6 +32,7 @@ import {
   nplcSelect,
   openCsvButton,
   panelToggles,
+  readErrorQueueButton,
   refreshResourcesButton,
   resourceInput,
   resourceSelect,
@@ -79,6 +81,7 @@ import {
   isRunActive,
   markSoftwareTriggerQueuedForLog,
   pollStatus,
+  renderErrorQueueStatus,
   renderStatus,
   renderStartStatus,
   renderPlanPreview,
@@ -230,6 +233,9 @@ function updateExecutionModePresentation() {
   visaLibrarySelect.disabled = executionRequestPending || isRunActive();
   startRunButton.dataset.executionPending = String(executionRequestPending);
   updateStartButtonUi(isRunActive());
+  if (readErrorQueueButton) {
+    readErrorQueueButton.disabled = executionRequestPending || isRunActive();
+  }
   for (const input of executionModeInputs) {
     input.disabled = executionRequestPending || isRunActive();
   }
@@ -702,6 +708,47 @@ if (supportedDevicesToggleButton && supportedDevicesPanel) {
     }
   });
 }
+
+readErrorQueueButton?.addEventListener("click", async () => {
+  if (executionRequestPending || isRunActive() || !errorQueueMaxReads.reportValidity()) {
+    return;
+  }
+  const maxReads = Number(errorQueueMaxReads.value);
+  if (!Number.isSafeInteger(maxReads) || maxReads < 1) {
+    renderErrorQueueStatus("diagnostics.invalid_max_reads");
+    return;
+  }
+  const payload = {
+    mode: currentExecutionMode,
+    resource: currentExecutionMode === "real" ? resourceInput.value.trim() : "",
+    visa_library: visaLibrarySelect.value,
+    instrument_model: instrumentModelSelect.value || null,
+    max_reads: maxReads,
+  };
+  if (payload.mode === "real" && !payload.resource) {
+    renderErrorQueueStatus("diagnostics.resource_required");
+    return;
+  }
+  if (payload.mode !== "real" && !payload.instrument_model) {
+    renderErrorQueueStatus("validation.execution_model_required");
+    return;
+  }
+  executionRequestPending = true;
+  updateExecutionModePresentation();
+  renderErrorQueueStatus("diagnostics.reading");
+  try {
+    const result = await api("/api/diagnostics/error-queue", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    renderErrorQueueStatus(`diagnostics.${result.termination}`, result);
+  } catch (error) {
+    renderErrorQueueStatus("diagnostics.failed", null, error.message);
+  } finally {
+    executionRequestPending = false;
+    updateExecutionModePresentation();
+  }
+});
 
 startRunButton.addEventListener("click", async () => {
   if (executionRequestPending || isRunActive()) {

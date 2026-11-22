@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import sys
 
+from meters_tool_core.diagnostics import DEFAULT_MAX_READS
 from meters_tool_core.measurement import format_measurement_type
 from meters_tool_core.models import get_default_instrument_profile, supported_instrument_models
 from meters_tool_core.validation import (
@@ -88,6 +89,7 @@ def _apply_json_aliases(args: argparse.Namespace, argv: list[str], parser: argpa
     if getattr(args, "command", None) in {
         "capabilities",
         "list-resources",
+        "read-errors",
         "manifest",
         "send-command",
         "stop",
@@ -192,6 +194,24 @@ def _add_list_resources_parser(sub) -> None:
         help="output format for discovered resources; default: text",
     )
     list_resources.add_argument("--json", action="store_true", help="alias for --format json")
+
+
+def _add_read_errors_parser(sub) -> None:
+    read_errors = sub.add_parser(
+        "read-errors",
+        formatter_class=MetersHelpFormatter,
+        help="read and remove entries from the SCPI error queue",
+    )
+    read_errors.add_argument("--resource", help="explicit VISA resource for live diagnostics")
+    read_errors.add_argument("--model", dest="instrument_model", help="expected or simulated model")
+    read_errors.add_argument(
+        "--max-reads", default=DEFAULT_MAX_READS, help="maximum number of SYST:ERR? queries"
+    )
+    mode = read_errors.add_mutually_exclusive_group()
+    mode.add_argument("--simulate", action="store_true", help="read a simulated queue")
+    mode.add_argument("--dry-run", action="store_true", help="preview without VISA I/O")
+    _add_visa_library_argument(read_errors)
+    _add_client_output_arguments(read_errors, include_dry_run=False)
 
 
 def _add_capabilities_parser(sub, *, supported_models: str) -> None:
@@ -571,6 +591,7 @@ def build_parser(version_provider) -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     _add_list_resources_parser(sub)
+    _add_read_errors_parser(sub)
     _add_capabilities_parser(sub, supported_models=supported_models)
     _add_manifest_parser(sub)
     _add_start_parser(

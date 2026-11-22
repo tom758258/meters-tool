@@ -5,6 +5,7 @@ import json
 import signal  # noqa: F401  # compatibility patch path
 import sys
 import webbrowser
+from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -30,6 +31,7 @@ from meters_tool_core._version import (
     FALLBACK_PACKAGE_VERSION,
     get_distribution_version,
 )
+from meters_tool_core.diagnostics import read_error_queue
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
 from meters_tool_core.session import new_run_id
 from meters_tool_core.start_resolution import resolve_start_profile
@@ -542,6 +544,61 @@ def cmd_list_resources(
         )
     return 0
 
+def cmd_read_errors(args: argparse.Namespace) -> int:
+    mode = "real"
+    if args.dry_run:
+        mode = "dry-run"
+    elif args.simulate:
+        mode = "simulate"
+
+    payload = {
+        "command": "read-errors",
+        "schema_version": CLI_EVENT_SCHEMA_VERSION,
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        try:
+            max_reads = int(args.max_reads)
+        except ValueError as exc:
+            raise ValueError("--max-reads must be a positive integer") from exc
+        result = read_error_queue(
+            args.resource or "",
+            instrument_model=args.instrument_model,
+            visa_library=args.visa_library,
+            max_reads=max_reads,
+            mode=mode,
+        )
+    except (ValueError, InstrumentError) as exc:
+        exit_code = 2 if isinstance(exc, ValueError) else 3
+        if args.output_format == "json":
+            print(json.dumps({
+                **payload, "event": "error", "status": "error",
+                "message": str(exc), "exit_code": exit_code,
+            }))
+        else:
+            print(f"error: {exc}", file=sys.stderr)
+        return exit_code
+
+    if args.output_format == "json":
+        event = "dry_run" if args.dry_run else "read-errors"
+        status = "dry_run" if args.dry_run else "ok"
+        print(json.dumps({**payload, "event": event, "status": status, **asdict(result)}))
+    elif args.dry_run:
+        print(f"Dry-run for {result.model}: *IDN? and up to {result.max_reads} SYST:ERR? queries; no VISA I/O.")
+    else:
+        for entry in result.errors:
+            print(f"{entry.code}: {entry.message}")
+        outcome = (
+            "Queue confirmed empty" if result.queue_cleared
+            else "Maximum reads reached; queue not confirmed empty"
+        )
+        print(
+            f"{result.model} ({result.mode}): {len(result.errors)} error(s) in "
+            f"{result.reads}/{result.max_reads} reads. {outcome}."
+        )
+    return 0
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     emitter = CliEventEmitter(print_fn=print, output_format=args.status_format)
     support_policy_mode = (
@@ -628,6 +685,8 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_capabilities(args.instrument_model, args.output_format)
     if args.command == "manifest":
         return cmd_manifest(args.output_format)
+    if args.command == "read-errors":
+        return cmd_read_errors(args)
     if args.command == "list-resources":
         return cmd_list_resources(
             verify=args.verify,

@@ -206,6 +206,16 @@
                     </div>
                   </dl>
                 </div>
+                <section class="device-error-queue" aria-labelledby="error-queue-heading">
+                  <h2 id="error-queue-heading" data-i18n="diagnostics.heading">SCPI Error Queue</h2>
+                  <div class="error-queue-controls">
+                    <label>
+                      <span data-i18n="diagnostics.max_reads_label">Max reads</span>
+                      <input id="error-queue-max-reads" type="number" min="1" step="1" value="20" required />
+                    </label>
+                    <button id="read-error-queue" type="button" data-i18n="diagnostics.read">Read Error Queue</button>
+                  </div>
+                </section>
               </div>
             </div>
             <button
@@ -730,12 +740,17 @@
             aria-label="Status log"
             data-i18n-aria-label="accessibility.status_log"
           ></div>
+          <p id="error-queue-summary" class="error-queue-summary" role="status"></p>
           <div id="status-details" class="status-details is-hidden">
             <pre id="fatal-error"></pre>
             <pre id="cleanup-status"></pre>
             <section id="dry-run-plan-result" class="dry-run-plan-result is-hidden">
               <h3 data-i18n="execution.plan_result">Dry-run plan</h3>
               <pre id="dry-run-plan"></pre>
+            </section>
+            <section id="error-queue-result" class="error-queue-result is-hidden">
+              <h3 data-i18n="diagnostics.heading">SCPI Error Queue</h3>
+              <pre id="error-queue-details"></pre>
             </section>
             <pre id="raw-status"></pre>
           </div>

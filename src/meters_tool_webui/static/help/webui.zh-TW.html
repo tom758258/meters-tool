@@ -160,6 +160,14 @@ Port，等待 WebUI ready 後，再以實際成功 bind 的 Port 開啟瀏覽器
 <li>啟用 CSV 的作業停止後，點擊 <code>Open CSV</code> (開啟 CSV) 以開啟已完成的 CSV 檔案。</li>
 </ol>
 <p>一次只能執行一個作業。啟動新作業將會清除畫面上前次作業的最近樣本。</p>
+<h2 id="讀取-scpi-error-queue">讀取 SCPI Error Queue</h2>
+<p>實機查詢時，請先選取或輸入 VISA 資源。開啟齒輪圖示「裝置選項」，依需要選擇 VISA 後端、執行模式及型號。
+在 <strong>SCPI Error Queue</strong> 中設定「最大讀取次數」（預設 20），再按「讀取 Error Queue」。</p>
+<p>每次查詢會移除一筆佇列中的錯誤。讀到第一筆 No error 回覆或達到上限時便停止。
+若最後一次讀取仍回傳錯誤，佇列可能還有其他錯誤。摘要會保留在「狀態」區，
+可開啟「顯示詳細資料」查看錯誤碼、訊息及完整結果。</p>
+<p>請在兩次量測之間執行診斷。使用模擬或 Dry-run 時，請選擇支援的型號，即可在未連接儀器的情況下
+讀取模擬佇列或預覽查詢。</p>
 <h2 id="選擇觸發模式">選擇觸發模式</h2>
 <p>選擇觸發模式時，先判斷<strong>由什麼事件開始擷取</strong>，再判斷需要一般讀值，還是
 buffered custom acquisition。</p>

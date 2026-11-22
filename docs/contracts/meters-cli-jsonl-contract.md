@@ -228,6 +228,23 @@ values from `100` to `600000`. Their default is `3000` ms.
 by `wait-ready` uses at most `1000` ms and polling uses a fixed 200 ms
 interval.
 
+### SCPI Error Queue
+
+`read-errors --json` emits one schema 2 object with `command: "read-errors"`.
+A completed query uses `event: "read-errors"` and `status: "ok"`. It reports
+`mode`, `model`, `max_reads`, `reads`, `termination`, `queue_cleared`, and
+`errors` (ordered objects with an integer `code` and a string `message`).
+`reads` includes the terminating zero-code reply when present. The zero-code
+reply sets `termination: "no_error"` and `queue_cleared: true`. A limit reached
+with a nonzero reply sets `termination: "max_reads"` and
+`queue_cleared: false`. Both query outcomes exit `0`.
+
+Dry-run emits `event`, `status`, and `termination` equal to `"dry_run"`,
+with zero reads, an empty `errors` array and `queue_cleared: false`.
+A rejected request or instrument failure emits `event: "error"`,
+`status: "error"`, `message`, and `exit_code` (`2` for validation and `3`
+for instrument communication or an invalid reply).
+
 ### Tool Manifest
 
 `manifest --json` emits one `event: tool_manifest` object and exits `0`. The

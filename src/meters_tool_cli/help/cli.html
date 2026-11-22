@@ -175,6 +175,19 @@ Core policy. Unsupported combinations fail closed instead of being unlocked by
 IO Libraries Suite or NI-VISA. Use <code>--visa-library "@py"</code> to select the bundled
 PyVISA-py backend for 34461A TCPIP, including in the Windows executable.
 Backend selection does not change or expand Product support.</p>
+<h2 id="read-the-scpi-error-queue">Read The SCPI Error Queue</h2>
+<p>Use an explicit VISA resource on a supported connection. Stop any measurement
+on the instrument and make sure you have exclusive control before querying.</p>
+<pre><code class="language-powershell">meters-tool read-errors --resource &quot;&lt;VISA_RESOURCE&gt;&quot; --max-reads 20
+</code></pre>
+<p>Each <code>SYST:ERR?</code> query removes one queued error. The command stops at the
+first No error reply or at the read limit, which defaults to 20. If the
+limit is reached with an error reply, the queue may still contain errors.
+Use <code>--json</code> for one structured result and <code>--visa-library @py</code> when your
+connection uses PyVISA-py.</p>
+<p>Use <code>meters-tool read-errors --simulate --model 34461A</code> to read a simulated
+queue or <code>meters-tool read-errors --dry-run --model 34461A</code> to preview the
+queries without connecting to an instrument.</p>
 <h2 id="choosing-a-measurement">Choosing A Measurement</h2>
 <p>Choose the measurement type that matches the instrument wiring and the signal
 being measured:</p>

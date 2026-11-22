@@ -215,6 +215,17 @@ state. Meters Tool does not enforce this with an automatic lock.</p>
 </ol>
 <p>Only one run can be active at a time. Starting a new run clears the displayed
 recent samples from the previous run.</p>
+<h2 id="read-the-scpi-error-queue">Read The SCPI Error Queue</h2>
+<p>For a live query, select or enter a VISA resource. Open the <strong>Device options</strong> gear. Choose
+the VISA backend, execution mode, and model as needed. Under <strong>SCPI Error Queue</strong>,
+set <strong>Max reads</strong> (default 20) and click <strong>Read Error Queue</strong>.</p>
+<p>Each query removes one queued error. Reading stops at the first No error reply
+or at the limit. If the limit is reached with an error reply, the queue may
+still contain errors. The summary remains in <strong>Status</strong>. Open <strong>Show Details</strong>
+for the error codes, messages, and full result.</p>
+<p>Run the diagnostic between measurements. In Simulate or Dry-run, select a
+supported model to read a simulated queue or preview the queries without
+connecting to an instrument.</p>
 <h2 id="choosing-a-trigger-mode">Choosing A Trigger Mode</h2>
 <p>Choose the trigger mode by deciding <strong>what should start a capture</strong> and whether
 you need simple readings or a buffered custom acquisition.</p>
