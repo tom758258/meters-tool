@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .measurement import format_measurement_type, normalize_measurement_type
-from .models import InstrumentProfile, StartRequest
+from .models import INSTRUMENT_PROFILES, InstrumentProfile, StartRequest
 from .validation import resolve_trigger_mode, supported_measurement_types, supported_trigger_modes
 
 
@@ -398,6 +398,24 @@ def infer_backend_scope(visa_library: str | None) -> str:
     if selector == "@bt":
         return BACKEND_PYVISA_BT
     return BACKEND_CUSTOM
+
+
+def validate_product_live_connection(
+    resource: str, visa_library: str | None, profile: InstrumentProfile | None = None
+) -> None:
+    """Require an open connection scope without applying acquisition requirements."""
+    transport = infer_transport_scope(resource)
+    backend = infer_backend_scope(visa_library)
+    profiles = INSTRUMENT_PROFILES if profile is None else (profile,)
+    for candidate in profiles:
+        support = start_workflow_support(candidate)["start-trigger-record"]["live"]
+        scope = _find_scope_support(support, transport, backend)
+        if scope is not None and scope.validation_status == VALIDATION_STATUS_LIVE_VALIDATED_FULL_SUITE:
+            return
+    model = profile.model if profile is not None else "any supported model"
+    raise ValueError(
+        f"Product live connection is not open for {model}: transport={transport}, backend={backend}"
+    )
 
 
 def validate_start_workflow_support(

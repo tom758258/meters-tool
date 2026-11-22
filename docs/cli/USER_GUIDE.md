@@ -156,6 +156,25 @@ IO Libraries Suite or NI-VISA. Use `--visa-library "@py"` to select the bundled
 PyVISA-py backend for 34461A TCPIP, including in the Windows executable.
 Backend selection does not change or expand Product support.
 
+## Read The SCPI Error Queue
+
+Use an explicit VISA resource on a supported connection. Stop any measurement
+on the instrument and make sure you have exclusive control before querying.
+
+```powershell
+meters-tool read-errors --resource "<VISA_RESOURCE>" --max-reads 20
+```
+
+Each `SYST:ERR?` query removes one queued error. The command stops at the
+first No error reply or at the read limit, which defaults to 20. If the
+limit is reached with an error reply, the queue may still contain errors.
+Use `--json` for one structured result and `--visa-library @py` when your
+connection uses PyVISA-py.
+
+Use `meters-tool read-errors --simulate --model 34461A` to read a simulated
+queue or `meters-tool read-errors --dry-run --model 34461A` to preview the
+queries without connecting to an instrument.
+
 ## Choosing A Measurement
 
 Choose the measurement type that matches the instrument wiring and the signal

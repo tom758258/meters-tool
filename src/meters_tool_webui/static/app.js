@@ -14,6 +14,7 @@ import {
   deviceResourceToggleButton,
   deviceOptionsPanel,
   deviceOptionsToggleButton,
+  errorQueueMaxReads,
   executionModeInputs,
   executionModelHelp,
   executionModelLabel,
@@ -31,6 +32,7 @@ import {
   nplcSelect,
   openCsvButton,
   panelToggles,
+  readErrorQueueButton,
   refreshResourcesButton,
   resourceInput,
   resourceSelect,
@@ -79,6 +81,7 @@ import {
   isRunActive,
   markSoftwareTriggerQueuedForLog,
   pollStatus,
+  renderErrorQueueStatus,
   renderStatus,
   renderStartStatus,
   renderPlanPreview,
@@ -148,6 +151,7 @@ let scanMetadataByResource = new Map();
 let resourceScanCompleted = false;
 let currentExecutionMode = "real";
 let executionRequestPending = false;
+let pendingResourceScans = 0;
 let realResourceValue = resourceInput.value;
 let realModelValue = instrumentModelSelect.value;
 let noHardwareModelValue = "";
@@ -225,11 +229,19 @@ function updateModelSelectorPresentation() {
   }
 }
 
+function updateErrorQueueButtonAvailability() {
+  if (!readErrorQueueButton) return;
+  const scanPending = currentExecutionMode === "real" && pendingResourceScans > 0;
+  readErrorQueueButton.dataset.scanPending = String(scanPending);
+  readErrorQueueButton.disabled = executionRequestPending || isRunActive() || scanPending;
+}
+
 function updateExecutionModePresentation() {
   const noHardware = currentExecutionMode !== "real";
   visaLibrarySelect.disabled = executionRequestPending || isRunActive();
   startRunButton.dataset.executionPending = String(executionRequestPending);
   updateStartButtonUi(isRunActive());
+  updateErrorQueueButtonAvailability();
   for (const input of executionModeInputs) {
     input.disabled = executionRequestPending || isRunActive();
   }
@@ -237,7 +249,7 @@ function updateExecutionModePresentation() {
   resourceInput.required = !noHardware;
   resourceSelect.disabled = noHardware;
   refreshResourcesButton.dataset.executionDisabled = String(noHardware);
-  refreshResourcesButton.disabled = noHardware || isRunActive();
+  refreshResourcesButton.disabled = noHardware || executionRequestPending || isRunActive();
   deviceResourceToggleButton.disabled = noHardware;
   if (noHardware) {
     deviceResourceBody.classList.add("is-hidden");
@@ -493,14 +505,20 @@ for (const button of supportedBackendButtons) {
 }
 
 refreshResourcesButton.addEventListener("click", async () => {
+  if (executionRequestPending || currentExecutionMode !== "real") return;
   if (isRunActive()) {
     appendTranslatedStatusLog("status.active_run_scan_blocked");
     return;
   }
+  pendingResourceScans += 1;
+  updateErrorQueueButtonAvailability();
   try {
     await refreshResources();
   } catch (error) {
     appendBrowserError(error);
+  } finally {
+    pendingResourceScans -= 1;
+    updateErrorQueueButtonAvailability();
   }
 });
 
@@ -702,6 +720,61 @@ if (supportedDevicesToggleButton && supportedDevicesPanel) {
     }
   });
 }
+
+errorQueueMaxReads?.addEventListener("input", () => {
+  errorQueueMaxReads.setCustomValidity("");
+});
+
+readErrorQueueButton?.addEventListener("click", async () => {
+  if (
+    executionRequestPending || isRunActive() ||
+    (currentExecutionMode === "real" && pendingResourceScans > 0)
+  ) {
+    return;
+  }
+  const maxReads = Number(errorQueueMaxReads.value);
+  const validMaxReads = Number.isSafeInteger(maxReads) && maxReads >= 1;
+  errorQueueMaxReads.setCustomValidity(validMaxReads ? "" : t("diagnostics.invalid_max_reads"));
+  if (!validMaxReads) {
+    errorQueueMaxReads.reportValidity();
+    return;
+  }
+  const payload = {
+    mode: currentExecutionMode,
+    resource: currentExecutionMode === "real" ? resourceInput.value.trim() : "",
+    visa_library: visaLibrarySelect.value,
+    instrument_model: instrumentModelSelect.value || null,
+    max_reads: maxReads,
+  };
+  if (payload.mode === "real" && !payload.resource) {
+    renderErrorQueueStatus("diagnostics.resource_required");
+    return;
+  }
+  if (payload.mode !== "real" && !payload.instrument_model) {
+    renderErrorQueueStatus("validation.execution_model_required");
+    return;
+  }
+  executionRequestPending = true;
+  updateExecutionModePresentation();
+  renderErrorQueueStatus("diagnostics.reading");
+  try {
+    const result = await api("/api/diagnostics/error-queue", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    renderErrorQueueStatus(`diagnostics.${result.termination}`, result);
+  } catch (error) {
+    const partialResult = error.payload?.partial_result;
+    if (partialResult) {
+      renderErrorQueueStatus("diagnostics.partial_failure", { ...partialResult, message: error.message });
+    } else {
+      renderErrorQueueStatus("diagnostics.failed", null, error.message);
+    }
+  } finally {
+    executionRequestPending = false;
+    updateExecutionModePresentation();
+  }
+});
 
 startRunButton.addEventListener("click", async () => {
   if (executionRequestPending || isRunActive()) {

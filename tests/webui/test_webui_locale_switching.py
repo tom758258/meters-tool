@@ -594,6 +594,146 @@ process.stdout.write(JSON.stringify({ ok: true }));
     assert completed.stdout == '{"ok":true}'
 
 
+@pytest.mark.frontend_node
+@pytest.mark.skipif(NODE is None, reason="Node.js is required for application locale tests")
+def test_error_queue_result_survives_status_updates_and_locale_changes():
+    script = APPLICATION_TEST_SETUP + r'''
+const result = {
+  mode: "real",
+  model: "34461A",
+  max_reads: 2,
+  reads: 2,
+  termination: "max_reads",
+  queue_cleared: false,
+  errors: [
+    { code: -113, message: "Undefined header" },
+    { code: -222, message: "Data out of range" },
+  ],
+};
+let diagnosticPayload;
+let finishDiagnostic;
+let finishScan;
+let startRequests = 0;
+let scanRequests = 0;
+globalThis.fetch = async (path, options) => {
+  if (String(path).includes("/api/capabilities")) {
+    return response({ detail: "capabilities unavailable" }, false);
+  }
+  if (path === "/api/diagnostics/error-queue") {
+    assert.equal(options.method, "POST");
+    diagnosticPayload = JSON.parse(options.body);
+    return new Promise((resolve) => { finishDiagnostic = resolve; });
+  }
+  if (String(path).startsWith("/api/resources?")) {
+    scanRequests += 1;
+    return new Promise((resolve) => { finishScan = resolve; });
+  }
+  if (path === "/api/runs") startRequests += 1;
+  throw new Error(`Unexpected request ${path}`);
+};
+
+element("#resource").value = "TCPIP0::meter.example::INSTR";
+element("#visa-library").value = "@py";
+await import(appUrl);
+await new Promise((resolve) => setTimeout(resolve, 0));
+const { t } = await import(new URL("./i18n.js", appUrl));
+const status = await import(new URL("./status.js", appUrl));
+const field = element("#error-queue-max-reads");
+const scanButton = element("#refresh-resources");
+const diagnosticButton = element("#read-error-queue");
+const scan = scanButton.listeners.get("click");
+const read = diagnosticButton.listeners.get("click");
+
+field.value = "0";
+let reportedValidationMessage;
+field.reportValidity = () => {
+  reportedValidationMessage = field.validationMessage;
+};
+await read();
+const englishValidationMessage = reportedValidationMessage;
+assert.equal(englishValidationMessage, t("diagnostics.invalid_max_reads"));
+element("#locale-toggle").click();
+await read();
+assert.equal(documentElement.lang, "zh-TW");
+assert.equal(reportedValidationMessage, t("diagnostics.invalid_max_reads"));
+assert.notEqual(reportedValidationMessage, englishValidationMessage);
+assert.equal(diagnosticPayload, undefined);
+element("#locale-toggle").click();
+
+field.value = "2";
+field.listeners.get("input")();
+const scanning = scan();
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+assert.equal(diagnosticButton.disabled, true);
+await read();
+assert.equal(diagnosticPayload, undefined);
+finishScan(response({ resources: [] }));
+await scanning;
+assert.equal(diagnosticButton.disabled, false);
+
+const pending = read();
+assert.deepEqual(diagnosticPayload, {
+  mode: "real",
+  resource: "TCPIP0::meter.example::INSTR",
+  visa_library: "@py",
+  instrument_model: "34461A",
+  max_reads: 2,
+});
+assert.equal(element("#start-run").disabled, true);
+await element("#start-run").listeners.get("click")();
+assert.equal(startRequests, 0);
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+assert.equal(scanButton.disabled, true);
+await scan();
+assert.equal(scanRequests, 1);
+finishDiagnostic(response(result));
+await pending;
+assert.equal(scanButton.disabled, false);
+
+const summary = element("#error-queue-summary");
+const details = element("#error-queue-details");
+const english = summary.textContent;
+assert.match(english, /2\/2/);
+assert.deepEqual(JSON.parse(details.textContent), result);
+element("#device-options-toggle").listeners.get("click")({ stopPropagation() {} });
+element("#device-options-toggle").listeners.get("click")({ stopPropagation() {} });
+element("#toggle-status-details").click();
+assert.equal(element("#status-details").classList.contains("is-hidden"), false);
+assert.equal(element("#error-queue-result").classList.contains("is-hidden"), false);
+
+status.renderStatus({ active: true, state: "running", errors: 7, recent_samples: [] });
+assert.equal(element("#read-error-queue").disabled, true);
+assert.equal(element("#status-errors").textContent, "7");
+assert.equal(summary.textContent, english);
+element("#locale-toggle").click();
+assert.equal(documentElement.lang, "zh-TW");
+assert.notEqual(summary.textContent, english);
+assert.match(summary.textContent, /2\/2/);
+assert.deepEqual(JSON.parse(details.textContent), result);
+
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+const failed = read();
+const partial = {
+  ...result,
+  reads: 1,
+  termination: "failed",
+  errors: result.errors.slice(0, 1),
+};
+const failureMessage = "VISA read timed out";
+finishDiagnostic(response({ detail: failureMessage, partial_result: partial }, false));
+await failed;
+assert.equal(summary.textContent, t("diagnostics.partial_failure", { reads: 1, maxReads: 2, errors: 1 }));
+assert.equal(element("#error-queue-result").classList.contains("is-hidden"), false);
+assert.deepEqual(JSON.parse(details.textContent), { ...partial, message: failureMessage });
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+element("#locale-toggle").click();
+assert.equal(summary.textContent, t("diagnostics.partial_failure", { reads: 1, maxReads: 2, errors: 1 }));
+assert.deepEqual(JSON.parse(details.textContent), { ...partial, message: failureMessage });
+'''
+    completed = run_node(script, STATIC_DIR / "app.js")
+    assert completed.returncode == 0, completed.stderr
+
+
 @pytest.mark.skipif(NODE is None, reason="Node.js is required for locale runtime tests")
 def test_locale_resolution_and_storage_contract():
     script = r'''

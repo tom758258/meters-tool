@@ -388,6 +388,19 @@ button:disabled:hover {
   font-size: 14px;
 }
 
+.device-error-queue {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.error-queue-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
 .supported-devices-panel {
   width: min(440px, calc(100vw - 60px));
 }
@@ -1335,7 +1348,12 @@ button:focus {
   margin-top: 10px;
 }
 
-.dry-run-plan-result h3 {
+.error-queue-summary:not(:empty) {
+  margin: 10px 0 0;
+}
+
+.dry-run-plan-result h3,
+.error-queue-result h3 {
   margin: 10px 0 6px;
   font-size: 13px;
 }

@@ -5,12 +5,16 @@ import {
   commandStateIndicator,
   dryRunPlan,
   dryRunPlanResult,
+  errorQueueDetails,
+  errorQueueResult,
+  errorQueueSummary,
   executionModeInputs,
   fatalError,
   latestStatus,
   liveStateIndicator,
   openCsvButton,
   rawStatus,
+  readErrorQueueButton,
   refreshResourcesButton,
   visaLibrarySelect,
   startRunButton,
@@ -56,6 +60,7 @@ let loggedSseFallback = false;
 let latestRenderedStatus = null;
 let lastRunControlsActive = false;
 let planPreviewActive = false;
+let latestErrorQueue = null;
 let webuiIndicatorRender = {
   cls: "state-warning",
   key: "live_data.indicator_checking",
@@ -395,8 +400,32 @@ export function clearPlanPreview() {
   }
 }
 
+export function renderErrorQueueStatus(key, result = null, error = "") {
+  latestErrorQueue = { key, result };
+  refreshErrorQueueSummary();
+  errorQueueDetails.textContent = result ? JSON.stringify(result, null, 2) : error;
+  errorQueueResult.classList.toggle("is-hidden", !result && !error);
+}
+
+function refreshErrorQueueSummary() {
+  if (!latestErrorQueue) return;
+  const { key, result } = latestErrorQueue;
+  if (!result) {
+    setTranslatedText(errorQueueSummary, key);
+    return;
+  }
+  setTranslatedText(errorQueueSummary, key, {
+    model: result.model,
+    mode: t(result.mode === "dry-run" ? "execution.dry_run" : `execution.${result.mode}`),
+    maxReads: result.max_reads,
+    reads: result.reads,
+    errors: result.errors.length,
+  });
+}
+
 export function refreshStatusPresentation() {
   renderStatusLog();
+  refreshErrorQueueSummary();
   const detailsVisible = !statusDetails.classList.contains("is-hidden");
   setStatusDetailsVisible(detailsVisible);
   setStateIndicator(webuiStateIndicator, webuiIndicatorRender);
@@ -423,9 +452,13 @@ function updateRunControlButtons(status) {
   const active = Boolean(status?.active);
   const executionPending = startRunButton.dataset.executionPending === "true";
   updateStartButtonUi(active);
+  if (readErrorQueueButton) {
+    readErrorQueueButton.disabled =
+      active || executionPending || readErrorQueueButton.dataset.scanPending === "true";
+  }
   if (visaLibrarySelect) visaLibrarySelect.disabled = active || executionPending;
   refreshResourcesButton.disabled =
-    active || refreshResourcesButton.dataset.executionDisabled === "true";
+    active || executionPending || refreshResourcesButton.dataset.executionDisabled === "true";
   for (const input of executionModeInputs) {
     input.disabled = active || executionPending;
   }

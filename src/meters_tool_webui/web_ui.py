@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,8 +18,11 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
         'Web UI dependencies are not installed. Run: uv pip install -e ".[webui]" --link-mode=copy'
     ) from exc
 
+from meters_tool_core.diagnostics import ErrorQueueReadError
+from meters_tool_core.instrument import InstrumentError
 from meters_tool_webui._run_manager import (
     CsvFolderSelectionUnavailable as CsvFolderSelectionUnavailable,
+    ErrorQueueRequest,
     FALLBACK_WEBUI_VERSION as FALLBACK_WEBUI_VERSION,
     NoActiveRun as NoActiveRun,
     PACKAGE_NAME as PACKAGE_NAME,
@@ -92,6 +96,8 @@ def create_app(
             return app.state.manager.list_resources(
                 verify=verify, live_only=live_only, visa_library=visa_library
             )
+        except RunAlreadyActive as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -132,6 +138,22 @@ def create_app(
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    @app.post("/api/diagnostics/error-queue", response_model=None)
+    def api_error_queue(request: ErrorQueueRequest) -> dict[str, Any] | JSONResponse:
+        try:
+            return app.state.manager.read_errors(request)
+        except ErrorQueueReadError as exc:
+            return JSONResponse(
+                status_code=RunConnectionError.status_code,
+                content={"detail": str(exc), "partial_result": asdict(exc.partial_result)},
+            )
+        except InstrumentError as exc:
+            raise HTTPException(status_code=RunConnectionError.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=RunValidationError.status_code, detail=str(exc)) from exc
+        except WebRunError as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     @app.get("/api/runs/current")
     def api_current_run() -> dict[str, Any]:
