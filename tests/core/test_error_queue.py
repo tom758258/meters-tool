@@ -2,7 +2,7 @@ from unittest.mock import Mock, call
 
 import pytest
 
-from meters_tool_core.diagnostics import ScpiError, read_error_queue
+from meters_tool_core.diagnostics import ErrorQueueReadError, ScpiError, read_error_queue
 from meters_tool_core.instrument import InstrumentError
 
 
@@ -88,12 +88,28 @@ def test_unsupported_identity_or_scope_leaves_queue_untouched(visa, resource, id
     manager.close.assert_called_once()
 
 
-@pytest.mark.parametrize("reply", [TimeoutError("timed out"), 'invalid reply', '+0,"unterminated'])
-def test_query_failure_closes_both_visa_resources(visa, reply):
+@pytest.mark.parametrize(
+    ("replies", "prior_error"),
+    [
+        ([TimeoutError("timed out")], None),
+        (['invalid reply'], None),
+        (['+0,"unterminated'], None),
+        (['-113,"Undefined header"', TimeoutError("timed out")], ScpiError(-113, "Undefined header")),
+    ],
+)
+def test_query_failure_closes_visa_and_preserves_retrieved_errors(visa, replies, prior_error):
     manager, instrument = visa
-    instrument.query.side_effect = ["Keysight Technologies,34461A,FAKE,1.0", reply]
-    with pytest.raises(InstrumentError):
+    instrument.query.side_effect = ["Keysight Technologies,34461A,FAKE,1.0", *replies]
+    error_type = ErrorQueueReadError if prior_error is not None else InstrumentError
+    with pytest.raises(error_type) as failure:
         read_error_queue("USB::FAKE::INSTR", resource_manager_factory=lambda: manager)
+    if prior_error is not None:
+        partial = failure.value.partial_result
+        assert partial.errors == (prior_error,)
+        assert partial.reads == 1
+        assert partial.termination == "failed"
+        assert partial.queue_cleared is False
+        assert "timed out" in str(failure.value)
     instrument.close.assert_called_once()
     manager.close.assert_called_once()
 

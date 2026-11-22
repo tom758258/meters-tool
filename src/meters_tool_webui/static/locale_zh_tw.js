@@ -61,6 +61,7 @@ export const ZH_TW_MESSAGES = Object.freeze({
   "diagnostics.invalid_max_reads": "請輸入正整數作為最大讀取次數。",
   "diagnostics.resource_required": "讀取 Error Queue 前請選取或輸入 VISA 資源。",
   "diagnostics.failed": "SCPI Error Queue 查詢失敗。請查看「顯示詳細資料」。",
+  "diagnostics.partial_failure": "SCPI Error Queue 完成 {reads}/{maxReads} 次讀取後查詢失敗。佇列可能仍有錯誤。已取得的 {errors} 筆錯誤可在「顯示詳細資料」查看。",
   "diagnostics.no_error": "SCPI Error Queue · {model}（{mode}）· 讀取 {reads}/{maxReads} 次，共 {errors} 筆錯誤。已確認佇列清空。",
   "diagnostics.max_reads": "SCPI Error Queue · {model}（{mode}）· 讀取 {reads}/{maxReads} 次，共 {errors} 筆錯誤。已達最大讀取次數，佇列可能仍有錯誤。",
   "diagnostics.dry_run": "SCPI Error Queue · {model}（{mode}）· 預覽識別查詢及最多 {maxReads} 次佇列讀取。未執行 VISA I/O。",

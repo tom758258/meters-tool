@@ -710,6 +710,25 @@ assert.equal(documentElement.lang, "zh-TW");
 assert.notEqual(summary.textContent, english);
 assert.match(summary.textContent, /2\/2/);
 assert.deepEqual(JSON.parse(details.textContent), result);
+
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+const failed = read();
+const partial = {
+  ...result,
+  reads: 1,
+  termination: "failed",
+  errors: result.errors.slice(0, 1),
+};
+const failureMessage = "VISA read timed out";
+finishDiagnostic(response({ detail: failureMessage, partial_result: partial }, false));
+await failed;
+assert.equal(summary.textContent, t("diagnostics.partial_failure", { reads: 1, maxReads: 2, errors: 1 }));
+assert.equal(element("#error-queue-result").classList.contains("is-hidden"), false);
+assert.deepEqual(JSON.parse(details.textContent), { ...partial, message: failureMessage });
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+element("#locale-toggle").click();
+assert.equal(summary.textContent, t("diagnostics.partial_failure", { reads: 1, maxReads: 2, errors: 1 }));
+assert.deepEqual(JSON.parse(details.textContent), { ...partial, message: failureMessage });
 '''
     completed = run_node(script, STATIC_DIR / "app.js")
     assert completed.returncode == 0, completed.stderr

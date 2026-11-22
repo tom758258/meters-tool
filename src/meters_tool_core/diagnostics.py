@@ -19,7 +19,7 @@ from .support_policy import validate_product_live_connection
 
 DEFAULT_MAX_READS = 20
 ErrorQueueMode = Literal["real", "simulate", "dry-run"]
-ErrorQueueTermination = Literal["no_error", "max_reads", "dry_run"]
+ErrorQueueTermination = Literal["no_error", "max_reads", "dry_run", "failed"]
 
 
 @dataclass(frozen=True)
@@ -37,6 +37,12 @@ class ErrorQueueResult:
     termination: ErrorQueueTermination
     queue_cleared: bool
     errors: tuple[ScpiError, ...]
+
+
+class ErrorQueueReadError(InstrumentError):
+    def __init__(self, message: str, partial_result: ErrorQueueResult):
+        super().__init__(message)
+        self.partial_result = partial_result
 
 
 def _parse_scpi_error(reply: str) -> ScpiError:
@@ -89,6 +95,9 @@ def read_error_queue(
         resource = f"SIM::{profile.model}"
 
     config = InstrumentConfig(resource, expected_model=expected_model, visa_library=visa_library)
+    detected_model = None
+    reads = 0
+    errors: list[ScpiError] = []
     try:
         with ExitStack() as stack:
             if mode == "simulate":
@@ -111,18 +120,27 @@ def read_error_queue(
                 )
             if mode == "real":
                 validate_product_live_connection(resource, visa_library, detected)
-            errors = []
-            for reads in range(1, max_reads + 1):
+            detected_model = detected.model
+            while reads < max_reads:
                 entry = _parse_scpi_error(str(instrument.query("SYST:ERR?")))
+                reads += 1
                 if entry.code == 0:
                     return ErrorQueueResult(
-                        mode, detected.model, max_reads, reads, "no_error", True, tuple(errors)
+                        mode, detected_model, max_reads, reads, "no_error", True, tuple(errors)
                     )
                 errors.append(entry)
             return ErrorQueueResult(
-                mode, detected.model, max_reads, max_reads, "max_reads", False, tuple(errors)
+                mode, detected_model, max_reads, reads, "max_reads", False, tuple(errors)
             )
-    except (ValueError, InstrumentError):
-        raise
     except Exception as exc:
-        raise InstrumentError(f"failed to read SCPI error queue: {exc}") from exc
+        if not errors and isinstance(exc, (ValueError, InstrumentError)):
+            raise
+        message = (
+            str(exc) if isinstance(exc, InstrumentError) else f"failed to read SCPI error queue: {exc}"
+        )
+        if errors and detected_model is not None:
+            partial_result = ErrorQueueResult(
+                mode, detected_model, max_reads, reads, "failed", False, tuple(errors)
+            )
+            raise ErrorQueueReadError(message, partial_result) from exc
+        raise InstrumentError(message) from exc

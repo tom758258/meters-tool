@@ -6,7 +6,7 @@ export async function api(path, options = {}) {
   const text = await response.text();
   const payload = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    throw new Error(formatApiError(payload, response.statusText));
+    throw Object.assign(new Error(formatApiError(payload, response.statusText)), { payload });
   }
   return payload;
 }

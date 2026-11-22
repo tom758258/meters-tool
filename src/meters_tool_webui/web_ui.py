@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import json
 import logging
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
@@ -17,6 +18,8 @@ except ImportError as exc:  # pragma: no cover - exercised only without web deps
         'Web UI dependencies are not installed. Run: uv pip install -e ".[webui]" --link-mode=copy'
     ) from exc
 
+from meters_tool_core.diagnostics import ErrorQueueReadError
+from meters_tool_core.instrument import InstrumentError
 from meters_tool_webui._run_manager import (
     CsvFolderSelectionUnavailable as CsvFolderSelectionUnavailable,
     ErrorQueueRequest,
@@ -136,10 +139,19 @@ def create_app(
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    @app.post("/api/diagnostics/error-queue")
-    def api_error_queue(request: ErrorQueueRequest) -> dict[str, Any]:
+    @app.post("/api/diagnostics/error-queue", response_model=None)
+    def api_error_queue(request: ErrorQueueRequest) -> dict[str, Any] | JSONResponse:
         try:
             return app.state.manager.read_errors(request)
+        except ErrorQueueReadError as exc:
+            return JSONResponse(
+                status_code=RunConnectionError.status_code,
+                content={"detail": str(exc), "partial_result": asdict(exc.partial_result)},
+            )
+        except InstrumentError as exc:
+            raise HTTPException(status_code=RunConnectionError.status_code, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=RunValidationError.status_code, detail=str(exc)) from exc
         except WebRunError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 

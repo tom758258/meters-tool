@@ -37,6 +37,33 @@ def test_read_errors_text_reports_entry_and_limit(monkeypatch, capsys):
     factory.return_value.open_resource.assert_called_once_with(resource)
 
 
+@pytest.mark.parametrize("options", [[], ["--json"]], ids=["text", "json"])
+def test_read_errors_keeps_consumed_entry_on_failed_query(monkeypatch, capsys, options):
+    factory = Mock()
+    factory.return_value.open_resource.return_value.query.side_effect = [
+        "Keysight Technologies,34461A,FAKE,1.0", '-113,"Undefined header"', TimeoutError("timed out")
+    ]
+    monkeypatch.setattr("meters_tool_core.diagnostics._create_resource_manager", factory)
+    assert main(["read-errors", "--resource", "USB::FAKE::INSTR", "--max-reads", "3", *options]) == 3
+    stdout, stderr = capsys.readouterr()
+    if options:
+        assert not stderr
+        result = json.loads(stdout)
+        assert result["event"] == result["status"] == "error"
+        assert result["exit_code"] == 3
+        assert "timed out" in result["message"]
+        partial = result["partial_result"]
+        assert partial["reads"] == 1
+        assert partial["max_reads"] == 3
+        assert partial["termination"] == "failed"
+        assert partial["queue_cleared"] is False
+        assert partial["errors"] == [{"code": -113, "message": "Undefined header"}]
+    else:
+        assert "-113: Undefined header" in stdout
+        assert "1/3" in stderr
+        assert "timed out" in stderr
+
+
 @pytest.mark.parametrize(
     "args", [[], ["--resource", "USB::FAKE::INSTR", "--max-reads", "1.5"]]
 )

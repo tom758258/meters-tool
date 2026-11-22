@@ -764,7 +764,12 @@ readErrorQueueButton?.addEventListener("click", async () => {
     });
     renderErrorQueueStatus(`diagnostics.${result.termination}`, result);
   } catch (error) {
-    renderErrorQueueStatus("diagnostics.failed", null, error.message);
+    const partialResult = error.payload?.partial_result;
+    if (partialResult) {
+      renderErrorQueueStatus("diagnostics.partial_failure", { ...partialResult, message: error.message });
+    } else {
+      renderErrorQueueStatus("diagnostics.failed", null, error.message);
+    }
   } finally {
     executionRequestPending = false;
     updateExecutionModePresentation();

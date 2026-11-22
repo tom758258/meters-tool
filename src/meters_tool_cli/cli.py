@@ -31,7 +31,7 @@ from meters_tool_core._version import (
     FALLBACK_PACKAGE_VERSION,
     get_distribution_version,
 )
-from meters_tool_core.diagnostics import read_error_queue
+from meters_tool_core.diagnostics import ErrorQueueReadError, read_error_queue
 from meters_tool_core.instrument import InstrumentError, VisaInstrument
 from meters_tool_core.session import new_run_id
 from meters_tool_core.start_resolution import resolve_start_profile
@@ -570,12 +570,22 @@ def cmd_read_errors(args: argparse.Namespace) -> int:
         )
     except (ValueError, InstrumentError) as exc:
         exit_code = 2 if isinstance(exc, ValueError) else 3
+        partial_result = exc.partial_result if isinstance(exc, ErrorQueueReadError) else None
         if args.output_format == "json":
+            if partial_result is not None:
+                payload["partial_result"] = asdict(partial_result)
             print(json.dumps({
                 **payload, "event": "error", "status": "error",
                 "message": str(exc), "exit_code": exit_code,
             }))
         else:
+            if partial_result is not None:
+                for entry in partial_result.errors:
+                    print(f"{entry.code}: {entry.message}")
+                print(
+                    f"{partial_result.reads}/{partial_result.max_reads} reads completed. Queue not confirmed empty.",
+                    file=sys.stderr,
+                )
             print(f"error: {exc}", file=sys.stderr)
         return exit_code
 

@@ -245,7 +245,11 @@ Dry-run emits `event`, `status`, and `termination` equal to `"dry_run"`,
 with zero reads, an empty `errors` array and `queue_cleared: false`.
 A rejected request or instrument failure emits `event: "error"`,
 `status: "error"`, `message`, and `exit_code` (`2` for validation and `3`
-for instrument communication or an invalid reply).
+for instrument communication or an invalid reply). If the query already
+retrieved any errors, the same error object includes `partial_result` with the
+result fields above. Its `reads` counts parsed replies before failure, its
+`termination` is `"failed"`, and `queue_cleared` is `false`. The error message
+and exit code still describe the failure.
 
 ### Tool Manifest
 

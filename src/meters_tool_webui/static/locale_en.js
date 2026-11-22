@@ -61,6 +61,7 @@ export const EN_MESSAGES = Object.freeze({
   "diagnostics.invalid_max_reads": "Enter a positive whole number for Max reads.",
   "diagnostics.resource_required": "Select or enter a VISA resource before reading the Error Queue.",
   "diagnostics.failed": "SCPI Error Queue query failed. See Show Details.",
+  "diagnostics.partial_failure": "SCPI Error Queue query failed after {reads}/{maxReads} reads. The queue may still contain errors. See Show Details for the {errors} retrieved error(s).",
   "diagnostics.no_error": "SCPI Error Queue · {model} ({mode}) · {errors} error(s) in {reads}/{maxReads} reads. Queue confirmed empty.",
   "diagnostics.max_reads": "SCPI Error Queue · {model} ({mode}) · {errors} error(s) in {reads}/{maxReads} reads. Read limit reached. The queue may still contain errors.",
   "diagnostics.dry_run": "SCPI Error Queue · {model} ({mode}) · Would query the identity and read the queue up to {maxReads} times. No VISA I/O.",

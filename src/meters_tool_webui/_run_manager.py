@@ -552,10 +552,6 @@ class WebRunManager:
                 max_reads=request.max_reads,
                 mode=request.mode,
             ))
-        except ValueError as exc:
-            raise RunValidationError(str(exc)) from exc
-        except InstrumentError as exc:
-            raise RunConnectionError(str(exc)) from exc
         finally:
             with self._status_cv:
                 self._reading_error_queue = None

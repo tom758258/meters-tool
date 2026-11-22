@@ -55,7 +55,9 @@ def test_diagnostic_blocks_measurement_through_close_and_releases_after_failure(
     release = Event()
     factory = Mock()
     instrument = factory.return_value.open_resource.return_value
-    instrument.query.side_effect = ["Keysight Technologies,34461A,FAKE,1.0", TimeoutError()]
+    instrument.query.side_effect = [
+        "Keysight Technologies,34461A,FAKE,1.0", '-113,"Undefined header"', TimeoutError("timed out")
+    ]
 
     def close():
         closing.set()
@@ -76,7 +78,19 @@ def test_diagnostic_blocks_measurement_through_close_and_releases_after_failure(
             assert client.post(DIAGNOSTIC, json={"mode": "simulate", "instrument_model": "34461A"}).status_code == 409
         finally:
             release.set()
-        assert diagnostic.result(timeout=5).status_code == 503
+        failure = diagnostic.result(timeout=5)
+        assert failure.status_code == 503
+        payload = failure.json()
+        assert "timed out" in payload["detail"]
+        assert payload["partial_result"] == {
+            "mode": "real",
+            "model": "34461A",
+            "max_reads": 3,
+            "reads": 1,
+            "termination": "failed",
+            "queue_cleared": False,
+            "errors": [{"code": -113, "message": "Undefined header"}],
+        }
 
     factory.assert_called_once_with("@py")
     assert client.post("/api/runs", json=RUN).status_code == 200
