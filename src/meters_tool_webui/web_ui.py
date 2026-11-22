@@ -93,6 +93,8 @@ def create_app(
             return app.state.manager.list_resources(
                 verify=verify, live_only=live_only, visa_library=visa_library
             )
+        except RunAlreadyActive as exc:
+            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         except Exception as exc:
             raise HTTPException(status_code=503, detail=str(exc)) from exc
 

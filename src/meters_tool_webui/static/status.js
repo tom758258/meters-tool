@@ -452,10 +452,13 @@ function updateRunControlButtons(status) {
   const active = Boolean(status?.active);
   const executionPending = startRunButton.dataset.executionPending === "true";
   updateStartButtonUi(active);
-  if (readErrorQueueButton) readErrorQueueButton.disabled = active || executionPending;
+  if (readErrorQueueButton) {
+    readErrorQueueButton.disabled =
+      active || executionPending || readErrorQueueButton.dataset.scanPending === "true";
+  }
   if (visaLibrarySelect) visaLibrarySelect.disabled = active || executionPending;
   refreshResourcesButton.disabled =
-    active || refreshResourcesButton.dataset.executionDisabled === "true";
+    active || executionPending || refreshResourcesButton.dataset.executionDisabled === "true";
   for (const input of executionModeInputs) {
     input.disabled = active || executionPending;
   }

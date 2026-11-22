@@ -84,6 +84,63 @@ def test_diagnostic_blocks_measurement_through_close_and_releases_after_failure(
     assert not wait_until_inactive(client)["active"]
 
 
+@pytest.mark.parametrize("first_operation", ["scan", "diagnostic"])
+def test_live_diagnostic_and_resource_scan_do_not_overlap(monkeypatch, first_operation):
+    resource = "TCPIP::meter.example::INSTR"
+    idn = "Keysight Technologies,34461A,FAKE,1.0"
+    scan_path = "/api/resources?verify=true&live_only=true&visa_library=%40py"
+    entered = Event()
+    release = Event()
+
+    def hold_session():
+        entered.set()
+        assert release.wait(5)
+
+    enumerate_resources = Mock(return_value=[resource])
+    verify = Mock(return_value=(True, idn))
+    factory = Mock()
+    manager = factory.return_value
+    instrument = manager.open_resource.return_value
+    instrument.query.side_effect = [idn, '0,"No error"']
+
+    if first_operation == "scan":
+        def verify_resource(*args, **kwargs):
+            hold_session()
+            return True, idn
+
+        verify.side_effect = verify_resource
+    else:
+        manager.close.side_effect = hold_session
+
+    monkeypatch.setattr(_run_manager.VisaInstrument, "list_resources", enumerate_resources)
+    monkeypatch.setattr(_run_manager.VisaInstrument, "verify_resource", verify)
+    monkeypatch.setattr("meters_tool_core.diagnostics._create_resource_manager", factory)
+    client = TestClient(create_app())
+
+    def scan():
+        return client.get(scan_path)
+
+    def diagnose():
+        return client.post(DIAGNOSTIC, json={"resource": resource, "visa_library": "@py"})
+
+    with ThreadPoolExecutor() as executor:
+        first = executor.submit(scan if first_operation == "scan" else diagnose)
+        try:
+            assert entered.wait(5)
+            if first_operation == "scan":
+                assert diagnose().status_code == 409
+                factory.assert_not_called()
+            else:
+                assert scan().status_code == 409
+                enumerate_resources.assert_not_called()
+        finally:
+            release.set()
+        assert first.result(timeout=5).status_code == 200
+
+    second = diagnose if first_operation == "scan" else scan
+    assert second().status_code == 200
+
+
 def test_measurement_blocks_diagnostic_during_start_run_and_cleanup(monkeypatch):
     resolving = Event()
     allow_start = Event()

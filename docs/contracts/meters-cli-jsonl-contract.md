@@ -159,6 +159,7 @@ These commands accept `--format json` and the `--json` alias:
 - `capabilities`
 - `list-resources`
 - `manifest`
+- `read-errors`
 - `send-command`
 - `stop`
 - `status`
@@ -169,6 +170,7 @@ Alias rules:
 - `capabilities --json` is the same as `--format json`
 - `list-resources --json` is the same as `--format json`
 - `manifest --json` is the same as `--format json`
+- `read-errors --json` is the same as `--format json`
 - `send-command --json` is the same as `--format json`
 - `stop --json` is the same as `--format json`
 - `status --json` is the same as `--format json`

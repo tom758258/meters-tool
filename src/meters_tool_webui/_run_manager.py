@@ -289,7 +289,8 @@ class WebRunManager:
         self._lock = threading.Lock()
         self._active: _RunHandle | None = None
         self._starting = False
-        self._reading_error_queue = False
+        self._reading_error_queue: ErrorQueueMode | None = None
+        self._resource_scans = 0
         self._shutdown_requested = False
         self._last_status = self._idle_status()
         self._status_version = 0
@@ -390,32 +391,41 @@ class WebRunManager:
     ) -> dict[str, Any]:
         if visa_library not in (None, "", "@py"):
             raise RunValidationError("visa_library must be empty or @py")
-        backend_options = {"visa_library": visa_library} if visa_library else {}
-        effective_verify = bool(verify or live_only)
-        resources: list[dict[str, Any]] = []
-        for resource in VisaInstrument.list_resources(**backend_options):
-            if visa_library == "@py" and VisaInstrument.infer_transport(resource) != Transport.LAN:
-                continue
-            if not effective_verify:
-                resources.append({"resource": resource})
-                continue
-            live, detail = VisaInstrument.verify_resource(resource, **backend_options)
-            if live_only and not live:
-                continue
-            resources.append(
-                {
-                    "resource": resource,
-                    "live": live,
-                    "status": "live" if live else "stale",
-                    "detail": detail,
-                    **resource_model_metadata(detail if live else None),
-                }
-            )
-        return {
-            "resources": resources,
-            "verify": effective_verify,
-            "live_only": bool(live_only),
-        }
+        # VISA can share a resource manager between the scan and diagnostic.
+        with self._lock:
+            if self._reading_error_queue == "real":
+                raise RunAlreadyActive("device scanning cannot run during a live SCPI error queue diagnostic")
+            self._resource_scans += 1
+        try:
+            backend_options = {"visa_library": visa_library} if visa_library else {}
+            effective_verify = bool(verify or live_only)
+            resources: list[dict[str, Any]] = []
+            for resource in VisaInstrument.list_resources(**backend_options):
+                if visa_library == "@py" and VisaInstrument.infer_transport(resource) != Transport.LAN:
+                    continue
+                if not effective_verify:
+                    resources.append({"resource": resource})
+                    continue
+                live, detail = VisaInstrument.verify_resource(resource, **backend_options)
+                if live_only and not live:
+                    continue
+                resources.append(
+                    {
+                        "resource": resource,
+                        "live": live,
+                        "status": "live" if live else "stale",
+                        "detail": detail,
+                        **resource_model_metadata(detail if live else None),
+                    }
+                )
+            return {
+                "resources": resources,
+                "verify": effective_verify,
+                "live_only": bool(live_only),
+            }
+        finally:
+            with self._lock:
+                self._resource_scans -= 1
 
     def start(self, request: RunStartRequest) -> dict[str, Any]:
         with self._lock:
@@ -531,7 +541,9 @@ class WebRunManager:
                 raise RunAlreadyActive("an SCPI error queue diagnostic cannot run during a measurement")
             if self._reading_error_queue:
                 raise RunAlreadyActive("an SCPI error queue diagnostic is already active")
-            self._reading_error_queue = True
+            if request.mode == "real" and self._resource_scans:
+                raise RunAlreadyActive("a live SCPI error queue diagnostic cannot run during device scanning")
+            self._reading_error_queue = request.mode
         try:
             return asdict(read_error_queue(
                 request.resource,
@@ -546,7 +558,7 @@ class WebRunManager:
             raise RunConnectionError(str(exc)) from exc
         finally:
             with self._status_cv:
-                self._reading_error_queue = False
+                self._reading_error_queue = None
                 self._status_cv.notify_all()
 
     def plan(self, request: RunStartRequest) -> dict[str, Any]:

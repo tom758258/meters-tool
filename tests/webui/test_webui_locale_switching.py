@@ -612,7 +612,9 @@ const result = {
 };
 let diagnosticPayload;
 let finishDiagnostic;
+let finishScan;
 let startRequests = 0;
+let scanRequests = 0;
 globalThis.fetch = async (path, options) => {
   if (String(path).includes("/api/capabilities")) {
     return response({ detail: "capabilities unavailable" }, false);
@@ -622,16 +624,53 @@ globalThis.fetch = async (path, options) => {
     diagnosticPayload = JSON.parse(options.body);
     return new Promise((resolve) => { finishDiagnostic = resolve; });
   }
+  if (String(path).startsWith("/api/resources?")) {
+    scanRequests += 1;
+    return new Promise((resolve) => { finishScan = resolve; });
+  }
   if (path === "/api/runs") startRequests += 1;
   throw new Error(`Unexpected request ${path}`);
 };
 
 element("#resource").value = "TCPIP0::meter.example::INSTR";
 element("#visa-library").value = "@py";
-element("#error-queue-max-reads").value = "2";
 await import(appUrl);
 await new Promise((resolve) => setTimeout(resolve, 0));
-const read = element("#read-error-queue").listeners.get("click");
+const { t } = await import(new URL("./i18n.js", appUrl));
+const status = await import(new URL("./status.js", appUrl));
+const field = element("#error-queue-max-reads");
+const scanButton = element("#refresh-resources");
+const diagnosticButton = element("#read-error-queue");
+const scan = scanButton.listeners.get("click");
+const read = diagnosticButton.listeners.get("click");
+
+field.value = "0";
+let reportedValidationMessage;
+field.reportValidity = () => {
+  reportedValidationMessage = field.validationMessage;
+};
+await read();
+const englishValidationMessage = reportedValidationMessage;
+assert.equal(englishValidationMessage, t("diagnostics.invalid_max_reads"));
+element("#locale-toggle").click();
+await read();
+assert.equal(documentElement.lang, "zh-TW");
+assert.equal(reportedValidationMessage, t("diagnostics.invalid_max_reads"));
+assert.notEqual(reportedValidationMessage, englishValidationMessage);
+assert.equal(diagnosticPayload, undefined);
+element("#locale-toggle").click();
+
+field.value = "2";
+field.listeners.get("input")();
+const scanning = scan();
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+assert.equal(diagnosticButton.disabled, true);
+await read();
+assert.equal(diagnosticPayload, undefined);
+finishScan(response({ resources: [] }));
+await scanning;
+assert.equal(diagnosticButton.disabled, false);
+
 const pending = read();
 assert.deepEqual(diagnosticPayload, {
   mode: "real",
@@ -643,8 +682,13 @@ assert.deepEqual(diagnosticPayload, {
 assert.equal(element("#start-run").disabled, true);
 await element("#start-run").listeners.get("click")();
 assert.equal(startRequests, 0);
+status.renderStatus({ active: false, state: "idle", recent_samples: [] });
+assert.equal(scanButton.disabled, true);
+await scan();
+assert.equal(scanRequests, 1);
 finishDiagnostic(response(result));
 await pending;
+assert.equal(scanButton.disabled, false);
 
 const summary = element("#error-queue-summary");
 const details = element("#error-queue-details");
@@ -657,7 +701,6 @@ element("#toggle-status-details").click();
 assert.equal(element("#status-details").classList.contains("is-hidden"), false);
 assert.equal(element("#error-queue-result").classList.contains("is-hidden"), false);
 
-const status = await import(new URL("./status.js", appUrl));
 status.renderStatus({ active: true, state: "running", errors: 7, recent_samples: [] });
 assert.equal(element("#read-error-queue").disabled, true);
 assert.equal(element("#status-errors").textContent, "7");
