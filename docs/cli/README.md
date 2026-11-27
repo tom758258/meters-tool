@@ -75,6 +75,8 @@ Implemented:
 - Software trigger metadata persisted to CSV as `trigger_metadata`.
 - UTC+8 timestamped CSV output by default, with explicit opt-out through
   `--no-csv`.
+- Manual SCPI Error Queue diagnostics with `read-errors` on supported live
+  connections, with simulation, dry-run, and standalone JSON output.
 - Optional resource verification with `list-resources --verify`.
 - Optional live-resource filtering with `list-resources --live-only`.
 - Optional PyVISA library/backend selection for VISA-opening CLI commands in a
@@ -612,6 +614,7 @@ The module form remains an explicit development/fallback alternative:
 | `capabilities` | Print Core-owned instrument capabilities and Product support metadata without instrument I/O. | Let scripts inspect profiles, measurements, trigger modes, limits, and exact support scopes before constructing a request. |
 | `manifest` | Print the static tool manifest with tool identity and worker protocol compatibility without instrument or runtime I/O. | Let orchestrators introspect `tool_id`, `tool_version`, and supported worker schema versions before launching a worker. |
 | `list-resources` | Print VISA resources discovered by PyVISA. | Find the USB or LAN resource string. Add `--verify` to query `*IDN?`; add `--live-only` to hide stale cached resources; add `--dry-run` to preview discovery actions without touching VISA. |
+| `read-errors` | Read and consume SCPI Error Queue entries. | Diagnose SCPI or instrument errors after stopping acquisition; use `--simulate` or `--dry-run` for offline checks. |
 | `start-trigger-record` | Connect to the instrument and record samples to CSV. | Main logging command. |
 | `send-command` | POST one `software_trigger` command to the local command endpoint. | Used with `--trigger-mode software`. |
 | `stop` | POST a graceful stop request to the local stop endpoint. | Stop a running logger from another terminal. |
@@ -688,6 +691,29 @@ for the Worker fields and compatibility requirements.
 | `--serial-write-termination VALUE` | CLI discovery/verification compatibility setting for ASRL resources only. Accepted values are `CRLF`, `LF`, `CR`, and `NONE`. It maps to the PyVISA session `write_termination` before querying `*IDN?`; it is not an acquisition setting. |
 | `--format json` | Emit one JSON object for scripts. Can be combined with `--verify` or `--live-only`. |
 | `--json` | Alias for `--format json`. |
+
+`read-errors` options:
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `--resource RESOURCE` | unset | Explicit VISA resource, required for live diagnostics. Offline modes can use a model-specific simulator resource instead of `--model`. |
+| `--model MODEL` | unset | Expected live model (a mismatch with detected IDN is rejected), or model for simulation/dry-run. Offline modes require a supported model or model-specific simulator resource. |
+| `--max-reads N` | `20` | Positive integer; maximum number of `SYST:ERR?` queries, including any terminating zero-code reply. |
+| `--visa-library TEXT`, `--backend TEXT` | System VISA | Select the VISA backend; no automatic fallback. Live diagnostics require a supported model/transport/backend connection. |
+| `--simulate` | Off | Read a simulated queue without physical VISA I/O. |
+| `--dry-run` | Off | Preview diagnostic queries without VISA I/O or consuming entries. Mutually exclusive with `--simulate`. |
+| `--format text\|json` | `text` | Human-readable summary or one structured JSON response. |
+| `--json` | Off | Alias for `--format json`. |
+
+Live `read-errors` uses a dedicated session, detects the model with `*IDN?`,
+checks the Core Product connection policy, and reads up to `--max-reads`
+replies. Use an explicit resource, stop any measurement, and ensure exclusive
+control before running it. Do not run it alongside an acquisition or another
+live session. Each `SYST:ERR?` query removes a queued error; no `*CLS` or
+`*RST` is sent. Reading stops at the first zero-code reply (No error) or the
+read limit. A nonzero reply at the limit does not confirm that the queue is
+empty. See [Supported Models](../core/supported-models.md) for connection
+restrictions; this command does not expand Product support.
 
 `send-command` options:
 
@@ -966,6 +992,34 @@ HTTP `200`, `worker_state: "running"`, and `fatal_error: null`. It adds
 object. If readiness is not reached before the deadline, including invalid or
 incompatible status responses, it exits with code 3.
 
+### read-errors --format json
+
+`read-errors --json` (or `--format json`) emits one standalone CLI schema `2`
+object, not a Worker schema `3` response. It includes `command: "read-errors"`.
+A completed query has `event: "read-errors"` and `status: "ok"`, with `mode`,
+`model`, `max_reads`, `reads`, `termination`, `queue_cleared`, and ordered
+`errors` entries containing integer `code` and string `message`. `reads`
+includes the terminating zero-code reply when present; that reply is not
+included in `errors`.
+
+| Outcome | `termination` | `queue_cleared` | Exit code |
+| --- | --- | --- | --- |
+| Zero-code reply | `no_error` | `true` | `0` |
+| Nonzero reply at read limit | `max_reads` | `false` | `0` |
+| Dry-run (zero reads, empty `errors`) | `dry_run` | `false` | `0` |
+| Validation/usage error | — | — | `2` |
+| Instrument communication failure or invalid reply | `failed` (in `partial_result`, if present) | `false` (in `partial_result`, if present) | `3` |
+
+Exit code `0` and `status: "ok"` indicate a completed query, not an absence
+of SCPI errors. Check `errors` for instrument errors and `queue_cleared` to
+confirm the queue was drained. Dry-run uses `event: "dry_run"` and
+`status: "dry_run"`. A rejected request or instrument failure emits
+`event: "error"`, `status: "error"`, `message`, and `exit_code`. If errors
+were already retrieved, `partial_result` preserves them and counts parsed
+replies before failure. Do not assume a failed query left the queue unchanged.
+See the [CLI JSON / JSONL Contract](../contracts/meters-cli-jsonl-contract.md#scpi-error-queue)
+for the response contract.
+
 ### Exit Codes
 
 | Code | Meaning |
@@ -995,6 +1049,7 @@ ranges fail fast with a clear error.
 | `--sw-trigger-port` | `0`, or `1024` to `65535`; `0` lets the server choose |
 | `--sw-min-interval-ms` | `0`, or `50` to `600000`; `0` disables throttling |
 | `--sw-queue-max` | `0` to `10000`; `0` uses the default safety cap |
+| `read-errors --max-reads` | Positive integer (`>= 1`); default `20` |
 | `--max-samples` | `1` to `1000000`, simple modes only |
 | `--trigger-count`, `--sample-count` | `1` to `1000000`, custom modes only |
 | `--timer-interval-s` | `0.5` to `86400` seconds, software mode only |
@@ -1224,6 +1279,31 @@ TCPIP0::...::hislip0::INSTR
 
 Copy actual values directly from VISA discovery output; do not construct
 resource strings manually.
+
+### Read the SCPI Error Queue
+
+After stopping acquisition and ensuring exclusive control, use the explicit
+VISA resource supplied by the operator. These reads consume queued errors;
+capture the output before repeating the command. Choose text or JSON output
+(the two commands are alternatives).
+
+```powershell
+.\.venv\Scripts\meters-tool.exe read-errors --resource "<VISA_RESOURCE>" --max-reads 20
+.\.venv\Scripts\meters-tool.exe read-errors --resource "<VISA_RESOURCE>" --max-reads 20 --json
+```
+
+For a supported 34461A TCPIP connection using PyVISA-py:
+
+```powershell
+.\.venv\Scripts\meters-tool.exe read-errors --resource "<VISA_RESOURCE>" --visa-library "@py" --json
+```
+
+For offline development without a physical instrument:
+
+```powershell
+.\.venv\Scripts\meters-tool.exe read-errors --simulate --model 34461A
+.\.venv\Scripts\meters-tool.exe read-errors --dry-run --model 34461A
+```
 
 ### Real-Instrument Acquisition Path
 
