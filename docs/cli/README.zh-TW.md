@@ -53,6 +53,7 @@ Python 整合應從 `meters_tool_core` 或 `meters_tool_core.*` 匯入共享的 
 - 透過 HTTP、Ctrl+C、Ctrl+Break 或 `q` 進行正常停止。
 - 軟體觸發 metadata 可在選擇 Full CSV 時儲存至 `trigger_metadata`。
 - 預設產生 UTC+8 時間戳記 CSV，並可透過 `--no-csv` 明確停用。
+- 透過 `read-errors` 在支援的實機連線上手動診斷 SCPI 錯誤佇列（Error Queue），並支援模擬、dry-run 與獨立 JSON 輸出。
 - 透過 `list-resources --verify` 進行選用的資源驗證。
 - 透過 `list-resources --live-only` 進行選用的作用中資源篩選。
 - 在開發或已安裝的 Python 環境中，對會開啟 VISA 的 CLI 指令透過 `--visa-library` 提供選用的 PyVISA library/backend 選擇，並以 `--backend` 作為別名。
@@ -494,6 +495,7 @@ uv run meters-tool start-trigger-record `
 | `capabilities` | 列印由 Core 管理的儀器能力與產品支援中繼資料，不執行儀器 I/O。 | 讓腳本在建構請求前檢查設定檔、量測、觸發模式、限制與精確支援範圍。 |
 | `manifest` | 列印靜態工具 manifest，包含工具識別與 worker protocol 相容性，不執行儀器或執行階段 I/O。 | 讓 orchestrator 在啟動 worker 前檢視 `tool_id`、`tool_version` 與支援的 worker schema 版本。 |
 | `list-resources` | 列印由 PyVISA 偵測到的 VISA 資源。 | 尋找 USB 或 LAN 資源字串。加入 `--verify` 以查詢 `*IDN?`；加入 `--live-only` 以隱藏過期的快取資源；加入 `--dry-run` 以預覽探測動作而不接觸 VISA。 |
+| `read-errors` | 讀取並消耗 SCPI 錯誤佇列中的項目。 | 停止擷取後診斷 SCPI 或儀器錯誤；使用 `--simulate` 或 `--dry-run` 進行離線檢查。 |
 | `start-trigger-record` | 連接到儀器並記錄樣本到 CSV。 | 主要記錄指令。 |
 | `send-command` | 將一個 `software_trigger` 指令 POST 到本機指令端點。 | 與 `--trigger-mode software` 配合使用。 |
 | `stop` | 將正常停止請求 POST 到本機停止端點。 | 從另一個終端機停止執行中的記錄器。 |
@@ -558,6 +560,21 @@ Manifest schema 維持 `2`。獨立 CLI 單次回應 JSON 與 dry-run 預覽維�
 | `--serial-write-termination VALUE` | 僅適用於 ASRL 資源的 CLI 探測/驗證相容性設定。接受 `CRLF`、`LF`、`CR` 與 `NONE`。查詢 `*IDN?` 前會將它映射到 PyVISA session 的 `write_termination`；不是擷取設定。 |
 | `--format json` | 為腳本發出一個 JSON 物件。可與 `--verify` 或 `--live-only` 結合使用。 |
 | `--json` | `--format json` 的別名。 |
+
+`read-errors` 選項：
+
+| 選項 | 預設值 | 說明 |
+| --- | --- | --- |
+| `--resource RESOURCE` | 未設定 | 明確指定 VISA 資源；實機診斷必填。離線模式可使用型號專屬的模擬器資源代替 `--model`。 |
+| `--model MODEL` | 未設定 | 實機診斷的預期型號（若與偵測到的 IDN 不符則拒絕），或模擬/dry-run 的型號。離線模式需要支援的型號或型號專屬的模擬器資源。 |
+| `--max-reads N` | `20` | 正整數；`SYST:ERR?` 最大查詢次數，包含終止讀取的零代碼回覆（若有）。 |
+| `--visa-library TEXT`、`--backend TEXT` | System VISA | 選擇 VISA backend；不會自動切換備援 backend。實機診斷需要支援的型號／傳輸／後端連線。 |
+| `--simulate` | 關閉 | 讀取模擬佇列，不執行實體 VISA I/O。 |
+| `--dry-run` | 關閉 | 預覽診斷查詢，不執行 VISA I/O 或消耗佇列項目。與 `--simulate` 互斥。 |
+| `--format text\|json` | `text` | 人類可讀摘要或單一結構化 JSON 回應。 |
+| `--json` | 關閉 | `--format json` 的別名。 |
+
+實機 `read-errors` 使用專用工作階段，以 `*IDN?` 偵測型號，檢查 Core 產品連線支援政策，並讀取最多 `--max-reads` 筆回覆。執行前須明確指定資源、停止任何量測，並確保獨占儀器控制權。不可與擷取或其他實機工作階段同時執行。每次 `SYST:ERR?` 查詢會移除一筆佇列錯誤；不會傳送 `*CLS` 或 `*RST`。讀到第一筆零代碼回覆（No error）或達到讀取上限時停止。若最後一筆回覆為非零代碼且達到上限，則尚未確認佇列已清空。連線限制請參閱 [Supported Models](../core/supported-models.md)；此指令不會擴大產品支援範圍。
 
 `send-command` 選項：
 
@@ -784,6 +801,20 @@ JSONL 輸出是每行一個 JSON 物件。這是專為 Agent 和腳本設計的�
 
 `wait-ready` 要求 `/status` 回傳有效的 Worker schema `3` 回應，且 HTTP 為 `200`、`worker_state: "running"`、`fatal_error: null`。它將 `attempts`、`elapsed_ms` 和 `timeout_ms` 加入 schema `2` 的正規化狀態物件。若期限內未達就緒條件，包括狀態回應無效或不相容，則以代碼 3 退出。
 
+### read-errors --format json
+
+`read-errors --json`（或 `--format json`）輸出單一獨立 CLI schema `2` 物件，不是 Worker schema `3` 回應。其中包含 `command: "read-errors"`。完成查詢時，`event: "read-errors"` 與 `status: "ok"`，並回報 `mode`、`model`、`max_reads`、`reads`、`termination`、`queue_cleared`，以及依讀取順序排列的 `errors` 項目（包含整數 `code` 與字串 `message`）。`reads` 包含終止讀取的零代碼回覆（若有），但該回覆不列入 `errors`。
+
+| 結果 | `termination` | `queue_cleared` | 結束代碼 |
+| --- | --- | --- | --- |
+| 零代碼回覆 | `no_error` | `true` | `0` |
+| 非零代碼回覆且達到讀取上限 | `max_reads` | `false` | `0` |
+| Dry-run（零次讀取、空的 `errors`） | `dry_run` | `false` | `0` |
+| 驗證／使用錯誤 | — | — | `2` |
+| 儀器通訊失敗或無效回覆 | `failed`（若有 `partial_result`，位於其中） | `false`（若有 `partial_result`，位於其中） | `3` |
+
+結束代碼 `0` 與 `status: "ok"` 代表查詢完成，不代表沒有 SCPI 錯誤。請檢查 `errors` 判斷儀器錯誤，並以 `queue_cleared` 確認佇列是否已清空。Dry-run 使用 `event: "dry_run"` 與 `status: "dry_run"`。請求被拒絕或儀器操作失敗時，回傳 `event: "error"`、`status: "error"`、`message` 與 `exit_code`。若已讀取錯誤，`partial_result` 會保留這些項目，並計算失敗前成功解析的回覆次數。請勿假設查詢失敗時佇列未發生變化。回應合約請參閱 [CLI JSON / JSONL Contract](../contracts/meters-cli-jsonl-contract.md#scpi-error-queue)。
+
 ### 結束代碼 (Exit Codes)
 
 | 代碼 | 意義 |
@@ -811,6 +842,7 @@ CLI 在開啟儀器前會驗證使用者輸入。超出這些範圍的值將快�
 | `--sw-trigger-port` | `0` 或 `1024` 到 `65535`；`0` 讓伺服器自行選擇 |
 | `--sw-min-interval-ms` | `0` 或 `50` 到 `600000`；`0` 停用節流 |
 | `--sw-queue-max` | `0` 到 `10000`；`0` 使用預設安全限制 |
+| `read-errors --max-reads` | 正整數（`>= 1`）；預設 `20` |
 | `--max-samples` | `1` 到 `1000000`（僅限簡單模式） |
 | `--trigger-count`, `--sample-count` | `1` 到 `1000000`（僅限自訂模式） |
 | `--timer-interval-s` | `0.5` 到 `86400` 秒（僅限軟體模式） |
@@ -979,6 +1011,28 @@ TCPIP0::...::hislip0::INSTR
 
 請直接從 VISA 探測輸出複製實際值，不要手動組合資源字串。
 
+
+### 讀取 SCPI 錯誤佇列
+
+停止擷取並確保獨占儀器控制權後，使用操作人員明確提供的 VISA 資源進行診斷。這些讀取會消耗佇列中的錯誤；重複執行指令前請先保存輸出。以下兩個指令分別使用文字或 JSON 輸出，擇一執行即可。
+
+```powershell
+.\.venv\Scripts\meters-tool.exe read-errors --resource "<VISA_RESOURCE>" --max-reads 20
+.\.venv\Scripts\meters-tool.exe read-errors --resource "<VISA_RESOURCE>" --max-reads 20 --json
+```
+
+使用 PyVISA-py 的受支援 34461A TCPIP 連線：
+
+```powershell
+.\.venv\Scripts\meters-tool.exe read-errors --resource "<VISA_RESOURCE>" --visa-library "@py" --json
+```
+
+不使用實體儀器的離線開發：
+
+```powershell
+.\.venv\Scripts\meters-tool.exe read-errors --simulate --model 34461A
+.\.venv\Scripts\meters-tool.exe read-errors --dry-run --model 34461A
+```
 
 ### 實機擷取路徑
 
